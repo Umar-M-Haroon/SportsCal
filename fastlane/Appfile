@@ -1,0 +1,8 @@
+app_identifier("com.KomodoLLC.SportsCal") # The bundle identifier of your app
+apple_id("admin@komodollc.com") # Your Apple email address
+
+itc_team_id("120059505") # App Store Connect Team ID
+team_id("9GDU5ZNHX7") # Developer Portal Team ID
+
+# For more information about the Appfile, see:
+#     https://docs.fastlane.tools/advanced/#appfile

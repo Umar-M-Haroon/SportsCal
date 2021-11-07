@@ -1,0 +1,27 @@
+import Foundation
+
+enum CompetitionName: String, Codable {
+    case bundesliga = "Bundesliga"
+    case bundesliga2122 = "Bundesliga 21/22"
+    case championship = "Championship"
+    case championship2122 = "Championship 21/22"
+    case coppaItalia = "Coppa Italia"
+    case coppaItalia2122 = "Coppa Italia 21/22"
+    case eflCup = "EFL Cup"
+    case eflCup2122 = "EFL Cup 21/22"
+    case eredivisie = "Eredivisie"
+    case eredivisie2122 = "Eredivisie 21/22"
+    case laLiga = "LaLiga"
+    case laLiga2122 = "LaLiga 21/22"
+    case ligue1 = "Ligue 1"
+    case ligue12122 = "Ligue 1 21/22"
+    case premierLeague = "Premier League"
+    case premierLeague2122 = "Premier League 21/22"
+    case serieA = "Serie A"
+    case serieA2122 = "Serie A 21/22"
+    case soccer = "Soccer"
+    case uefaChampionsLeague = "UEFA Champions League"
+    case uefaChampionsLeague2122 = "UEFA Champions League 21/22"
+    case uefaChampionsLeague2122PreliminaryRound = "UEFA Champions League 21/22, Preliminary Round"
+    case uefaChampionsLeague2122Qualification = "UEFA Champions League 21/22, Qualification"
+}

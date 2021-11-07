@@ -1,0 +1,225 @@
+//
+//  Game.swift
+//  SportsCal
+//
+//  Created by Umar Haroon on 7/21/21.
+//
+
+import Foundation
+
+struct Game: Identifiable {
+    var home: String
+    var away: String
+    var gameDate: Date
+    var sport: SportTypes
+    var id: String
+    var competition: Competition? = nil
+    init(nbaGame: NBAGames) {
+        guard let homeTeam = nbaGame.home?.name,
+              let awayTeam = nbaGame.away?.name,
+              let scheduledDate = nbaGame.scheduled,
+              let id = nbaGame.id else {
+                  self.home = ""
+                  self.away = ""
+                  self.gameDate = Date()
+                  self.id = ""
+                  self.sport = .NBA
+                  return
+              }
+        self.home = homeTeam
+        self.away = awayTeam
+        self.gameDate = Date()
+        self.sport = .NBA
+        self.id = id
+        self.gameDate = format(scheduledDate)
+    }
+    init(nflGame: NFLGames) {
+        guard let homeTeam = nflGame.home?.name,
+              let awayTeam = nflGame.away?.name,
+              let scheduledDate = nflGame.scheduled,
+              let id = nflGame.id else {
+                  self.home = ""
+                  self.away = ""
+                  self.gameDate = Date()
+                  self.id = ""
+                  self.sport = .NFL
+                  return
+              }
+        self.home = homeTeam
+        self.away = awayTeam
+        self.gameDate = Date()
+        self.sport = .NFL
+        self.id = id
+        self.gameDate = format(scheduledDate)
+    }
+    
+    init(nhlGame: NHLGames) {
+        guard let homeTeam = nhlGame.home?.name,
+              let awayTeam = nhlGame.away?.name,
+              let scheduledDate = nhlGame.scheduled,
+              let id = nhlGame.id else {
+                  self.home = ""
+                  self.away = ""
+                  self.gameDate = Date()
+                  self.id = ""
+                  self.sport = .NHL
+                  return
+              }
+        self.home = homeTeam
+        self.away = awayTeam
+        self.gameDate = Date()
+        self.sport = .NHL
+        self.id = id
+        self.gameDate = format(scheduledDate)
+    }
+    init(mlbGame: MLBGames) {
+        guard let homeTeam = mlbGame.home?.name,
+              let awayTeam = mlbGame.away?.name,
+              let scheduledDate = mlbGame.scheduled,
+              let id = mlbGame.id else {
+                  self.home = ""
+                  self.away = ""
+                  self.gameDate = Date()
+                  self.id = ""
+                  self.sport = .MLB
+                  return
+              }
+        self.home = homeTeam
+        self.away = awayTeam
+        self.gameDate = Date()
+        self.sport = .MLB
+        self.id = id
+        self.gameDate = format(scheduledDate)
+    }
+    init(F1Stage: StageElement) {
+        self.home = F1Stage.stageDescription
+        self.away = ""
+        self.gameDate = Date()
+        self.sport = .F1
+        self.id = F1Stage.id
+        self.gameDate = format(F1Stage.scheduled)
+    }
+    init(SoccerGame: SportEvent) {
+        guard let homeName = SoccerGame.competitors.first(where: {$0.qualifier == .home})?.name,
+              let awayName = SoccerGame.competitors.first(where: {$0.qualifier == .away})?.name else {
+                  self.home = "Real Madrid"
+                  self.away = "FC Barcelona"
+                  self.gameDate = Date()
+                  self.sport = .Soccer
+                  self.id = SoccerGame.id
+                  return
+              }
+        self.home = homeName
+        self.away = awayName
+        self.gameDate = Date()
+        self.sport = .Soccer
+        self.id = SoccerGame.id
+        self.gameDate = format(SoccerGame.startTime)
+        self.competition = SoccerGame.sportEventContext.competition
+    }
+    
+    
+    func format(_ scheduleString: String) -> Date {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
+        guard let date = dateFormatter.date(from: scheduleString) else { return Date() }
+        return date
+    }
+    func sortByDate(games: [Game]) -> Array<(key: DateComponents, value: Array<Game>)>  {
+        let groupDic = Dictionary(grouping: games) { game -> DateComponents in
+            let date2 = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: game.gameDate)
+            return date2
+        }
+        let sorted = groupDic.sorted(by: {
+            if UserDefaults.standard.bool(forKey: "soonestOnTop") {
+                return $0.key.date! < $1.key.date!
+            }
+            return $0.key.date! > $1.key.date!
+        })
+        var newDict: [DateComponents: [Game]] = [:]
+        for sort in sorted {
+            newDict[sort.key] = sort.value
+        }
+        
+        return sorted
+    }
+    func filtered(games: [Game]) -> [Game] {
+        let calendar = Calendar.current
+        return games.filter({ game in
+            let days = calendar.dateComponents([.day, .month, .year], from: Date(), to: game.gameDate)
+            let durationString = UserDefaults.standard.string(forKey: "duration")
+            let duration = Durations(rawValue: durationString ?? "1 Week")
+            var isValid: Bool = true
+            switch duration {
+            case .oneWeek:
+                isValid = days.day ?? 0 < 7 && days.month == 0
+                break
+            case .twoWeeks:
+                isValid = days.day ?? 0 < 14 && days.month == 0
+                break
+            case .threeWeeks:
+                isValid = days.day ?? 0 < 21 && days.month == 0
+                break
+            case .oneMonth:
+                isValid = days.month ?? 0 < 1
+                break
+            case .twoMonths:
+                isValid = days.month ?? 0 < 2
+                break
+            case .sixMonths:
+                isValid = days.month ?? 0 < 6
+                break
+            case .oneYear:
+                isValid = days.month ?? 0 < 12
+                break
+            case .none:
+                isValid = days.day ?? 0 < 7 && days.month == 0
+                break
+            }
+            
+            if UserDefaults.standard.bool(forKey: "hidesPastEvents") {
+                print("⚠️ hiding past events")
+                return isValid && (days.day ?? 0 > 0) && isValidSport(game: game)
+            }
+           return isValid && isValidSport(game: game)
+        })
+    }
+    func removePastGames(games: [Game]) -> [Game] {
+        return games.filter({ game in
+            return game.gameDate.timeIntervalSinceNow > 0
+        })
+    }
+    func isValidSport(game: Game) -> Bool {
+        if !UserDefaults.standard.bool(forKey: "shouldShowF1") {
+            if game.sport == .F1 {
+                return false
+            }
+        }
+        if !UserDefaults.standard.bool(forKey: "shouldShowSoccer") {
+            if game.sport == .Soccer {
+                return false
+            }
+        }
+        if !UserDefaults.standard.bool(forKey: "shouldShowNHL") {
+            if game.sport == .NHL {
+                return false
+            }
+        }
+        if !UserDefaults.standard.bool(forKey: "shouldShowNFL") {
+            if game.sport == .NFL {
+                return false
+            }
+        }
+        if !UserDefaults.standard.bool(forKey: "shouldShowMLB") {
+            if game.sport == .MLB {
+                return false
+            }
+        }
+        if !UserDefaults.standard.bool(forKey: "shouldShowNBA") {
+            if game.sport == .NBA {
+                return false
+            }
+        }
+        return true
+    }
+}
