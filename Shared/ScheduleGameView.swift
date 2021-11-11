@@ -39,11 +39,22 @@ struct ScheduleGameView: View {
 //        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
 //        relativeDateFormatter.dateTimeStyle = RelativeDateTimeFormatter.DateTimeStyle.numeric
 //    }
-//    init() {
-//        relativeDateFormatter.dateTimeStyle = RelativeDateTimeFormatter.DateTimeStyle.numeric
-//        dateFormatter = DateFormatter()
-//        dateFormatter.dateFormat = "hh:mm"
-//    }
+    init() {
+        relativeDateFormatter.dateTimeStyle = RelativeDateTimeFormatter.DateTimeStyle.numeric
+        dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "hh:mm"
+        _sheetType = Binding<SheetType?>(get: {
+            .onboarding
+        }, set: { sheet in
+           sheet
+        })
+        _shouldShowSportsCalProAlert = Binding<Bool>(get: {
+            false
+        }, set: { should in
+            should
+        })
+        timeString = "6 days 18:29:31"
+    }
     
     var body: some View {
             HStack {
@@ -102,57 +113,67 @@ struct ScheduleGameView: View {
                             .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity,  alignment: .trailing)
                     }
-                }
-                Menu {
-                    Button {
-//                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-//                            shouldShowSportsCalProAlert = true
-//                        } else {
-                        EKEventStore().requestAccess(to: .event) { success, err in
-                            print("⚠️changing sheet type to a calendar with game \(game)")
-                            sheetType = .calendar(game: game)
+                    HStack {
+                        Spacer()
+                        Button {
                             
+                        } label: {
+                            Image(systemName: "star")
                         }
-//                        }
-                    } label: {
-                        Text("Add To Calendar")
-                    }
 
-                    Menu {
-                        Button {
-                            if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                                shouldShowSportsCalProAlert = true
-                            } else {
-                                NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .thirtyMinutes)
+                        Menu {
+                            Button {
+                                //                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                                //                            shouldShowSportsCalProAlert = true
+                                //                        } else {
+                                EKEventStore().requestAccess(to: .event) { success, err in
+                                    print("⚠️changing sheet type to a calendar with game \(game)")
+                                    sheetType = .calendar(game: game)
+                                    
+                                }
+                                //                        }
+                            } label: {
+                                Text("Add To Calendar")
                             }
-                        } label: {
-                            Text("\(NotificationDuration.thirtyMinutes.rawValue) before")
-                        }
-                        Button {
-                            if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                                shouldShowSportsCalProAlert = true
-                            } else {
-                                NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .oneHour)
-                            }
-                        } label: {
-                            Text("\(NotificationDuration.oneHour.rawValue) before")
-                        }
-                        Button {
                             
-                            if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                                shouldShowSportsCalProAlert = true
-                            } else {
-                                NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .twoHour)
+                            Menu {
+                                Button {
+                                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                                        shouldShowSportsCalProAlert = true
+                                    } else {
+                                        NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .thirtyMinutes)
+                                    }
+                                } label: {
+                                    Text("\(NotificationDuration.thirtyMinutes.rawValue) before")
+                                }
+                                Button {
+                                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                                        shouldShowSportsCalProAlert = true
+                                    } else {
+                                        NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .oneHour)
+                                    }
+                                } label: {
+                                    Text("\(NotificationDuration.oneHour.rawValue) before")
+                                }
+                                Button {
+                                    
+                                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                                        shouldShowSportsCalProAlert = true
+                                    } else {
+                                        NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .twoHour)
+                                    }
+                                } label: {
+                                    Text("\(NotificationDuration.twoHour.rawValue) before")
+                                }
+                            } label: {
+                                Text("Notify me")
                             }
                         } label: {
-                            Text("\(NotificationDuration.twoHour.rawValue) before")
+                            Image(systemName: "clock")
                         }
-                    } label: {
-                        Text("Notify me")
                     }
-                } label: {
-                    Image(systemName: "clock")
                 }
+
 
             }
             .onAppear(perform: {
@@ -195,11 +216,11 @@ struct ScheduleGameView: View {
     }
 }
 
-//struct ScheduleGameView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        ScheduleGameView()
-//    }
-//}
+struct ScheduleGameView_Previews: PreviewProvider {
+    static var previews: some View {
+        ScheduleGameView()
+    }
+}
 
 struct SportsTint: ViewModifier {
     let sport: SportTypes
