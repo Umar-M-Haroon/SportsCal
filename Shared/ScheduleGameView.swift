@@ -27,7 +27,9 @@ struct ScheduleGameView: View {
     @State var hasFavoriteTeam: Bool = true
     @State var teamString: String?
     
-    init(gameArg: Game, shouldShowSportsCalProAlert: Binding<Bool>, sheetType: Binding<SheetType?>, teamStr: String?) {
+    var favorites: Favorites
+    
+    init(gameArg: Game, shouldShowSportsCalProAlert: Binding<Bool>, sheetType: Binding<SheetType?>, teamStr: String?, favorites: Favorites) {
         dateFormatter = DateFormatter()
         _game = State(initialValue: gameArg)
         dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
@@ -35,6 +37,7 @@ struct ScheduleGameView: View {
         _shouldShowSportsCalProAlert = shouldShowSportsCalProAlert
         _sheetType = sheetType
         _teamString = State(initialValue: teamStr)
+        self.favorites = favorites
     }
 //    init(gameArg: Game) {
 //        dateFormatter = DateFormatter()
@@ -58,6 +61,7 @@ struct ScheduleGameView: View {
         })
         _teamString = State(initialValue: nil)
 
+        self.favorites = Favorites()
         timeString = "6 days 18:29:31"
     }
     
@@ -123,22 +127,60 @@ struct ScheduleGameView: View {
                         Menu {
                             // TODO: Fully implement favorites
                             Button {
-                                
+                                if let game = game {
+                                    if favorites.contains(game) {
+                                        favorites.remove(game.home)
+                                    } else {
+                                        favorites.add(game.home)
+                                    }
+                                }
                             } label: {
-                                Text("Set \(game?.home ?? "home") as favorite")
+                                if let game = game {
+                                    if favorites.containsHome(game.home) {
+                                        Text("Remove \(game.home) as favorite")
+
+                                    } else {
+                                        Text("Set \(game.home) as favorite")
+                                    }
+                                }
                             }
-                            Button {
-                                
-                            } label: {
-                                Text("Set \(game?.home ?? "away") as favorite")
+                            if game?.sport != .F1 {
+                                Button {
+                                    if let game = game {
+                                        if favorites.contains(game) {
+                                            favorites.remove(game.away)
+                                        } else {
+                                            favorites.add(game.away)
+                                        }
+                                    }
+                                } label: {
+                                    if let game = game {
+                                        if favorites.containsAway(game.away) {
+                                            Text("Remove \(game.away) as favorite")
+                                        } else {
+                                            Text("Set \(game.away) as favorite")
+                                        }
+                                    } else {
+                                        Text("unsure path")
+                                    }
+                                }
                             }
 
                         } label: {
-                            Image(systemName: "star")
+                            if let game = game {
+                                if favorites.contains(game) {
+                                    Image(systemName: "star.fill")
+                                        .foregroundColor(.yellow)
+                                } else {
+                                Image(systemName: "star")
+                                }
+                            } else {
+                                Image(systemName: "star")
+                                
+                            }
+                            
+                            
                         }
-
-
-
                         
                         
                         Menu {

@@ -307,6 +307,7 @@
 		1DEDD0F126D353ED005ABF93 /* CalendarRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */; };
 		1DEDD0F226D353ED005ABF93 /* CalendarRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */; };
 		1DEE12F826D0A1C8000EC870 /* Purchases in Frameworks */ = {isa = PBXBuildFile; productRef = 1DEE12F726D0A1C8000EC870 /* Purchases */; };
+		1DF1FD922740AECB00783E62 /* Favorites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1FD912740AECB00783E62 /* Favorites.swift */; };
 		1DF489B22737693F00A20512 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF489B12737693F00A20512 /* Constants.swift */; };
 		1DF489B32737693F00A20512 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF489B12737693F00A20512 /* Constants.swift */; };
 		1DF489B42737693F00A20512 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF489B12737693F00A20512 /* Constants.swift */; };
@@ -472,6 +473,7 @@
 		1DEDD0EE26D1809C005ABF93 /* SportsCal (iOS).entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SportsCal (iOS).entitlements"; sourceTree = "<group>"; };
 		1DEDD0EF26D180AC005ABF93 /* SportsCal (iOS)Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SportsCal (iOS)Release.entitlements"; sourceTree = "<group>"; };
 		1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarRepresentable.swift; sourceTree = "<group>"; };
+		1DF1FD912740AECB00783E62 /* Favorites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Favorites.swift; sourceTree = "<group>"; };
 		1DF489B12737693F00A20512 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		1DF5C5572713D92200842FDA /* SportsCal--iOS--Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "SportsCal--iOS--Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -656,6 +658,7 @@
 		1DEC76AA268EFB6600D217A1 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				1DF1FD912740AECB00783E62 /* Favorites.swift */,
 				1DF489B12737693F00A20512 /* Constants.swift */,
 				1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */,
 				1D12399F26D0D180001B503E /* LocalNotificationManager.swift */,
@@ -1146,6 +1149,7 @@
 				1D44F12526A8DB8000B366E7 /* Game.swift in Sources */,
 				1D1239A026D0D180001B503E /* LocalNotificationManager.swift in Sources */,
 				1D7FF91C269FA8DD008949FF /* MLBLeague.swift in Sources */,
+				1DF1FD922740AECB00783E62 /* Favorites.swift in Sources */,
 				1DCEBECB26BF5FCB00913A94 /* CountryName.swift in Sources */,
 				1DEC76E2268EFC0500D217A1 /* NetworkHandler.swift in Sources */,
 			);
