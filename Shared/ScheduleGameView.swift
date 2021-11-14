@@ -24,14 +24,17 @@ struct ScheduleGameView: View {
     @Binding var shouldShowSportsCalProAlert: Bool
     
     @Binding var sheetType: SheetType?
+    @State var hasFavoriteTeam: Bool = true
+    @State var teamString: String?
     
-    init(gameArg: Game, shouldShowSportsCalProAlert: Binding<Bool>, sheetType: Binding<SheetType?>) {
+    init(gameArg: Game, shouldShowSportsCalProAlert: Binding<Bool>, sheetType: Binding<SheetType?>, teamStr: String?) {
         dateFormatter = DateFormatter()
         _game = State(initialValue: gameArg)
         dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
         relativeDateFormatter.dateTimeStyle = RelativeDateTimeFormatter.DateTimeStyle.numeric
         _shouldShowSportsCalProAlert = shouldShowSportsCalProAlert
         _sheetType = sheetType
+        _teamString = State(initialValue: teamStr)
     }
 //    init(gameArg: Game) {
 //        dateFormatter = DateFormatter()
@@ -53,6 +56,8 @@ struct ScheduleGameView: View {
         }, set: { should in
             should
         })
+        _teamString = State(initialValue: nil)
+
         timeString = "6 days 18:29:31"
     }
     
@@ -115,12 +120,27 @@ struct ScheduleGameView: View {
                     }
                     HStack {
                         Spacer()
-                        Button {
-                            
+                        Menu {
+                            // TODO: Fully implement favorites
+                            Button {
+                                
+                            } label: {
+                                Text("Set \(game?.home ?? "home") as favorite")
+                            }
+                            Button {
+                                
+                            } label: {
+                                Text("Set \(game?.home ?? "away") as favorite")
+                            }
+
                         } label: {
                             Image(systemName: "star")
                         }
 
+
+
+                        
+                        
                         Menu {
                             Button {
                                 //                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
@@ -179,6 +199,9 @@ struct ScheduleGameView: View {
             .onAppear(perform: {
                 timeString = formatCountdown()
             })
+            .onChange(of: teamString, perform: { newValue in
+                print(newValue)
+            })
 //        .background(
 //            RoundedRectangle(cornerRadius: 4)
 //                .foregroundColor(.gray)
@@ -187,13 +210,13 @@ struct ScheduleGameView: View {
     }
     
     func format(_ date: Date?) -> String {
-        guard let date = date else { return "" }
+        guard let date = date else { return "sjdlfajksfjlasfdl" }
         dateFormatter.dateFormat = "hh:mm a"
         return dateFormatter.string(from: date)
     }
     
     func formatCountdown() -> String {
-        guard let gameDate = game?.gameDate else { return "" }
+        guard let gameDate = game?.gameDate else { return "16 days: 12:12:20" }
 //        let gameDate = DateComponents(calendar: Calendar.current, year: 2021, month: 7, day: 29, hour: 14, minute: 20, second: 0).date!
         timeRemaining = gameDate.timeIntervalSince(Date())
         if timeRemaining < 0 {
@@ -218,7 +241,11 @@ struct ScheduleGameView: View {
 
 struct ScheduleGameView_Previews: PreviewProvider {
     static var previews: some View {
-        ScheduleGameView()
+        VStack {
+            ScheduleGameView()
+            ScheduleGameView()
+        }
+        
     }
 }
 

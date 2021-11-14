@@ -48,6 +48,8 @@ struct ContentView: View {
     
     @State var shouldShowSportsCalProAlert: Bool = false
     
+    @State var teamString: String? = ""
+    
     var body: some View {
         NavigationView {
             if let games = filteredGames?.first?.sortByDate(games: filteredGames ?? []) {
@@ -55,7 +57,7 @@ struct ContentView: View {
                     ForEach(games.map({$0.key}).indices, id: \.self) { index in
                         Section {
                             ForEach(games.map({$0.value})[index]) { game in
-                                ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
+                                ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString)
                             }
                         } header: {
                             HStack {
