@@ -54,8 +54,29 @@ struct ContentView: View {
     
     var body: some View {
         NavigationView {
+
             if let games = filteredGames?.first?.sortByDate(games: filteredGames ?? []) {
                 List {
+                    if let favoriteGames = favoritesToGames() {
+                        DisclosureGroup {
+                            Section {
+                                ForEach(favoriteGames) { game in
+                                    ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: favorites)
+                                }
+                            } header: {
+                                HStack {
+                                    Text("Favorites")
+                                        .font(.title3)
+                                        .bold()
+                                }
+                            }
+                            
+                        } label: {
+                            
+                        }
+                        
+
+                    }
                     ForEach(games.map({$0.key}).indices, id: \.self) { index in
                         Section {
                             ForEach(games.map({$0.value})[index]) { game in
@@ -392,6 +413,18 @@ struct ContentView: View {
             print(e.localizedDescription)
         }
         //        #endif
+    }
+    
+    func favoritesToGames() -> [Game] {
+        guard let filteredGames = filteredGames?.first?.sortByDate(games: filteredGames ?? []) else {
+            return []
+        }
+        var favoriteGames: [Game] = []
+        for index in filteredGames.indices {
+            let arr = filteredGames[index]
+            favoriteGames += arr.value.filter({favorites.contains($0)})
+        }
+        return favoriteGames
     }
 }
 
