@@ -151,6 +151,7 @@ struct ContentView: View {
                             .environmentObject(SubscriptionManager.shared)
                     case .onboarding:
                         OnboardingPage(sheetType: $sheetType)
+                            .environmentObject(appStorage)
                     case .calendar(let eventGame):
                         if let game = eventGame {
                             makeCalendarEvent(game: game)
@@ -237,44 +238,8 @@ struct ContentView: View {
                 }
             }
         }
-        .navigationViewStyle(StackNavigationViewStyle())
-        .onChange(of: durations, perform: { newDuration in
-            withAnimation {
-                
-                filterSports()
-            }
-        })
-        .onChange(of: shouldShowF1, perform: { newDuration in
-            withAnimation {
-                filterSports()
-            }
-        })
-        .onChange(of: shouldShowNBA, perform: { newDuration in
-            withAnimation {
-                filterSports()
-            }
-        })
-        .onChange(of: shouldShowNHL, perform: { newDuration in
-            withAnimation {
-                filterSports()
-            }
-        })
-        .onChange(of: shouldShowNFL, perform: { newDuration in
-            withAnimation {
-                filterSports()
-            }
-        })
-        .onChange(of: shouldShowSoccer, perform: { newDuration in
-            withAnimation {
-                filterSports()
-            }
-        })
-        .onChange(of: hidePastEvents, perform: { _ in
-            withAnimation {
-                filterSports()
-            }
-        })
-        .onChange(of: soonestOnTop, perform: { _ in
+       
+        .onChange(of: appStorage, perform: { newValue in
             withAnimation {
                 filterSports()
             }
@@ -285,7 +250,7 @@ struct ContentView: View {
         .conditionalModifier(UIDevice.current.userInterfaceIdiom == .pad, ifTrue: {$0.navigationViewStyle(StackNavigationViewStyle())}, ifFalse: {$0.navigationViewStyle(DefaultNavigationViewStyle())})
         .onAppear {
             WidgetCenter.shared.reloadAllTimelines()
-            if shouldShowOnboarding {
+            if appStorage.shouldShowOnboarding {
                 sheetType = .onboarding
             }
             if #available(iOS 15.0, *) {
@@ -323,12 +288,12 @@ struct ContentView: View {
     }
     func filterSports() {
         print("⚠️ sports duration or selected sport changed, filtering")
-        print("⚠️ should show F1 \(shouldShowF1)")
-        print("⚠️ should show NFL \(shouldShowNFL)")
-        print("⚠️ should show NBA \(shouldShowNBA)")
-        print("⚠️ should show NHL \(shouldShowNHL)")
-        print("⚠️ should show Soccer \(shouldShowSoccer)")
-        print("⚠️ should show MLB \(shouldShowMLB)")
+        print("⚠️ should show F1 \(appStorage.shouldShowF1)")
+        print("⚠️ should show NFL \(appStorage.shouldShowNFL)")
+        print("⚠️ should show NBA \(appStorage.shouldShowNBA)")
+        print("⚠️ should show NHL \(appStorage.shouldShowNHL)")
+        print("⚠️ should show Soccer \(appStorage.shouldShowSoccer)")
+        print("⚠️ should show MLB \(appStorage.shouldShowMLB)")
         if let first = filteredGames?.first {
             if let _ = filteredGames {
                 filteredGames = first.filtered(games: totalGames ?? [])

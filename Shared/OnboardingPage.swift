@@ -8,13 +8,7 @@
 import SwiftUI
 
 struct OnboardingPage: View {
-    @AppStorage("shouldShowNBA") var shouldShowNBA: Bool = false
-    @AppStorage("shouldShowNFL") var shouldShowNFL: Bool = false
-    @AppStorage("shouldShowNHL") var shouldShowNHL: Bool = false
-    @AppStorage("shouldShowSoccer") var shouldShowSoccer: Bool = false
-    @AppStorage("shouldShowF1") var shouldShowF1: Bool = false
-    @AppStorage("shouldShowMLB") var shouldShowMLB: Bool = false
-    @AppStorage("shouldShowOnboarding") var shouldShowOnboarding: Bool = true
+    @EnvironmentObject var appStorage: UserDefaultStorage
     @Binding var sheetType: SheetType?
     var body: some View {
         VStack {
