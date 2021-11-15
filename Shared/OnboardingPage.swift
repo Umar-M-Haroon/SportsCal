@@ -12,64 +12,89 @@ struct OnboardingPage: View {
     @Binding var sheetType: SheetType?
     var body: some View {
         VStack {
-
-        Text("SportsCal")
+        Text("Welcome to SportsCal!")
                 .font(.largeTitle)
                 .bold()
-            
-            HStack {
-                Image(systemName: "clock.fill")
-                    .font(.title)
-                VStack {
-                    Text("Time filtering")
-                        .font(.headline)
-                    Text("Be specific with which upcoming games you want to see")
-                        .font(.callout)
-                }
+                .padding(.top, 20)
+            Spacer()
+            VStack(alignment: .leading) {
+                InfoView(title: "Favorites", subTitle: "Easily Check when your favorite team plays ", image: Image(systemName: "star.fill"), tint: .yellow)
+                InfoView(title: "Notifications", subTitle: "Be notified when the game is about to start", image: Image(systemName: "app.badge.fill"), tint: .red)
+                InfoView(title: "Multiple Sports", subTitle: "Check multiple sports at a glance", image: Image(systemName: "sportscourt"), tint: .green)
             }
-            .padding()
-            HStack {
-                Image(systemName: "sportscourt")
-                    .font(.title)
-                VStack {
-                    Text("Multiple Sports")
-                        .font(.headline)
-                    Text("Pick which sports you want to watch")
-                        .font(.callout)
-                }
+            Spacer()
+           
+            if #available(iOS 15.0, *) {
+                Button {
+                    
+                } label: {
+                    sportPicker()
+                    .foregroundColor(.white)
+                }.buttonStyle(BorderedProminentButtonStyle())
+                    .tint(.green)
+            } else {
+                sportPicker()
             }
-            .padding()
-            Menu("Pick a sport to start") {
-                Button("F1") {
-                    shouldShowF1 = true
-                    shouldShowOnboarding = false
-                    sheetType = nil
-                }
-                Button("MLB") {
-                    shouldShowMLB = true
-                    shouldShowOnboarding = false
-                    sheetType = nil
-                }
-                Button("NHL") {
-                    shouldShowNHL = true
-                    shouldShowOnboarding = false
-                    sheetType = nil
-                }
-                Button("NBA") {
-                    shouldShowNBA = true
-                    shouldShowOnboarding = false
-                    sheetType = nil
-                }
-                Button("NFL") {
-                    shouldShowNFL = true
-                    shouldShowOnboarding = false
-                    sheetType = nil
-                }
-                Button("Soccer") {
-                    shouldShowSoccer = true
-                    shouldShowOnboarding = false
-                    sheetType = nil
-                }
+
+        }
+    }
+    
+    func sportPicker() -> some View {
+        Menu("Pick a sport") {
+            Button("F1") {
+                appStorage.shouldShowF1 = true
+                appStorage.shouldShowOnboarding = false
+                sheetType = nil
+            }
+            Button("MLB") {
+                appStorage.shouldShowMLB = true
+                appStorage.shouldShowOnboarding = false
+                sheetType = nil
+            }
+            Button("NHL") {
+                appStorage.shouldShowNHL = true
+                appStorage.shouldShowOnboarding = false
+                sheetType = nil
+            }
+            Button("NBA") {
+                appStorage.shouldShowNBA = true
+                appStorage.shouldShowOnboarding = false
+                sheetType = nil
+            }
+            Button("NFL") {
+                appStorage.shouldShowNFL = true
+                appStorage.shouldShowOnboarding = false
+                sheetType = nil
+            }
+            Button("Soccer") {
+                appStorage.shouldShowSoccer = true
+                appStorage.shouldShowOnboarding = false
+                sheetType = nil
+            }
+        }
+    }
+    
+}
+
+struct InfoView: View {
+    var title: String
+    var subTitle: String
+    var image: Image
+    var tint: Color
+    var body: some View {
+        HStack {
+            image
+                .font(.largeTitle)
+                .frame(width: 50, height: 50, alignment: .center)
+                .foregroundColor(tint)
+                .padding()
+                
+            VStack(alignment: .leading) {
+                Text(title)
+                    .font(.title2)
+                    .bold()
+                Text(subTitle)
+                    .font(.title3)
             }
         }
     }
@@ -77,10 +102,18 @@ struct OnboardingPage: View {
 
 struct OnboardingPage_Previews: PreviewProvider {
     static var previews: some View {
-        OnboardingPage(sheetType: Binding(get: {
-            .onboarding
-        }, set: { val in
-            val
+        Group {
+            OnboardingPage(sheetType: Binding(get: {
+                .onboarding
+            }, set: { val in
+                val
         }))
+            OnboardingPage(sheetType: Binding(get: {
+                .onboarding
+            }, set: { val in
+                val
+            }))
+                .previewDevice("iPhone 12 Pro")
+        }
     }
 }
