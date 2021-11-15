@@ -29,20 +29,12 @@ struct ContentView: View {
     
     @State var totalGames: [Game]?
     @State var filteredGames: [Game]?
-    @AppStorage("shouldShowNBA") var shouldShowNBA: Bool = false
-    @AppStorage("shouldShowNFL") var shouldShowNFL: Bool = false
-    @AppStorage("shouldShowNHL") var shouldShowNHL: Bool = false
-    @AppStorage("shouldShowSoccer") var shouldShowSoccer: Bool = false
-    @AppStorage("shouldShowF1") var shouldShowF1: Bool = false
-    @AppStorage("shouldShowMLB") var shouldShowMLB: Bool = false
-    @AppStorage("shouldShowOnboarding") var shouldShowOnboarding: Bool = true
-    @AppStorage("hidesPastEvents") var hidePastEvents: Bool = false
-    @AppStorage("soonestOnTop") var soonestOnTop: Bool = true
+    
+    @EnvironmentObject var appStorage: UserDefaultStorage
+    
     @State var shouldShowSettings: Bool = false
     
-    @AppStorage("duration") var durations: Durations = .oneWeek
-    
-    @State private var sheetType: SheetType? = nil
+    @State private var sheetType: SheetType? = .onboarding
     
     @State var cancellable: AnyCancellable?
     
@@ -58,12 +50,14 @@ struct ContentView: View {
             if let games = filteredGames?.first?.sortByDate(games: filteredGames ?? []) {
                 List {
                     if let favoriteGames = favoritesToGames() {
-                        DisclosureGroup {
+                        
+//                        DisclosureGroup {
                             Section {
                                 ForEach(favoriteGames) { game in
                                     ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: favorites)
                                 }
                             } header: {
+//
                                 HStack {
                                     Text("Favorites")
                                         .font(.title3)
@@ -71,9 +65,9 @@ struct ContentView: View {
                                 }
                             }
                             
-                        } label: {
-                            
-                        }
+//                        } label: {
+//                        }
+                        
                         
 
                     }
@@ -101,7 +95,7 @@ struct ContentView: View {
                 }), trailing:
                     HStack {
                     Button {
-                        soonestOnTop.toggle()
+                        appStorage.soonestOnTop.toggle()
                     } label: {
                         Image(systemName: "arrow.up.arrow.down.circle")
                     }
@@ -109,31 +103,37 @@ struct ContentView: View {
                     Menu(content: {
                             if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
                                 Button("NBA") {
-                                    switchTo(sportType: .NBA)
+                                    appStorage.switchTo(sportType: .NBA)
+                                    filterSports()
                                 }
                                 Button("NFL") {
-                                    switchTo(sportType: .NFL)
+                                    appStorage.switchTo(sportType: .NFL)
+                                    filterSports()
                                 }
                                 Button("NHL") {
-                                    switchTo(sportType: .NHL)
+                                    appStorage.switchTo(sportType: .NHL)
+                                    filterSports()
                                 }
                                 Button("Soccer") {
-                                    switchTo(sportType: .Soccer)
+                                    appStorage.switchTo(sportType: .Soccer)
+                                    filterSports()
                                 }
                                 Button("F1") {
-                                    switchTo(sportType: .F1)
+                                    appStorage.switchTo(sportType: .F1)
+                                    filterSports()
                                 }
                                 Button("MLB") {
-                                    switchTo(sportType: .MLB)
+                                    appStorage.switchTo(sportType: .MLB)
+                                    filterSports()
                                 }
                             } else {
                                 VStack {
-                                    Toggle("NBA", isOn: $shouldShowNBA)
-                                    Toggle("NFL", isOn: $shouldShowNFL)
-                                    Toggle("NHL", isOn: $shouldShowNHL)
-                                    Toggle("Soccer", isOn: $shouldShowSoccer)
-                                    Toggle("F1", isOn: $shouldShowF1)
-                                    Toggle("MLB", isOn: $shouldShowMLB)
+                                    Toggle("NBA", isOn: appStorage.$shouldShowNBA)
+                                    Toggle("NFL", isOn: appStorage.$shouldShowNFL)
+                                    Toggle("NHL", isOn: appStorage.$shouldShowNHL)
+                                    Toggle("Soccer", isOn: appStorage.$shouldShowSoccer)
+                                    Toggle("F1", isOn: appStorage.$shouldShowF1)
+                                    Toggle("MLB", isOn: appStorage.$shouldShowMLB)
                                 }
                             }
                             
@@ -190,31 +190,31 @@ struct ContentView: View {
                 }), trailing: Menu(content: {
                     if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
                         Button("NBA") {
-                            switchTo(sportType: .NBA)
+                            appStorage.switchTo(sportType: .NBA)
                         }
                         Button("NFL") {
-                            switchTo(sportType: .NFL)
+                            appStorage.switchTo(sportType: .NFL)
                         }
                         Button("NHL") {
-                            switchTo(sportType: .NHL)
+                            appStorage.switchTo(sportType: .NHL)
                         }
                         Button("Soccer") {
-                            switchTo(sportType: .Soccer)
+                            appStorage.switchTo(sportType: .Soccer)
                         }
                         Button("F1") {
-                            switchTo(sportType: .F1)
+                            appStorage.switchTo(sportType: .F1)
                         }
                         Button("MLB") {
-                            switchTo(sportType: .MLB)
+                            appStorage.switchTo(sportType: .MLB)
                         }
                     } else {
                         VStack {
-                            Toggle("NBA", isOn: $shouldShowNBA)
-                            Toggle("NFL", isOn: $shouldShowNFL)
-                            Toggle("NHL", isOn: $shouldShowNHL)
-                            Toggle("Soccer", isOn: $shouldShowSoccer)
-                            Toggle("F1", isOn: $shouldShowF1)
-                            Toggle("MLB", isOn: $shouldShowMLB)
+                            Toggle("NBA", isOn: appStorage.$shouldShowNBA)
+                            Toggle("NFL", isOn: appStorage.$shouldShowNFL)
+                            Toggle("NHL", isOn: appStorage.$shouldShowNHL)
+                            Toggle("Soccer", isOn: appStorage.$shouldShowSoccer)
+                            Toggle("F1", isOn: appStorage.$shouldShowF1)
+                            Toggle("MLB", isOn: appStorage.$shouldShowMLB)
                         }
                     }
                 }, label: {
@@ -282,11 +282,7 @@ struct ContentView: View {
         .alert(isPresented: $shouldShowSportsCalProAlert, content: {
             Alert(title: Text("SportsCal Pro"), message: Text("This feature requires SportsCal Pro"))
         })
-        //        .alert("SportsCal Pro", isPresented: $shouldShowSportsCalProAlert) {
-        //            Button("OK") {
-        //                shouldShowSportsCalProAlert = false
-        //            }
-        //        }
+        .conditionalModifier(UIDevice.current.userInterfaceIdiom == .pad, ifTrue: {$0.navigationViewStyle(StackNavigationViewStyle())}, ifFalse: {$0.navigationViewStyle(DefaultNavigationViewStyle())})
         .onAppear {
             WidgetCenter.shared.reloadAllTimelines()
             if shouldShowOnboarding {
@@ -311,59 +307,7 @@ struct ContentView: View {
             }
         }
     }
-    func switchTo(sportType: SportTypes) {
-        switch sportType {
-        case .NHL:
-            shouldShowF1 = false
-            shouldShowNFL = false
-            shouldShowNBA = false
-            shouldShowNHL = true
-            shouldShowSoccer = false
-            shouldShowMLB = false
-            break
-        case .NFL:
-            shouldShowF1 = false
-            shouldShowNFL = true
-            shouldShowNBA = false
-            shouldShowNHL = false
-            shouldShowSoccer = false
-            shouldShowMLB = false
-            break
-        case .NBA:
-            shouldShowF1 = false
-            shouldShowNFL = false
-            shouldShowNBA = true
-            shouldShowNHL = false
-            shouldShowSoccer = false
-            shouldShowMLB = false
-            break
-        case .MLB:
-            shouldShowF1 = false
-            shouldShowNFL = false
-            shouldShowNBA = false
-            shouldShowNHL = false
-            shouldShowSoccer = false
-            shouldShowMLB = true
-            break
-        case .F1:
-            shouldShowF1 = true
-            shouldShowNFL = false
-            shouldShowNBA = false
-            shouldShowNHL = false
-            shouldShowSoccer = false
-            shouldShowMLB = false
-            break
-        case .Soccer:
-            shouldShowF1 = false
-            shouldShowNFL = false
-            shouldShowNBA = false
-            shouldShowNHL = false
-            shouldShowSoccer = true
-            shouldShowMLB = false
-            break
-        }
-        filterSports()
-    }
+   
     func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         print("⚠️ making calendar event for game \(game)")

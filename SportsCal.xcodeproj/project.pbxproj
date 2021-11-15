@@ -308,6 +308,7 @@
 		1DEDD0F226D353ED005ABF93 /* CalendarRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */; };
 		1DEE12F826D0A1C8000EC870 /* Purchases in Frameworks */ = {isa = PBXBuildFile; productRef = 1DEE12F726D0A1C8000EC870 /* Purchases */; };
 		1DF1FD922740AECB00783E62 /* Favorites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1FD912740AECB00783E62 /* Favorites.swift */; };
+		1DF1FD942741EFA800783E62 /* UserDefaultStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1FD932741EFA800783E62 /* UserDefaultStorage.swift */; };
 		1DF489B22737693F00A20512 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF489B12737693F00A20512 /* Constants.swift */; };
 		1DF489B32737693F00A20512 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF489B12737693F00A20512 /* Constants.swift */; };
 		1DF489B42737693F00A20512 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF489B12737693F00A20512 /* Constants.swift */; };
@@ -474,6 +475,7 @@
 		1DEDD0EF26D180AC005ABF93 /* SportsCal (iOS)Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SportsCal (iOS)Release.entitlements"; sourceTree = "<group>"; };
 		1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarRepresentable.swift; sourceTree = "<group>"; };
 		1DF1FD912740AECB00783E62 /* Favorites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Favorites.swift; sourceTree = "<group>"; };
+		1DF1FD932741EFA800783E62 /* UserDefaultStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDefaultStorage.swift; sourceTree = "<group>"; };
 		1DF489B12737693F00A20512 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		1DF5C5572713D92200842FDA /* SportsCal--iOS--Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "SportsCal--iOS--Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -658,6 +660,7 @@
 		1DEC76AA268EFB6600D217A1 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				1DF1FD932741EFA800783E62 /* UserDefaultStorage.swift */,
 				1DF1FD912740AECB00783E62 /* Favorites.swift */,
 				1DF489B12737693F00A20512 /* Constants.swift */,
 				1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */,
@@ -1143,6 +1146,7 @@
 				1DF489B22737693F00A20512 /* Constants.swift in Sources */,
 				1DCEBEF926BF5FCB00913A94 /* LineupsAvailability.swift in Sources */,
 				1D3CDCED26BE2576007B33FC /* Status.swift in Sources */,
+				1DF1FD942741EFA800783E62 /* UserDefaultStorage.swift in Sources */,
 				1DCEBEEF26BF5FCB00913A94 /* Category.swift in Sources */,
 				1DCEBEE926BF5FCB00913A94 /* Stage.swift in Sources */,
 				1DEC76FD268F018B00D217A1 /* NBALeague.swift in Sources */,
