@@ -29,7 +29,7 @@ class Provider: IntentTimelineProvider {
                 completion(entry)
                 return
             }
-            let entry = SimpleEntry(date: Date(), configuration: configuration, game: Array(games.prefix(through: 2)))
+            let entry = SimpleEntry(date: Date(), configuration: configuration, game: Array(games.prefix(through: 1)))
             completion(entry)
         }
     }
@@ -59,7 +59,7 @@ class Provider: IntentTimelineProvider {
                 entries.append(entry)
             } else {
                 
-                let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: Array(games.prefix(through: 2)))
+                let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: Array(games.prefix(through: 1)))
                 entries.append(entry)
             }
             completion(Timeline(entries: entries, policy: .atEnd))
