@@ -34,7 +34,7 @@ struct ContentView: View {
     
     @State var shouldShowSettings: Bool = false
     
-    @State private var sheetType: SheetType? = .onboarding
+    @State private var sheetType: SheetType? = nil
     
     @State var cancellable: AnyCancellable?
     
@@ -51,22 +51,18 @@ struct ContentView: View {
                 List {
                     if let favoriteGames = favoritesToGames() {
                         
-//                        DisclosureGroup {
                             Section {
                                 ForEach(favoriteGames) { game in
                                     ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: favorites)
                                 }
                             } header: {
-//
                                 HStack {
                                     Text("Favorites")
                                         .font(.title3)
                                         .bold()
                                 }
                             }
-                            
-//                        } label: {
-//                        }
+
                         
                         
 

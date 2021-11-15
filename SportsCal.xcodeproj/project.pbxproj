@@ -476,6 +476,7 @@
 		1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarRepresentable.swift; sourceTree = "<group>"; };
 		1DF1FD912740AECB00783E62 /* Favorites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Favorites.swift; sourceTree = "<group>"; };
 		1DF1FD932741EFA800783E62 /* UserDefaultStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDefaultStorage.swift; sourceTree = "<group>"; };
+		1DF1FD96274326F100783E62 /* ci_post_clone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_post_clone.sh; sourceTree = "<group>"; };
 		1DF489B12737693F00A20512 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		1DF5C5572713D92200842FDA /* SportsCal--iOS--Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "SportsCal--iOS--Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -644,6 +645,7 @@
 		1DEC76A5268EFB6500D217A1 = {
 			isa = PBXGroup;
 			children = (
+				1DF1FD95274326A400783E62 /* ci_scripts */,
 				1DF5C5572713D92200842FDA /* SportsCal--iOS--Info.plist */,
 				1DE1700626F29D4B007B1B57 /* SportsWidgetExtension.entitlements */,
 				1DEDD0EF26D180AC005ABF93 /* SportsCal (iOS)Release.entitlements */,
@@ -753,6 +755,14 @@
 				1DE16FF826F29D4A007B1B57 /* SwiftUI.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		1DF1FD95274326A400783E62 /* ci_scripts */ = {
+			isa = PBXGroup;
+			children = (
+				1DF1FD96274326F100783E62 /* ci_post_clone.sh */,
+			);
+			path = ci_scripts;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
