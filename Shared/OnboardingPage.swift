@@ -37,6 +37,7 @@ struct OnboardingPage: View {
             }
 
         }
+        .padding([.bottom, .top], 30)
     }
     
     func sportPicker() -> some View {
