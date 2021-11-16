@@ -5,7 +5,7 @@
 #
 #  Created by Umar Haroon on 11/15/21.
 #  
-
-echo "import Foundation\nstruct Constants {\n static let revenueAPIKey = \"" >> Constants.swift
+pwd
+echo "import Foundation\nstruct Constants {\n static let revenueAPIKey = \"" >> Shared/Constants.swift
 echo $REVENUECAT_API_KEY >> Shared/Constants.swift
-echo "\"\n}"
+echo "\"\n}" >> Shared/Constants.swift
