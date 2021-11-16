@@ -24,14 +24,20 @@ struct ScheduleGameView: View {
     @Binding var shouldShowSportsCalProAlert: Bool
     
     @Binding var sheetType: SheetType?
+    @State var hasFavoriteTeam: Bool = true
+    @State var teamString: String?
     
-    init(gameArg: Game, shouldShowSportsCalProAlert: Binding<Bool>, sheetType: Binding<SheetType?>) {
+    var favorites: Favorites
+    
+    init(gameArg: Game, shouldShowSportsCalProAlert: Binding<Bool>, sheetType: Binding<SheetType?>, teamStr: String?, favorites: Favorites) {
         dateFormatter = DateFormatter()
         _game = State(initialValue: gameArg)
         dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
         relativeDateFormatter.dateTimeStyle = RelativeDateTimeFormatter.DateTimeStyle.numeric
         _shouldShowSportsCalProAlert = shouldShowSportsCalProAlert
         _sheetType = sheetType
+        _teamString = State(initialValue: teamStr)
+        self.favorites = favorites
     }
 //    init(gameArg: Game) {
 //        dateFormatter = DateFormatter()
@@ -39,11 +45,25 @@ struct ScheduleGameView: View {
 //        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
 //        relativeDateFormatter.dateTimeStyle = RelativeDateTimeFormatter.DateTimeStyle.numeric
 //    }
-//    init() {
-//        relativeDateFormatter.dateTimeStyle = RelativeDateTimeFormatter.DateTimeStyle.numeric
-//        dateFormatter = DateFormatter()
-//        dateFormatter.dateFormat = "hh:mm"
-//    }
+    init() {
+        relativeDateFormatter.dateTimeStyle = RelativeDateTimeFormatter.DateTimeStyle.numeric
+        dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "hh:mm"
+        _sheetType = Binding<SheetType?>(get: {
+            .onboarding
+        }, set: { sheet in
+           sheet
+        })
+        _shouldShowSportsCalProAlert = Binding<Bool>(get: {
+            false
+        }, set: { should in
+            should
+        })
+        _teamString = State(initialValue: nil)
+
+        self.favorites = Favorites()
+        timeString = "6 days 18:29:31"
+    }
     
     var body: some View {
             HStack {
@@ -102,61 +122,127 @@ struct ScheduleGameView: View {
                             .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity,  alignment: .trailing)
                     }
-                }
-                Menu {
-                    Button {
-//                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-//                            shouldShowSportsCalProAlert = true
-//                        } else {
-                        EKEventStore().requestAccess(to: .event) { success, err in
-                            print("⚠️changing sheet type to a calendar with game \(game)")
-                            sheetType = .calendar(game: game)
-                            
-                        }
-//                        }
-                    } label: {
-                        Text("Add To Calendar")
-                    }
+                    HStack {
+                        Spacer()
+                        Menu {
+                            // TODO: Fully implement favorites
+                            Button {
+                                if let game = game {
+                                    if favorites.contains(game) {
+                                        favorites.remove(game.home)
+                                    } else {
+                                        favorites.add(game.home)
+                                    }
+                                }
+                            } label: {
+                                if let game = game {
+                                    if favorites.containsHome(game.home) {
+                                        Text("Remove \(game.home) as favorite")
 
-                    Menu {
-                        Button {
-                            if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                                shouldShowSportsCalProAlert = true
-                            } else {
-                                NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .thirtyMinutes)
+                                    } else {
+                                        Text("Set \(game.home) as favorite")
+                                    }
+                                }
                             }
-                        } label: {
-                            Text("\(NotificationDuration.thirtyMinutes.rawValue) before")
-                        }
-                        Button {
-                            if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                                shouldShowSportsCalProAlert = true
-                            } else {
-                                NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .oneHour)
+                            if game?.sport != .F1 {
+                                Button {
+                                    if let game = game {
+                                        if favorites.contains(game) {
+                                            favorites.remove(game.away)
+                                        } else {
+                                            favorites.add(game.away)
+                                        }
+                                    }
+                                } label: {
+                                    if let game = game {
+                                        if favorites.containsAway(game.away) {
+                                            Text("Remove \(game.away) as favorite")
+                                        } else {
+                                            Text("Set \(game.away) as favorite")
+                                        }
+                                    } else {
+                                        Text("unsure path")
+                                    }
+                                }
                             }
+
                         } label: {
-                            Text("\(NotificationDuration.oneHour.rawValue) before")
-                        }
-                        Button {
+                            if let game = game {
+                                if favorites.contains(game) {
+                                    Image(systemName: "star.fill")
+                                        .foregroundColor(.yellow)
+                                } else {
+                                Image(systemName: "star")
+                                }
+                            } else {
+                                Image(systemName: "star")
+                                
+                            }
                             
-                            if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                                shouldShowSportsCalProAlert = true
-                            } else {
-                                NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .twoHour)
+                            
+                        }
+                        
+                        
+                        Menu {
+                            Button {
+                                //                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                                //                            shouldShowSportsCalProAlert = true
+                                //                        } else {
+                                EKEventStore().requestAccess(to: .event) { success, err in
+                                    print("⚠️changing sheet type to a calendar with game \(game)")
+                                    sheetType = .calendar(game: game)
+                                    
+                                }
+                                //                        }
+                            } label: {
+                                Text("Add To Calendar")
+                            }
+                            
+                            Menu {
+                                Button {
+                                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                                        shouldShowSportsCalProAlert = true
+                                    } else {
+                                        NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .thirtyMinutes)
+                                    }
+                                } label: {
+                                    Text("\(NotificationDuration.thirtyMinutes.rawValue) before")
+                                }
+                                Button {
+                                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                                        shouldShowSportsCalProAlert = true
+                                    } else {
+                                        NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .oneHour)
+                                    }
+                                } label: {
+                                    Text("\(NotificationDuration.oneHour.rawValue) before")
+                                }
+                                Button {
+                                    
+                                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                                        shouldShowSportsCalProAlert = true
+                                    } else {
+                                        NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .twoHour)
+                                    }
+                                } label: {
+                                    Text("\(NotificationDuration.twoHour.rawValue) before")
+                                }
+                            } label: {
+                                Text("Notify me")
                             }
                         } label: {
-                            Text("\(NotificationDuration.twoHour.rawValue) before")
+                            Image(systemName: "clock")
                         }
-                    } label: {
-                        Text("Notify me")
                     }
-                } label: {
-                    Image(systemName: "clock")
                 }
+
 
             }
             .onAppear(perform: {
                 timeString = formatCountdown()
+            })
+            .onChange(of: teamString, perform: { newValue in
+                print(newValue)
             })
 //        .background(
 //            RoundedRectangle(cornerRadius: 4)
@@ -166,13 +252,13 @@ struct ScheduleGameView: View {
     }
     
     func format(_ date: Date?) -> String {
-        guard let date = date else { return "" }
+        guard let date = date else { return "sjdlfajksfjlasfdl" }
         dateFormatter.dateFormat = "hh:mm a"
         return dateFormatter.string(from: date)
     }
     
     func formatCountdown() -> String {
-        guard let gameDate = game?.gameDate else { return "" }
+        guard let gameDate = game?.gameDate else { return "16 days: 12:12:20" }
 //        let gameDate = DateComponents(calendar: Calendar.current, year: 2021, month: 7, day: 29, hour: 14, minute: 20, second: 0).date!
         timeRemaining = gameDate.timeIntervalSince(Date())
         if timeRemaining < 0 {
@@ -195,11 +281,15 @@ struct ScheduleGameView: View {
     }
 }
 
-//struct ScheduleGameView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        ScheduleGameView()
-//    }
-//}
+struct ScheduleGameView_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack {
+            ScheduleGameView()
+            ScheduleGameView()
+        }
+        
+    }
+}
 
 struct SportsTint: ViewModifier {
     let sport: SportTypes

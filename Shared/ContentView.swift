@@ -29,18 +29,10 @@ struct ContentView: View {
     
     @State var totalGames: [Game]?
     @State var filteredGames: [Game]?
-    @AppStorage("shouldShowNBA") var shouldShowNBA: Bool = false
-    @AppStorage("shouldShowNFL") var shouldShowNFL: Bool = false
-    @AppStorage("shouldShowNHL") var shouldShowNHL: Bool = false
-    @AppStorage("shouldShowSoccer") var shouldShowSoccer: Bool = false
-    @AppStorage("shouldShowF1") var shouldShowF1: Bool = false
-    @AppStorage("shouldShowMLB") var shouldShowMLB: Bool = false
-    @AppStorage("shouldShowOnboarding") var shouldShowOnboarding: Bool = true
-    @AppStorage("hidesPastEvents") var hidePastEvents: Bool = false
-    @AppStorage("soonestOnTop") var soonestOnTop: Bool = true
-    @State var shouldShowSettings: Bool = false
     
-    @AppStorage("duration") var durations: Durations = .oneWeek
+    @EnvironmentObject var appStorage: UserDefaultStorage
+    
+    @State var shouldShowSettings: Bool = false
     
     @State private var sheetType: SheetType? = nil
     
@@ -48,14 +40,37 @@ struct ContentView: View {
     
     @State var shouldShowSportsCalProAlert: Bool = false
     
+    @State var teamString: String? = ""
+    
+    @EnvironmentObject var favorites: Favorites
+    
     var body: some View {
         NavigationView {
+
             if let games = filteredGames?.first?.sortByDate(games: filteredGames ?? []) {
                 List {
+                    if let favoriteGames = favoritesToGames() {
+                        
+                            Section {
+                                ForEach(favoriteGames) { game in
+                                    ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: favorites)
+                                }
+                            } header: {
+                                HStack {
+                                    Text("Favorites")
+                                        .font(.title3)
+                                        .bold()
+                                }
+                            }
+
+                        
+                        
+
+                    }
                     ForEach(games.map({$0.key}).indices, id: \.self) { index in
                         Section {
                             ForEach(games.map({$0.value})[index]) { game in
-                                ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
+                                ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: favorites)
                             }
                         } header: {
                             HStack {
@@ -76,7 +91,7 @@ struct ContentView: View {
                 }), trailing:
                     HStack {
                     Button {
-                        soonestOnTop.toggle()
+                        appStorage.soonestOnTop.toggle()
                     } label: {
                         Image(systemName: "arrow.up.arrow.down.circle")
                     }
@@ -84,31 +99,37 @@ struct ContentView: View {
                     Menu(content: {
                             if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
                                 Button("NBA") {
-                                    switchTo(sportType: .NBA)
+                                    appStorage.switchTo(sportType: .NBA)
+                                    filterSports()
                                 }
                                 Button("NFL") {
-                                    switchTo(sportType: .NFL)
+                                    appStorage.switchTo(sportType: .NFL)
+                                    filterSports()
                                 }
                                 Button("NHL") {
-                                    switchTo(sportType: .NHL)
+                                    appStorage.switchTo(sportType: .NHL)
+                                    filterSports()
                                 }
                                 Button("Soccer") {
-                                    switchTo(sportType: .Soccer)
+                                    appStorage.switchTo(sportType: .Soccer)
+                                    filterSports()
                                 }
                                 Button("F1") {
-                                    switchTo(sportType: .F1)
+                                    appStorage.switchTo(sportType: .F1)
+                                    filterSports()
                                 }
                                 Button("MLB") {
-                                    switchTo(sportType: .MLB)
+                                    appStorage.switchTo(sportType: .MLB)
+                                    filterSports()
                                 }
                             } else {
                                 VStack {
-                                    Toggle("NBA", isOn: $shouldShowNBA)
-                                    Toggle("NFL", isOn: $shouldShowNFL)
-                                    Toggle("NHL", isOn: $shouldShowNHL)
-                                    Toggle("Soccer", isOn: $shouldShowSoccer)
-                                    Toggle("F1", isOn: $shouldShowF1)
-                                    Toggle("MLB", isOn: $shouldShowMLB)
+                                    Toggle("NBA", isOn: appStorage.$shouldShowNBA)
+                                    Toggle("NFL", isOn: appStorage.$shouldShowNFL)
+                                    Toggle("NHL", isOn: appStorage.$shouldShowNHL)
+                                    Toggle("Soccer", isOn: appStorage.$shouldShowSoccer)
+                                    Toggle("F1", isOn: appStorage.$shouldShowF1)
+                                    Toggle("MLB", isOn: appStorage.$shouldShowMLB)
                                 }
                             }
                             
@@ -126,6 +147,7 @@ struct ContentView: View {
                             .environmentObject(SubscriptionManager.shared)
                     case .onboarding:
                         OnboardingPage(sheetType: $sheetType)
+                            .environmentObject(appStorage)
                     case .calendar(let eventGame):
                         if let game = eventGame {
                             makeCalendarEvent(game: game)
@@ -165,31 +187,31 @@ struct ContentView: View {
                 }), trailing: Menu(content: {
                     if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
                         Button("NBA") {
-                            switchTo(sportType: .NBA)
+                            appStorage.switchTo(sportType: .NBA)
                         }
                         Button("NFL") {
-                            switchTo(sportType: .NFL)
+                            appStorage.switchTo(sportType: .NFL)
                         }
                         Button("NHL") {
-                            switchTo(sportType: .NHL)
+                            appStorage.switchTo(sportType: .NHL)
                         }
                         Button("Soccer") {
-                            switchTo(sportType: .Soccer)
+                            appStorage.switchTo(sportType: .Soccer)
                         }
                         Button("F1") {
-                            switchTo(sportType: .F1)
+                            appStorage.switchTo(sportType: .F1)
                         }
                         Button("MLB") {
-                            switchTo(sportType: .MLB)
+                            appStorage.switchTo(sportType: .MLB)
                         }
                     } else {
                         VStack {
-                            Toggle("NBA", isOn: $shouldShowNBA)
-                            Toggle("NFL", isOn: $shouldShowNFL)
-                            Toggle("NHL", isOn: $shouldShowNHL)
-                            Toggle("Soccer", isOn: $shouldShowSoccer)
-                            Toggle("F1", isOn: $shouldShowF1)
-                            Toggle("MLB", isOn: $shouldShowMLB)
+                            Toggle("NBA", isOn: appStorage.$shouldShowNBA)
+                            Toggle("NFL", isOn: appStorage.$shouldShowNFL)
+                            Toggle("NHL", isOn: appStorage.$shouldShowNHL)
+                            Toggle("Soccer", isOn: appStorage.$shouldShowSoccer)
+                            Toggle("F1", isOn: appStorage.$shouldShowF1)
+                            Toggle("MLB", isOn: appStorage.$shouldShowMLB)
                         }
                     }
                 }, label: {
@@ -212,44 +234,8 @@ struct ContentView: View {
                 }
             }
         }
-        .navigationViewStyle(StackNavigationViewStyle())
-        .onChange(of: durations, perform: { newDuration in
-            withAnimation {
-                
-                filterSports()
-            }
-        })
-        .onChange(of: shouldShowF1, perform: { newDuration in
-            withAnimation {
-                filterSports()
-            }
-        })
-        .onChange(of: shouldShowNBA, perform: { newDuration in
-            withAnimation {
-                filterSports()
-            }
-        })
-        .onChange(of: shouldShowNHL, perform: { newDuration in
-            withAnimation {
-                filterSports()
-            }
-        })
-        .onChange(of: shouldShowNFL, perform: { newDuration in
-            withAnimation {
-                filterSports()
-            }
-        })
-        .onChange(of: shouldShowSoccer, perform: { newDuration in
-            withAnimation {
-                filterSports()
-            }
-        })
-        .onChange(of: hidePastEvents, perform: { _ in
-            withAnimation {
-                filterSports()
-            }
-        })
-        .onChange(of: soonestOnTop, perform: { _ in
+       
+        .onChange(of: appStorage, perform: { newValue in
             withAnimation {
                 filterSports()
             }
@@ -257,14 +243,10 @@ struct ContentView: View {
         .alert(isPresented: $shouldShowSportsCalProAlert, content: {
             Alert(title: Text("SportsCal Pro"), message: Text("This feature requires SportsCal Pro"))
         })
-        //        .alert("SportsCal Pro", isPresented: $shouldShowSportsCalProAlert) {
-        //            Button("OK") {
-        //                shouldShowSportsCalProAlert = false
-        //            }
-        //        }
+        .conditionalModifier(UIDevice.current.userInterfaceIdiom == .pad, ifTrue: {$0.navigationViewStyle(StackNavigationViewStyle())}, ifFalse: {$0.navigationViewStyle(DefaultNavigationViewStyle())})
         .onAppear {
             WidgetCenter.shared.reloadAllTimelines()
-            if shouldShowOnboarding {
+            if appStorage.shouldShowOnboarding {
                 sheetType = .onboarding
             }
             if #available(iOS 15.0, *) {
@@ -286,59 +268,7 @@ struct ContentView: View {
             }
         }
     }
-    func switchTo(sportType: SportTypes) {
-        switch sportType {
-        case .NHL:
-            shouldShowF1 = false
-            shouldShowNFL = false
-            shouldShowNBA = false
-            shouldShowNHL = true
-            shouldShowSoccer = false
-            shouldShowMLB = false
-            break
-        case .NFL:
-            shouldShowF1 = false
-            shouldShowNFL = true
-            shouldShowNBA = false
-            shouldShowNHL = false
-            shouldShowSoccer = false
-            shouldShowMLB = false
-            break
-        case .NBA:
-            shouldShowF1 = false
-            shouldShowNFL = false
-            shouldShowNBA = true
-            shouldShowNHL = false
-            shouldShowSoccer = false
-            shouldShowMLB = false
-            break
-        case .MLB:
-            shouldShowF1 = false
-            shouldShowNFL = false
-            shouldShowNBA = false
-            shouldShowNHL = false
-            shouldShowSoccer = false
-            shouldShowMLB = true
-            break
-        case .F1:
-            shouldShowF1 = true
-            shouldShowNFL = false
-            shouldShowNBA = false
-            shouldShowNHL = false
-            shouldShowSoccer = false
-            shouldShowMLB = false
-            break
-        case .Soccer:
-            shouldShowF1 = false
-            shouldShowNFL = false
-            shouldShowNBA = false
-            shouldShowNHL = false
-            shouldShowSoccer = true
-            shouldShowMLB = false
-            break
-        }
-        filterSports()
-    }
+   
     func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         print("⚠️ making calendar event for game \(game)")
@@ -354,12 +284,12 @@ struct ContentView: View {
     }
     func filterSports() {
         print("⚠️ sports duration or selected sport changed, filtering")
-        print("⚠️ should show F1 \(shouldShowF1)")
-        print("⚠️ should show NFL \(shouldShowNFL)")
-        print("⚠️ should show NBA \(shouldShowNBA)")
-        print("⚠️ should show NHL \(shouldShowNHL)")
-        print("⚠️ should show Soccer \(shouldShowSoccer)")
-        print("⚠️ should show MLB \(shouldShowMLB)")
+        print("⚠️ should show F1 \(appStorage.shouldShowF1)")
+        print("⚠️ should show NFL \(appStorage.shouldShowNFL)")
+        print("⚠️ should show NBA \(appStorage.shouldShowNBA)")
+        print("⚠️ should show NHL \(appStorage.shouldShowNHL)")
+        print("⚠️ should show Soccer \(appStorage.shouldShowSoccer)")
+        print("⚠️ should show MLB \(appStorage.shouldShowMLB)")
         if let first = filteredGames?.first {
             if let _ = filteredGames {
                 filteredGames = first.filtered(games: totalGames ?? [])
@@ -389,11 +319,39 @@ struct ContentView: View {
         }
         //        #endif
     }
+    
+    func favoritesToGames() -> [Game] {
+        guard let filteredGames = filteredGames?.first?.sortByDate(games: filteredGames ?? []) else {
+            return []
+        }
+        var favoriteGames: [Game] = []
+        for index in filteredGames.indices {
+            let arr = filteredGames[index]
+            favoriteGames += arr.value.filter({favorites.contains($0)})
+        }
+        return favoriteGames
+    }
 }
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
         //            .environment(\.sizeCategory, .accessibilityLarge)
+    }
+}
+extension View {
+    typealias ContentTransform<Content: View> = (Self) -> Content
+    
+    @ViewBuilder
+    func conditionalModifier<TrueContent: View, FalseContent: View>(
+        _ condition: Bool,
+        ifTrue: ContentTransform<TrueContent>,
+        ifFalse: ContentTransform<FalseContent>
+    ) -> some View {
+        if condition {
+            ifTrue(self)
+        } else {
+            ifFalse(self)
+        }
     }
 }
