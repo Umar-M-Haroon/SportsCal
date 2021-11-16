@@ -14,12 +14,13 @@ class Favorites: ObservableObject {
     private let saveKey = "Favorites"
     
     init() {
-        let array = UserDefaults.standard.stringArray(forKey: saveKey)
+        let array = UserDefaults(suiteName: "group.Komodo.SportsCal")?.stringArray(forKey: saveKey)
         
         var teamSet = Set<String>()
         array?.forEach({ team in
             teamSet.insert(team)
         })
+        print(teamSet)
         teams = teamSet
     }
     func contains(_ team: Game) -> Bool {
@@ -44,7 +45,7 @@ class Favorites: ObservableObject {
     func save() {
         let stringArray = Array(teams)
         print(stringArray)
-        UserDefaults.standard.set(stringArray, forKey: saveKey)
+        UserDefaults(suiteName: "group.Komodo.SportsCal")?.set(stringArray, forKey: saveKey)
     }
     
 }

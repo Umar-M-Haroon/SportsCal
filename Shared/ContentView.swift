@@ -52,19 +52,18 @@ struct ContentView: View {
             if let games = filteredGames?.first?.sortByDate(games: filteredGames ?? []) {
                 List {
                     if !favoriteGames.isEmpty  {
-                        DisclosureGroup {
-                            Section {
-                                ForEach(favoriteGames) { game in
-                                    ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: favorites)
-                                }
-                            } header: {
-                                HStack {
-                                    Text("Favorites")
-                                        .font(.title3)
-                                        .bold()
-                                }
+                        Section {
+                            ForEach(favoriteGames) { game in
+                                ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: favorites)
                             }
-
+                        } header: {
+                            HStack {
+                                Text("Favorites")
+                                    .font(.title3)
+                                    .bold()
+                            }
+                        }
+                        
                         
                         
 
@@ -266,7 +265,7 @@ struct ContentView: View {
                         }
                     } receiveValue: { sports  in
                         (totalGames, filteredGames) = sports.convertToGames()
-                        favoriteGames = sports.favoritesToGames(games: filteredGames)
+                        favoriteGames = sports.favoritesToGames(games: filteredGames ?? [], favorites: favorites)
                     }
             }
         }
@@ -316,7 +315,7 @@ struct ContentView: View {
         do {
             let result = try await NetworkHandler().handleCall(year: "2020")
             (totalGames, filteredGames) = result.convertToGames()
-            favoriteGames = result.favoritesToGames(games: filteredGames ?? [])
+            favoriteGames = result.favoritesToGames(games: filteredGames ?? [], favorites: favorites)
         } catch let e {
             print(e)
             print(e.localizedDescription)

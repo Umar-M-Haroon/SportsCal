@@ -39,15 +39,7 @@ struct Sports: Codable {
         }
         return (allGames, allGames)
     }
-    func favoritesToGames(games: [Game]) -> [Game] {
-        guard let filteredGames = filteredGames?.first?.sortByDate(games: filteredGames ?? []) else {
-            return []
-        }
-        var favoriteGames: [Game] = []
-        for index in filteredGames.indices {
-            let arr = filteredGames[index]
-            favoriteGames += arr.value.filter({favorites.contains($0)})
-        }
-        return favoriteGames
+    func favoritesToGames(games: [Game], favorites: Favorites) -> [Game] {
+        return games.filter({ favorites.contains($0) })
     }
 }

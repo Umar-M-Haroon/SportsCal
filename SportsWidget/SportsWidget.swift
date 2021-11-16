@@ -101,7 +101,7 @@ class Provider: IntentTimelineProvider {
                 }
             } receiveValue: { sports  in
                 if favoriteOnly {
-                    completion(sports.favoritesToGames(games: sports.convertToGames(isWidget: true).1))
+                    completion(sports.favoritesToGames(games: sports.convertToGames(isWidget: true).1, favorites: Favorites()))
                 } else {
                     completion(sports.convertToGames(isWidget: true).1)
                 }
