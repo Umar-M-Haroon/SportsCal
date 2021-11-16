@@ -6,6 +6,4 @@
 #  Created by Umar Haroon on 11/15/21.
 #  
 pwd
-echo "import Foundation\nstruct Constants {\n static let revenueAPIKey = \"" >> ../Shared/Constants.swift
-echo $REVENUECAT_API_KEY >> ../Shared/Constants.swift
-echo "\"\n}" >> ../Shared/Constants.swift
+printf "import Foundation\nstruct Constants {\n	   static let revenueCatAPIKey = %s\n}" $REVENUECAT_API_KEY > ../Shared/Constants.swift
