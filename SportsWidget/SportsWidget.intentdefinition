@@ -121,11 +121,11 @@
 	<key>INIntentDefinitionNamespace</key>
 	<string>88xZPY</string>
 	<key>INIntentDefinitionSystemVersion</key>
-	<string>21A559</string>
+	<string>21A5552a</string>
 	<key>INIntentDefinitionToolsBuildVersion</key>
-	<string>13C5066c</string>
+	<string>13A233</string>
 	<key>INIntentDefinitionToolsVersion</key>
-	<string>13.2</string>
+	<string>13.0</string>
 	<key>INIntents</key>
 	<array>
 		<dict>
@@ -138,7 +138,7 @@
 			<key>INIntentIneligibleForSuggestions</key>
 			<true/>
 			<key>INIntentLastParameterTag</key>
-			<integer>6</integer>
+			<integer>2</integer>
 			<key>INIntentName</key>
 			<string>Configuration</string>
 			<key>INIntentParameters</key>
@@ -182,54 +182,6 @@
 					<integer>2</integer>
 					<key>INIntentParameterType</key>
 					<string>Integer</string>
-				</dict>
-				<dict>
-					<key>INIntentParameterConfigurable</key>
-					<true/>
-					<key>INIntentParameterDisplayName</key>
-					<string>Favorites Only</string>
-					<key>INIntentParameterDisplayNameID</key>
-					<string>XPhoSm</string>
-					<key>INIntentParameterDisplayPriority</key>
-					<integer>2</integer>
-					<key>INIntentParameterMetadata</key>
-					<dict>
-						<key>INIntentParameterMetadataFalseDisplayName</key>
-						<string>false</string>
-						<key>INIntentParameterMetadataFalseDisplayNameID</key>
-						<string>0QYUlS</string>
-						<key>INIntentParameterMetadataTrueDisplayName</key>
-						<string>true</string>
-						<key>INIntentParameterMetadataTrueDisplayNameID</key>
-						<string>wWf4xn</string>
-					</dict>
-					<key>INIntentParameterName</key>
-					<string>favoritesOnly</string>
-					<key>INIntentParameterPromptDialogs</key>
-					<array>
-						<dict>
-							<key>INIntentParameterPromptDialogCustom</key>
-							<true/>
-							<key>INIntentParameterPromptDialogType</key>
-							<string>Configuration</string>
-						</dict>
-						<dict>
-							<key>INIntentParameterPromptDialogCustom</key>
-							<true/>
-							<key>INIntentParameterPromptDialogFormatString</key>
-							<string>Favorites Only</string>
-							<key>INIntentParameterPromptDialogFormatStringID</key>
-							<string>aw8zrI</string>
-							<key>INIntentParameterPromptDialogType</key>
-							<string>Primary</string>
-						</dict>
-					</array>
-					<key>INIntentParameterSupportsResolution</key>
-					<true/>
-					<key>INIntentParameterTag</key>
-					<integer>6</integer>
-					<key>INIntentParameterType</key>
-					<string>Boolean</string>
 				</dict>
 			</array>
 			<key>INIntentResponse</key>

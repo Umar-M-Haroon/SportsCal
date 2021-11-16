@@ -44,15 +44,13 @@ struct ContentView: View {
     
     @EnvironmentObject var favorites: Favorites
     
-    @State var favoriteGames: [Game] = []
-    
     var body: some View {
         NavigationView {
 
             if let games = filteredGames?.first?.sortByDate(games: filteredGames ?? []) {
                 List {
-                    if !favoriteGames.isEmpty  {
-                        DisclosureGroup {
+                    if let favoriteGames = favoritesToGames() {
+                        
                             Section {
                                 ForEach(favoriteGames) { game in
                                     ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: favorites)
@@ -266,7 +264,6 @@ struct ContentView: View {
                         }
                     } receiveValue: { sports  in
                         (totalGames, filteredGames) = sports.convertToGames()
-                        favoriteGames = sports.favoritesToGames(games: filteredGames)
                     }
             }
         }
@@ -316,7 +313,6 @@ struct ContentView: View {
         do {
             let result = try await NetworkHandler().handleCall(year: "2020")
             (totalGames, filteredGames) = result.convertToGames()
-            favoriteGames = result.favoritesToGames(games: filteredGames ?? [])
         } catch let e {
             print(e)
             print(e.localizedDescription)
@@ -324,7 +320,17 @@ struct ContentView: View {
         //        #endif
     }
     
-   
+    func favoritesToGames() -> [Game] {
+        guard let filteredGames = filteredGames?.first?.sortByDate(games: filteredGames ?? []) else {
+            return []
+        }
+        var favoriteGames: [Game] = []
+        for index in filteredGames.indices {
+            let arr = filteredGames[index]
+            favoriteGames += arr.value.filter({favorites.contains($0)})
+        }
+        return favoriteGames
+    }
 }
 
 struct ContentView_Previews: PreviewProvider {

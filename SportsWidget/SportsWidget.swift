@@ -18,7 +18,7 @@ class Provider: IntentTimelineProvider {
     }
 
     func getSnapshot(for configuration: ConfigurationIntent, in context: Context, completion: @escaping (SimpleEntry) -> ()) {
-        handleNetworking(favoriteOnly: configuration.favoritesOnly?.boolValue ?? false, type: configurationToString(configuration: configuration)) { games in
+        handleNetworking(type: configurationToString(configuration: configuration)) { games in
             if games.isEmpty {
                 let entry = SimpleEntry(date: Date(), configuration: configuration, game: nil)
                 completion(entry)
@@ -46,10 +46,9 @@ class Provider: IntentTimelineProvider {
     
     
     func timelineHandler(configuration: ConfigurationIntent, completion: @escaping(Timeline<Entry>) -> Void) {
-        
         var entries: [SimpleEntry] = []
         let currentDate = Date()
-        handleNetworking(favoriteOnly: configuration.favoritesOnly?.boolValue ?? false, type: configurationToString(configuration: configuration), completion: { games in
+        handleNetworking(type: configurationToString(configuration: configuration), completion: { games in
             let entryDate = Calendar.current.date(byAdding: .minute, value: 3, to: currentDate)
             if games.isEmpty {
                 let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: nil)
@@ -81,6 +80,7 @@ class Provider: IntentTimelineProvider {
         case .nFL:
             return .NFL
         case .soccer:
+            #warning("FIX BEFORE RELASE")
             return SportTypes.Soccer
         case .unknown:
             return .NFL
@@ -88,7 +88,7 @@ class Provider: IntentTimelineProvider {
     }
     
     
-    func handleNetworking(favoriteOnly: Bool, type: SportTypes?, completion: @escaping([Game]) -> Void) {
+    func handleNetworking(type: SportTypes?, completion: @escaping([Game]) -> Void) {
         cancellable = NetworkHandler().handleCall(type: type)
             .receive(on: RunLoop.main)
             .sink { completion in
@@ -100,11 +100,7 @@ class Provider: IntentTimelineProvider {
                     print(err.localizedDescription)
                 }
             } receiveValue: { sports  in
-                if favoriteOnly {
-                    completion(sports.favoritesToGames(games: sports.convertToGames(isWidget: true).1))
-                } else {
-                    completion(sports.convertToGames(isWidget: true).1)
-                }
+                completion(sports.convertToGames(isWidget: true).1)
             }
     }
 }
