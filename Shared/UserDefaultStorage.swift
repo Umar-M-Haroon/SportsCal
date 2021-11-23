@@ -30,9 +30,11 @@ class UserDefaultStorage: ObservableObject, Equatable {
     @AppStorage("shouldShowF1") var shouldShowF1: Bool = false
     @AppStorage("shouldShowMLB") var shouldShowMLB: Bool = false
     @AppStorage("shouldShowOnboarding") var shouldShowOnboarding: Bool = true
-    @AppStorage("hidesPastEvents") var hidePastEvents: Bool = false
+    @AppStorage("hidesPastEvents") var hidePastEvents: Bool = true
     @AppStorage("soonestOnTop") var soonestOnTop: Bool = true
-    @AppStorage("duration") var durations: Durations = .oneWeek
+    @AppStorage("duration") var durations: Durations = .threeWeeks
+    @AppStorage("launches") var launches: Int = 0
+    @AppStorage("dateFormat") var dateFormat: String = "E, dd.MM.yy"
     
     func switchTo(sportType: SportTypes) {
         switch sportType {

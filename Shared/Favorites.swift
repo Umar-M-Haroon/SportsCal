@@ -8,7 +8,7 @@
 import Foundation
 import SwiftUI
 
-class Favorites: ObservableObject {
+class Favorites: ObservableObject, Equatable {
     private var teams: Set<String>
     
     private let saveKey = "Favorites"
@@ -47,5 +47,8 @@ class Favorites: ObservableObject {
         print(stringArray)
         UserDefaults(suiteName: "group.Komodo.SportsCal")?.set(stringArray, forKey: saveKey)
     }
-    
+    static func ==(lhs: Favorites, rhs: Favorites) -> Bool{
+        return false
+        return lhs.teams == rhs.teams
+    }
 }

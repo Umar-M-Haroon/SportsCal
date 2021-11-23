@@ -19,10 +19,7 @@ enum Durations: String {
 }
 
 class SettingsObject: ObservableObject {
-    @Published var hidePastEvents: Bool = false
-    @Published var dateFormatString: String = "E, dd.MM.yy"
-    @Published var durations: Durations = .oneWeek
-    @Published var dateFormats: [DateFormatStrings] = [
+    static var dateFormats: [DateFormatStrings] = [
         .longest,
         .long,
         .slashesMDY,
@@ -34,7 +31,7 @@ class SettingsObject: ObservableObject {
         .slashesLongYearDMY,
         .dashesLongYearDMY
     ]
-    @Published var dateFormatsStrings: [String] = [
+    static var dateFormatsStrings: [String] = [
         DateFormatStrings.longest.toExample(),
         DateFormatStrings.long.toExample(),
         DateFormatStrings.slashesMDY.toExample(),
@@ -46,10 +43,11 @@ class SettingsObject: ObservableObject {
         DateFormatStrings.slashesLongYearDMY.toExample(),
         DateFormatStrings.dashesLongYearDMY.toExample()
     ]
-    @State var selectedFormat: DateFormatStrings = .dotsDMY
     
 }
-enum DateFormatStrings: String, Hashable {
+enum DateFormatStrings: String, Hashable, CaseIterable, Identifiable {
+    var id: String { self.rawValue }
+    
     case longest = "EEEE, MMMM d, yyyy"
     case long = "EEEE, MMM d, yyyy"
     case slashesMDY = "MM/dd/yyyy"

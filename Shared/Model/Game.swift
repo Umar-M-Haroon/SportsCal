@@ -131,7 +131,7 @@ struct Game: Identifiable {
             return date2
         }
         let sorted = groupDic.sorted(by: {
-            if UserDefaults.standard.bool(forKey: "soonestOnTop") {
+            if UserDefaultStorage().soonestOnTop {
                 return $0.key.date! < $1.key.date!
             }
             return $0.key.date! > $1.key.date!
@@ -147,8 +147,7 @@ struct Game: Identifiable {
         let calendar = Calendar.current
         return games.filter({ game in
             let days = calendar.dateComponents([.day, .month, .year], from: Date(), to: game.gameDate)
-            let durationString = UserDefaults.standard.string(forKey: "duration")
-            let duration = Durations(rawValue: durationString ?? "1 Week")
+            let duration = UserDefaultStorage().durations
             var isValid: Bool = true
             switch duration {
             case .oneWeek:
@@ -172,12 +171,9 @@ struct Game: Identifiable {
             case .oneYear:
                 isValid = days.month ?? 0 < 12
                 break
-            case .none:
-                isValid = days.day ?? 0 < 7 && days.month == 0
-                break
             }
             
-            if UserDefaults.standard.bool(forKey: "hidesPastEvents") {
+            if UserDefaultStorage().hidePastEvents {
                 print("⚠️ hiding past events")
                 return isValid && (days.day ?? 0 > 0) && isValidSport(game: game)
             }
@@ -190,32 +186,32 @@ struct Game: Identifiable {
         })
     }
     func isValidSport(game: Game) -> Bool {
-        if !UserDefaults.standard.bool(forKey: "shouldShowF1") {
+        if !UserDefaultStorage().shouldShowF1{
             if game.sport == .F1 {
                 return false
             }
         }
-        if !UserDefaults.standard.bool(forKey: "shouldShowSoccer") {
+        if !UserDefaultStorage().shouldShowSoccer {
             if game.sport == .Soccer {
                 return false
             }
         }
-        if !UserDefaults.standard.bool(forKey: "shouldShowNHL") {
+        if !UserDefaultStorage().shouldShowNHL {
             if game.sport == .NHL {
                 return false
             }
         }
-        if !UserDefaults.standard.bool(forKey: "shouldShowNFL") {
+        if !UserDefaultStorage().shouldShowNFL {
             if game.sport == .NFL {
                 return false
             }
         }
-        if !UserDefaults.standard.bool(forKey: "shouldShowMLB") {
+        if !UserDefaultStorage().shouldShowMLB {
             if game.sport == .MLB {
                 return false
             }
         }
-        if !UserDefaults.standard.bool(forKey: "shouldShowNBA") {
+        if !UserDefaultStorage().shouldShowNBA {
             if game.sport == .NBA {
                 return false
             }

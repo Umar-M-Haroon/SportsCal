@@ -168,8 +168,13 @@ struct SportsView: View {
                 VStack(spacing: 0) {
                     Text(dateToString(date: gameDate))
                         .font(.caption2)
-                    Image(type.rawValue)
-                        .modifier(SportsTint(sport: type))
+                    if type == .F1 {
+                        Image(systemName: "car.fill")
+//                            .modifier(SportsTint(sport: type))
+                    } else {
+                        Image(type.rawValue)
+                            .modifier(SportsTint(sport: type))
+                    }
 //                        .frame(width: ,, height: 25, alignment: .center)
 //                        .padding(-1)
                 }

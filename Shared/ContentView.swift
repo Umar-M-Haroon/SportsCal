@@ -9,6 +9,7 @@ import SwiftUI
 import Combine
 import EventKit
 import WidgetKit
+import StoreKit
 
 enum SheetType: Identifiable {
     var id: String {
@@ -75,7 +76,7 @@ struct ContentView: View {
                             }
                         } header: {
                             HStack {
-                                Text("\(games.map({$0.key})[index].formatted())")
+                                Text("\(games.map({$0.key})[index].formatted(format: appStorage.dateFormat))")
                                     .font(.title3)
                                     .bold()
                             }
@@ -241,12 +242,23 @@ struct ContentView: View {
                 filterSports()
             }
         })
+        .onChange(of: favorites, perform: { fav in
+            withAnimation {
+                filterSports()
+            }
+        })
         .alert(isPresented: $shouldShowSportsCalProAlert, content: {
             Alert(title: Text("SportsCal Pro"), message: Text("This feature requires SportsCal Pro"))
         })
         .conditionalModifier(UIDevice.current.userInterfaceIdiom == .pad, ifTrue: {$0.navigationViewStyle(StackNavigationViewStyle())}, ifFalse: {$0.navigationViewStyle(DefaultNavigationViewStyle())})
         .onAppear {
-            WidgetCenter.shared.reloadAllTimelines()
+//            WidgetCenter.shared.reloadAllTimelines()
+            appStorage.launches += 1
+            if appStorage.launches == 5 {
+                if let scene = UIApplication.shared.connectedScenes.first(where: {$0.activationState == .foregroundActive}) as? UIWindowScene {
+                    SKStoreReviewController.requestReview(in: scene)
+                }
+            }
             if appStorage.shouldShowOnboarding {
                 sheetType = .onboarding
             }
@@ -293,11 +305,15 @@ struct ContentView: View {
         print("⚠️ should show Soccer \(appStorage.shouldShowSoccer)")
         print("⚠️ should show MLB \(appStorage.shouldShowMLB)")
         if let first = filteredGames?.first {
-            if let _ = filteredGames {
+            if let games = filteredGames {
                 filteredGames = first.filtered(games: totalGames ?? [])
+                favoriteGames = games.filter({ favorites.contains($0) })
+                print(favoriteGames.count)
             }
         } else {
             filteredGames = totalGames?.first?.filtered(games: totalGames ?? [])
+            favoriteGames = filteredGames?.filter({ favorites.contains($0) }) ?? []
+            print(favoriteGames.count)
         }
         print("⚠️ total amount of games, \(totalGames?.count) filtered result \(filteredGames?.count)")
     }

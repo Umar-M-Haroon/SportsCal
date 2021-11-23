@@ -11,10 +11,9 @@ import Combine
 
 
 struct SettingsView: View {
-//    var settings: SettingsObject
-    @AppStorage("hidesPastEvents") var hidePastEvents: Bool = false
-    @AppStorage("dateFormatString") var dateFormatString: String = "E, dd.MM.yy"
-    @AppStorage("duration") var durations: Durations = .oneWeek
+    @EnvironmentObject var appStorage: UserDefaultStorage
+//    @AppStorage("dateFormatString") var dateFormatString: String = "E, dd.MM.yy"
+//    @AppStorage("duration") var durations: Durations = .oneWeek
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     @Binding var sheetType: SheetType?
     var body: some View {
@@ -24,43 +23,52 @@ struct SettingsView: View {
                     SubscriptionPage()
                 }
                 Section(header: Text("SportsCal Pro Options")) {
-                HStack {
-                    
-                    if #available(iOS 15.0, *) {
-                        Text(showAttributedString())
-                    } else {
-                        Text("Hide events more than \(durations.rawValue)")
-                    }
-                    Spacer()
-                    Menu("\(durations.rawValue) away") {
-                        Button(Durations.oneWeek.rawValue) {
-                            durations = .oneWeek
-                        }
-                        Button(Durations.twoWeeks.rawValue) {
-                            durations = .twoWeeks
-                        }
-                        Button(Durations.threeWeeks.rawValue) {
-                            durations = .threeWeeks
-                        }
-                        Button(Durations.oneMonth.rawValue) {
-                            durations = .oneMonth
-                        }
-                        Button(Durations.twoMonths.rawValue) {
-                            durations = .twoMonths
-                        }
-                        Button(Durations.sixMonths.rawValue) {
-                            durations = .sixMonths
-                        }
-                        Button(Durations.oneYear.rawValue) {
-                            durations = .oneYear
-                        }
+                    HStack {
                         
+                        if #available(iOS 15.0, *) {
+                            Text(showAttributedString())
+                        } else {
+                            Text("Hide events more than \(appStorage.durations.rawValue)")
+                        }
+                        Spacer()
+                        Menu("\(appStorage.durations.rawValue) away") {
+                            Button(Durations.oneWeek.rawValue) {
+                                appStorage.durations = .oneWeek
+                            }
+                            Button(Durations.twoWeeks.rawValue) {
+                                appStorage.durations = .twoWeeks
+                            }
+                            Button(Durations.threeWeeks.rawValue) {
+                                appStorage.durations = .threeWeeks
+                            }
+                            Button(Durations.oneMonth.rawValue) {
+                                appStorage.durations = .oneMonth
+                            }
+                            Button(Durations.twoMonths.rawValue) {
+                                appStorage.durations = .twoMonths
+                            }
+                            Button(Durations.sixMonths.rawValue) {
+                                appStorage.durations = .sixMonths
+                            }
+                            Button(Durations.oneYear.rawValue) {
+                                appStorage.durations = .oneYear
+                            }
+                            
+                        }
+                        .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                     }
-                    .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
+                    Toggle("Hide Past Events", isOn: appStorage.$hidePastEvents)
+                        .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                 }
-                Toggle("Hide Past Events", isOn: $hidePastEvents)
-                    .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
-                }
+//                NavigationLink("Date Format") {
+                    Picker.init("Date Format", selection: appStorage.$dateFormat) {
+                        ForEach(DateFormatStrings.allCases) { dateFormat in
+                            Text(dateFormat.toExample())
+                                .tag(dateFormat)
+                        }
+                    }
+                    .pickerStyle(.inline)
+//                }
             }
             .navigationBarItems(leading: Button(action: {
                 sheetType = nil
