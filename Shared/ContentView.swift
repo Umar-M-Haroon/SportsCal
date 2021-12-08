@@ -46,6 +46,7 @@ struct ContentView: View {
     @EnvironmentObject var favorites: Favorites
     
     @State var favoriteGames: [Game] = []
+    @State var networkState: NetworkState = .loading
     
     var body: some View {
         NavigationView {
@@ -158,26 +159,30 @@ struct ContentView: View {
                 }
             } else {
                 VStack {
-                    Text("No upcoming games")
-                        .font(.title2)
-                    Button("Retry") {
-                        if #available(iOS 15.0, *) {
-                            Task {
-                                await getData()
-                            }
-                        } else {
-                            cancellable = NetworkHandler().handleCall()
-                                .sink { completion in
-                                    switch completion {
-                                    case .finished:
-                                        break
-                                    case .failure(let err):
-                                        print(err.localizedDescription)
-                                    }
-                                } receiveValue: { sports  in
-                                    (totalGames, filteredGames) = sports.convertToGames()
+                    if networkState == .failed {
+                        Text("No upcoming games")
+                            .font(.title2)
+                        Button("Retry") {
+                            if #available(iOS 15.0, *) {
+                                Task {
+                                    await getData()
                                 }
+                            } else {
+                                cancellable = NetworkHandler().handleCall()
+                                    .sink { completion in
+                                        switch completion {
+                                        case .finished:
+                                            break
+                                        case .failure(let err):
+                                            print(err.localizedDescription)
+                                        }
+                                    } receiveValue: { sports  in
+                                        (totalGames, filteredGames) = sports.convertToGames()
+                                    }
+                            }
                         }
+                    } else if networkState == .loading {
+                        ProgressView()
                     }
                 }
                 .navigationBarTitle("SportsCal")
@@ -278,6 +283,7 @@ struct ContentView: View {
                     } receiveValue: { sports  in
                         (totalGames, filteredGames) = sports.convertToGames()
                         favoriteGames = sports.favoritesToGames(games: filteredGames ?? [], favorites: favorites)
+                        networkState = .loaded
                     }
             }
         }
@@ -332,6 +338,7 @@ struct ContentView: View {
             let result = try await NetworkHandler().handleCall(year: "2020")
             (totalGames, filteredGames) = result.convertToGames()
             favoriteGames = result.favoritesToGames(games: filteredGames ?? [], favorites: favorites)
+                        networkState = .loaded
         } catch let e {
             print(e)
             print(e.localizedDescription)

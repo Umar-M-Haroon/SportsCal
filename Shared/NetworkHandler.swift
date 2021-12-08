@@ -7,6 +7,11 @@
 
 import Foundation
 import Combine
+enum NetworkState {
+    case loading
+    case loaded
+    case failed
+}
 struct NetworkHandler {
     
     @available(iOS 15.0, *)
