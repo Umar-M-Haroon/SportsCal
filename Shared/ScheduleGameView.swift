@@ -39,12 +39,6 @@ struct ScheduleGameView: View {
         _teamString = State(initialValue: teamStr)
         self.favorites = favorites
     }
-//    init(gameArg: Game) {
-//        dateFormatter = DateFormatter()
-//        _game = State(initialValue: gameArg)
-//        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
-//        relativeDateFormatter.dateTimeStyle = RelativeDateTimeFormatter.DateTimeStyle.numeric
-//    }
     init() {
         relativeDateFormatter.dateTimeStyle = RelativeDateTimeFormatter.DateTimeStyle.numeric
         dateFormatter = DateFormatter()
@@ -52,204 +46,137 @@ struct ScheduleGameView: View {
         _sheetType = Binding<SheetType?>(get: {
             .onboarding
         }, set: { sheet in
-           sheet
+            _ = sheet
         })
         _shouldShowSportsCalProAlert = Binding<Bool>(get: {
             false
         }, set: { should in
-            should
+            _ = should
         })
         _teamString = State(initialValue: nil)
-
+        
         self.favorites = Favorites()
         timeString = "6 days 18:29:31"
+        
     }
     
     var body: some View {
-            HStack {
-                if game?.sport == .F1 {
-                    Image(systemName: "car.fill")
-                        .font(.body)
-                        .padding(-1)
-                    VStack(alignment: .leading) {
-                        Text(game?.home ?? "New york knicxs")
-                            .font(.headline)
-//                            .bold()
-                            .multilineTextAlignment(.leading)
-                    }
-                } else {
-                    Image((game?.sport.rawValue) ?? "NHL", bundle: nil)
-                        .resizable()
-                        .modifier(SportsTint(sport: SportTypes(rawValue: (game?.sport ?? .NHL).rawValue) ?? .NHL))
-                        .frame(width: 25, height: 25, alignment: .center)
-                        .padding(-1)
-                    VStack {
-                        Text("H")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .accessibilityLabel("Home")
-                        Text("A")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .accessibilityLabel("Away")
-                    }
-                    VStack(alignment: .leading) {
-                        Text(game?.home ?? "New york knicxs")
-//                            .font(.headline)
-                            .bold()
-                            .multilineTextAlignment(.leading)
-                        Text(game?.away ?? "Milwaukey bucks")
-//                            .font(.headline)
-                            .bold()
-                            .multilineTextAlignment(.leading)
-                            .frame(alignment: .leading)
-                    }
+        HStack {
+            if game?.sport == .F1 {
+                Image(systemName: "car.fill")
+                    .font(.body)
+                    .padding(-1)
+                VStack(alignment: .leading) {
+                    Text(game?.home ?? "New york knicxs")
+                        .font(.headline)
+                        .multilineTextAlignment(.leading)
                 }
-                Spacer()
+            } else {
+                Image((game?.sport.rawValue) ?? "NHL", bundle: nil)
+                    .resizable()
+                    .modifier(SportsTint(sport: SportTypes(rawValue: (game?.sport ?? .NHL).rawValue) ?? .NHL))
+                    .frame(width: 25, height: 25, alignment: .center)
+                    .padding(-1)
                 VStack {
-                    Text(timeString)
-                        .accessibilityValue(accessibilityLabel)
-                        .accessibilityLabel(accessibilityLabel)
-                        .frame(maxWidth: .infinity,  alignment: .trailing)
+                    Text("H")
                         .font(.caption)
-                    //                        .foregroundColor(.secondary)
-                        .onReceive(timer) { cur in
-                            timeString = formatCountdown()
-                        }
-                    if let competition = game?.competition?.name {
-                        Text(competition)
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity,  alignment: .trailing)
+                        .foregroundColor(.secondary)
+                        .accessibilityLabel("Home")
+                    Text("A")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .accessibilityLabel("Away")
+                }
+                VStack(alignment: .leading) {
+                    TeamView(teamName: game?.home ?? "", visitingOrAway: .home, game: game!, score: game?.homeScore)
+                    TeamView(teamName: game?.away ?? "", visitingOrAway: .away, game: game!, score: game?.awayScore)
+                }
+            }
+        Spacer()
+            VStack(alignment: .trailing) {
+            if let game_ = game, !game_.isInPast {
+                Text(timeString)
+                    .accessibilityValue(accessibilityLabel)
+                    .accessibilityLabel(accessibilityLabel)
+                    .frame(maxWidth: .infinity,  alignment: .trailing)
+                    .font(.caption)
+                    .onReceive(timer) { cur in
+                        timeString = formatCountdown()
                     }
-                    HStack {
-                        Spacer()
-                        Menu {
-                            // TODO: Fully implement favorites
-                            Button {
-                                if let game = game {
-                                    if favorites.contains(game) {
-                                        favorites.remove(game.home)
-                                    } else {
-                                        favorites.add(game.home)
-                                    }
-                                }
-                            } label: {
-                                if let game = game {
-                                    if favorites.containsHome(game.home) {
-                                        Text("Remove \(game.home) as favorite")
-
-                                    } else {
-                                        Text("Set \(game.home) as favorite")
-                                    }
-                                }
-                            }
-                            if game?.sport != .F1 {
-                                Button {
-                                    if let game = game {
-                                        if favorites.contains(game) {
-                                            favorites.remove(game.away)
-                                        } else {
-                                            favorites.add(game.away)
-                                        }
-                                    }
-                                } label: {
-                                    if let game = game {
-                                        if favorites.containsAway(game.away) {
-                                            Text("Remove \(game.away) as favorite")
-                                        } else {
-                                            Text("Set \(game.away) as favorite")
-                                        }
-                                    } else {
-                                        Text("unsure path")
-                                    }
-                                }
-                            }
-
-                        } label: {
-                            if let game = game {
-                                if favorites.contains(game) {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(.yellow)
-                                } else {
-                                Image(systemName: "star")
-                                }
+                if let competition = game_.competition?.name {
+                    Text(competition)
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity,  alignment: .trailing)
+                }
+            }
+            Spacer()
+            HStack {
+                FavoriteMenu(game: game)
+                    .environmentObject(favorites)
+                if let game_ = game, !game_.isInPast {
+                    Menu {
+                        Button {
+                            if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                                shouldShowSportsCalProAlert = true
                             } else {
-                                Image(systemName: "star")
-                                
-                            }
-                            
-                            
-                        }
-                        
-                        
-                        Menu {
-                            Button {
-                                //                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                                //                            shouldShowSportsCalProAlert = true
-                                //                        } else {
                                 EKEventStore().requestAccess(to: .event) { success, err in
                                     print("⚠️changing sheet type to a calendar with game \(game)")
                                     sheetType = .calendar(game: game)
                                     
                                 }
-                                //                        }
-                            } label: {
-                                Text("Add To Calendar")
-                            }
-                            
-                            Menu {
-                                Button {
-                                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                                        shouldShowSportsCalProAlert = true
-                                    } else {
-                                        NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .thirtyMinutes)
-                                    }
-                                } label: {
-                                    Text("\(NotificationDuration.thirtyMinutes.rawValue) before")
-                                }
-                                Button {
-                                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                                        shouldShowSportsCalProAlert = true
-                                    } else {
-                                        NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .oneHour)
-                                    }
-                                } label: {
-                                    Text("\(NotificationDuration.oneHour.rawValue) before")
-                                }
-                                Button {
-                                    
-                                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                                        shouldShowSportsCalProAlert = true
-                                    } else {
-                                        NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .twoHour)
-                                    }
-                                } label: {
-                                    Text("\(NotificationDuration.twoHour.rawValue) before")
-                                }
-                            } label: {
-                                Text("Notify me")
                             }
                         } label: {
-                            Image(systemName: "clock")
+                            Text("Add To Calendar")
                         }
+                        
+                        Menu {
+                            Button {
+                                if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                                    shouldShowSportsCalProAlert = true
+                                } else {
+                                    NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .thirtyMinutes)
+                                }
+                            } label: {
+                                Text("\(NotificationDuration.thirtyMinutes.rawValue) before")
+                            }
+                            Button {
+                                if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                                    shouldShowSportsCalProAlert = true
+                                } else {
+                                    NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .oneHour)
+                                }
+                            } label: {
+                                Text("\(NotificationDuration.oneHour.rawValue) before")
+                            }
+                            Button {
+                                
+                                if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                                    shouldShowSportsCalProAlert = true
+                                } else {
+                                    NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .twoHour)
+                                }
+                            } label: {
+                                Text("\(NotificationDuration.twoHour.rawValue) before")
+                            }
+                        } label: {
+                            Text("Notify me")
+                        }
+                    } label: {
+                        Image(systemName: "clock")
                     }
                 }
-
-
             }
-            .onAppear(perform: {
-                timeString = formatCountdown()
-            })
-            .onChange(of: teamString, perform: { newValue in
-                print(newValue)
-            })
-//        .background(
-//            RoundedRectangle(cornerRadius: 4)
-//                .foregroundColor(.gray)
-//        )
+            .frame(alignment: .trailing)
+        }
+            
+        }
         .padding(.vertical)
+        .onAppear(perform: {
+            timeString = formatCountdown()
+        })
     }
+
     
     func format(_ date: Date?) -> String {
         guard let date = date else { return "sjdlfajksfjlasfdl" }
