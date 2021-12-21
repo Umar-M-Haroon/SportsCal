@@ -14,6 +14,11 @@ struct Game: Identifiable {
     var sport: SportTypes
     var id: String
     var competition: Competition? = nil
+    var homeScore: Int?
+    var awayScore: Int?
+    var isInPast: Bool {
+        return gameDate.timeIntervalSinceNow < 0
+    }
     init(nbaGame: NBAGames) {
         guard let homeTeam = nbaGame.home?.name,
               let awayTeam = nbaGame.away?.name,
@@ -26,6 +31,8 @@ struct Game: Identifiable {
                   self.sport = .NBA
                   return
               }
+        self.homeScore = nbaGame.home_points
+        self.awayScore = nbaGame.away_points
         self.home = homeTeam
         self.away = awayTeam
         self.gameDate = Date()
@@ -45,6 +52,8 @@ struct Game: Identifiable {
                   self.sport = .NFL
                   return
               }
+        self.homeScore = nflGame.scoring?.home_points
+        self.awayScore = nflGame.scoring?.away_points
         self.home = homeTeam
         self.away = awayTeam
         self.gameDate = Date()
@@ -65,6 +74,8 @@ struct Game: Identifiable {
                   self.sport = .NHL
                   return
               }
+        self.homeScore = nhlGame.home_points
+        self.awayScore = nhlGame.away_points
         self.home = homeTeam
         self.away = awayTeam
         self.gameDate = Date()
