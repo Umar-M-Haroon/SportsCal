@@ -54,6 +54,10 @@ public class SubscriptionManager: ObservableObject {
     }
     
     private func processInfo(info: Purchases.PurchaserInfo?) {
+        #if DEBUG
+        subscriptionStatus = .subscribed
+        return
+        #endif
         if info?.entitlements.all["Pro"]?.isActive == true {
             subscriptionStatus = .subscribed
         } else {
