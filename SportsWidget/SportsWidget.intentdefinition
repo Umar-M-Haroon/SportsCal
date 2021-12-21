@@ -123,7 +123,7 @@
 	<key>INIntentDefinitionSystemVersion</key>
 	<string>21A559</string>
 	<key>INIntentDefinitionToolsBuildVersion</key>
-	<string>13C5066c</string>
+	<string>13C90</string>
 	<key>INIntentDefinitionToolsVersion</key>
 	<string>13.2</string>
 	<key>INIntents</key>
@@ -224,8 +224,6 @@
 							<string>Primary</string>
 						</dict>
 					</array>
-					<key>INIntentParameterSupportsResolution</key>
-					<true/>
 					<key>INIntentParameterTag</key>
 					<integer>6</integer>
 					<key>INIntentParameterType</key>
