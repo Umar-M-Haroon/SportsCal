@@ -7,8 +7,8 @@ import Foundation
 
 // MARK: - SportEventStatus
 struct SportEventStatus: Codable {
-    let status: SoccerStatus
-    let matchStatus: String
+    let status: String
+    let matchStatus: String?
     let homeScore, awayScore, homeNormaltimeScore, awayNormaltimeScore: Int?
     let homeOvertimeScore, awayOvertimeScore: Int?
     let winnerID: String?

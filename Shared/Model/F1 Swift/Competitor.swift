@@ -10,7 +10,7 @@ struct Competitor: Codable {
     let id, name: String
     let gender: Gender
     let nationality, countryCode: String
-    let team: Team
+    let team: Team?
     let result: Result
 
     enum CodingKeys: String, CodingKey {

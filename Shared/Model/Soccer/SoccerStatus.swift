@@ -5,4 +5,5 @@ enum SoccerStatus: String, Codable {
     case notStarted = "not_started"
     case postponed = "postponed"
     case live = "live"
+    case cancelled = "cancelled"
 }
