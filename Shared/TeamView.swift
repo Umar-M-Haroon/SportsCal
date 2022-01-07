@@ -38,19 +38,31 @@ struct TeamView: View {
         
         if isPast {
             HStack {
+                Text(visitingOrAway == .home ? "H" : "A")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .accessibilityLabel(visitingOrAway == .home ? "Home" : "Away")
+                Group {
+                    Text(teamName)
+                        .bold()
+                        .multilineTextAlignment(.leading)
+                    Spacer()
+                    if let score = score {
+                        Text("\(score)")
+                    }
+                }
+                .modifier(WinnerBackground(winner: isWinner))
+            }
+        } else {
+            HStack {
+                Text(visitingOrAway == .home ? "H" : "A")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .accessibilityLabel(visitingOrAway == .home ? "Home" : "Away")
                 Text(teamName)
                     .bold()
                     .multilineTextAlignment(.leading)
-                Spacer()
-                if let score = score {
-                    Text("\(score)")
-                }
             }
-            .modifier(WinnerBackground(winner: isWinner))
-        } else {
-            Text(teamName)
-                .bold()
-                .multilineTextAlignment(.leading)
         }
     }
 }

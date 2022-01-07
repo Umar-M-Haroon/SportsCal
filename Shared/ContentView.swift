@@ -343,6 +343,7 @@ struct ContentView: View {
         } catch let e {
             print(e)
             print(e.localizedDescription)
+            networkState = .failed
         }
         //        #endif
     }
