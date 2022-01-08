@@ -59,32 +59,32 @@ struct SettingsView: View {
                     HStack {
                         Text("Show scores for games ")
                         Spacer()
-                        Menu("\(appStorage.durations.rawValue) old") {
+                        Menu("\(appStorage.hidePastGamesDuration.rawValue) old") {
                             Button(Durations.oneWeek.rawValue) {
-                                appStorage.durations = .oneWeek
+                                appStorage.hidePastGamesDuration = .oneWeek
                             }
                             Button(Durations.twoWeeks.rawValue) {
-                                appStorage.durations = .twoWeeks
+                                appStorage.hidePastGamesDuration = .twoWeeks
                             }
                             Button(Durations.threeWeeks.rawValue) {
-                                appStorage.durations = .threeWeeks
+                                appStorage.hidePastGamesDuration = .threeWeeks
                             }
                             Button(Durations.oneMonth.rawValue) {
-                                appStorage.durations = .oneMonth
+                                appStorage.hidePastGamesDuration = .oneMonth
                             }
                             Button(Durations.twoMonths.rawValue) {
-                                appStorage.durations = .twoMonths
+                                appStorage.hidePastGamesDuration = .twoMonths
                             }
                             Button(Durations.sixMonths.rawValue) {
-                                appStorage.durations = .sixMonths
+                                appStorage.hidePastGamesDuration = .sixMonths
                             }
                             Button(Durations.oneYear.rawValue) {
-                                appStorage.durations = .oneYear
+                                appStorage.hidePastGamesDuration = .oneYear
                             }
                             
                         }
-                        .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                     }
+                    .disabled(appStorage.hidePastEvents)
 
                 }
 //                NavigationLink("Date Format") {

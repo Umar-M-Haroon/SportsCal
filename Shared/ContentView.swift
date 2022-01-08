@@ -160,7 +160,7 @@ struct ContentView: View {
             } else {
                 VStack {
                     if networkState == .failed {
-                        Text("No upcoming games")
+                        Text("No games fetched")
                             .font(.title2)
                         Button("Retry") {
                             if #available(iOS 15.0, *) {
