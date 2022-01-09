@@ -50,7 +50,7 @@ struct ContentView: View {
     
     var body: some View {
         NavigationView {
-
+            
             if let games = filteredGames?.first?.sortByDate(games: filteredGames ?? []) {
                 List {
                     if !favoriteGames.isEmpty  {
@@ -68,7 +68,7 @@ struct ContentView: View {
                         
                         
                         
-
+                        
                     }
                     ForEach(games.map({$0.key}).indices, id: \.self) { index in
                         Section {
@@ -92,7 +92,7 @@ struct ContentView: View {
                 }, label: {
                     Image(systemName: "gear")
                 }), trailing:
-                    HStack {
+                                        HStack {
                     Button {
                         appStorage.soonestOnTop.toggle()
                     } label: {
@@ -100,45 +100,45 @@ struct ContentView: View {
                     }
                     .accessibilityLabel("Toggle soonest game first")
                     Menu(content: {
-                            if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                                Button("NBA") {
-                                    appStorage.switchTo(sportType: .NBA)
-                                    filterSports()
-                                }
-                                Button("NFL") {
-                                    appStorage.switchTo(sportType: .NFL)
-                                    filterSports()
-                                }
-                                Button("NHL") {
-                                    appStorage.switchTo(sportType: .NHL)
-                                    filterSports()
-                                }
-                                Button("Soccer") {
-                                    appStorage.switchTo(sportType: .Soccer)
-                                    filterSports()
-                                }
-                                Button("F1") {
-                                    appStorage.switchTo(sportType: .F1)
-                                    filterSports()
-                                }
-                                Button("MLB") {
-                                    appStorage.switchTo(sportType: .MLB)
-                                    filterSports()
-                                }
-                            } else {
-                                VStack {
-                                    Toggle("NBA", isOn: appStorage.$shouldShowNBA)
-                                    Toggle("NFL", isOn: appStorage.$shouldShowNFL)
-                                    Toggle("NHL", isOn: appStorage.$shouldShowNHL)
-                                    Toggle("Soccer", isOn: appStorage.$shouldShowSoccer)
-                                    Toggle("F1", isOn: appStorage.$shouldShowF1)
-                                    Toggle("MLB", isOn: appStorage.$shouldShowMLB)
-                                }
+                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                            Button("NBA") {
+                                appStorage.switchTo(sportType: .NBA)
+                                filterSports()
                             }
-                            
-                        }, label: {
-                            Image(systemName: "sportscourt")
-                        })
+                            Button("NFL") {
+                                appStorage.switchTo(sportType: .NFL)
+                                filterSports()
+                            }
+                            Button("NHL") {
+                                appStorage.switchTo(sportType: .NHL)
+                                filterSports()
+                            }
+                            Button("Soccer") {
+                                appStorage.switchTo(sportType: .Soccer)
+                                filterSports()
+                            }
+                            Button("F1") {
+                                appStorage.switchTo(sportType: .F1)
+                                filterSports()
+                            }
+                            Button("MLB") {
+                                appStorage.switchTo(sportType: .MLB)
+                                filterSports()
+                            }
+                        } else {
+                            VStack {
+                                Toggle("NBA", isOn: appStorage.$shouldShowNBA)
+                                Toggle("NFL", isOn: appStorage.$shouldShowNFL)
+                                Toggle("NHL", isOn: appStorage.$shouldShowNHL)
+                                Toggle("Soccer", isOn: appStorage.$shouldShowSoccer)
+                                Toggle("F1", isOn: appStorage.$shouldShowF1)
+                                Toggle("MLB", isOn: appStorage.$shouldShowMLB)
+                            }
+                        }
+                        
+                    }, label: {
+                        Image(systemName: "sportscourt")
+                    })
                         .accessibility(label: Text("Filter Sports"))
                 }
                 )
@@ -160,7 +160,7 @@ struct ContentView: View {
             } else {
                 VStack {
                     if networkState == .failed {
-                        Text("No upcoming games")
+                        Text("No games fetched")
                             .font(.title2)
                         Button("Retry") {
                             if #available(iOS 15.0, *) {
@@ -193,6 +193,7 @@ struct ContentView: View {
                     Image(systemName: "gear")
                 }), trailing: Menu(content: {
                     if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                        Text("Subscribe to check multiple sports")
                         Button("NBA") {
                             appStorage.switchTo(sportType: .NBA)
                         }
@@ -241,7 +242,7 @@ struct ContentView: View {
                 }
             }
         }
-       
+        
         .onChange(of: appStorage, perform: { newValue in
             withAnimation {
                 filterSports()
@@ -257,7 +258,6 @@ struct ContentView: View {
         })
         .conditionalModifier(UIDevice.current.userInterfaceIdiom == .pad, ifTrue: {$0.navigationViewStyle(StackNavigationViewStyle())}, ifFalse: {$0.navigationViewStyle(DefaultNavigationViewStyle())})
         .onAppear {
-//            WidgetCenter.shared.reloadAllTimelines()
             appStorage.launches += 1
             if appStorage.launches == 5 {
                 if let scene = UIApplication.shared.connectedScenes.first(where: {$0.activationState == .foregroundActive}) as? UIWindowScene {
@@ -279,6 +279,7 @@ struct ContentView: View {
                             break
                         case .failure(let err):
                             print(err.localizedDescription)
+                            networkState = .failed
                         }
                     } receiveValue: { sports  in
                         (totalGames, filteredGames) = sports.convertToGames()
@@ -288,7 +289,7 @@ struct ContentView: View {
             }
         }
     }
-   
+    
     func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         print("⚠️ making calendar event for game \(game)")
@@ -338,15 +339,16 @@ struct ContentView: View {
             let result = try await NetworkHandler().handleCall(year: "2020")
             (totalGames, filteredGames) = result.convertToGames()
             favoriteGames = result.favoritesToGames(games: filteredGames ?? [], favorites: favorites)
-                        networkState = .loaded
+            networkState = .loaded
         } catch let e {
             print(e)
             print(e.localizedDescription)
+            networkState = .failed
         }
         //        #endif
     }
     
-   
+    
 }
 
 struct ContentView_Previews: PreviewProvider {

@@ -24,12 +24,7 @@ struct SettingsView: View {
                 }
                 Section(header: Text("SportsCal Pro Options")) {
                     HStack {
-                        
-                        if #available(iOS 15.0, *) {
-                            Text(showAttributedString())
-                        } else {
-                            Text("Hide events more than \(appStorage.durations.rawValue)")
-                        }
+                            Text("Hide events more than ")
                         Spacer()
                         Menu("\(appStorage.durations.rawValue) away") {
                             Button(Durations.oneWeek.rawValue) {
@@ -59,6 +54,38 @@ struct SettingsView: View {
                     }
                     Toggle("Hide Past Events", isOn: appStorage.$hidePastEvents)
                         .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
+                }
+                Section(header: Text("Scores")) {
+                    HStack {
+                        Text("Show scores for games ")
+                        Spacer()
+                        Menu("\(appStorage.hidePastGamesDuration.rawValue) old") {
+                            Button(Durations.oneWeek.rawValue) {
+                                appStorage.hidePastGamesDuration = .oneWeek
+                            }
+                            Button(Durations.twoWeeks.rawValue) {
+                                appStorage.hidePastGamesDuration = .twoWeeks
+                            }
+                            Button(Durations.threeWeeks.rawValue) {
+                                appStorage.hidePastGamesDuration = .threeWeeks
+                            }
+                            Button(Durations.oneMonth.rawValue) {
+                                appStorage.hidePastGamesDuration = .oneMonth
+                            }
+                            Button(Durations.twoMonths.rawValue) {
+                                appStorage.hidePastGamesDuration = .twoMonths
+                            }
+                            Button(Durations.sixMonths.rawValue) {
+                                appStorage.hidePastGamesDuration = .sixMonths
+                            }
+                            Button(Durations.oneYear.rawValue) {
+                                appStorage.hidePastGamesDuration = .oneYear
+                            }
+                            
+                        }
+                    }
+                    .disabled(appStorage.hidePastEvents)
+
                 }
 //                NavigationLink("Date Format") {
                     Picker.init("Date Format", selection: appStorage.$dateFormat) {

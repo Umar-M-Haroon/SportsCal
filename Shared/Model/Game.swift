@@ -154,41 +154,50 @@ struct Game: Identifiable {
         
         return sorted
     }
+    func isValidForDuration(duration: Durations, components: DateComponents) -> Bool {
+        var isValid: Bool = true
+        switch duration {
+        case .oneWeek:
+            isValid = components.day ?? 0 < 7 && components.month == 0
+            break
+        case .twoWeeks:
+            isValid = components.day ?? 0 < 14 && components.month == 0
+            break
+        case .threeWeeks:
+            isValid = components.day ?? 0 < 21 && components.month == 0
+            break
+        case .oneMonth:
+            isValid = components.month ?? 0 < 1
+            break
+        case .twoMonths:
+            isValid = components.month ?? 0 < 2
+            break
+        case .sixMonths:
+            isValid = components.month ?? 0 < 6
+            break
+        case .oneYear:
+            isValid = components.month ?? 0 < 12
+            break
+        }
+        return isValid
+    }
+    
     func filtered(games: [Game]) -> [Game] {
         let calendar = Calendar.current
+        let storage = UserDefaultStorage()
         return games.filter({ game in
-            let days = calendar.dateComponents([.day, .month, .year], from: Date(), to: game.gameDate)
-            let duration = UserDefaultStorage().durations
-            var isValid: Bool = true
-            switch duration {
-            case .oneWeek:
-                isValid = days.day ?? 0 < 7 && days.month == 0
-                break
-            case .twoWeeks:
-                isValid = days.day ?? 0 < 14 && days.month == 0
-                break
-            case .threeWeeks:
-                isValid = days.day ?? 0 < 21 && days.month == 0
-                break
-            case .oneMonth:
-                isValid = days.month ?? 0 < 1
-                break
-            case .twoMonths:
-                isValid = days.month ?? 0 < 2
-                break
-            case .sixMonths:
-                isValid = days.month ?? 0 < 6
-                break
-            case .oneYear:
-                isValid = days.month ?? 0 < 12
-                break
-            }
+            let components = calendar.dateComponents([.day, .month, .year], from: Date(), to: game.gameDate)
+            let pastComponents = calendar.dateComponents([.day, .month, .year], from: game.gameDate, to: Date())
+            let duration = storage.durations
+            let isValid: Bool = isValidForDuration(duration: duration, components: components)
             
-            if UserDefaultStorage().hidePastEvents {
+            
+            if storage.hidePastEvents {
                 print("⚠️ hiding past events")
-                return isValid && (days.day ?? 0 > 0) && isValidSport(game: game)
+                return isValid && (components.day ?? 0 > 0) && isValidSport(game: game)
             }
-           return isValid && isValidSport(game: game)
+            return (isValid && isValidForDuration(duration: storage.hidePastGamesDuration, components: pastComponents)) && isValidSport(game: game)
+//           return isValid && isValidSport(game: game)
         })
     }
     func removePastGames(games: [Game]) -> [Game] {

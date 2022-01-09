@@ -35,6 +35,7 @@ class UserDefaultStorage: ObservableObject, Equatable {
     @AppStorage("duration") var durations: Durations = .threeWeeks
     @AppStorage("launches") var launches: Int = 0
     @AppStorage("dateFormat") var dateFormat: String = "E, dd.MM.yy"
+    @AppStorage("hidePastGamesDuration") var hidePastGamesDuration: Durations = .threeWeeks
     
     func switchTo(sportType: SportTypes) {
         switch sportType {

@@ -77,17 +77,7 @@ struct ScheduleGameView: View {
                     .modifier(SportsTint(sport: SportTypes(rawValue: (game?.sport ?? .NHL).rawValue) ?? .NHL))
                     .frame(width: 25, height: 25, alignment: .center)
                     .padding(-1)
-                VStack {
-                    Text("H")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .accessibilityLabel("Home")
-                    Text("A")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .accessibilityLabel("Away")
-                }
-                VStack(alignment: .leading) {
+                VStack(alignment: .leading, spacing: 4) {
                     TeamView(teamName: game?.home ?? "", visitingOrAway: .home, game: game!, score: game?.homeScore)
                     TeamView(teamName: game?.away ?? "", visitingOrAway: .away, game: game!, score: game?.awayScore)
                 }
