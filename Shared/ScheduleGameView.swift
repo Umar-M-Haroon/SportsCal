@@ -228,7 +228,7 @@ struct SportsTint: ViewModifier {
             }
             if sport == .NFL {
                 content
-                    .foregroundColor(Color(red: 98/255, green: 74/255, blue: 46/255, opacity: 1))
+                    .foregroundColor(.brown)
             }
             if sport == .NHL {
                 content
