@@ -1656,7 +1656,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.1;
+				MARKETING_VERSION = 1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal;
 				PRODUCT_NAME = SportsCal;
 				SDKROOT = iphoneos;
@@ -1692,7 +1692,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.1;
+				MARKETING_VERSION = 1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal;
 				PRODUCT_NAME = SportsCal;
 				SDKROOT = iphoneos;
