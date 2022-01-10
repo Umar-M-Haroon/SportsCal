@@ -48,6 +48,8 @@ struct ContentView: View {
     @State var favoriteGames: [Game] = []
     @State var networkState: NetworkState = .loading
     
+    @State var searchString: String = ""
+    
     var body: some View {
         NavigationView {
             
@@ -242,7 +244,6 @@ struct ContentView: View {
                 }
             }
         }
-        
         .onChange(of: appStorage, perform: { newValue in
             withAnimation {
                 filterSports()
@@ -370,6 +371,16 @@ extension View {
             ifTrue(self)
         } else {
             ifFalse(self)
+        }
+    }
+}
+struct SearchModifier: ViewModifier {
+    @Binding var searchText: String
+    func body(content: Content) -> some View {
+        if #available(iOS 15.0, *) {
+            content.searchable(text: $searchText)
+        } else {
+            content
         }
     }
 }
