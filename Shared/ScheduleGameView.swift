@@ -86,10 +86,11 @@ struct ScheduleGameView: View {
             VStack(alignment: .trailing) {
             if let game_ = game, !game_.isInPast {
                 Text(timeString)
+                    .fontWeight(.medium)
                     .accessibilityValue(accessibilityLabel)
                     .accessibilityLabel(accessibilityLabel)
                     .frame(maxWidth: .infinity,  alignment: .trailing)
-                    .font(.caption)
+                    .font(.subheadline)
                     .onReceive(timer) { cur in
                         timeString = formatCountdown()
                     }

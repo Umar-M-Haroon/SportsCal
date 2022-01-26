@@ -26,11 +26,14 @@ struct NotificationManager {
         notiContent.sound = .default
         var interval = date.timeIntervalSince(Date())
         if duration == .thirtyMinutes {
-            interval -= 1800
+            guard let notificationDate = Calendar.current.date(byAdding: .minute, value: -30, to: date) else { return }
+            interval = notificationDate.timeIntervalSince(Date())
         } else if duration == .oneHour {
-            interval -= 3600
+            guard let notificationDate = Calendar.current.date(byAdding: .hour, value: -1, to: date) else { return }
+            interval = notificationDate.timeIntervalSince(Date())
         } else if duration == .twoHour {
-            interval -= 7200
+            guard let notificationDate = Calendar.current.date(byAdding: .hour, value: -2, to: date) else { return }
+            interval = notificationDate.timeIntervalSince(Date())
         }
         print("⚠️ shooting notification in \(interval) seconds")
         let trig = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
@@ -41,6 +44,8 @@ struct NotificationManager {
         notiCenter.add(request) { (error) in
             if error != nil {
                 print("⚠️ error adding notification \(error)")
+            } else {
+                print("⚠️ successfully added notification")
             }
         }
     }
