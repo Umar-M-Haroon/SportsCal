@@ -191,12 +191,16 @@ struct Game: Identifiable {
             let duration = storage.durations
             let isValid: Bool = isValidForDuration(duration: duration, components: components)
             
+            var shouldHideDueToHiddenCompetition = false
+            if let competition = game.competition {
+                shouldHideDueToHiddenCompetition = isCompetitionHidden(competition: competition.name)
+            }
             
             if storage.hidePastEvents {
                 print("⚠️ hiding past events")
-                return isValid && (components.day ?? 0 > 0) && isValidSport(game: game)
+                return isValid && (components.day ?? 0 > 0) && isValidSport(game: game) && !shouldHideDueToHiddenCompetition
             }
-            return (isValid && isValidForDuration(duration: storage.hidePastGamesDuration, components: pastComponents)) && isValidSport(game: game)
+            return (isValid && isValidForDuration(duration: storage.hidePastGamesDuration, components: pastComponents)) && isValidSport(game: game) && !shouldHideDueToHiddenCompetition
 //           return isValid && isValidSport(game: game)
         })
     }
@@ -204,6 +208,32 @@ struct Game: Identifiable {
         return games.filter({ game in
             return game.gameDate.timeIntervalSinceNow > 0
         })
+    }
+    func isCompetitionHidden(competition: String) -> Bool {
+        switch competition {
+        case "Coppa Italia":
+            return UserDefaultStorage().hideCoppaItalia
+        case "Eredivisie":
+            return UserDefaultStorage().hideEredivisie
+        case "Bundesliga":
+            return UserDefaultStorage().hideBundesliga
+        case "Ligue 1":
+            return UserDefaultStorage().hideLigue1
+        case "Serie A":
+            return UserDefaultStorage().hideSerieA
+        case "EFL Cup":
+            return UserDefaultStorage().hideEFLCup
+        case "Championship":
+            return UserDefaultStorage().hideChampionship
+        case "Premier League":
+            return UserDefaultStorage().hidePremierLeague
+        case "LaLiga":
+            return UserDefaultStorage().hideLaLiga
+        case "UEFA Champions League":
+            return UserDefaultStorage().hideChampionsLeague
+        default:
+            return false
+        }
     }
     func isValidSport(game: Game) -> Bool {
         if !UserDefaultStorage().shouldShowF1{

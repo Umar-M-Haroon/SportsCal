@@ -56,7 +56,7 @@ struct ContentView: View {
                     if !favoriteGames.isEmpty  {
                         Section {
                             ForEach(favoriteGames) { game in
-                                ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: favorites)
+                                ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: favorites, shouldSetStartTime: appStorage.$showStartTime)
                             }
                         } header: {
                             HStack {
@@ -73,7 +73,7 @@ struct ContentView: View {
                     ForEach(games.map({$0.key}).indices, id: \.self) { index in
                         Section {
                             ForEach(games.map({$0.value})[index]) { game in
-                                ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: favorites)
+                                ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: favorites, shouldSetStartTime: appStorage.$showStartTime)
                             }
                         } header: {
                             HStack {
@@ -338,6 +338,9 @@ struct ContentView: View {
         do {
             let result = try await NetworkHandler().handleCall(year: "2020")
             (totalGames, filteredGames) = result.convertToGames()
+            let competitions = totalGames?.filter({$0.sport == .Soccer}).flatMap({$0.competition?.name})
+            let competitionsSet = Set.init(arrayLiteral: competitions)
+            print(competitionsSet)
             favoriteGames = result.favoritesToGames(games: filteredGames ?? [], favorites: favorites)
             networkState = .loaded
         } catch let e {

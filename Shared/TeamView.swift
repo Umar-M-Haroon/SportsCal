@@ -38,16 +38,17 @@ struct TeamView: View {
         
         if isPast {
             HStack {
-                Text(visitingOrAway == .home ? "H" : "A")
+                Image(systemName: visitingOrAway == .home ? "house.fill" : "airplane")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .accessibilityLabel(visitingOrAway == .home ? "Home" : "Away")
                 Group {
                     Text(teamName)
-                        .bold()
+                        .font(.system(.body, design: .rounded))
+                        .fontWeight(.semibold)
                         .multilineTextAlignment(.leading)
-                    Spacer()
                     if let score = score {
+                        Spacer()
                         Text("\(score)")
                     }
                 }
@@ -55,7 +56,7 @@ struct TeamView: View {
             }
         } else {
             HStack {
-                Text(visitingOrAway == .home ? "H" : "A")
+                Image(systemName: visitingOrAway == .home ? "house.fill" : "airplane")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .accessibilityLabel(visitingOrAway == .home ? "Home" : "Away")
