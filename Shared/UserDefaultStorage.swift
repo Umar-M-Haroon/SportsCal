@@ -8,20 +8,20 @@
 import Foundation
 import SwiftUI
 
-class UserDefaultStorage: ObservableObject, Equatable {
-    static func == (lhs: UserDefaultStorage, rhs: UserDefaultStorage) -> Bool {
-        return lhs.shouldShowF1 == rhs.shouldShowF1 &&
-               lhs.hidePastEvents == rhs.hidePastEvents &&
-        lhs.shouldShowNBA == rhs.shouldShowNBA &&
-        lhs.shouldShowNFL == rhs.shouldShowNFL &&
-        lhs.shouldShowNHL == rhs.shouldShowNHL &&
-        lhs.shouldShowSoccer == rhs.shouldShowSoccer &&
-        lhs.shouldShowMLB == rhs.shouldShowMLB &&
-        lhs.shouldShowOnboarding == rhs.shouldShowOnboarding &&
-        lhs.hidePastEvents == rhs.hidePastEvents &&
-        lhs.soonestOnTop == rhs.soonestOnTop &&
-        lhs.durations == rhs.durations
-    }
+class UserDefaultStorage: NSObject, ObservableObject {
+//    static func == (lhs: UserDefaultStorage, rhs: UserDefaultStorage) -> Bool {
+//        return lhs.shouldShowF1 == rhs.shouldShowF1 &&
+//               lhs.hidePastEvents == rhs.hidePastEvents &&
+//        lhs.shouldShowNBA == rhs.shouldShowNBA &&
+//        lhs.shouldShowNFL == rhs.shouldShowNFL &&
+//        lhs.shouldShowNHL == rhs.shouldShowNHL &&
+//        lhs.shouldShowSoccer == rhs.shouldShowSoccer &&
+//        lhs.shouldShowMLB == rhs.shouldShowMLB &&
+//        lhs.shouldShowOnboarding == rhs.shouldShowOnboarding &&
+//        lhs.hidePastEvents == rhs.hidePastEvents &&
+//        lhs.soonestOnTop == rhs.soonestOnTop &&
+//        lhs.durations == rhs.durations
+//    }
     
     @AppStorage("shouldShowNBA") var shouldShowNBA: Bool = false
     @AppStorage("shouldShowNFL") var shouldShowNFL: Bool = false
@@ -36,7 +36,18 @@ class UserDefaultStorage: ObservableObject, Equatable {
     @AppStorage("launches") var launches: Int = 0
     @AppStorage("dateFormat") var dateFormat: String = "E, dd.MM.yy"
     @AppStorage("hidePastGamesDuration") var hidePastGamesDuration: Durations = .threeWeeks
+    @AppStorage("showStartTime") var showStartTime: Bool = true
     
+    @AppStorage("hideCoppaItalia") var hideCoppaItalia: Bool = false
+    @AppStorage("hideEredivisie") var hideEredivisie: Bool = false
+    @AppStorage("hideBundesliga") var hideBundesliga: Bool = false
+    @AppStorage("hideLigue1") var hideLigue1: Bool = false
+    @AppStorage("hideSerieA") var hideSerieA: Bool = false
+    @AppStorage("hideEFLCup") var hideEFLCup: Bool = false
+    @AppStorage("hideChampionship") var hideChampionship: Bool = false
+    @AppStorage("hidePremierLeague") var hidePremierLeague: Bool = false
+    @AppStorage("hideLaLiga") var hideLaLiga: Bool = false
+    @AppStorage("hideChampionsLeague") var hideChampionsLeague: Bool = false
     func switchTo(sportType: SportTypes) {
         switch sportType {
         case .NHL:

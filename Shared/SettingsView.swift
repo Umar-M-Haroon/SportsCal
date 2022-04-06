@@ -24,7 +24,7 @@ struct SettingsView: View {
                 }
                 Section(header: Text("SportsCal Pro Options")) {
                     HStack {
-                            Text("Hide events more than ")
+                        Text("Hide events more than ")
                         Spacer()
                         Menu("\(appStorage.durations.rawValue) away") {
                             Button(Durations.oneWeek.rawValue) {
@@ -54,6 +54,22 @@ struct SettingsView: View {
                     }
                     Toggle("Hide Past Events", isOn: appStorage.$hidePastEvents)
                         .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
+                    Toggle("Show countdown", isOn: appStorage.$showStartTime)
+                    NavigationLink("Hide Soccer Competitions") {
+                        CompetitionPage(competitionStorage: [
+                            appStorage.$hideCoppaItalia,
+                            appStorage.$hideEredivisie,
+                            appStorage.$hideBundesliga,
+                            appStorage.$hideLigue1,
+                            appStorage.$hideSerieA,
+                            appStorage.$hideEFLCup,
+                            appStorage.$hideChampionship,
+                            appStorage.$hidePremierLeague,
+                            appStorage.$hideLaLiga,
+                            appStorage.$hideChampionsLeague
+                        ])
+                            .environmentObject(appStorage)
+                    }
                 }
                 Section(header: Text("Scores")) {
                     HStack {
@@ -117,10 +133,9 @@ struct SettingsView: View {
     }
 }
 //
-//struct SettingsView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        SettingsView(shouldShowSettings: Binding(get: {
-//            true
-//        }, set: val))
-//    }
-//}
+struct SettingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        SettingsView(sheetType: Binding<SheetType?>.constant(.settings))
+            .environmentObject(UserDefaultStorage.init())
+    }
+}
