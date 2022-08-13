@@ -31,39 +31,46 @@ struct SubscriptionPage: View {
     var body: some View {
         ZStack {
             Form {
-                VStack {
-                    Text("SportsCal Pro is an extra set of features that helps support development")
-                        .multilineTextAlignment(.center)
-                        .padding(EdgeInsets(top: 4, leading: 0, bottom: 0, trailing: 0))
-                    Text("SportsCal Pro is also synced to your iCloud account, so it will sync accross devices under the same iCloud account")
-                        .multilineTextAlignment(.center)
-                        .padding(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0))
-                }
-                .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 0, idealHeight: 200, maxHeight: .infinity, alignment: .center)
-                
+////                VStack {
+////                    Text("SportsCal Pro is an extra set of features that helps support development")
+////                        .multilineTextAlignment(.center)
+////                        .padding(EdgeInsets(top: 4, leading: 0, bottom: 0, trailing: 0))
+////                    Text("SportsCal Pro is also synced to your iCloud account, so it will sync accross devices under the same iCloud account")
+////                        .multilineTextAlignment(.center)
+////                        .padding(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0))
+////                }
+//                .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 0, idealHeight: 200, maxHeight: .infinity, alignment: .center)
+//                
                 Section {
+                    
                     FeatureView(featureName: "Push Notifications", featureDescription: "Get notified when tasks are added and completed", imageName: "app.badge.fill", color: .red)
                     FeatureView(featureName: "Multiple Sports", featureDescription: "See multiple sports at once", imageName: "sportscourt.fill", color: .green)
                     FeatureView(featureName: "Filter games by time", featureDescription: "See events that are more than a week away", imageName: "clock.fill")
 //                    FeatureView(featureName: "Custom App Icons", featureDescription: "Change your app icon into new styles!", imageName: "square.grid.2x2.fill", color: .blue)
                 }
                 
-                if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                if true {
                     Section {
-                        if let sub = sub {
-                            SubscriptionOptionView(product: sub)
-                                .contentShape(Rectangle())
+                        VStack(alignment: .center) {
+                            DummySubscriptionOptionView()
+                            DummySubscriptionOptionView()
+                            DummySubscriptionOptionView()
                         }
-                        if let sub = SubscriptionManager.shared.yearlySubscription {
-                            SubscriptionOptionView(product: sub)
-                                .contentShape(Rectangle())
-                        }
-                        Button(action: {
-                            SubscriptionManager.shared.restorePurchase()
-                        }, label: {
-                            Text("Restore Purchases")
-                        })
-                        .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 0, idealHeight: 44, maxHeight: .infinity, alignment: .center)
+                            .frame(alignment: .center)
+//                        if let sub = sub {
+//                            SubscriptionOptionView(product: sub)
+//                                .contentShape(Rectangle())
+//                        }
+//                        if let sub = SubscriptionManager.shared.yearlySubscription {
+//                            SubscriptionOptionView(product: sub)
+//                                .contentShape(Rectangle())
+//                        }
+//                        Button(action: {
+//                            SubscriptionManager.shared.restorePurchase()
+//                        }, label: {
+//                            Text("Restore Purchases")
+//                        })
+//                        .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 0, idealHeight: 44, maxHeight: .infinity, alignment: .center)
                     }
                 } else {
                     VStack {
@@ -135,7 +142,7 @@ struct SubscriptionOptionView: View {
     var body: some View {
         VStack {
             VStack(alignment: .center, spacing: 8, content: {
-                HStack {
+//                HStack {
                     Text(product.product.localizedTitle)
                     Spacer()
                     HStack {
@@ -151,7 +158,7 @@ struct SubscriptionOptionView: View {
                             }
                         }
                     }
-                }
+//                }
             })
             .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 44, idealHeight: nil, maxHeight: 66, alignment: .center)
         }
@@ -188,6 +195,7 @@ struct SubscriptionPage_Previews: PreviewProvider {
     static var previews: some View {
         SubscriptionPage()
             .preferredColorScheme(.dark)
+            .environmentObject(SubscriptionManager.shared)
     }
 }
 
