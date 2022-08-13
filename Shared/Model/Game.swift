@@ -191,6 +191,8 @@ struct Game: Identifiable {
             let duration = storage.durations
             let isValid: Bool = isValidForDuration(duration: duration, components: components)
             
+            if !isValid { return false }
+            
             var shouldHideDueToHiddenCompetition = false
             if let competition = game.competition {
                 shouldHideDueToHiddenCompetition = isCompetitionHidden(competition: competition.name)
@@ -267,5 +269,11 @@ struct Game: Identifiable {
             }
         }
         return true
+    }
+}
+
+extension Game {
+    static func sampleGame() -> Game {
+        Game(nbaGame: .init(id: "test", status: "test", title: "Test Game", coverage: "ESPN", scheduled: "IDK", home_points: 82, away_points: 80, track_on_court: true, sr_id: "test", reference: "test", time_zones: .init(venue: "Barclays", home: "Warriors", away: "Bucks"), venue: nil, broadcasts: nil, home: .init(name: "Warriors", alias: "GSW", id: "GSW", sr_id: "Test", reference: "test"), away: .init(name: "Bucks", alias: "MIL", id: "Bucks", sr_id: "Bucks", reference: "bucks")))
     }
 }

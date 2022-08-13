@@ -7,12 +7,12 @@ import Foundation
 
 // MARK: - SportEventProperties
 struct SportEventProperties: Codable {
-    let lineups, extendedPlayerStats, extendedTeamStats: Bool
-    let lineupsAvailability: LineupsAvailability
-    let ballspotting, commentary, funFacts, goalScorers: Bool
-    let scores: Scores
-    let gameClock, deeperPlayByPlay, deeperPlayerStats, deeperTeamStats: Bool
-    let basicPlayByPlay, basicPlayerStats, basicTeamStats: Bool
+    let lineups, extendedPlayerStats, extendedTeamStats: Bool?
+    let lineupsAvailability: LineupsAvailability?
+    let ballspotting, commentary, funFacts, goalScorers: Bool?
+    let scores: Scores?
+    let gameClock, deeperPlayByPlay, deeperPlayerStats, deeperTeamStats: Bool?
+    let basicPlayByPlay, basicPlayerStats, basicTeamStats: Bool?
 
     enum CodingKeys: String, CodingKey {
         case lineups

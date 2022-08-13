@@ -13,6 +13,24 @@ For support, please feel free to contact me at https://www.linkedin.com/in/syeda
 
 import Foundation
 struct NBAGames: Codable {
+    init(id: String?, status: String?, title: String?, coverage: String?, scheduled: String?, home_points: Int?, away_points: Int?, track_on_court: Bool?, sr_id: String?, reference: String?, time_zones: NBATime_zones?, venue: NBAVenue?, broadcasts: [NBABroadcasts]?, home: NBAHome?, away: NBAAway?) {
+        self.id = id
+        self.status = status
+        self.title = title
+        self.coverage = coverage
+        self.scheduled = scheduled
+        self.home_points = home_points
+        self.away_points = away_points
+        self.track_on_court = track_on_court
+        self.sr_id = sr_id
+        self.reference = reference
+        self.time_zones = time_zones
+        self.venue = venue
+        self.broadcasts = broadcasts
+        self.home = home
+        self.away = away
+    }
+    
 	let id: String?
 	let status: String?
 	let title: String?

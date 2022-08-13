@@ -13,6 +13,14 @@ For support, please feel free to contact me at https://www.linkedin.com/in/syeda
 
 import Foundation
 struct NBAHome: Codable {
+    init(name: String?, alias: String?, id: String?, sr_id: String?, reference: String?) {
+        self.name = name
+        self.alias = alias
+        self.id = id
+        self.sr_id = sr_id
+        self.reference = reference
+    }
+    
 	let name: String?
 	let alias: String?
 	let id: String?

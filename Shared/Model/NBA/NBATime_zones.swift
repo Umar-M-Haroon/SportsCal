@@ -13,6 +13,12 @@ For support, please feel free to contact me at https://www.linkedin.com/in/syeda
 
 import Foundation
 struct NBATime_zones: Codable {
+    init(venue: String?, home: String?, away: String?) {
+        self.venue = venue
+        self.home = home
+        self.away = away
+    }
+    
 	let venue: String?
 	let home: String?
 	let away: String?

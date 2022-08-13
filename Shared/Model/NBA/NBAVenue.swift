@@ -13,6 +13,18 @@ For support, please feel free to contact me at https://www.linkedin.com/in/syeda
 
 import Foundation
 struct NBAVenue: Codable {
+    init(id: String?, name: String?, capacity: Int?, address: String?, city: String?, state: String?, zip: String?, country: String?, sr_id: String?) {
+        self.id = id
+        self.name = name
+        self.capacity = capacity
+        self.address = address
+        self.city = city
+        self.state = state
+        self.zip = zip
+        self.country = country
+        self.sr_id = sr_id
+    }
+    
 	let id: String?
 	let name: String?
 	let capacity: Int?

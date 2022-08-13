@@ -8,7 +8,7 @@ import Foundation
 // MARK: - Coverage
 struct Coverage: Codable {
     let type: CoverageType
-    let sportEventProperties: SportEventProperties
+    let sportEventProperties: SportEventProperties?
 
     enum CodingKeys: String, CodingKey {
         case type

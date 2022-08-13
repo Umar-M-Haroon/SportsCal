@@ -13,6 +13,13 @@ For support, please feel free to contact me at https://www.linkedin.com/in/syeda
 
 import Foundation
 struct NBABroadcasts: Codable {
+    internal init(network: String?, type: String?, locale: String?, channel: String?) {
+        self.network = network
+        self.type = type
+        self.locale = locale
+        self.channel = channel
+    }
+    
 	let network: String?
 	let type: String?
 	let locale: String?
