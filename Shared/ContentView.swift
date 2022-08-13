@@ -27,7 +27,6 @@ enum SheetType: Identifiable {
 }
 struct ContentView: View {
     
-    
     @State var totalGames: [Game]?
     @State var filteredGames: [Game]?
     
@@ -48,9 +47,28 @@ struct ContentView: View {
     @State var favoriteGames: [Game] = []
     @State var networkState: NetworkState = .loading
     
+    fileprivate func getInfo() {
+        if #available(iOS 15.0, *) {
+            Task {
+                await getData()
+            }
+        } else {
+            cancellable = NetworkHandler().handleCall()
+                .sink { completion in
+                    switch completion {
+                    case .finished:
+                        break
+                    case .failure(let err):
+                        print(err.localizedDescription)
+                    }
+                } receiveValue: { sports  in
+                    (totalGames, filteredGames) = sports.convertToGames()
+                }
+        }
+    }
+    
     var body: some View {
         NavigationView {
-            
             if let games = filteredGames?.first?.sortByDate(games: filteredGames ?? []) {
                 List {
                     if !favoriteGames.isEmpty  {
@@ -65,10 +83,6 @@ struct ContentView: View {
                                     .bold()
                             }
                         }
-                        
-                        
-                        
-                        
                     }
                     ForEach(games.map({$0.key}).indices, id: \.self) { index in
                         Section {
@@ -85,7 +99,7 @@ struct ContentView: View {
                     }
                 }
                 
-                .navigationBarTitle("SportsCal")
+//                .navigationBarTitle("SportsCal")
                 .navigationBarItems(leading: Button(action: {
                     shouldShowSettings = true
                     sheetType = .settings
@@ -139,7 +153,7 @@ struct ContentView: View {
                     }, label: {
                         Image(systemName: "sportscourt")
                     })
-                        .accessibility(label: Text("Filter Sports"))
+//                        .accessibility(label: Text("Filter Sports"))
                 }
                 )
                 .sheet(item: $sheetType) { sheetType in
@@ -163,69 +177,12 @@ struct ContentView: View {
                         Text("No games fetched")
                             .font(.title2)
                         Button("Retry") {
-                            if #available(iOS 15.0, *) {
-                                Task {
-                                    await getData()
-                                }
-                            } else {
-                                cancellable = NetworkHandler().handleCall()
-                                    .sink { completion in
-                                        switch completion {
-                                        case .finished:
-                                            break
-                                        case .failure(let err):
-                                            print(err.localizedDescription)
-                                        }
-                                    } receiveValue: { sports  in
-                                        (totalGames, filteredGames) = sports.convertToGames()
-                                    }
-                            }
+                            getInfo()
                         }
                     } else if networkState == .loading {
                         ProgressView()
                     }
                 }
-                .navigationBarTitle("SportsCal")
-                .navigationBarItems(leading: Button(action: {
-                    shouldShowSettings = true
-                    sheetType = .settings
-                }, label: {
-                    Image(systemName: "gear")
-                }), trailing: Menu(content: {
-                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                        Text("Subscribe to check multiple sports")
-                        Button("NBA") {
-                            appStorage.switchTo(sportType: .NBA)
-                        }
-                        Button("NFL") {
-                            appStorage.switchTo(sportType: .NFL)
-                        }
-                        Button("NHL") {
-                            appStorage.switchTo(sportType: .NHL)
-                        }
-                        Button("Soccer") {
-                            appStorage.switchTo(sportType: .Soccer)
-                        }
-                        Button("F1") {
-                            appStorage.switchTo(sportType: .F1)
-                        }
-                        Button("MLB") {
-                            appStorage.switchTo(sportType: .MLB)
-                        }
-                    } else {
-                        VStack {
-                            Toggle("NBA", isOn: appStorage.$shouldShowNBA)
-                            Toggle("NFL", isOn: appStorage.$shouldShowNFL)
-                            Toggle("NHL", isOn: appStorage.$shouldShowNHL)
-                            Toggle("Soccer", isOn: appStorage.$shouldShowSoccer)
-                            Toggle("F1", isOn: appStorage.$shouldShowF1)
-                            Toggle("MLB", isOn: appStorage.$shouldShowMLB)
-                        }
-                    }
-                }, label: {
-                    Image(systemName: "sportscourt")
-                })
-                )
                 .sheet(item: $sheetType) { sheetType in
                     switch sheetType {
                     case .settings:
@@ -242,7 +199,6 @@ struct ContentView: View {
                 }
             }
         }
-        
         .onChange(of: appStorage, perform: { newValue in
             withAnimation {
                 filterSports()
@@ -267,26 +223,7 @@ struct ContentView: View {
             if appStorage.shouldShowOnboarding {
                 sheetType = .onboarding
             }
-            if #available(iOS 15.0, *) {
-                Task {
-                    await getData()
-                }
-            } else {
-                cancellable = NetworkHandler().handleCall()
-                    .sink { completion in
-                        switch completion {
-                        case .finished:
-                            break
-                        case .failure(let err):
-                            print(err.localizedDescription)
-                            networkState = .failed
-                        }
-                    } receiveValue: { sports  in
-                        (totalGames, filteredGames) = sports.convertToGames()
-                        favoriteGames = sports.favoritesToGames(games: filteredGames ?? [], favorites: favorites)
-                        networkState = .loaded
-                    }
-            }
+            getInfo()
         }
     }
     

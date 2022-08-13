@@ -14,7 +14,6 @@ struct SportsCalApp: App {
     @ObservedObject var userDefaultStorage = UserDefaultStorage()
     var body: some Scene {
         WindowGroup {
-//            OnboardingPage()
             ContentView()
                 .environmentObject(SubscriptionManager.shared)
                 .environmentObject(favorites)

@@ -195,6 +195,8 @@
 		1D88C48027A12815004EC903 /* Favorites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1FD912740AECB00783E62 /* Favorites.swift */; };
 		1D88C48127A12819004EC903 /* SettingsData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463626C9FB5000BA827B /* SettingsData.swift */; };
 		1D88C48227A1282A004EC903 /* UserDefaultStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1FD932741EFA800783E62 /* UserDefaultStorage.swift */; };
+		1D90DA8827FEA9F6007C570A /* DummySubscriptionOptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */; };
+		1D90DA8927FEA9F6007C570A /* DummySubscriptionOptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */; };
 		1D973160276AF841007DD9CB /* TeamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D97315F276AF840007DD9CB /* TeamView.swift */; };
 		1D973161276AF841007DD9CB /* TeamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D97315F276AF840007DD9CB /* TeamView.swift */; };
 		1D973162276AF841007DD9CB /* TeamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D97315F276AF840007DD9CB /* TeamView.swift */; };
@@ -512,6 +514,7 @@
 		1D7FF962269FAAFB008949FF /* NHLAway.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NHLAway.swift; sourceTree = "<group>"; };
 		1D7FF963269FAAFB008949FF /* NHLBroadcasts.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NHLBroadcasts.swift; sourceTree = "<group>"; };
 		1D7FF974269FAC15008949FF /* Sports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sports.swift; sourceTree = "<group>"; };
+		1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DummySubscriptionOptionView.swift; sourceTree = "<group>"; };
 		1D97315F276AF840007DD9CB /* TeamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamView.swift; sourceTree = "<group>"; };
 		1D9D2CEF27702FFB00735AF0 /* FavoriteButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteButtonView.swift; sourceTree = "<group>"; };
 		1DB5C69E26A504FF007C255A /* ScheduleGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleGameView.swift; sourceTree = "<group>"; };
@@ -803,6 +806,7 @@
 				1D12399F26D0D180001B503E /* LocalNotificationManager.swift */,
 				1D5C463926C9FD0800BA827B /* OnboardingPage.swift */,
 				1D79FFBF26C9B3480041A673 /* SubscriptionPage.swift */,
+				1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */,
 				1D5C463326C9F10400BA827B /* Confetti.swift */,
 				1D5C463026C9C5F900BA827B /* SubscriptionManager.swift */,
 				1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */,
@@ -1242,6 +1246,7 @@
 				1DCEBEC326BF5FCB00913A94 /* SoccerCompetitor.swift in Sources */,
 				1D7FF958269FAAC6008949FF /* NFLScoring.swift in Sources */,
 				1D7FF926269FA8DD008949FF /* MLBHome.swift in Sources */,
+				1D90DA8827FEA9F6007C570A /* DummySubscriptionOptionView.swift in Sources */,
 				1DCEBEC726BF5FCB00913A94 /* StageType.swift in Sources */,
 				1D44F12826A8E71B00B366E7 /* SportTypes.swift in Sources */,
 				1DCEBEE126BF5FCB00913A94 /* CompetitionName.swift in Sources */,
@@ -1359,6 +1364,7 @@
 				1D44F12926A8E71B00B366E7 /* SportTypes.swift in Sources */,
 				1DCEBEE226BF5FCB00913A94 /* CompetitionName.swift in Sources */,
 				1DCEBEF626BF5FCB00913A94 /* RoundName.swift in Sources */,
+				1D90DA8927FEA9F6007C570A /* DummySubscriptionOptionView.swift in Sources */,
 				1D7FF941269FAA3E008949FF /* NFLAway.swift in Sources */,
 				1D3CDCDA26BE2576007B33FC /* Gender.swift in Sources */,
 				1D7FF92B269FA8DD008949FF /* MLB.swift in Sources */,

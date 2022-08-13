@@ -10,7 +10,7 @@ import SwiftUI
 import EventKit
 
 struct ScheduleGameView: View {
-    @State var game: Game?
+    @State var game: Game
     var dateFormatter: DateFormatter
     var relativeDateFormatter: RelativeDateTimeFormatter = RelativeDateTimeFormatter()
     @State var scheduleString: String?
@@ -43,6 +43,7 @@ struct ScheduleGameView: View {
         self.favorites = favorites
     }
     init() {
+        _game = State(initialValue: Game.sampleGame())
         relativeDateFormatter.dateTimeStyle = RelativeDateTimeFormatter.DateTimeStyle.numeric
         dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "hh:mm"
@@ -69,26 +70,26 @@ struct ScheduleGameView: View {
     
     var body: some View {
         HStack {
-            if game?.sport == .F1 {
+            if game.sport == .F1 {
                 Image(systemName: "car.fill")
                     .font(.body)
                     .padding(-1)
                 VStack(alignment: .leading) {
-                    Text(game?.home ?? "New york knicxs")
+                    Text(game.home)
                         .font(.headline)
                         .multilineTextAlignment(.leading)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 24) {
-                    TeamView(teamName: game?.home ?? "", visitingOrAway: .home, game: game!, score: game?.homeScore)
-                    TeamView(teamName: game?.away ?? "", visitingOrAway: .away, game: game!, score: game?.awayScore)
+                    TeamView(teamName: game.home, visitingOrAway: .home, game: game, score: game.homeScore)
+                    TeamView(teamName: game.away, visitingOrAway: .away, game: game, score: game.awayScore)
                 }
                 
             }
             Spacer()
             VStack(alignment: .trailing) {
-                if let game_ = game, !game_.isInPast {
-                    Text(format(game_.gameDate))
+                if !game.isInPast {
+                    Text(format(game.gameDate))
                         .fontWeight(.medium)
                         .accessibilityValue(accessibilityLabel)
                         .accessibilityLabel(accessibilityLabel)
@@ -110,7 +111,7 @@ struct ScheduleGameView: View {
                                 timeString = formatCountdown()
                             }
                     }
-                    if let competition = game_.competition?.name {
+                    if let competition = game.competition?.name {
                         Text(competition)
                             .font(.system(.footnote, design: .rounded))
                             .foregroundColor(.secondary)
@@ -141,7 +142,7 @@ struct ScheduleGameView: View {
                                     if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
                                         shouldShowSportsCalProAlert = true
                                     } else {
-                                        NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .thirtyMinutes)
+                                        NotificationManager.addLocalNotification(date: game.gameDate, item: game, duration: .thirtyMinutes)
                                     }
                                 } label: {
                                     Text("\(NotificationDuration.thirtyMinutes.rawValue) before")
@@ -150,7 +151,7 @@ struct ScheduleGameView: View {
                                     if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
                                         shouldShowSportsCalProAlert = true
                                     } else {
-                                        NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .oneHour)
+                                        NotificationManager.addLocalNotification(date: game.gameDate, item: game, duration: .oneHour)
                                     }
                                 } label: {
                                     Text("\(NotificationDuration.oneHour.rawValue) before")
@@ -160,7 +161,7 @@ struct ScheduleGameView: View {
                                     if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
                                         shouldShowSportsCalProAlert = true
                                     } else {
-                                        NotificationManager.addLocalNotification(date: game!.gameDate, item: game!, duration: .twoHour)
+                                        NotificationManager.addLocalNotification(date: game.gameDate, item: game, duration: .twoHour)
                                     }
                                 } label: {
                                     Text("\(NotificationDuration.twoHour.rawValue) before")
@@ -172,9 +173,9 @@ struct ScheduleGameView: View {
                             Image(systemName: "clock")
                         }
                     }
-                    Image((game?.sport.rawValue) ?? "NHL", bundle: nil)
+                    Image((game.sport.rawValue), bundle: nil)
                         .resizable()
-                        .modifier(SportsTint(sport: SportTypes(rawValue: (game?.sport ?? .NHL).rawValue) ?? .NHL))
+                        .modifier(SportsTint(sport: SportTypes(rawValue: (game.sport).rawValue) ?? .NHL))
                         .frame(width: 20, height: 20, alignment: .center)
                         .padding(-1)
                 }
@@ -196,7 +197,7 @@ struct ScheduleGameView: View {
     }
     
     func formatCountdown() -> String {
-        guard let gameDate = game?.gameDate else { return "16 days: 12:12:20" }
+        let gameDate = game.gameDate
 //        let gameDate = DateComponents(calendar: Calendar.current, year: 2021, month: 7, day: 29, hour: 14, minute: 20, second: 0).date!
         timeRemaining = gameDate.timeIntervalSince(Date())
         if timeRemaining < 0 {
@@ -223,9 +224,8 @@ struct ScheduleGameView_Previews: PreviewProvider {
     static var previews: some View {
         VStack {
             ScheduleGameView()
-            ScheduleGameView()
         }
-        
+        .padding()
     }
 }
 

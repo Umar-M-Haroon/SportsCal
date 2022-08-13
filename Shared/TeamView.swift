@@ -88,12 +88,12 @@ struct BackgroundView: View {
     }
 }
 
-//struct TeamView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        VStack {
-//            TeamView()
-//        }
-//        .preferredColorScheme(.dark)
-//        
-//    }
-//}
+struct TeamView_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack {
+            TeamView(teamName: "Boston Celtics", visitingOrAway: .away, game: Game(nbaGame: .init(id: "test", status: "test", title: "Test Game", coverage: "ESPN", scheduled: "IDK", home_points: 82, away_points: 80, track_on_court: true, sr_id: "test", reference: "test", time_zones: .init(venue: "Barclays", home: "Warriors", away: "Bucks"), venue: nil, broadcasts: nil, home: .init(name: "Warriors", alias: "GSW", id: "GSW", sr_id: "Test", reference: "test"), away: .init(name: "Bucks", alias: "MIL", id: "Bucks", sr_id: "Bucks", reference: "bucks"))))
+        }
+        .preferredColorScheme(.dark)
+        
+    }
+}
