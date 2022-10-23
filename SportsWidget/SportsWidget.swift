@@ -89,7 +89,7 @@ class Provider: IntentTimelineProvider {
     
     
     func handleNetworking(favoriteOnly: Bool, type: SportTypes?, completion: @escaping([Game]) -> Void) {
-        cancellable = NetworkHandler().handleCall(type: type)
+        cancellable = NetworkHandler.handleCall(type: type)
             .receive(on: RunLoop.main)
             .sink { completion in
                 switch completion {

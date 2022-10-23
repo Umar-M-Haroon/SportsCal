@@ -7,9 +7,9 @@ import Foundation
 
 // MARK: - Category
 struct Category: Codable {
-    let id: CategoryID
-    let name: CountryName
-    let countryCode: CountryCode?
+    let id: String
+    let name: String
+    let countryCode: String?
 
     enum CodingKeys: String, CodingKey {
         case id, name

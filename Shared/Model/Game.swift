@@ -155,6 +155,7 @@ struct Game: Identifiable {
         return sorted
     }
     func isValidForDuration(duration: Durations, components: DateComponents) -> Bool {
+        if components.month ?? 0 < 0 || components.day ?? 0 < 0 { return false }
         var isValid: Bool = true
         switch duration {
         case .oneWeek:
@@ -198,9 +199,10 @@ struct Game: Identifiable {
                 shouldHideDueToHiddenCompetition = isCompetitionHidden(competition: competition.name)
             }
             
+//            return true
             if storage.hidePastEvents {
                 print("⚠️ hiding past events")
-                return isValid && (components.day ?? 0 > 0) && isValidSport(game: game) && !shouldHideDueToHiddenCompetition
+                return isValid && (pastComponents.day ?? 0 > 0) && isValidSport(game: game) && !shouldHideDueToHiddenCompetition
             }
             return (isValid && isValidForDuration(duration: storage.hidePastGamesDuration, components: pastComponents)) && isValidSport(game: game) && !shouldHideDueToHiddenCompetition
 //           return isValid && isValidSport(game: game)

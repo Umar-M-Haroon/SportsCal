@@ -10,7 +10,7 @@ struct SportEventProperties: Codable {
     let lineups, extendedPlayerStats, extendedTeamStats: Bool?
     let lineupsAvailability: LineupsAvailability?
     let ballspotting, commentary, funFacts, goalScorers: Bool?
-    let scores: Scores?
+    let scores: String?
     let gameClock, deeperPlayByPlay, deeperPlayerStats, deeperTeamStats: Bool?
     let basicPlayByPlay, basicPlayerStats, basicTeamStats: Bool?
 

@@ -11,7 +11,7 @@ struct Stage: Codable {
     let type: StageType
     let phase: Phase
     let startDate, endDate: String
-    let year: Year
+    let year: String
 
     enum CodingKeys: String, CodingKey {
         case order, type, phase

@@ -8,11 +8,11 @@ import Foundation
 // MARK: - SoccerCompetitor
 struct SoccerCompetitor: Codable {
     let id, name: String
-    let country: CountryName
-    let countryCode: CountryCode
+    let country: String?
+    let countryCode: String?
     let abbreviation: String
     let qualifier: Qualifier
-    let gender: SoccerGender
+    let gender: String
 
     enum CodingKeys: String, CodingKey {
         case id, name, country

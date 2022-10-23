@@ -10,9 +10,9 @@ struct Venue: Codable {
     let id, name: String
     let capacity: Int
     let cityName: String
-    let countryName: CountryName
+    let countryName: String
     let mapCoordinates: String?
-    let countryCode: CountryCode
+    let countryCode: String
 
     enum CodingKeys: String, CodingKey {
         case id, name, capacity

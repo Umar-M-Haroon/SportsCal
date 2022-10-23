@@ -7,10 +7,10 @@ import Foundation
 
 // MARK: - Season
 struct Season: Codable {
-    let id: PurpleID
+    let id: String
     let name: String
     let startDate, endDate: String
-    let year: Year
+    let year: String
     let competitionID: String
 
     enum CodingKeys: String, CodingKey {

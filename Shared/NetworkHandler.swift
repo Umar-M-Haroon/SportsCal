@@ -7,15 +7,15 @@
 
 import Foundation
 import Combine
-enum NetworkState {
-    case loading
-    case loaded
-    case failed
+enum NetworkState: String {
+    case loading = "Loading"
+    case loaded = "Loaded"
+    case failed = "Failed"
 }
 struct NetworkHandler {
     
     @available(iOS 15.0, *)
-    func handleCall(type: SportTypes? = nil, year: String) async throws -> Sports {
+    static func handleCall(type: SportTypes? = nil, year: String) async throws -> Sports {
         var urlString = "https://sportscal.komodollc.com"
         if let type = type {
             urlString = "https://sportscal.komodollc.com/\(type.rawValue)"
@@ -26,7 +26,7 @@ struct NetworkHandler {
         
         return try decoder.decode(Sports.self, from: data)
     }
-    func handleCall(type: SportTypes? = nil) -> AnyPublisher<Sports, Error> {
+    static func handleCall(type: SportTypes? = nil) -> AnyPublisher<Sports, Error> {
         var urlString = "https://sportscal.komodollc.com"
         if let type = type {
             urlString = "https://sportscal.komodollc.com/\(type.rawValue)"
