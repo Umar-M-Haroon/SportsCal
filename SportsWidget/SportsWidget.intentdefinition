@@ -73,20 +73,6 @@
 				</dict>
 				<dict>
 					<key>INEnumValueDisplayName</key>
-					<string>F1</string>
-					<key>INEnumValueDisplayNameID</key>
-					<string>Hq3iEu</string>
-					<key>INEnumValueIndex</key>
-					<integer>5</integer>
-					<key>INEnumValueName</key>
-					<string>F1</string>
-					<key>INEnumValuePronunciationHint</key>
-					<string>F1</string>
-					<key>INEnumValuePronunciationHintID</key>
-					<string>0ud73H</string>
-				</dict>
-				<dict>
-					<key>INEnumValueDisplayName</key>
 					<string>Soccer</string>
 					<key>INEnumValueDisplayNameID</key>
 					<string>qMFlBu</string>
@@ -121,11 +107,11 @@
 	<key>INIntentDefinitionNamespace</key>
 	<string>88xZPY</string>
 	<key>INIntentDefinitionSystemVersion</key>
-	<string>21A559</string>
+	<string>22A5365d</string>
 	<key>INIntentDefinitionToolsBuildVersion</key>
-	<string>13C90</string>
+	<string>14A400</string>
 	<key>INIntentDefinitionToolsVersion</key>
-	<string>13.2</string>
+	<string>14.0.1</string>
 	<key>INIntents</key>
 	<array>
 		<dict>

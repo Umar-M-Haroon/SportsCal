@@ -9,6 +9,7 @@ import WidgetKit
 import SwiftUI
 import Intents
 import Combine
+import SportsCalModel
 
 class Provider: IntentTimelineProvider {
     private var cancellable: AnyCancellable!
@@ -68,44 +69,26 @@ class Provider: IntentTimelineProvider {
         
     }
     
-    func configurationToString(configuration: ConfigurationIntent) -> SportTypes {
+    func configurationToString(configuration: ConfigurationIntent) -> SportType {
         switch configuration.SportType {
-        case .f1:
-            return SportTypes.F1
         case .mLB:
-            return SportTypes.MLB
+            return .mlb
         case .nBA:
-            return SportTypes.NBA
+            return .basketball
         case .nHL:
-            return SportTypes.NHL
+            return .hockey
         case .nFL:
-            return .NFL
+            return .nfl
         case .soccer:
-            return SportTypes.Soccer
+            return .soccer
         case .unknown:
-            return .NFL
+            return .hockey
         }
     }
     
     
-    func handleNetworking(favoriteOnly: Bool, type: SportTypes?, completion: @escaping([Game]) -> Void) {
-        cancellable = NetworkHandler.handleCall(type: type)
-            .receive(on: RunLoop.main)
-            .sink { completion in
-                switch completion {
-                case .finished:
-                    print("Finished networking call")
-                    break
-                case .failure(let err):
-                    print(err.localizedDescription)
-                }
-            } receiveValue: { sports  in
-                if favoriteOnly {
-                    completion(sports.favoritesToGames(games: sports.convertToGames(isWidget: true).1, favorites: Favorites()))
-                } else {
-                    completion(sports.convertToGames(isWidget: true).1)
-                }
-            }
+    func handleNetworking(favoriteOnly: Bool, type: SportType?, completion: @escaping([Game]) -> Void) {
+        
     }
 }
 
@@ -115,34 +98,27 @@ struct SimpleEntry: TimelineEntry {
     let game: [Game]?
 }
 struct SportsLine: View {
-    let type: SportTypes
+    let type: SportType
     var body: some View {
         VStack(spacing: 0) {
             switch type {
-            case .NHL:
+            case .hockey:
                 Rectangle()
                     .foregroundColor(.black)
                 Rectangle()
                     .foregroundColor(.white)
-            case .NFL:
+            case .nfl:
                Rectangle()
                     .foregroundColor(.brown)
-            case .NBA:
+            case .basketball:
                Rectangle()
                     .foregroundColor(.orange)
-            case .MLB:
+            case .mlb:
                 Rectangle()
                     .foregroundColor(.white)
                 Rectangle()
                     .foregroundColor(.red)
-            case .F1:
-                Rectangle()
-                    .foregroundColor(.white)
-                Rectangle()
-                    .foregroundColor(.green)
-                Rectangle()
-                    .foregroundColor(.red)
-            case .Soccer:
+            case .soccer:
                 Rectangle()
                     .foregroundColor(.white)
                 Rectangle()
@@ -157,7 +133,7 @@ struct SportsLine: View {
 struct SportsView: View {
     let home: String
     let away: String?
-    let type: SportTypes
+    let type: SportType
     let color: Color
     let gameDate: Date
     var body: some View {
@@ -168,15 +144,8 @@ struct SportsView: View {
                 VStack(spacing: 0) {
                     Text(dateToString(date: gameDate))
                         .font(.caption2)
-                    if type == .F1 {
-                        Image(systemName: "car.fill")
-//                            .modifier(SportsTint(sport: type))
-                    } else {
                         Image(type.rawValue)
                             .modifier(SportsTint(sport: type))
-                    }
-//                        .frame(width: ,, height: 25, alignment: .center)
-//                        .padding(-1)
                 }
                 Spacer()
                 VStack(alignment: .leading) {
@@ -207,11 +176,11 @@ struct SportsView: View {
 struct SportsView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            SportsView(home: "Milwaukee Bucks", away: "Denver Nuggets", type: .NBA, color: .orange, gameDate: sampleDate(hoursInFuture: 2))
+            SportsView(home: "Milwaukee Bucks", away: "Denver Nuggets", type: .basketball, color: .orange, gameDate: sampleDate(hoursInFuture: 2))
                 .previewContext(WidgetPreviewContext(family: .systemSmall))
-            SportsView(home: "Milwaukee Bucks", away: "Denver Nuggets", type: .NBA, color: .orange, gameDate: sampleDate(daysInFuture: 1))
+            SportsView(home: "Milwaukee Bucks", away: "Denver Nuggets", type: .basketball, color: .orange, gameDate: sampleDate(daysInFuture: 1))
                 .previewContext(WidgetPreviewContext(family: .systemSmall))
-            SportsView(home: "Milwaukee Bucks", away: "Denver Nuggets", type: .NBA, color: .orange, gameDate: sampleDate(daysInFuture: 2))
+            SportsView(home: "Milwaukee Bucks", away: "Denver Nuggets", type: .basketball, color: .orange, gameDate: sampleDate(daysInFuture: 2))
                 .previewContext(WidgetPreviewContext(family: .systemSmall))
         }
     }
@@ -259,7 +228,7 @@ struct SportsWidgetSmallView: View {
                         Text("No upcoming games")
                     } else {
                         ForEach(games) { game in
-                            SportsView(home: game.home, away: game.away, type: game.sport, color: .orange, gameDate: game.gameDate)
+//                            SportsView(home: game.strHomeTeam, away: game.strAwayTeam, type: SportType(league: Leagues(rawValue: Int(game.idLeague!)!)!), color: .orange, gameDate: Date.now)
                         }
                     }
                 } else {
@@ -300,6 +269,15 @@ struct SportsWidgetEntryView : View {
 }
 
 @main
+struct SportsWidgetBundle: WidgetBundle {
+    @WidgetBundleBuilder
+    var body: some Widget {
+        SportsWidget()
+        if #available(iOS 16.1, *) {
+            LiveSportActivityWidget()
+        }
+    }
+}
 struct SportsWidget: Widget {
     let kind: String = "SportsWidget"
 
@@ -328,34 +306,30 @@ struct SportsWidget_Previews: PreviewProvider {
 }
 
 struct SportsTint: ViewModifier {
-    let sport: SportTypes
+    let sport: SportType
     func body(content: Content) -> some View {
-        if #available(iOS 15.0, *) {
-            if sport == .NBA {
-                content
-                    .foregroundColor(.orange)
-                    .background(.black, in: Circle())
-            }
-            if sport == .MLB {
-                content
-                    .foregroundColor(.white)
-                    .background(.red, in: Circle())
-                    .overlay(
-                        Circle()
-                            .strokeBorder(Color.secondary, lineWidth: 1, antialiased: true)
-                    )
-            }
-            if sport == .NFL {
-                content
-                    .foregroundColor(.brown)
-            }
-            if sport == .NHL {
-                content
-            }
-            if sport == .Soccer {
-                content
-            }
-        } else {
+        if sport == .basketball {
+            content
+                .foregroundColor(.orange)
+                .background(.black, in: Circle())
+        }
+        if sport == .mlb {
+            content
+                .foregroundColor(.white)
+                .background(.red, in: Circle())
+                .overlay(
+                    Circle()
+                        .strokeBorder(Color.secondary, lineWidth: 1, antialiased: true)
+                )
+        }
+        if sport == .nfl {
+            content
+                .foregroundColor(.brown)
+        }
+        if sport == .hockey {
+            content
+        }
+        if sport == .soccer {
             content
         }
     }

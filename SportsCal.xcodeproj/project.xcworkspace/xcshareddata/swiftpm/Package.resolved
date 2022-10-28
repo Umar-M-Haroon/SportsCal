@@ -5,8 +5,26 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/RevenueCat/purchases-ios.git",
       "state" : {
-        "revision" : "05b68cb7e69e536fbbfe79c2be529a012485af96",
-        "version" : "3.12.3"
+        "revision" : "afc44aa3ee7d35cb19760d63d13f4dabe58a89a4",
+        "version" : "3.14.2"
+      }
+    },
+    {
+      "identity" : "sportscalmodel",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Umar-M-Haroon/SportsCalModel/",
+      "state" : {
+        "branch" : "main",
+        "revision" : "3b8b80f4ec9ac130a575428426c8cd7ec1831608"
+      }
+    },
+    {
+      "identity" : "swiftui-cachedasyncimage",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/lorenzofiamingo/SwiftUI-CachedAsyncImage",
+      "state" : {
+        "branch" : "main",
+        "revision" : "f94be38411297c71aa8df69c6875127e6d8d7a92"
       }
     }
   ],
