@@ -25,17 +25,14 @@ struct OnboardingPage: View {
             }
             Spacer()
            
-            if #available(iOS 15.0, *) {
-                Button {
-                    
-                } label: {
-                    sportPicker()
-                    .foregroundColor(.white)
-                }.buttonStyle(BorderedProminentButtonStyle())
-                    .tint(.green)
-            } else {
+            Button {
+                
+            } label: {
                 sportPicker()
-            }
+                    .foregroundColor(.white)
+            }.buttonStyle(BorderedProminentButtonStyle())
+                .tint(.green)
+
 
         }
         .padding([.bottom, .top], 30)
@@ -43,11 +40,6 @@ struct OnboardingPage: View {
     
     func sportPicker() -> some View {
         Menu("Pick a sport") {
-            Button("F1") {
-                appStorage.shouldShowF1 = true
-                appStorage.shouldShowOnboarding = false
-                sheetType = nil
-            }
             Button("MLB") {
                 appStorage.shouldShowMLB = true
                 appStorage.shouldShowOnboarding = false
