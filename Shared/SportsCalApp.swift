@@ -11,14 +11,14 @@ import Purchases
 struct SportsCalApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-    @StateObject var gameViewModel = GameViewModel()
+    @StateObject var appStorage = UserDefaultStorage()
+    @StateObject var favorites = Favorites()
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(viewModel: GameViewModel(appStorage: appStorage, favorites: favorites))
                 .environmentObject(SubscriptionManager.shared)
-                .environmentObject(gameViewModel)
-//            TestView()
-//                .environmentObject(gameViewModel)
+                .environmentObject(appStorage)
+                .environmentObject(favorites)
         }
     }
 }
