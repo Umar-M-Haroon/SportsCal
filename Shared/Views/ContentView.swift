@@ -36,20 +36,45 @@ struct ContentView: View {
     
     @State var teamString: String? = ""
     
+    @EnvironmentObject var storage: UserDefaultStorage
     @EnvironmentObject var favorites: Favorites
     
-    @EnvironmentObject var viewModel: GameViewModel
+    @StateObject var viewModel: GameViewModel
     
+    @State var searchString: String = ""
     var body: some View {
         NavigationView {
             Group {
-                if let games = viewModel.filteredGames?.first?.sortByDate(games: viewModel.filteredGames ?? []) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        ForEach(SportType.allCases, id: \.self) { sport in
+                            SportsFilterView(sport: sport, appStorage: storage)
+                        }
+                    }
+                }
+
+
+                if let games = viewModel.sortedGames, !games.isEmpty {
                     List {
-                        if !viewModel.favoriteGames.isEmpty  {
+                        if let liveEvents = viewModel.liveEvents, !liveEvents.isEmpty {
                             Section {
-                                ForEach(viewModel.favoriteGames) { game in
-                                    ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: viewModel.favorites, shouldSetStartTime: viewModel.appStorage.$showStartTime)
-                                        .environmentObject(viewModel.favorites)
+                                ForEach(liveEvents) { event in
+                                    if let homeScore = Int(event.intHomeScore ?? ""), let awayScore = Int(event.intAwayScore ?? ""), let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: event.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: event.idAwayTeam) {
+                                        
+                                        GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: true)
+                                    }
+                                }
+                            } header: {
+                                LiveAnimatedView()
+                            }
+                        }
+                        if let favoriteGames = viewModel.favoriteGames, !favoriteGames.isEmpty {
+                            Section {
+                                ForEach(favoriteGames) { game in
+                                    if let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idAwayTeam) {
+                                        UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime,  shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
+                                            .environmentObject(favorites)
+                                    }
                                 }
                             } header: {
                                 HStack {
@@ -62,13 +87,20 @@ struct ContentView: View {
                         ForEach(games.map({$0.key}).indices, id: \.self) { index in
                             Section {
                                 ForEach(games.map({$0.value})[index]) { game in
-                                    ScheduleGameView(gameArg: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, teamStr: teamString, favorites: viewModel.favorites, shouldSetStartTime: viewModel.appStorage.$showStartTime)
+                                    if let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idAwayTeam) {
+                                        if let homeScore = Int(game.intHomeScore ?? ""), let awayScore = Int(game.intAwayScore ?? "") {
+                                            GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: false)
+                                                .environmentObject(favorites)
+                                        } else {
+                                            UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
+                                                .environmentObject(favorites)
+                                        }
+                                    }
                                 }
                             } header: {
                                 HStack {
                                     Text("\(games.map({$0.key})[index].formatted(format: viewModel.appStorage.dateFormat))")
                                         .font(.title3)
-                                        .bold()
                                 }
                             }
                         }
@@ -85,8 +117,9 @@ struct ContentView: View {
                             }
                         }
                     }
-                    
+                Spacer()
                 }
+
             }
             .navigationBarTitle("SportsCal")
             .navigationBarItems(leading: Button(action: {
@@ -102,55 +135,13 @@ struct ContentView: View {
                     Image(systemName: "arrow.up.arrow.down.circle")
                 }
                 .accessibilityLabel("Toggle soonest game first")
-                Menu(content: {
-//                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                        Button("NBA") {
-                            viewModel.appStorage.switchTo(sportType: .NBA)
-                            viewModel.filterSports()
-                        }
-                        Button("NFL") {
-                            viewModel.appStorage.switchTo(sportType: .NFL)
-                            viewModel.filterSports()
-                        }
-                        Button("NHL") {
-                            viewModel.appStorage.switchTo(sportType: .NHL)
-                            viewModel.filterSports()
-                        }
-                        Button("Soccer") {
-                            viewModel.appStorage.switchTo(sportType: .Soccer)
-                            viewModel.filterSports()
-                        }
-                        Button("F1") {
-                            viewModel.appStorage.switchTo(sportType: .F1)
-                            viewModel.filterSports()
-                        }
-                        Button("MLB") {
-                            viewModel.appStorage.switchTo(sportType: .MLB)
-                            viewModel.filterSports()
-                        }
-//                    } else {
-//                        VStack {
-//                            Toggle("NBA", isOn: viewModel.appStorage.$shouldShowNBA)
-//                            Toggle("NFL", isOn: viewModel.appStorage.$shouldShowNFL)
-//                            Toggle("NHL", isOn: viewModel.appStorage.$shouldShowNHL)
-//                            Toggle("Soccer", isOn: viewModel.appStorage.$shouldShowSoccer)
-//                            Toggle("F1", isOn: viewModel.appStorage.$shouldShowF1)
-//                            Toggle("MLB", isOn: viewModel.appStorage.$shouldShowMLB)
-//                        }
-//                    }
-                    
-                }, label: {
-                    Image(systemName: "sportscourt")
-                })
-                .accessibility(label: Text("Filter Sports"))
             }
             )
             .sheet(item: $sheetType) { sheetType in
                 switch sheetType {
                 case .settings:
                     SettingsView(sheetType: $sheetType)
-                        .environmentObject(SubscriptionManager.shared)
-                        .environmentObject(viewModel.appStorage)
+                        .environmentObject(storage)
                 case .onboarding:
                     OnboardingPage(sheetType: $sheetType)
                 case .calendar(let eventGame):
@@ -160,30 +151,81 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: viewModel.appStorage, perform: { newValue in
+        .onChange(of: storage, perform: { _ in
             withAnimation {
-                viewModel.filterSports()
+                print("HERE")
             }
         })
-        .onChange(of: viewModel.favorites, perform: { fav in
+        .onChange(of: storage.shouldShowMLB, perform: { _ in
             withAnimation {
-                viewModel.filterSports()
+                viewModel.filterSports(searchString: searchString)
+            }
+        })
+        .onChange(of: storage.shouldShowNHL, perform: { _ in
+            withAnimation {
+                viewModel.filterSports(searchString: searchString)
+            }
+        })
+        .onChange(of: storage.shouldShowNBA, perform: { _ in
+            withAnimation {
+                viewModel.filterSports(searchString: searchString)
+            }
+        })
+        .onChange(of: storage.shouldShowNFL, perform: { _ in
+            withAnimation {
+                viewModel.filterSports(searchString: searchString)
+            }
+        })
+        .onChange(of: storage.soonestOnTop, perform: { _ in
+            withAnimation {
+                viewModel.filterSports(searchString: searchString)
+            }
+        })
+        .onChange(of: storage.shouldShowSoccer, perform: { _ in
+            withAnimation {
+                viewModel.filterSports(searchString: searchString)
+            }
+        })
+        .onChange(of: storage.hidePastEvents, perform: { _ in
+            withAnimation {
+                viewModel.filterSports(searchString: searchString)
+            }
+        })
+        .onChange(of: storage.durations, perform: { _ in
+            withAnimation {
+                viewModel.filterSports(searchString: searchString)
+            }
+        })
+        .onChange(of: favorites.teams, perform: { _ in
+            withAnimation {
+                viewModel.filterSports(searchString: searchString)
+            }
+        })
+        .onChange(of: storage.hiddenCompetitions, perform: { _ in
+            withAnimation {
+                viewModel.filterSports(searchString: searchString)
+            }
+        })
+        .onChange(of: searchString, perform: { newValue in
+            withAnimation {
+                viewModel.filterSports(searchString: newValue)
             }
         })
         .alert(isPresented: $shouldShowSportsCalProAlert, content: {
             Alert(title: Text("SportsCal Pro"), message: Text("This feature requires SportsCal Pro"))
         })
         .conditionalModifier(UIDevice.current.userInterfaceIdiom == .pad, ifTrue: {$0.navigationViewStyle(StackNavigationViewStyle())}, ifFalse: {$0.navigationViewStyle(DefaultNavigationViewStyle())})
+        .searchable(text: $searchString, placement: SearchFieldPlacement.navigationBarDrawer(displayMode: .automatic), prompt: "Teams: ")
         .onAppear {
-//            viewModel.appStorage.launches += 1
-//            if viewModel.appStorage.launches == 5 {
-//                if let scene = UIApplication.shared.connectedScenes.first(where: {$0.activationState == .foregroundActive}) as? UIWindowScene {
-//                    SKStoreReviewController.requestReview(in: scene)
-//                }
-//            }
-//            if viewModel.appStorage.shouldShowOnboarding {
-//                sheetType = .onboarding
-//            }
+            viewModel.appStorage.launches += 1
+            if viewModel.appStorage.launches == 5 {
+                if let scene = UIApplication.shared.connectedScenes.first(where: {$0.activationState == .foregroundActive}) as? UIWindowScene {
+                    SKStoreReviewController.requestReview(in: scene)
+                }
+            }
+            if viewModel.appStorage.shouldShowOnboarding {
+                sheetType = .onboarding
+            }
             viewModel.getInfo()
         }
     }
@@ -192,20 +234,19 @@ struct ContentView: View {
         let eventStore = EKEventStore()
         print("⚠️ making calendar event for game \(game)")
         let event = EKEvent(eventStore: eventStore)
-        if game.sport == .F1 {
-            event.title = game.home
-        } else {
-            event.title = "\(game.home) @ \(game.away)"
-        }
-        event.startDate = game.gameDate
-        event.endDate = game.gameDate.afterHoursFromNow(hours: 2)
+        event.title = "\(game.strHomeTeam) @ \(game.strAwayTeam)"
+//        event.startDate = game.dateEvent
+//        event.endDate = game.gameDate.afterHoursFromNow(hours: 2)
         return CalendarRepresentable(eventStore: eventStore, event: event)
     }
+    
+    
 }
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView()
+        ContentView(viewModel: GameViewModel(appStorage: UserDefaultStorage(), favorites: Favorites()))
+            .environmentObject(UserDefaultStorage())
         //            .environment(\.sizeCategory, .accessibilityLarge)
     }
 }
