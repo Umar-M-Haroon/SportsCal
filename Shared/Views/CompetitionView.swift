@@ -10,11 +10,20 @@ import SportsCalModel
 
 struct CompetitionView: View {
     var competition: String
-    @Binding var isHidden: Bool
+    @State var isHidden: Bool = false
+    @EnvironmentObject var appStorage: UserDefaultStorage
     var body: some View {
         HStack {
             Toggle(isOn: $isHidden) {
                 Text(competition)
+            }
+            .onChange(of: isHidden) { newValue in
+                if appStorage.hiddenCompetitions.contains(where: {$0 == competition}) {
+                    appStorage.hiddenCompetitions.removeAll(where: {$0 == competition})
+                } else {
+                    appStorage.hiddenCompetitions.append(competition)
+                }
+                appStorage.objectWillChange.send()
             }
         }
     }
@@ -22,6 +31,6 @@ struct CompetitionView: View {
 
 struct CompetitionView_Previews: PreviewProvider {
     static var previews: some View {
-        CompetitionView(competition: "Serie A", isHidden: Binding<Bool>.constant(false))
+        CompetitionView(competition: "Serie A")
     }
 }

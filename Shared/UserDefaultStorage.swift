@@ -39,17 +39,7 @@ class UserDefaultStorage: NSObject, ObservableObject {
     @AppStorage("hidePastGamesDuration") var hidePastGamesDuration: Durations = .threeWeeks
     @AppStorage("showStartTime") var showStartTime: Bool = true
     
-    @AppStorage("hideCoppaItalia") var hideCoppaItalia: Bool = false
-    @AppStorage("hideEredivisie") var hideEredivisie: Bool = false
-    @AppStorage("hideBundesliga") var hideBundesliga: Bool = false
-    @AppStorage("hideLigue1") var hideLigue1: Bool = false
-    @AppStorage("hideSerieA") var hideSerieA: Bool = false
-    @AppStorage("hideEFLCup") var hideEFLCup: Bool = false
-    @AppStorage("hideChampionship") var hideChampionship: Bool = false
-    @AppStorage("hidePremierLeague") var hidePremierLeague: Bool = false
-    @AppStorage("hideLaLiga") var hideLaLiga: Bool = false
-    @AppStorage("hideChampionsLeague") var hideChampionsLeague: Bool = false
-    func switchTo(sportType: SportTypes) {
+    @AppStorage("hiddenCompetitions") var hiddenCompetitions: [String] = []
     func switchTo(sportType: SportType) {
         switch sportType {
         case .hockey:
@@ -88,5 +78,24 @@ class UserDefaultStorage: NSObject, ObservableObject {
             shouldShowMLB = false
             break
         }
+    }
+}
+extension Array: RawRepresentable where Element: Codable {
+    public init?(rawValue: String) {
+        guard let data = rawValue.data(using: .utf8),
+              let result = try? JSONDecoder().decode([Element].self, from: data)
+        else {
+            return nil
+        }
+        self = result
+    }
+    
+    public var rawValue: String {
+        guard let data = try? JSONEncoder().encode(self),
+              let result = String(data: data, encoding: .utf8)
+        else {
+            return "[]"
+        }
+        return result
     }
 }
