@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-
 import SportsCalModel
 struct DummySubscriptionOptionView: View {
     var body: some View {
@@ -23,14 +22,11 @@ struct DummySubscriptionOptionView: View {
                             .foregroundColor(.yellow)
                             .opacity(0.8)
                     )
-            if #available(iOS 15.0, *) {
                 Button("Start Now") {
                     
                 }
                 .buttonStyle(.borderedProminent)
-            } else {
-                // Fallback on earlier versions
-            }
+
         }
 
     }
