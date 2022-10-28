@@ -8,6 +8,7 @@
 
 import Foundation
 import UserNotifications
+import SportsCalModel
 enum NotificationDuration: String {
     case thirtyMinutes = "30 minutes"
     case oneHour = "1 hour"

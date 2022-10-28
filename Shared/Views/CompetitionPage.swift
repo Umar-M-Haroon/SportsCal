@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SportsCalModel
 
 struct CompetitionPage: View {
     var competitions: [String] = [

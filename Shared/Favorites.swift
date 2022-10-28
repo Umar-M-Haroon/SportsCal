@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import SportsCalModel
 
 class Favorites: ObservableObject, Equatable {
     private var teams: Set<String>

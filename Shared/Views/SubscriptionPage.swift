@@ -9,6 +9,7 @@
 import SwiftUI
 import SafariServices
 import Purchases
+import SportsCalModel
 struct SubscriptionPage: View {
    
     @State var showButtons: [Int] = []

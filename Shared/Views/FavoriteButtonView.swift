@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+import SportsCalModel
 struct FavoriteMenu: View {
     var game: Game?
     @EnvironmentObject var favorites: Favorites

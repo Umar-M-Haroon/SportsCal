@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SportsCalModel
 
 struct OnboardingPage: View {
     @EnvironmentObject var appStorage: UserDefaultStorage

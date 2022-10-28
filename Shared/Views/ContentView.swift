@@ -10,6 +10,7 @@ import Combine
 import EventKit
 import WidgetKit
 import StoreKit
+import SportsCalModel
 
 enum SheetType: Identifiable {
     var id: String {

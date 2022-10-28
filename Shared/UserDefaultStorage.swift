@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import SportsCalModel
 
 class UserDefaultStorage: NSObject, ObservableObject {
 //    static func == (lhs: UserDefaultStorage, rhs: UserDefaultStorage) -> Bool {

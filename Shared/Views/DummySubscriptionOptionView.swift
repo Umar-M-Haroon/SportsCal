@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+import SportsCalModel
 struct DummySubscriptionOptionView: View {
     var body: some View {
         HStack {

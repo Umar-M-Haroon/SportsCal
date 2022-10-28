@@ -9,6 +9,8 @@ import Foundation
 import SwiftUI
 import EventKit
 import EventKitUI
+import SportsCalModel
+
 struct CalendarRepresentable: UIViewControllerRepresentable {
     func makeCoordinator() -> Coordinator {
         return Coordinator(self)
