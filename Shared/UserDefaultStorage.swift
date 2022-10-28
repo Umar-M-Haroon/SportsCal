@@ -50,49 +50,37 @@ class UserDefaultStorage: NSObject, ObservableObject {
     @AppStorage("hideLaLiga") var hideLaLiga: Bool = false
     @AppStorage("hideChampionsLeague") var hideChampionsLeague: Bool = false
     func switchTo(sportType: SportTypes) {
+    func switchTo(sportType: SportType) {
         switch sportType {
-        case .NHL:
-            shouldShowF1 = false
+        case .hockey:
             shouldShowNFL = false
             shouldShowNBA = false
             shouldShowNHL = true
             shouldShowSoccer = false
             shouldShowMLB = false
             break
-        case .NFL:
-            shouldShowF1 = false
+        case .nfl:
             shouldShowNFL = true
             shouldShowNBA = false
             shouldShowNHL = false
             shouldShowSoccer = false
             shouldShowMLB = false
             break
-        case .NBA:
-            shouldShowF1 = false
+        case .basketball:
             shouldShowNFL = false
             shouldShowNBA = true
             shouldShowNHL = false
             shouldShowSoccer = false
             shouldShowMLB = false
             break
-        case .MLB:
-            shouldShowF1 = false
+        case .mlb:
             shouldShowNFL = false
             shouldShowNBA = false
             shouldShowNHL = false
             shouldShowSoccer = false
             shouldShowMLB = true
             break
-        case .F1:
-            shouldShowF1 = true
-            shouldShowNFL = false
-            shouldShowNBA = false
-            shouldShowNHL = false
-            shouldShowSoccer = false
-            shouldShowMLB = false
-            break
-        case .Soccer:
-            shouldShowF1 = false
+        case .soccer:
             shouldShowNFL = false
             shouldShowNBA = false
             shouldShowNHL = false
