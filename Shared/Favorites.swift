@@ -10,7 +10,7 @@ import SwiftUI
 import SportsCalModel
 
 class Favorites: ObservableObject, Equatable {
-    private var teams: Set<String>
+    private(set) var teams: Set<String>
     
     private let saveKey = "Favorites"
     
@@ -21,11 +21,10 @@ class Favorites: ObservableObject, Equatable {
         array?.forEach({ team in
             teamSet.insert(team)
         })
-        print(teamSet)
         teams = teamSet
     }
     func contains(_ team: Game) -> Bool {
-        return teams.contains(team.home) || teams.contains(team.away)
+        return teams.contains(team.strHomeTeam) || teams.contains(team.strAwayTeam)
     }
     func containsHome(_ home: String) -> Bool {
         return teams.contains(home)
@@ -45,11 +44,9 @@ class Favorites: ObservableObject, Equatable {
     }
     func save() {
         let stringArray = Array(teams)
-        print(stringArray)
         UserDefaults(suiteName: "group.Komodo.SportsCal")?.set(stringArray, forKey: saveKey)
     }
     static func ==(lhs: Favorites, rhs: Favorites) -> Bool{
-        return false
         return lhs.teams == rhs.teams
     }
 }
