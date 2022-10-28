@@ -7,7 +7,7 @@
 
 import Foundation
 extension DateComponents {
-    func formatted(format: String = "E, dd.MM.yy") -> String {
+    func formatted(format: String = "dd/MM/yy") -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = format
         guard let date = self.date else { return "" }
