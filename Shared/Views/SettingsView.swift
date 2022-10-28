@@ -7,7 +7,6 @@
 
 import SwiftUI
 import Combine
-
 import SportsCalModel
 
 
@@ -15,7 +14,7 @@ struct SettingsView: View {
     @EnvironmentObject var appStorage: UserDefaultStorage
 //    @AppStorage("dateFormatString") var dateFormatString: String = "E, dd.MM.yy"
 //    @AppStorage("duration") var durations: Durations = .oneWeek
-    @EnvironmentObject var subscriptionManager: SubscriptionManager
+    var subscriptionManager = SubscriptionManager.shared
     @Binding var sheetType: SheetType?
     var body: some View {
         NavigationView {
@@ -57,18 +56,7 @@ struct SettingsView: View {
                         .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                     Toggle("Show countdown", isOn: appStorage.$showStartTime)
                     NavigationLink("Hide Soccer Competitions") {
-                        CompetitionPage(competitionStorage: [
-                            appStorage.$hideCoppaItalia,
-                            appStorage.$hideEredivisie,
-                            appStorage.$hideBundesliga,
-                            appStorage.$hideLigue1,
-                            appStorage.$hideSerieA,
-                            appStorage.$hideEFLCup,
-                            appStorage.$hideChampionship,
-                            appStorage.$hidePremierLeague,
-                            appStorage.$hideLaLiga,
-                            appStorage.$hideChampionsLeague
-                        ])
+                        CompetitionPage(competitions: Leagues.allCases.filter({!$0.isSoccer}).map({$0.leagueName}))
                             .environmentObject(appStorage)
                     }
                 }
@@ -120,9 +108,12 @@ struct SettingsView: View {
                 Text("Done")
             }))
             .navigationTitle("Settings")
+            .onAppear {
+                dateFormats()
+            }
         }
     }
-    @available(iOS 15.0, *)
+    
     func showAttributedString() -> AttributedString {
         var string = AttributedString("Hide events more than")
         //                string.foregroundColor = .blue
@@ -131,6 +122,19 @@ struct SettingsView: View {
             string[range].foregroundColor = .blue
         }
         return string
+    }
+    
+    func dateFormats() {
+        let formatter = DateFormatters.dateFormatter
+        let allCases = [DateFormatter.Style.none, .short, .medium, .full, .long]
+        var dateCombos: [String] = []
+        for dateStyle in allCases {
+            //            for timeStyle in allCases {
+            formatter.dateStyle = dateStyle
+            formatter.timeStyle = .none
+            let string = formatter.string(from: .now)
+            dateCombos.append(string)
+        }
     }
 }
 //
