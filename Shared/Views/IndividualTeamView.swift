@@ -15,6 +15,7 @@ struct IndividualTeamView: View {
     var score: Int?
     var isWinning: Bool
     var isAway: Bool
+    var data: Data? = nil
     var body: some View {
         VStack(spacing: 4) {
             HStack {
@@ -37,6 +38,12 @@ struct IndividualTeamView: View {
                             ProgressView()
                         }
                     }
+                    if let data, let image = UIImage(data: data) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 35, height: 35)
+                    }
                 } else {
                     if let teamURL {
                         CachedAsyncImage(url: URL(string: "\(teamURL)/preview")) { image in
@@ -46,6 +53,11 @@ struct IndividualTeamView: View {
                         } placeholder: {
                             ProgressView()
                         }
+                    } else if let data, let image = UIImage(data: data) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 35, height: 35)
                     }
                     if let score = score, isWinning {
                         Text("\(score)")
@@ -57,17 +69,18 @@ struct IndividualTeamView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-                
-                
             }
+            .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             if let shortName {
                 Text(shortName)
-                    .font(.caption)
+                    .font(.headline)
                     .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             } else if let longName {
                 Text(longName)
                     .foregroundColor(.secondary)
-                    .font(.caption2)
+                    .font(.headline)
+            .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             }
         }
     }

@@ -22,8 +22,8 @@ struct LiveActivityButton: View {
             if let homeBadgeString = homeTeam.strTeamBadge,  let homeBadgeURL = URL(string: homeBadgeString + "/preview"), let awayBadgeString = awayTeam.strTeamBadge,  let awayBadgeURL = URL(string: awayBadgeString + "/preview") {
                 Task(priority: .high) {
                     do {
-                        (homeData, _) = try await URLSession.shared.data(from: homeBadgeURL)
-                        (awayData, _) = try await URLSession.shared.data(from: awayBadgeURL)
+                        (homeData, _) = try await URLSession.shared.data(for: URLRequest(url: homeBadgeURL, cachePolicy: .returnCacheDataElseLoad))
+                        (awayData, _) = try await URLSession.shared.data(for: URLRequest(url: awayBadgeURL, cachePolicy: .returnCacheDataElseLoad))
                         
                         if let homeID = homeTeam.idTeam, let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appending(path: homeID), let data = homeData {
                             try data.write(to: fileURL)

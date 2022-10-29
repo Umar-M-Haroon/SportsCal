@@ -46,6 +46,7 @@ struct NetworkHandler {
         var urlString = "ws://sportscal.komodollc.com/ws"
         if debug {
             urlString = "ws://localhost:8080/livedebug"
+//            urlString = "ws://localhost:8080/ws"
         }
         let url = URL(string: urlString)!
         let task = URLSession.shared.webSocketTask(with: url)

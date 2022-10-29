@@ -24,6 +24,7 @@ struct LiveAnimatedView: View {
                     .scaleEffect(animationScale)
                     .foregroundColor(.red)
                     .opacity(0.5)
+                    .transition(.scale(scale: 2.5))
                     .onAppear {
                         withAnimation(repeatingAnimation) {
                             self.animationScale = 2.5
