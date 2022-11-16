@@ -27,6 +27,9 @@ struct SettingsView: View {
                         Text("Hide events more than ")
                         Spacer()
                         Menu("\(appStorage.durations.rawValue) away") {
+                            Button(Durations.oneDay.rawValue) {
+                                appStorage.durations = .oneDay
+                            }
                             Button(Durations.oneWeek.rawValue) {
                                 appStorage.durations = .oneWeek
                             }
@@ -52,19 +55,22 @@ struct SettingsView: View {
                         }
                         .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                     }
-                    Toggle("Hide Past Events", isOn: appStorage.$hidePastEvents)
+                    Toggle("Hide past events", isOn: appStorage.$hidePastEvents)
                         .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                     Toggle("Show countdown", isOn: appStorage.$showStartTime)
-                    NavigationLink("Hide Soccer Competitions") {
+                    NavigationLink("Hide soccer competitions") {
                         CompetitionPage(competitions: Leagues.allCases.filter({!$0.isSoccer}).map({$0.leagueName}))
                             .environmentObject(appStorage)
                     }
                 }
                 Section(header: Text("Scores")) {
                     HStack {
-                        Text("Show scores for games ")
+                        Text("Show past games ")
                         Spacer()
                         Menu("\(appStorage.hidePastGamesDuration.rawValue) old") {
+                            Button(Durations.oneDay.rawValue) {
+                                appStorage.hidePastGamesDuration = .oneDay
+                            }
                             Button(Durations.oneWeek.rawValue) {
                                 appStorage.hidePastGamesDuration = .oneWeek
                             }
