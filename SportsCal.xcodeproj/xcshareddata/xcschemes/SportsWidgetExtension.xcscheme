@@ -67,17 +67,6 @@
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES"
       launchAutomaticallySubstyle = "2">
-      <RemoteRunnable
-         runnableDebuggingMode = "2"
-         BundleIdentifier = "com.apple.springboard">
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "1DE16FF426F29D4A007B1B57"
-            BuildableName = "SportsWidgetExtension.appex"
-            BlueprintName = "SportsWidgetExtension"
-            ReferencedContainer = "container:SportsCal.xcodeproj">
-         </BuildableReference>
-      </RemoteRunnable>
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"

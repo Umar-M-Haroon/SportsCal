@@ -7,18 +7,19 @@
 
 import Foundation
 import SportsCalModel
-
 class GameFormatter: Formatter {
     override func string(for obj: Any?) -> String? {
+        #if canImport(ActivityKit)
         if let liveActivityObj = obj as? (LiveSportActivityAttributes, LiveSportActivityAttributes.ContentState) {
             return handleStringForLiveActivity(liveActivity: liveActivityObj)
-            
-        } else if let object = obj as? Game{
+        }
+        #endif
+        if let object = obj as? Game{
             return handleStringForGame(game: object)
         }
         return nil
     }
-    
+#if canImport(ActivityKit)
     private func handleStringForLiveActivity(liveActivity: (attr: LiveSportActivityAttributes, state: LiveSportActivityAttributes.ContentState)) -> String? {
         guard
             let leagueString = liveActivity.attr.league else { return "no league" }
@@ -71,8 +72,8 @@ class GameFormatter: Formatter {
             }
             return finalString
         }
-        return "no sport?"
     }
+    #endif
     
     private func handleStringForGame(game: Game) -> String? {
         guard

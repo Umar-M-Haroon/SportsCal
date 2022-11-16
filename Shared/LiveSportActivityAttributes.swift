@@ -6,6 +6,7 @@
 //
 
 import Foundation
+#if canImport(ActivityKit)
 import ActivityKit
 import SportsCalModel
 
@@ -28,3 +29,4 @@ struct LiveSportActivityAttributes: ActivityAttributes {
     var awayURL: String?
     var homeURL: String?
 }
+#endif

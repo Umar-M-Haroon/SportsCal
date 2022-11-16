@@ -274,7 +274,9 @@ struct SportsWidgetBundle: WidgetBundle {
     var body: some Widget {
         SportsWidget()
         if #available(iOS 16.1, *) {
+#if canImport(ActivityKit)
             LiveSportActivityWidget()
+#endif
         }
     }
 }

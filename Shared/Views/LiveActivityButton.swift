@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SportsCalModel
+#if canImport(ActivityKit)
 import ActivityKit
 
 @available(iOS 16.1, *)
@@ -17,6 +18,7 @@ struct LiveActivityButton: View {
     @State var homeData: Data?
     @State var awayData: Data?
     @State var sportActivity: Activity<LiveSportActivityAttributes>!
+//    @Binding var activeLiveActivities: [Activity<LiveSportActivityAttributes>]
     var body: some View {
         Button {
             if let homeBadgeString = homeTeam.strTeamBadge,  let homeBadgeURL = URL(string: homeBadgeString + "/preview"), let awayBadgeString = awayTeam.strTeamBadge,  let awayBadgeURL = URL(string: awayBadgeString + "/preview") {
@@ -34,7 +36,12 @@ struct LiveActivityButton: View {
                         }
                         let initialContentState = LiveSportActivityAttributes.ContentState(homeScore: Int(game.intHomeScore ?? "") ?? 0, awayScore: Int(game.intAwayScore ?? "") ?? 0, status: game.strStatus, progress: game.strProgress)
                         let activityAttributes = LiveSportActivityAttributes(homeTeam: homeTeam.strTeamShort ?? homeTeam.strTeam ?? "", awayTeam: awayTeam.strTeamShort ?? awayTeam.strTeam ?? "", homeID: homeTeam.idTeam ?? "''", awayID: awayTeam.idTeam ?? "", eventID: game.idEvent ?? "", league: game.idLeague, awayURL: awayTeam.strTeamBadge, homeURL: homeTeam.strTeamBadge)
-                        sportActivity = try Activity.request(attributes: activityAttributes, contentState: initialContentState)
+                        sportActivity = try Activity.request(attributes: activityAttributes, contentState: initialContentState, pushType: .token)
+                        if let token = sportActivity.pushToken, let eventID = game.idEvent {
+                            let tokenString = token.map { String(format: "%02x", $0)}.joined()
+                            try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID)
+                        }
+                        
                     } catch let error {
                         print(error.localizedDescription)
                     }
@@ -42,7 +49,8 @@ struct LiveActivityButton: View {
                 
             }
         } label: {
-            Image(systemName: "clock.badge")
+            Label("Add Live Activity", systemImage: "clock.badge")
         }
     }
 }
+#endif

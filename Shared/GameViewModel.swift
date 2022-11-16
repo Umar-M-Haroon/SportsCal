@@ -9,6 +9,9 @@ import Foundation
 import SwiftUI
 import Combine
 import SportsCalModel
+#if canImport(ActivityKit)
+import ActivityKit
+#endif
 @MainActor public class GameViewModel: NSObject, ObservableObject {
     init(appStorage: UserDefaultStorage, favorites: Favorites, totalGames: [Game]? = nil, filteredGames: [Game]? = nil, teamString: String? = "", favoriteGames: [Game]? = nil, sortedGames: Array<(key: DateComponents, value: Array<Game>)> = [], networkState: NetworkState = .loading, dateFormatter: ISO8601DateFormatter = DateFormatters.isoFormatter) {
         self.appStorage = appStorage
@@ -41,6 +44,7 @@ import SportsCalModel
             .compactMap({$0})
             .flatMap({$0})
     }
+    @objc
     private func getData() async {
         do {
             let result = try await NetworkHandler.handleCall(debug: true)
@@ -76,6 +80,11 @@ import SportsCalModel
                             self.currentLiveInfo = newLiveInfo
                         }
                     }
+                    #if canImport(ActivityKit)
+                    if #available(iOS 16.1, *) {
+                        try await updateLiveActivities()
+                    }
+                    #endif
                 }
             case .data(_):
                 break
@@ -83,6 +92,7 @@ import SportsCalModel
             try await receiveMessages()
         }
     }
+    
     func setGames(result: LiveScore) {
         totalGames = [result.nhl?.events, result.nfl?.events, result.soccer?.events, result.mlb?.events, result.nba?.events]
             .compactMap({$0})
@@ -245,6 +255,32 @@ import SportsCalModel
 extension GameViewModel: URLSessionWebSocketDelegate {
     public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
         self.webSocketTask = nil
-           restartTimer = .init(timeInterval: 60, target: self, selector: #selector(receiveMessages), userInfo: nil, repeats: true)
+           restartTimer = .init(timeInterval: 10, target: self, selector: #selector(receiveMessages), userInfo: nil, repeats: true)
     }
 }
+#if canImport(ActivityKit)
+@available(iOS 16.1, *)
+extension GameViewModel {
+    func updateLiveActivities() async throws {
+        var states: [String: LiveSportActivityAttributes.ContentState] = [:]
+        for liveEvent in liveEvents {
+            if let eventID = liveEvent.idEvent {
+                let contentState = LiveSportActivityAttributes.ContentState(homeScore: Int(liveEvent.intHomeScore ?? "") ?? 0, awayScore: Int(liveEvent.intAwayScore ?? "") ?? 0, status: liveEvent.strStatus, progress: liveEvent.strProgress)
+                states[eventID] = contentState
+            }
+        }
+        for activity in Activity<LiveSportActivityAttributes>.activities {
+            for await data in activity.pushTokenUpdates {
+                let myToken = data.map { String(format: "%02x", $0)}.joined()
+                try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID)
+            }
+            let currentState = activity.contentState
+            let currentAttributes = activity.attributes
+            let eventID = currentAttributes.eventID
+            if let savedContentState = states[eventID], savedContentState != currentState {
+                await activity.update(using: savedContentState)
+            }
+        }
+    }
+}
+#endif

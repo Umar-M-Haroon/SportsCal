@@ -8,6 +8,7 @@
 import SwiftUI
 import WidgetKit
 import UIKit
+#if canImport(ActivityKit)
 @available(iOS 16.1, *)
 struct LiveSportActivityWidget: Widget {
     var body: some WidgetConfiguration {
@@ -134,3 +135,4 @@ struct LiveSportActivityWidget: Widget {
 //        LiveSportActivityWidget()
 //    }
 //}
+#endif
