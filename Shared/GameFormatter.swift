@@ -91,6 +91,12 @@ class GameFormatter: Formatter {
             if let progressStr = game.strProgress, let progress = Int(progressStr) {
                 finalString += " \(12 - progress):00"
             }
+            if let progressStr = game.strProgress, let progress = Int(progressStr), status == "P4", progress == 0 {
+                return "FT"
+            }
+            if let progressStr = game.strProgress, let progress = Int(progressStr), status == "Q4", progress == 0 {
+                return "FT"
+            }
             return finalString
         case .soccer:
             var finalString = "\(status)"
@@ -126,6 +132,12 @@ class GameFormatter: Formatter {
                 finalString += "\(15 - progress):00"
             } else if let progressStr = game.strProgress {
                 finalString = progressStr
+            }
+            if let progressStr = game.strProgress, let progress = Int(progressStr), status == "P4", progress == 0 {
+                return "FT"
+            }
+            if let progressStr = game.strProgress, let progress = Int(progressStr), status == "Q3", progress == 0 {
+                return "FT"
             }
             return finalString
         }
