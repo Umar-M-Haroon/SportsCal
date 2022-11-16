@@ -17,14 +17,13 @@ struct OnboardingPage: View {
                 .font(.largeTitle)
                 .bold()
                 .padding(.top, 20)
-            Spacer()
             VStack(alignment: .leading) {
                 InfoView(title: "Favorites", subTitle: "Easily Check when your favorite team plays ", image: Image(systemName: "star.fill"), tint: .yellow)
                 InfoView(title: "Notifications", subTitle: "Be notified when the game is about to start", image: Image(systemName: "app.badge.fill"), tint: .red)
                 InfoView(title: "Multiple Sports", subTitle: "Check multiple sports at a glance", image: Image(systemName: "sportscourt"), tint: .green)
+                InfoView(title: "Live Activities", subTitle: "See games from anywhere with Live Activities", image: Image(systemName: "clock.badge.fill"), tint: .blue)
             }
             Spacer()
-           
             Button {
                 
             } label: {
@@ -102,12 +101,14 @@ struct OnboardingPage_Previews: PreviewProvider {
             }, set: { val in
                 val
         }))
+                .environmentObject(UserDefaultStorage())
             OnboardingPage(sheetType: Binding(get: {
                 .onboarding
             }, set: { val in
                 val
             }))
                 .previewDevice("iPhone 12 Pro")
+                .environmentObject(UserDefaultStorage())
         }
     }
 }
