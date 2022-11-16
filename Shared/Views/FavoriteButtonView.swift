@@ -51,14 +51,13 @@ struct FavoriteMenu: View {
         } label: {
             if let game = game {
                 if favorites.contains(game) {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.yellow)
+                    Label("Favorites", systemImage: "star.fill")
+                        .tint(.yellow)
                 } else {
-                    Image(systemName: "star")
+                    Label("Favorites", systemImage: "star")
                 }
             } else {
-                Image(systemName: "star")
-                
+                Label("Favorites", systemImage: "star")
             }
         }
     }

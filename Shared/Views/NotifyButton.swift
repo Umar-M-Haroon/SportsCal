@@ -44,7 +44,7 @@ struct NotifyButton: View {
                 Text("\(NotificationDuration.twoHour.rawValue) before")
             }
         } label: {
-            Text("Notify me")
+            Label("Notify Me", systemImage: "bell.badge.fill")
         }
     }
 }
