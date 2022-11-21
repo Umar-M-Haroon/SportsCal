@@ -30,9 +30,8 @@ struct LiveSportActivityWidget: Widget {
                 } else {
                     IndividualTeamView(shortName: context.attributes.homeTeam, longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false)
                 }
-                
             }
-            .padding(8)
+            .padding(16)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -103,11 +102,9 @@ struct LiveSportActivityWidget: Widget {
                     .font(.caption2)
                 if context.state.awayScore > context.state.homeScore {
                     Text("\(context.state.awayScore)")
-                        .font(.system(size: 24))
                         .fontWeight(.heavy)
                 } else {
                     Text("\(context.state.awayScore)")
-                        .font(.system(size: 24))
                         .foregroundColor(.secondary)
                 }
             } compactTrailing: {
@@ -115,15 +112,19 @@ struct LiveSportActivityWidget: Widget {
                     .font(.caption2)
                 if context.state.awayScore < context.state.homeScore {
                     Text("\(context.state.homeScore)")
-                        .font(.system(size: 24))
                         .fontWeight(.heavy)
                 } else {
                     Text("\(context.state.homeScore)")
-                        .font(.system(size: 24))
                         .foregroundColor(.secondary)
                 }
             } minimal: {
-                Text("!!")
+                if context.state.awayScore > context.state.homeScore {
+                    Text(context.attributes.awayTeam)
+                        .font(.caption2)
+                } else {
+                    Text(context.attributes.homeTeam)
+                        .font(.caption2)
+                }
             }
         }
         
