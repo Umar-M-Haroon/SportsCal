@@ -34,6 +34,9 @@ struct UpcomingGameView: View {
                         .accessibilityValue(accessibilityLabel)
                         .accessibilityLabel(accessibilityLabel)
                         .foregroundColor(Color(UIColor.secondaryLabel))
+                        .background(Color.red)
+                        .frame(maxWidth: .infinity)
+                        .fixedSize(horizontal: true, vertical: true)
                         .onReceive(timer) { cur in
                             withAnimation {
                                 timeString = formatCountdown()
@@ -46,6 +49,9 @@ struct UpcomingGameView: View {
                         .accessibilityValue(accessibilityLabel)
                         .accessibilityLabel(accessibilityLabel)
                         .foregroundColor(Color(UIColor.secondaryLabel))
+                        .background(Color.red)
+                        .frame(maxWidth: .infinity)
+                    
                 }
                 if let isoString = game?.strTimestamp,
                    let isoDate = Date.formatToTime(isoString) {
@@ -53,6 +59,8 @@ struct UpcomingGameView: View {
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
+                        .background(Color.red)
+                        .frame(maxWidth: .infinity)
                 }
                 Menu {
                     FavoriteMenu(game: game)
@@ -65,7 +73,9 @@ struct UpcomingGameView: View {
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.capsule)
             }
-            .frame(maxWidth: .infinity)
+                .fixedSize(horizontal: true, vertical: false)
+//            .frame(maxWidth: .infinity)
+            .background(Color.brown)
             IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: Int(game.intHomeScore ?? ""), isWinning: (Int(game.intHomeScore ?? "") ?? 0) > (Int(game.intAwayScore ?? "") ?? 0), isAway: false)
             .frame(maxWidth: .infinity)
         }
@@ -90,7 +100,7 @@ struct UpcomingGameView: View {
             finalString = String(format:"%2i days", components.day! + 1)
             accessibilityLabel = String(format:"%2i day", components.day! + 1)
         } else {
-            finalString = String(format: "%2i:%02i:%02i", components.hour!, components.minute!, components.second!)
+            finalString = String(format: "%02i:%02i:%02i", components.hour!, components.minute!, components.second!)
             accessibilityLabel = String(format:"%2i hours, %2i minutes, %2i seconds", components.day!, components.hour!, components.minute!, components.second!)
         }
         return finalString
@@ -109,6 +119,10 @@ struct UpcomingGameView_Previews: PreviewProvider {
             GameScoreView(homeTeam: .init(strTeam: "Colorado Rockies", strTeamShort: "COL", strAlternate: "COL", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/wvbk1d1550584627.png"), awayTeam: Team(strTeam: "Houston Astros", strTeamShort: "HOU", strAlternate: "HOU", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/miwigx1521893583.png"), homeScore: 4, awayScore: 3, game: .init(strHomeTeam: "4", strAwayTeam: "6", strStatus: "3P", strTimestamp: "2022-10-30T00:03:00"), shouldShowSportsCalProAlert: .constant(false), sheetType: .constant(nil), isLive: true)
                 .environmentObject(Favorites())
             GameScoreView(homeTeam: .init(strTeam: "Colorado Rockies", strTeamShort: "COL", strAlternate: "COL", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/wvbk1d1550584627.png"), awayTeam: Team(strTeam: "Houston Astros", strTeamShort: "HOU", strAlternate: "HOU", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/miwigx1521893583.png"), homeScore: 4, awayScore: 6, game: .init(strHomeTeam: "4", strAwayTeam: "6", strStatus: "3P", strTimestamp: "2022-10-30T00:03:00"), shouldShowSportsCalProAlert: .constant(false), sheetType: .constant(nil), isLive: true)
+                .environmentObject(Favorites())
+            UpcomingGameView(homeTeam: Team(strTeam: "Colorado Rockies", strTeamShort: "COL", strAlternate: "COL", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/wvbk1d1550584627.png"), awayTeam: Team(strTeam: "Houston Astros", strTeamShort: "HOU", strAlternate: "HOU", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/miwigx1521893583.png"), game: .init(strHomeTeam: "4", strAwayTeam: "6", strStatus: "3P", strTimestamp: "2022-11-21T11:11:00+00:00"), showCountdown: .constant(true), shouldShowSportsCalProAlert: .constant(false), sheetType: .constant(.none), dateFormat: "mm/dd/yy", isFavorite: false)
+                .environmentObject(Favorites())
+            UpcomingGameView(homeTeam: Team(strTeam: "Colorado Rockies", strTeamShort: "COL", strAlternate: "COL", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/wvbk1d1550584627.png"), awayTeam: Team(strTeam: "Houston Astros", strTeamShort: "HOU", strAlternate: "HOU", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/miwigx1521893583.png"), game: .init(strHomeTeam: "4", strAwayTeam: "6", strStatus: "3P", strTimestamp: "2022-11-21T18:18:00+00:00"), showCountdown: .constant(true), shouldShowSportsCalProAlert: .constant(false), sheetType: .constant(.none), dateFormat: "mm/dd/yy", isFavorite: false)
                 .environmentObject(Favorites())
         }
     }
