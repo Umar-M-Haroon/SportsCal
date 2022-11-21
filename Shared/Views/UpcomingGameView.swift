@@ -20,6 +20,8 @@ struct UpcomingGameView: View {
     @EnvironmentObject var favorites: Favorites
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var sheetType: SheetType?
+    @State var dateFormat: String
+    var isFavorite: Bool = false
     var body: some View {
         HStack {
             IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: (Int(game.intAwayScore ?? "") ?? 0) > (Int(game.intHomeScore ?? "") ?? 0), isAway: true)
@@ -37,24 +39,31 @@ struct UpcomingGameView: View {
                                 timeString = formatCountdown()
                             }
                         }
+                } else if isFavorite, let isoString = game?.strTimestamp, let result = Date.formatToDate(isoString, dateFormat: dateFormat) {
+                    Text(result)
+                        .font(.system(.subheadline, design: .monospaced))
+                        .fontWeight(.medium)
+                        .accessibilityValue(accessibilityLabel)
+                        .accessibilityLabel(accessibilityLabel)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                 }
                 if let isoString = game?.strTimestamp,
-                    let isoDate = format(isoString) {
+                   let isoDate = Date.formatToTime(isoString) {
                     Text(isoDate)
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
-                HStack {
+                Menu {
                     FavoriteMenu(game: game)
                         .environmentObject(favorites)
-                    Menu {
-                        CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-                        NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-                    } label: {
-                        Image(systemName: "clock")
-                    }
+                    CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+                    NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+                } label: {
+                    Image(systemName: "ellipsis")
                 }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
             }
             .frame(maxWidth: .infinity)
             IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: Int(game.intHomeScore ?? ""), isWinning: (Int(game.intHomeScore ?? "") ?? 0) > (Int(game.intAwayScore ?? "") ?? 0), isAway: false)
@@ -75,24 +84,16 @@ struct UpcomingGameView: View {
         let components = Calendar.current.dateComponents([.day, .hour, .minute, .second], from: .now, to: gameDate)
         var finalString = ""
         if components.day ?? -1 > 1 {
-            finalString = String(format:"%2i days: %02i:%02i:%02i", components.day!, components.hour!, components.minute!, components.second!)
-            accessibilityLabel = String(format:"%2i days, %2i hours, %2i minutes, %2i seconds", components.day!, components.hour!, components.minute!, components.second!)
+            finalString = String(format:"%2i days", components.day! + 1)
+            accessibilityLabel = String(format:"%2i days", components.day! + 1)
         } else if components.day ?? -1 == 1 {
-            finalString = String(format:"%2i day: %02i:%02i:%02i", components.day!, components.hour!, components.minute!, components.second!)
-            accessibilityLabel = String(format:"%2i day, %2i hours, %2i minutes, %2i seconds", components.day!, components.hour!, components.minute!, components.second!)
+            finalString = String(format:"%2i days", components.day! + 1)
+            accessibilityLabel = String(format:"%2i day", components.day! + 1)
         } else {
             finalString = String(format: "%2i:%02i:%02i", components.hour!, components.minute!, components.second!)
             accessibilityLabel = String(format:"%2i hours, %2i minutes, %2i seconds", components.day!, components.hour!, components.minute!, components.second!)
         }
         return finalString
-    }
-    
-    func format(_ date: String?) -> String {
-        guard let dateString = date,
-              let date = DateFormatters.isoFormatter.date(from: dateString) else { return "" }
-        DateFormatters.dateFormatter.dateStyle = .none
-        DateFormatters.dateFormatter.timeStyle = .short
-        return DateFormatters.dateFormatter.string(from: date)
     }
 }
 
