@@ -27,6 +27,7 @@ enum SheetType: Identifiable {
     case calendar(game: Game?)
 }
 struct ContentView: View {
+    @Environment(\.scenePhase) var scenePhase
     
     @State var shouldShowSettings: Bool = false
     
@@ -72,15 +73,14 @@ struct ContentView: View {
                             Section {
                                 ForEach(favoriteGames) { game in
                                     if let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idAwayTeam) {
-                                        UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime,  shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
+                                        UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat, isFavorite: true)
                                             .environmentObject(favorites)
                                     }
                                 }
                             } header: {
                                 HStack {
                                     Text("Favorites")
-                                        .font(.title3)
-                                        .bold()
+                                        .font(.headline)
                                 }
                             }
                         }
@@ -92,7 +92,7 @@ struct ContentView: View {
                                             GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: false)
                                                 .environmentObject(favorites)
                                         } else {
-                                            UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
+                                            UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat)
                                                 .environmentObject(favorites)
                                         }
                                     }
@@ -100,7 +100,7 @@ struct ContentView: View {
                             } header: {
                                 HStack {
                                     Text("\(games.map({$0.key})[index].formatted(format: viewModel.appStorage.dateFormat))")
-                                        .font(.title3)
+                                        .font(.headline)
                                 }
                             }
                         }
@@ -121,6 +121,7 @@ struct ContentView: View {
                 }
 
             }
+            .searchable(text: $searchString, placement: SearchFieldPlacement.navigationBarDrawer(displayMode: .automatic), prompt: "Teams: ")
             .navigationBarTitle("SportsCal")
             .navigationBarItems(leading: Button(action: {
                 shouldShowSettings = true
@@ -144,6 +145,7 @@ struct ContentView: View {
                         .environmentObject(storage)
                 case .onboarding:
                     OnboardingPage(sheetType: $sheetType)
+                        .environmentObject(storage)
                 case .calendar(let eventGame):
                     if let game = eventGame {
                         makeCalendarEvent(game: game)
@@ -211,11 +213,18 @@ struct ContentView: View {
                 viewModel.filterSports(searchString: newValue)
             }
         })
+        .refreshable(action: {
+            viewModel.getInfo()
+        })
         .alert(isPresented: $shouldShowSportsCalProAlert, content: {
             Alert(title: Text("SportsCal Pro"), message: Text("This feature requires SportsCal Pro"))
         })
         .conditionalModifier(UIDevice.current.userInterfaceIdiom == .pad, ifTrue: {$0.navigationViewStyle(StackNavigationViewStyle())}, ifFalse: {$0.navigationViewStyle(DefaultNavigationViewStyle())})
-        .searchable(text: $searchString, placement: SearchFieldPlacement.navigationBarDrawer(displayMode: .automatic), prompt: "Teams: ")
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .active {
+                viewModel.getInfo()
+            }
+        }
         .onAppear {
             viewModel.appStorage.launches += 1
             if viewModel.appStorage.launches == 5 {
@@ -234,9 +243,11 @@ struct ContentView: View {
         let eventStore = EKEventStore()
         print("⚠️ making calendar event for game \(game)")
         let event = EKEvent(eventStore: eventStore)
-        event.title = "\(game.strHomeTeam) @ \(game.strAwayTeam)"
-//        event.startDate = game.dateEvent
-//        event.endDate = game.gameDate.afterHoursFromNow(hours: 2)
+        event.title = "\(game.strAwayTeam) @ \(game.strHomeTeam)"
+        if let gameDateStr = game.strTimestamp, let gameDate = DateFormatters.isoFormatter.date(from: gameDateStr) {
+            event.startDate = gameDate
+            event.endDate = gameDate.afterHoursFromNow(hours: 2)
+        }
         return CalendarRepresentable(eventStore: eventStore, event: event)
     }
     
