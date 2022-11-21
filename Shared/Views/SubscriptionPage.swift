@@ -30,24 +30,23 @@ struct SubscriptionPage: View {
     
    
     var body: some View {
-        ZStack {
-            Form {
-////                VStack {
-////                    Text("SportsCal Pro is an extra set of features that helps support development")
-////                        .multilineTextAlignment(.center)
-////                        .padding(EdgeInsets(top: 4, leading: 0, bottom: 0, trailing: 0))
-////                    Text("SportsCal Pro is also synced to your iCloud account, so it will sync accross devices under the same iCloud account")
-////                        .multilineTextAlignment(.center)
-////                        .padding(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0))
-////                }
-//                .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 0, idealHeight: 200, maxHeight: .infinity, alignment: .center)
-//                
+        Form {
+                ////                VStack {
+                ////                    Text("SportsCal Pro is an extra set of features that helps support development")
+                ////                        .multilineTextAlignment(.center)
+                ////                        .padding(EdgeInsets(top: 4, leading: 0, bottom: 0, trailing: 0))
+                ////                    Text("SportsCal Pro is also synced to your iCloud account, so it will sync accross devices under the same iCloud account")
+                ////                        .multilineTextAlignment(.center)
+                ////                        .padding(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0))
+                ////                }
+                //                .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 0, idealHeight: 200, maxHeight: .infinity, alignment: .center)
+                //
                 Section {
                     
                     FeatureView(featureName: "Push Notifications", featureDescription: "Get notified when tasks are added and completed", imageName: "app.badge.fill", color: .red)
                     FeatureView(featureName: "Multiple Sports", featureDescription: "See multiple sports at once", imageName: "sportscourt.fill", color: .green)
                     FeatureView(featureName: "Filter games by time", featureDescription: "See events that are more than a week away", imageName: "clock.fill")
-//                    FeatureView(featureName: "Custom App Icons", featureDescription: "Change your app icon into new styles!", imageName: "square.grid.2x2.fill", color: .blue)
+                    //                    FeatureView(featureName: "Custom App Icons", featureDescription: "Change your app icon into new styles!", imageName: "square.grid.2x2.fill", color: .blue)
                 }
                 
                 if true {
@@ -57,21 +56,21 @@ struct SubscriptionPage: View {
                             DummySubscriptionOptionView()
                             DummySubscriptionOptionView()
                         }
-                            .frame(alignment: .center)
-//                        if let sub = sub {
-//                            SubscriptionOptionView(product: sub)
-//                                .contentShape(Rectangle())
-//                        }
-//                        if let sub = SubscriptionManager.shared.yearlySubscription {
-//                            SubscriptionOptionView(product: sub)
-//                                .contentShape(Rectangle())
-//                        }
-//                        Button(action: {
-//                            SubscriptionManager.shared.restorePurchase()
-//                        }, label: {
-//                            Text("Restore Purchases")
-//                        })
-//                        .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 0, idealHeight: 44, maxHeight: .infinity, alignment: .center)
+                        .frame(alignment: .center)
+                        if let sub = sub {
+                            SubscriptionOptionView(product: sub)
+                                .contentShape(Rectangle())
+                        }
+                        if let sub = SubscriptionManager.shared.yearlySubscription {
+                            SubscriptionOptionView(product: sub)
+                                .contentShape(Rectangle())
+                        }
+                        Button(action: {
+                            SubscriptionManager.shared.restorePurchase()
+                        }, label: {
+                            Text("Restore Purchases")
+                        })
+                        .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 0, idealHeight: 44, maxHeight: .infinity, alignment: .center)
                     }
                 } else {
                     VStack {
@@ -82,7 +81,7 @@ struct SubscriptionPage: View {
                         }, label: {
                             Text("Show Confetti")
                                 .frame(maxWidth: .infinity, minHeight: 30, maxHeight: .infinity, alignment: .center)
-                                //                        .padding(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                            //                        .padding(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
                                 .background(Color.accentColor)
                                 .foregroundColor(.white)
                                 .cornerRadius(8)
@@ -119,21 +118,20 @@ struct SubscriptionPage: View {
                     SFView(url: "https://komodollc.com/terms")
                 }
             })
-            
-
-            if didSuccessfullyPurchase {
-                Confetti()
-                    .position(x: 150, y: 0)
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 4) {
-                            didSuccessfullyPurchase = false
-                        }
+        
+        
+        if didSuccessfullyPurchase {
+            Confetti()
+                .position(x: 150, y: 0)
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 4) {
+                        didSuccessfullyPurchase = false
                     }
-            } else {
-                EmptyView()
-            }
-            
+                }
+        } else {
+            EmptyView()
         }
+        
     }
 }
 
@@ -188,6 +186,33 @@ struct FeatureView: View {
                 Text(featureDescription)
             }
             .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 0, idealHeight: 100, maxHeight: .infinity, alignment: .center)
+        }
+    }
+}
+
+struct MiniFeatureView: View {
+    var featureName: String
+    var featureDescription: String
+    var imageName: String
+    var color: Color?
+    var gradient: LinearGradient?
+    var body: some View {
+        HStack {
+//            Spacer()
+            Image(systemName: imageName)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 45, height: 45, alignment: .center)
+//                .cornerRadius(15)
+//                .padding()
+                .foregroundColor(color ?? .none)
+                .background(gradient)
+            
+                Text(featureName)
+                .font(.headline)
+                .padding()
+//                .frame(maxWidth: .infinity)
+            Spacer()
         }
     }
 }
