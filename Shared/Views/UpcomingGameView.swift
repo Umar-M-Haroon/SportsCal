@@ -34,7 +34,6 @@ struct UpcomingGameView: View {
                         .accessibilityValue(accessibilityLabel)
                         .accessibilityLabel(accessibilityLabel)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .background(Color.red)
                         .frame(maxWidth: .infinity)
                         .fixedSize(horizontal: true, vertical: true)
                         .onReceive(timer) { cur in
@@ -49,7 +48,6 @@ struct UpcomingGameView: View {
                         .accessibilityValue(accessibilityLabel)
                         .accessibilityLabel(accessibilityLabel)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .background(Color.red)
                         .frame(maxWidth: .infinity)
                     
                 }
@@ -59,7 +57,6 @@ struct UpcomingGameView: View {
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .background(Color.red)
                         .frame(maxWidth: .infinity)
                 }
                 Menu {
@@ -74,8 +71,6 @@ struct UpcomingGameView: View {
                 .buttonBorderShape(.capsule)
             }
                 .fixedSize(horizontal: true, vertical: false)
-//            .frame(maxWidth: .infinity)
-            .background(Color.brown)
             IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: Int(game.intHomeScore ?? ""), isWinning: (Int(game.intHomeScore ?? "") ?? 0) > (Int(game.intAwayScore ?? "") ?? 0), isAway: false)
             .frame(maxWidth: .infinity)
         }
