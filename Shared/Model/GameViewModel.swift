@@ -13,7 +13,7 @@ import SportsCalModel
 import ActivityKit
 #endif
 @MainActor public class GameViewModel: NSObject, ObservableObject {
-    init(appStorage: UserDefaultStorage, favorites: Favorites, totalGames: [Game]? = nil, filteredGames: [Game]? = nil, teamString: String? = "", favoriteGames: [Game]? = nil, sortedGames: Array<(key: DateComponents, value: Array<Game>)> = [], networkState: NetworkState = .loading, dateFormatter: ISO8601DateFormatter = DateFormatters.isoFormatter) {
+    init(appStorage: UserDefaultStorage, favorites: Favorites, totalGames: [Game]? = nil, filteredGames: [Game]? = nil, teamString: String? = "", favoriteGames: [Game]? = nil, sortedGames: Array<(key: DateComponents, value: Array<Game>)> = [], networkState: NetworkState = .loading) {
         self.appStorage = appStorage
         self.favorites = favorites
         self.totalGames = totalGames
@@ -22,7 +22,7 @@ import ActivityKit
         self.favoriteGames = favoriteGames
         self.sortedGames = sortedGames
         self.networkState = networkState
-        self.dateFormatter = dateFormatter
+        self.gamesDict = [:]
     }
     
     var appStorage: UserDefaultStorage
@@ -35,21 +35,71 @@ import ActivityKit
     @Published var sortedGames: Array<(key: DateComponents, value: Array<Game>)> = []
     @Published var networkState: NetworkState = .loading
     private var webSocketTask: URLSessionWebSocketTask?
-    var dateFormatter: ISO8601DateFormatter = ISO8601DateFormatter()
     var restartTimer: Timer?
+    var gamesDict: [SportType: [Game]]
     @Published var currentLiveInfo: LiveScore?
     
     var liveEvents: [Game] {
-        [currentLiveInfo?.mlb?.events, currentLiveInfo?.nba?.events, currentLiveInfo?.soccer?.events, currentLiveInfo?.nfl?.events, currentLiveInfo?.nhl?.events]
-            .compactMap({$0})
-            .flatMap({$0})
+        var games: [Game] = []
+        if appStorage.shouldShowSoccer {
+            var soccerGames = currentLiveInfo?.soccer?.events
+            soccerGames = soccerGames?.filter { game in
+                guard let leagueString = game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let league = Leagues(rawValue: intLeague) else { return false }
+                return !league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+            }
+            games.append(contentsOf: soccerGames ?? [])
+        }
+        if appStorage.shouldShowMLB {
+            var baseballGames = currentLiveInfo?.mlb?.events
+            baseballGames?.removeAll(where: { game in
+                guard let leagueString = game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let _ = Leagues(rawValue: intLeague) else { return true }
+                return false
+            })
+            games.append(contentsOf: currentLiveInfo?.mlb?.events ?? [])
+        }
+        if appStorage.shouldShowNBA {
+            var basketballGames = currentLiveInfo?.nba?.events
+            basketballGames?.removeAll(where: { game in
+                guard let leagueString = game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let _ = Leagues(rawValue: intLeague) else { return true }
+                return false
+            })
+            games.append(contentsOf: basketballGames ?? [])
+        }
+        if appStorage.shouldShowNFL {
+            var nflGames = currentLiveInfo?.nfl?.events
+            nflGames?.removeAll(where: { game in
+                guard let leagueString = game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let _ = Leagues(rawValue: intLeague) else { return true }
+                return false
+            })
+            games.append(contentsOf: nflGames ?? [])
+        }
+        if appStorage.shouldShowNHL {
+            var nhlGames = currentLiveInfo?.nhl?.events
+            nhlGames?.removeAll(where: { game in
+                guard let leagueString = game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let _ = Leagues(rawValue: intLeague) else { return true }
+                return false
+            })
+            games.append(contentsOf: nhlGames ?? [])
+        }
+        return games
     }
     @objc
     private func getData() async {
         do {
-            let result = try await NetworkHandler.handleCall(debug: true)
-            self.teams = try await NetworkHandler.getTeams(debug: true)
-            webSocketTask = NetworkHandler.connectWebSocketForLive(debug: true)
+            let result = try await NetworkHandler.handleCall()
+            self.teams = try await NetworkHandler.getTeams()
+            webSocketTask = nil
+            webSocketTask = NetworkHandler.connectWebSocketForLive()
             webSocketTask?.resume()
             Task {
                 try await receiveMessages()
@@ -62,10 +112,11 @@ import ActivityKit
             print(e)
             print(e.localizedDescription)
             networkState = .failed
-            restartTimer = .init(timeInterval: 300, target: self, selector: #selector(receiveMessages), userInfo: nil, repeats: true)
+            restartTimer = .init(timeInterval: 10, target: self, selector: #selector(getData), userInfo: nil, repeats: true)
         }
     }
-        @objc
+
+    @objc
     func receiveMessages() async throws {
         if let webSocket = webSocketTask {
             let webSocketMessage = try await webSocket.receive()
@@ -76,7 +127,7 @@ import ActivityKit
                     withAnimation {
                         if let currentLiveInfo = currentLiveInfo, currentLiveInfo != newLiveInfo {
                             self.currentLiveInfo = newLiveInfo
-                        } else {
+                        } else if currentLiveInfo == nil {
                             self.currentLiveInfo = newLiveInfo
                         }
                     }
@@ -88,6 +139,8 @@ import ActivityKit
                 }
             case .data(_):
                 break
+            @unknown default:
+                break
             }
             try await receiveMessages()
         }
@@ -97,42 +150,52 @@ import ActivityKit
         totalGames = [result.nhl?.events, result.nfl?.events, result.soccer?.events, result.mlb?.events, result.nba?.events]
             .compactMap({$0})
             .flatMap({$0})
-        filterSports()
+        filterSports(force: true)
     }
-    func filterSports(searchString: String? = nil) {
+    func filterSports(searchString: String? = nil, force: Bool = false) {
         print("⚠️ sports duration or selected sport changed, filtering")
         print("⚠️ should show NFL \(appStorage.shouldShowNFL)")
         print("⚠️ should show NBA \(appStorage.shouldShowNBA)")
         print("⚠️ should show NHL \(appStorage.shouldShowNHL)")
         print("⚠️ should show Soccer \(appStorage.shouldShowSoccer)")
         print("⚠️ should show MLB \(appStorage.shouldShowMLB)")
-        filteredGames = totalGames?
-            .filter({ game -> Bool in
-                // filter to show only the sports they want
+        if force {
+            totalGames = totalGames?.filter({ game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
-                    let league = Leagues(rawValue: intLeague) else { return false }
-                
-                let sport = SportType(league: league)
-                switch sport {
-                case .basketball:
-                    return appStorage.shouldShowNBA
-                case .soccer:
-                    let shouldShowSoccer = appStorage.shouldShowSoccer
-                    let shouldShowLeague = !league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
-                    return shouldShowSoccer && shouldShowLeague
-                case .hockey:
-                    return appStorage.shouldShowNHL
-                case .mlb:
-                    return appStorage.shouldShowMLB
-                case .nfl:
-                    return appStorage.shouldShowNFL
-                }
-                
+                      let _ = Leagues(rawValue: intLeague) else { return false }
+                return true
+            }) ?? []
+            gamesDict = Dictionary(grouping: totalGames ?? [], by: { game in
+                SportType(league: Leagues.init(rawValue: Int(game.idLeague!)!)!)
             })
+        }
+        var allGames: [Game] = []
+        if appStorage.shouldShowSoccer {
+            allGames.append(contentsOf: gamesDict[.soccer] ?? [])
+            allGames = allGames.filter { game in
+                guard let leagueString = game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let league = Leagues(rawValue: intLeague) else { return false }
+                return !league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+            }
+        }
+        if appStorage.shouldShowMLB {
+            allGames.append(contentsOf: gamesDict[.mlb] ?? [])
+        }
+        if appStorage.shouldShowNBA {
+            allGames.append(contentsOf: gamesDict[.basketball] ?? [])
+        }
+        if appStorage.shouldShowNFL {
+            allGames.append(contentsOf: gamesDict[.nfl] ?? [])
+        }
+        if appStorage.shouldShowNHL {
+            allGames.append(contentsOf: gamesDict[.hockey] ?? [])
+        }
+        filteredGames = allGames
             .filter({ game -> Bool in
                 guard let timestamp = game.strTimestamp,
-                      let date = dateFormatter.date(from: timestamp) else { return false }
+                      let date = DateFormatters.isoFormatter.date(from: timestamp) else { return false }
                 if appStorage.hidePastEvents {
                     //get the date components for the game and check it is greater than 0
                     return date.timeIntervalSinceNow > 0
@@ -172,7 +235,7 @@ import ActivityKit
                 // filter to show correct duration or if its in the past
                 var isValidForFutureDuration: Bool = false
                 guard let timestamp = game.strTimestamp,
-                      let date = dateFormatter.date(from: timestamp) else { return false }
+                      let date = DateFormatters.isoFormatter.date(from: timestamp) else { return false }
 
                 switch appStorage.durations {
                 case .oneWeek:
@@ -212,8 +275,8 @@ import ActivityKit
     }
     func sortByDate() {
         let groupDic = Dictionary(grouping: filteredGames ?? []) { game -> DateComponents in
-            let timestamp = game.strTimestamp ?? dateFormatter.string(from: .now)
-            let gameDate = dateFormatter.date(from: timestamp) ?? .now
+            let timestamp = game.strTimestamp ?? DateFormatters.isoFormatter.string(from: .now)
+            let gameDate = DateFormatters.isoFormatter.date(from: timestamp) ?? .now
             let date2 = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: gameDate)
             return date2
         }

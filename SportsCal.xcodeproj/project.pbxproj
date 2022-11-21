@@ -8,7 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		1D1239A026D0D180001B503E /* LocalNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D12399F26D0D180001B503E /* LocalNotificationManager.swift */; };
-		1D2C79F0291A210D00E25E82 /* MenuDemo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2C79EF291A210D00E25E82 /* MenuDemo.swift */; };
+		1D20B3362927739C00956B14 /* Date+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */; };
+		1D20B338292893DD00956B14 /* GameManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B337292893DD00956B14 /* GameManager.swift */; };
+		1D20B339292893DD00956B14 /* GameManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B337292893DD00956B14 /* GameManager.swift */; };
+		1D20B33B2928C45A00956B14 /* PickSportPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B33A2928C45A00956B14 /* PickSportPage.swift */; };
+		1D20B33D2929D8C900956B14 /* MiniSubscriptionPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B33C2929D8C900956B14 /* MiniSubscriptionPage.swift */; };
+		1D20B33F292A115200956B14 /* SubscriptionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B33E292A115200956B14 /* SubscriptionSheet.swift */; };
 		1D2C79F1291A2EBA00E25E82 /* GameFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D408087290B610200729FFE /* GameFormatter.swift */; };
 		1D3DD52E27FBEF310086DD9E /* CompetitionPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3DD52D27FBEF310086DD9E /* CompetitionPage.swift */; };
 		1D3DD53027FBEF400086DD9E /* CompetitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3DD52F27FBEF400086DD9E /* CompetitionView.swift */; };
@@ -123,7 +128,10 @@
 
 /* Begin PBXFileReference section */
 		1D12399F26D0D180001B503E /* LocalNotificationManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocalNotificationManager.swift; sourceTree = "<group>"; };
-		1D2C79EF291A210D00E25E82 /* MenuDemo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuDemo.swift; sourceTree = "<group>"; };
+		1D20B337292893DD00956B14 /* GameManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameManager.swift; sourceTree = "<group>"; };
+		1D20B33A2928C45A00956B14 /* PickSportPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickSportPage.swift; sourceTree = "<group>"; };
+		1D20B33C2929D8C900956B14 /* MiniSubscriptionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniSubscriptionPage.swift; sourceTree = "<group>"; };
+		1D20B33E292A115200956B14 /* SubscriptionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionSheet.swift; sourceTree = "<group>"; };
 		1D3DD52D27FBEF310086DD9E /* CompetitionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompetitionPage.swift; sourceTree = "<group>"; };
 		1D3DD52F27FBEF400086DD9E /* CompetitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompetitionView.swift; sourceTree = "<group>"; };
 		1D40808329091A2000729FFE /* UpcomingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingGameView.swift; sourceTree = "<group>"; };
@@ -232,18 +240,19 @@
 		1D486AFE28A833280024BC32 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				1D20B33A2928C45A00956B14 /* PickSportPage.swift */,
 				1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */,
 				1D3DD52D27FBEF310086DD9E /* CompetitionPage.swift */,
 				1D3DD52F27FBEF400086DD9E /* CompetitionView.swift */,
 				1D9D2CEF27702FFB00735AF0 /* FavoriteButtonView.swift */,
 				1D5C463926C9FD0800BA827B /* OnboardingPage.swift */,
 				1D79FFBF26C9B3480041A673 /* SubscriptionPage.swift */,
+				1D20B33C2929D8C900956B14 /* MiniSubscriptionPage.swift */,
 				1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */,
 				1D5C463326C9F10400BA827B /* Confetti.swift */,
 				1DEC76AC268EFB6600D217A1 /* ContentView.swift */,
 				1DEA4DFD290530B300CD1D8F /* SportsFilterView.swift */,
 				1DA434372907A48C0010364F /* GameScoreView.swift */,
-				1D2C79EF291A210D00E25E82 /* MenuDemo.swift */,
 				1D408092290BA23100729FFE /* LiveActivityButton.swift */,
 				1D40808B290B7CED00729FFE /* IndividualTeamView.swift */,
 				1D40808329091A2000729FFE /* UpcomingGameView.swift */,
@@ -251,6 +260,7 @@
 				1D40808D290B856C00729FFE /* CalendarButton.swift */,
 				1DD35DB52907B6AE009A2113 /* LiveAnimatedView.swift */,
 				1DCEBF0426C045B200913A94 /* SettingsView.swift */,
+				1D20B33E292A115200956B14 /* SubscriptionSheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -258,6 +268,8 @@
 		1DA4343229079D270010364F /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				1D486AFF28A834470024BC32 /* GameViewModel.swift */,
+				1D20B337292893DD00956B14 /* GameManager.swift */,
 				1DA4343329079D3D0010364F /* Teams+Extensions.swift */,
 			);
 			path = Model;
@@ -314,7 +326,6 @@
 				1DF489B12737693F00A20512 /* Constants.swift */,
 				1D12399F26D0D180001B503E /* LocalNotificationManager.swift */,
 				1D5C463026C9C5F900BA827B /* SubscriptionManager.swift */,
-				1D486AFF28A834470024BC32 /* GameViewModel.swift */,
 				1D408087290B610200729FFE /* GameFormatter.swift */,
 				1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */,
 				1DEC76AB268EFB6600D217A1 /* SportsCalApp.swift */,
@@ -577,6 +588,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1D20B339292893DD00956B14 /* GameManager.swift in Sources */,
 				1D2C79F1291A2EBA00E25E82 /* GameFormatter.swift in Sources */,
 				1D7DC236270192610086A6D5 /* NetworkHandler.swift in Sources */,
 				1DE16FFC26F29D4A007B1B57 /* SportsWidget.swift in Sources */,
@@ -586,6 +598,7 @@
 				1D408091290B9E3700729FFE /* Teams+Extensions.swift in Sources */,
 				1D408098290BAB8600729FFE /* LiveSportActivityWidget.swift in Sources */,
 				1D8352D72905532D00E60D7F /* DateFormatters.swift in Sources */,
+				1D20B3362927739C00956B14 /* Date+Extensions.swift in Sources */,
 				1D8352DB29067CBB00E60D7F /* UserDefaultStorage.swift in Sources */,
 				1D408099290BAB9000729FFE /* LiveSportActivityAttributes.swift in Sources */,
 				1DEA4E0129053AB900CD1D8F /* GameViewModel.swift in Sources */,
@@ -609,6 +622,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1D20B33F292A115200956B14 /* SubscriptionSheet.swift in Sources */,
 				1DE1700226F29D4B007B1B57 /* SportsWidget.intentdefinition in Sources */,
 				1D90DA8827FEA9F6007C570A /* DummySubscriptionOptionView.swift in Sources */,
 				1D40808C290B7CED00729FFE /* IndividualTeamView.swift in Sources */,
@@ -616,14 +630,16 @@
 				1D408093290BA23100729FFE /* LiveActivityButton.swift in Sources */,
 				1DEC76CF268EFB6700D217A1 /* ContentView.swift in Sources */,
 				1D5C463A26C9FD0800BA827B /* OnboardingPage.swift in Sources */,
+				1D20B33D2929D8C900956B14 /* MiniSubscriptionPage.swift in Sources */,
 				1DD35DB62907B6AE009A2113 /* LiveAnimatedView.swift in Sources */,
+				1D20B33B2928C45A00956B14 /* PickSportPage.swift in Sources */,
 				1DA4343429079D3D0010364F /* Teams+Extensions.swift in Sources */,
 				1D40808429091A2000729FFE /* UpcomingGameView.swift in Sources */,
 				1DEA4DFE290530B300CD1D8F /* SportsFilterView.swift in Sources */,
 				1D40808E290B856C00729FFE /* CalendarButton.swift in Sources */,
-				1D2C79F0291A210D00E25E82 /* MenuDemo.swift in Sources */,
 				1DEDD0F126D353ED005ABF93 /* CalendarRepresentable.swift in Sources */,
 				1D5C463126C9C5F900BA827B /* SubscriptionManager.swift in Sources */,
+				1D20B338292893DD00956B14 /* GameManager.swift in Sources */,
 				1D486B0028A834470024BC32 /* GameViewModel.swift in Sources */,
 				1D8352D52905532D00E60D7F /* DateFormatters.swift in Sources */,
 				1D5C463726C9FB5000BA827B /* SettingsData.swift in Sources */,
