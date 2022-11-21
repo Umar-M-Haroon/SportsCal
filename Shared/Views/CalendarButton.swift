@@ -24,7 +24,7 @@ struct CalendarButton: View {
                 }
             }
         } label: {
-            Text("Add To Calendar")
+            Label("Add to Calendar", systemImage: "calendar")
         }
     }
 }
