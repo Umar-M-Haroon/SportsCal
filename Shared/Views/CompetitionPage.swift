@@ -13,10 +13,10 @@ struct CompetitionPage: View {
     @EnvironmentObject var appStorage: UserDefaultStorage
     var body: some View {
         List(competitions.indices, id: \.self) { index in
-            CompetitionView(competition: competitions[index], isHidden: appStorage.hiddenCompetitions.contains(where: {$0 == competitions[index]}))
+            CompetitionView(competition: competitions[index], isHidden: !appStorage.hiddenCompetitions.contains(where: {$0 == competitions[index]}))
                 .environmentObject(appStorage)
         }
-        .navigationTitle("Hide Competitions")
+        .navigationTitle("Show Competitions")
     }
 }
 
