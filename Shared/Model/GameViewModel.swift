@@ -161,6 +161,9 @@ import ActivityKit
                     case .oneYear:
                         guard let month = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
                         isValidForPastDuration = (month <= -12)
+                    case .oneDay:
+                        guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                        isValidForPastDuration = (days >= -1)
                     }
                     return isValidForPastDuration
                 }
@@ -195,6 +198,9 @@ import ActivityKit
                 case .oneYear:
                     guard let month = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
                     isValidForFutureDuration = (month < 12)
+                case .oneDay:
+                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                    isValidForFutureDuration = (days < 1)
                 }
                 return isValidForFutureDuration
                 
