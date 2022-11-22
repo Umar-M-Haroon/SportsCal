@@ -137,10 +137,13 @@ class GameFormatter: Formatter {
                 finalString = progressStr
             }
             if let progressStr = game.strProgress, let progress = Int(progressStr), status == "P4", progress == 0 {
-                return "FT"
+                return "Final"
             }
             if let progressStr = game.strProgress, let progress = Int(progressStr), status == "Q3", progress == 0 {
-                return "FT"
+                return "Final"
+            }
+            if finalString == "" {
+                return "Final"
             }
             return finalString
         }

@@ -126,8 +126,7 @@ class Provider: IntentTimelineProvider {
             var games = try await NetworkHandler.getScheduleFor(sport: type).events
             games = games
                 .filter({ game -> Bool in
-                    guard let timestamp = game.strTimestamp,
-                          let date = DateFormatters.isoFormatter.date(from: timestamp) else { return false }
+                    guard let date = game.getDate() else { return false }
                         return date.timeIntervalSinceNow > 0
                 })
             async let teams = NetworkHandler.getTeams()
@@ -202,9 +201,9 @@ struct SportsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text(Date.formatToTime(gameDate))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+//                    Text(Date.formatToTime(gameDate))
+//                        .font(.caption)
+//                        .foregroundColor(.secondary)
                 }
                 VStack(alignment: .leading) {
                     Text(home)
@@ -292,18 +291,18 @@ struct SportsWidgetMediumView: View {
                                     WidgetTeamView(shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, isAway: true, data: entry.images?[awayTeamID])
                                     Spacer()
                                     VStack(alignment: .center, spacing: 0) {
-                                        if let isoString = game.strTimestamp {
+                                        if let isoDate = game.getDate() {
                                             
-                                            Text(Date.formatToDate(isoString, dateFormat: "d MMM") ?? "")
+                                            Text(isoDate.formatToDate(dateFormat: "d MMM") ?? "")
                                                 .font(.system(.subheadline, design: .monospaced))
                                                 .fontWeight(.medium)
                                             //                                                    .accessibilityValue(accessibilityLabel)
                                             //                                                    .accessibilityLabel(accessibilityLabel)
                                                 .foregroundColor(.secondary)
                                         }
-                                        if let isoString = game.strTimestamp,
-                                           let isoDate = Date.formatToTime(isoString) {
-                                            Text(isoDate)
+                                        if let isoDate = game.getDate(),
+                                           let isoString = isoDate.formatToTime() {
+                                            Text(isoString)
                                                 .font(.system(.subheadline, design: .monospaced))
                                                 .fontWeight(.medium)
                                                 .foregroundColor(Color(UIColor.secondaryLabel))

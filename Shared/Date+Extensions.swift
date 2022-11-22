@@ -69,18 +69,15 @@ extension Date{
         formatter.timeZone = TimeZone(abbreviation: "GMT")
         return formatter.date(from: formatter.string(from: Date()))!
     }
-    static func formatToTime(_ date: String?) -> String {
-        guard let dateString = date,
-              let date = DateFormatters.isoFormatter.date(from: dateString) else { return "" }
+    func formatToTime() -> String {
         DateFormatters.dateFormatter.dateStyle = .none
         DateFormatters.dateFormatter.timeStyle = .short
-        return DateFormatters.dateFormatter.string(from: date)
+        return DateFormatters.dateFormatter.string(from: self)
     }
     
-    static func formatToDate(_ date: String, dateFormat: String) -> String? {
-        guard let date = DateFormatters.isoFormatter.date(from: date) else { return nil }
+    func formatToDate(dateFormat: String) -> String? {
         DateFormatters.dateFormatter.dateFormat = dateFormat
-        return DateFormatters.dateFormatter.string(from: date)
+        return DateFormatters.dateFormatter.string(from: self)
     }
 
     static func isoStringToDateString(dateString: String) -> String {

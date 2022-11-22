@@ -10,5 +10,6 @@ import Foundation
 class DateFormatters {
     static let isoFormatter = ISO8601DateFormatter()
     static let dateFormatter = DateFormatter()
+    static let backupISOFormatter = DateFormatter()
     static let relativeFormatter = RelativeDateTimeFormatter()
 }

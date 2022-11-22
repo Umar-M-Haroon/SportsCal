@@ -39,8 +39,8 @@ struct UpcomingGameView: View {
                                 timeString = formatCountdown()
                             }
                         }
-                } else if isFavorite, let isoString = game?.strTimestamp, let result = Date.formatToDate(isoString, dateFormat: dateFormat) {
-                    Text(result)
+                } else if isFavorite, let isoDate = game.getDate(), let result = isoDate.formatToDate(dateFormat: dateFormat) {
+                    Text(verbatim: result)
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.medium)
                         .accessibilityValue(accessibilityLabel)
@@ -48,9 +48,9 @@ struct UpcomingGameView: View {
                         .foregroundColor(Color(UIColor.secondaryLabel))
                     
                 }
-                if let isoString = game?.strTimestamp,
-                   let isoDate = Date.formatToTime(isoString) {
-                    Text(isoDate)
+                if let isoDate = game?.getDate(),
+                   let isoDateString = isoDate.formatToTime() {
+                    Text(isoDateString)
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
@@ -76,8 +76,7 @@ struct UpcomingGameView: View {
     }
     
     func formatCountdown() -> String {
-        guard let gameDateString = game.strTimestamp,
-              let gameDate = DateFormatters.isoFormatter.date(from: gameDateString) else { return "" }
+        guard let gameDate = game.getDate() else { return "-1" }
         timeRemaining = gameDate.timeIntervalSince(Date())
         if timeRemaining < 0 {
             return DateFormatters.relativeFormatter.localizedString(for: gameDate, relativeTo: Date())

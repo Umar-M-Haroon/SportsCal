@@ -197,8 +197,7 @@ import ActivityKit
         }
         filteredGames = allGames
             .filter({ game -> Bool in
-                guard let timestamp = game.strTimestamp,
-                      let date = DateFormatters.isoFormatter.date(from: timestamp) else { return false }
+                guard let date = game.getDate() else { return false }
                 if appStorage.hidePastEvents {
                     //get the date components for the game and check it is greater than 0
                     return date.timeIntervalSinceNow > 0
@@ -237,8 +236,7 @@ import ActivityKit
             .filter({ game -> Bool in
                 // filter to show correct duration or if its in the past
                 var isValidForFutureDuration: Bool = false
-                guard let timestamp = game.strTimestamp,
-                      let date = DateFormatters.isoFormatter.date(from: timestamp) else { return false }
+                guard let date = game.getDate() else { return false }
 
                 switch appStorage.durations {
                 case .oneWeek:
@@ -278,8 +276,7 @@ import ActivityKit
     }
     func sortByDate() {
         let groupDic = Dictionary(grouping: filteredGames ?? []) { game -> DateComponents in
-            let timestamp = game.strTimestamp ?? DateFormatters.isoFormatter.string(from: .now)
-            let gameDate = DateFormatters.isoFormatter.date(from: timestamp) ?? .now
+            let gameDate = game.getDate() ?? .now
             let date2 = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: gameDate)
             return date2
         }
