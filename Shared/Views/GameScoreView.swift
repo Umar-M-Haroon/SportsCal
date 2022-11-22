@@ -31,8 +31,6 @@ struct GameScoreView: View {
                 if let formatted = GameFormatter().string(for: game) {
                     Text(formatted)
                         .foregroundColor(.secondary)
-                } else {
-                    Text("AAAA")
                 }
                 Menu {
                     #if canImport(ActivityKit)

@@ -20,7 +20,7 @@ class UserDefaultStorage: NSObject, ObservableObject {
     @AppStorage("soonestOnTop") var soonestOnTop: Bool = true
     @AppStorage("duration") var durations: Durations = .threeWeeks
     @AppStorage("launches") var launches: Int = 0
-    @AppStorage("dateFormat") var dateFormat: String = "dd/MM/yy"
+    @AppStorage("dateFormat") var dateFormat: String = "MM/dd/yyyy"
     @AppStorage("hidePastGamesDuration") var hidePastGamesDuration: Durations = .threeWeeks
     @AppStorage("showStartTime") var showStartTime: Bool = true
     

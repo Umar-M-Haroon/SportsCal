@@ -11,15 +11,14 @@ struct SubscriptionSheet: View {
     @Binding var subscriptionPresented: Bool
     var body: some View {
         NavigationView {
-            SubscriptionPage()
+            SubscriptionPage(selectedProduct: SubscriptionManager.shared.monthlySubscription)
+                .environmentObject(SubscriptionManager.shared)
                 .navigationBarItems(leading: Button(action: {
                     subscriptionPresented = false
                 }, label: {
                     Text("Cancel")
                 })
                 )
-                
-                                        
         }
     }
 }

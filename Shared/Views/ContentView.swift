@@ -43,13 +43,30 @@ struct ContentView: View {
     @StateObject var viewModel: GameViewModel
     
     @State var searchString: String = ""
+    @State var shouldShowPromo: Bool = false
     var body: some View {
         NavigationView {
             Group {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack {
-                        ForEach(SportType.allCases, id: \.self) { sport in
-                            SportsFilterView(sport: sport, appStorage: storage)
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            ForEach(SportType.allCases, id: \.self) { sport in
+                                SportsFilterView(sport: sport, shouldShowPromoCount: $shouldShowPromo, appStorage: storage)
+                            }
+                        }
+                    }
+                }  footer: {
+                    if shouldShowPromo {
+                        HStack {
+                            Text("Try SportsCal Pro to see multiple sports at once")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Button {
+                                sheetType = .settings
+                            } label: {
+                                Text("Learn More.")
+                                .font(.caption2)
+                            }
                         }
                     }
                 }

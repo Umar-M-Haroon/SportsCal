@@ -19,6 +19,10 @@ extension Game {
         if let date = DateFormatters.backupISOFormatter.date(from: timestamp) {
             return date
         }
+        DateFormatters.backupISOFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        if let date = DateFormatters.backupISOFormatter.date(from: timestamp) {
+            return date
+        }
         return nil
     }
 }

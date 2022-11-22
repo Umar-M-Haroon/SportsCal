@@ -10,6 +10,7 @@ import SwiftUI
 import SportsCalModel
 struct SportsFilterView: View {
     var sport: SportType
+    @Binding var shouldShowPromoCount: Bool
     @ObservedObject var appStorage: UserDefaultStorage
     
     var body: some View {
@@ -21,30 +22,35 @@ struct SportsFilterView: View {
                         appStorage.shouldShowNBA.toggle()
                     } else {
                         appStorage.switchTo(sportType: .basketball)
+                        shouldShowPromoCount = true
                     }
                 case .soccer:
                     if SubscriptionManager.shared.subscriptionStatus == .subscribed {
                         appStorage.shouldShowSoccer.toggle()
                     } else {
                         appStorage.switchTo(sportType: .soccer)
+                        shouldShowPromoCount = true
                     }
                 case .hockey:
                     if SubscriptionManager.shared.subscriptionStatus == .subscribed {
                         appStorage.shouldShowNHL.toggle()
                     } else {
                         appStorage.switchTo(sportType: .hockey)
+                        shouldShowPromoCount = true
                     }
                 case .mlb:
                     if SubscriptionManager.shared.subscriptionStatus == .subscribed {
                         appStorage.shouldShowMLB.toggle()
                     } else {
                         appStorage.switchTo(sportType: .mlb)
+                        shouldShowPromoCount = true
                     }
                 case .nfl:
                     if SubscriptionManager.shared.subscriptionStatus == .subscribed {
                         appStorage.shouldShowNFL.toggle()
                     } else {
                         appStorage.switchTo(sportType: .nfl)
+                        shouldShowPromoCount = true
                     }
                 }
             }
@@ -97,16 +103,12 @@ struct SportsFilterView_Previews: PreviewProvider {
     static var previews: some View {
         ScrollView(.horizontal) {
             HStack {
-//                SportsFilterView(sport: .soccer, appStorage: appStorage)
-                SportsFilterView(sport: .soccer, appStorage: appStorage)
-                SportsFilterView(sport: .basketball, appStorage: appStorage)
-                
-                SportsFilterView(sport: .nfl, appStorage: appStorage)
-                
-                SportsFilterView(sport: .hockey, appStorage: appStorage)
-                
-                SportsFilterView(sport: .mlb, appStorage: appStorage)
-                SportsFilterView(sport: .soccer, appStorage: appStorage)
+                SportsFilterView(sport: .soccer, shouldShowPromoCount: .constant(false), appStorage: appStorage)
+                SportsFilterView(sport: .basketball, shouldShowPromoCount: .constant(false), appStorage: appStorage)
+                SportsFilterView(sport: .nfl, shouldShowPromoCount: .constant(false), appStorage: appStorage)
+                SportsFilterView(sport: .hockey, shouldShowPromoCount: .constant(false), appStorage: appStorage)
+                SportsFilterView(sport: .mlb, shouldShowPromoCount: .constant(false), appStorage: appStorage)
+                SportsFilterView(sport: .soccer, shouldShowPromoCount: .constant(false), appStorage: appStorage)
             }
         }
     }

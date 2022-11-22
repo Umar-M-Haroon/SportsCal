@@ -19,9 +19,12 @@ struct PickSportPage: View {
                 Toggle("NBA", isOn: appStorage.$shouldShowNBA)
                 Toggle("MLB", isOn: appStorage.$shouldShowMLB)
                 Toggle("Soccer", isOn: appStorage.$shouldShowSoccer)
-                DisclosureGroup("Show Leagues") {
-                    ForEach(Leagues.allCases.filter({!$0.isSoccer}), id: \.rawValue) { league in
-                        Toggle(league.leagueName, isOn: .constant(false))
+                if appStorage.shouldShowSoccer {
+                    DisclosureGroup("Show Soccer Leagues") {
+                        ForEach(Leagues.allCases.filter({!$0.isSoccer}), id: \.rawValue) { league in
+                            CompetitionView(competition: league.leagueName, isHidden: !appStorage.hiddenCompetitions.contains(league.leagueName))
+                                .environmentObject(appStorage)
+                        }
                     }
                 }
             } header: {
@@ -34,14 +37,15 @@ struct PickSportPage: View {
 
             Section {
                 MiniSubscriptionPage(subscriptionPresented: $subscriptionPresented)
+            } footer: {
                 Button(action: {
                     sheetType = .none
+                    appStorage.shouldShowOnboarding = false
                 }, label: {
                     Text("Continue")
                 })
                 .frame(maxWidth: .infinity,alignment: .center)
                 .buttonStyle(.bordered)
-                .listRowSeparator(.hidden)
             }
             .sheet(isPresented: $subscriptionPresented) {
                 SubscriptionSheet(subscriptionPresented: $subscriptionPresented)
@@ -49,6 +53,11 @@ struct PickSportPage: View {
         }
         .navigationBarBackButtonHidden(true)
         .navigationTitle("Pick Sports")
+        .onAppear {
+            for league in Leagues.allCases.filter({!$0.isSoccer}) {
+                appStorage.hiddenCompetitions.append(league.leagueName)
+            }
+        }
     }
 }
 
