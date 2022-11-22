@@ -960,16 +960,48 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "B17F9C12-48DC-4C81-A06A-8DD74408EA6C"
-            shouldBeEnabled = "No"
+            shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "Shared/Model/GameViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "201"
-            endingLineNumber = "201"
+            startingLineNumber = "200"
+            endingLineNumber = "200"
             landmarkName = "filterSports(searchString:force:)"
             landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "B17F9C12-48DC-4C81-A06A-8DD74408EA6C - e63ca268ffbd5cf6"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #4 (SportsCalModel.Game) -&gt; Swift.Bool in SportsCal.GameViewModel.filterSports(searchString: Swift.Optional&lt;Swift.String&gt;, force: Swift.Bool) -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "200"
+                  endingLineNumber = "200"
+                  offsetFromSymbolStart = "896">
+               </Location>
+               <Location
+                  uuid = "B17F9C12-48DC-4C81-A06A-8DD74408EA6C - e63ca268ffbd5cf6"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #4 (SportsCalModel.Game) -&gt; Swift.Bool in SportsCal.GameViewModel.filterSports(searchString: Swift.Optional&lt;Swift.String&gt;, force: Swift.Bool) -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "200"
+                  endingLineNumber = "200"
+                  offsetFromSymbolStart = "940">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy

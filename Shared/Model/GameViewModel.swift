@@ -175,7 +175,7 @@ import ActivityKit
         }
         var allGames: [Game] = []
         if appStorage.shouldShowSoccer {
-            allGames.append(contentsOf: [])
+            allGames.append(contentsOf: gamesDict[.soccer] ?? [])
             allGames = allGames.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
