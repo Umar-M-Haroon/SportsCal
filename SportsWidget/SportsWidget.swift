@@ -391,7 +391,7 @@ struct SportsWidget: Widget {
         }
         .configurationDisplayName("Sports Widget")
         .description("Show upcoming games for a sport")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 

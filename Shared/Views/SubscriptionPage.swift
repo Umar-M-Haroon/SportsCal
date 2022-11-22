@@ -19,6 +19,7 @@ struct SubscriptionPage: View {
     @State var isPrivacy: Bool = true
     @State var url: String = "https://komodollc.com/privacy"
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
+    @State var selectedProduct: Purchases.Package?
 
     private var sub: Purchases.Package? {
         subscriptionManager.monthlySubscription
@@ -41,41 +42,79 @@ struct SubscriptionPage: View {
                 ////                }
                 //                .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 0, idealHeight: 200, maxHeight: .infinity, alignment: .center)
                 //
-                Section {
+            Section {
+                VStack(alignment: .center) {
+                Text("SportsCal Pro")
+                    .font(.title2)
+                    .bold()
+                    Text("Unlock Pro for extra features and help support future development!")
+                        .multilineTextAlignment(.center)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                MiniFeatureView(featureName: "Push Notifications", featureDescription: "Get notified when tasks are added and completed", imageName: "app.badge.fill", color: .red)
+                
+                MiniFeatureView(featureName: "Multiple Sports", featureDescription: "See multiple sports at once", imageName: "sportscourt.fill", color: .green)
+                
+                MiniFeatureView(featureName: "Calendar Integration", featureDescription: "See events that are more than a week away", imageName: "calendar.circle.fill", color: .blue)
+            }
                     
-                    FeatureView(featureName: "Push Notifications", featureDescription: "Get notified when tasks are added and completed", imageName: "app.badge.fill", color: .red)
-                    FeatureView(featureName: "Multiple Sports", featureDescription: "See multiple sports at once", imageName: "sportscourt.fill", color: .green)
-                    FeatureView(featureName: "Filter games by time", featureDescription: "See events that are more than a week away", imageName: "clock.fill")
                     //                    FeatureView(featureName: "Custom App Icons", featureDescription: "Change your app icon into new styles!", imageName: "square.grid.2x2.fill", color: .blue)
                 }
                 
-                if true {
+            if SubscriptionManager.shared.subscriptionStatus != .notSubscribed {
                     Section {
-                        VStack(alignment: .center) {
-                            DummySubscriptionOptionView()
-                            DummySubscriptionOptionView()
-                            DummySubscriptionOptionView()
-                        }
-                        .frame(alignment: .center)
                         if let sub = sub {
-                            SubscriptionOptionView(product: sub)
+                            SubscriptionOptionView(product: sub, selectedProduct: $selectedProduct)
                                 .contentShape(Rectangle())
                         }
                         if let sub = SubscriptionManager.shared.yearlySubscription {
-                            SubscriptionOptionView(product: sub)
-                                .contentShape(Rectangle())
+                            VStack {
+                                SubscriptionOptionView(product: sub, selectedProduct: $selectedProduct)
+                                    .contentShape(Rectangle())
+                                DummySubscriptionOptionView()
+                            }
+                        }
+                        Button {
+                            if let product = selectedProduct {
+                                SubscriptionManager.shared.purchase(product: product)
+                            }
+                        } label: {
+                            Text("Continue")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .disabled(selectedProduct == nil)
+                        .buttonStyle(BorderedProminentButtonStyle())
+                        .padding(.bottom, 4)
+
+                    } footer: {
+                        HStack {
+                            Button("Privacy Policy") {
+                                self.url = "https://komodollc.com/privacy"
+                                url = "https://komodollc.com/privacy"
+                                isPrivacy = true
+                                showSF = true
+                            }
+                            Spacer()
+                            Button("Terms of Use") {
+                                self.url = "https://komodollc.com/Terms"
+                                url = "https://komodollc.com/Terms"
+                                isPrivacy = false
+                                showSF = true
+                            }
                         }
                         Button(action: {
                             SubscriptionManager.shared.restorePurchase()
                         }, label: {
                             Text("Restore Purchases")
                         })
-                        .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 0, idealHeight: 44, maxHeight: .infinity, alignment: .center)
                     }
+                    .listRowSeparator(.hidden)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .listRowBackground(Color.clear)
                 } else {
                     VStack {
                         Text("Thank you for purchasing SportsCal Pro!")
-                            .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 0, idealHeight: 44, maxHeight: .infinity, alignment: .center)
+                            .frame(maxWidth: .infinity, alignment: .center)
                         Button(action: {
                             didSuccessfullyPurchase = true
                         }, label: {
@@ -86,20 +125,6 @@ struct SubscriptionPage: View {
                                 .foregroundColor(.white)
                                 .cornerRadius(8)
                         })
-                    }
-                }
-                Section {
-                    Button("Privacy Policy") {
-                        self.url = "https://komodollc.com/privacy"
-                        url = "https://komodollc.com/privacy"
-                        isPrivacy = true
-                        showSF = true
-                    }
-                    Button("Terms of Use") {
-                        self.url = "https://komodollc.com/Terms"
-                        url = "https://komodollc.com/Terms"
-                        isPrivacy = false
-                        showSF = true
                     }
                 }
             }
@@ -135,32 +160,42 @@ struct SubscriptionPage: View {
     }
 }
 
+
 struct SubscriptionOptionView: View {
-    @State var shouldShowButton = false
     @State var product: Purchases.Package
+    @Binding var selectedProduct: Purchases.Package?
     var body: some View {
-        VStack {
-            VStack(alignment: .center, spacing: 8, content: {
-//                HStack {
-                    Text(product.product.localizedTitle)
-                    Spacer()
-                    HStack {
-                        Button {
-                            SubscriptionManager.shared.purchase(product: product)
-                        } label: {
-                            if product.product.subscriptionPeriod?.unit == .month {
-                                Text("\(product.product.priceLocale.currencySymbol ?? "")\(product.product.price)/Month")
-                            } else if product.product.subscriptionPeriod?.unit == .year {
-                                Text("\(product.product.priceLocale.currencySymbol ?? "")\(product.product.price)/Year")
-                            } else {
-                                Text("\(product.product.price)")
-                            }
-                        }
+            HStack {
+                Button {
+                    selectedProduct = product
+                } label: {
+                    if selectedProduct == product {
+                        Image(systemName: "circle.inset.filled")
+                            .resizable()
+                            .frame(width: 30, height: 30)
+                    } else {
+                        Image(systemName: "circle")
+                            .resizable()
+                            .frame(width: 30, height: 30)
                     }
-//                }
-            })
-            .frame(minWidth: 0, idealWidth: .infinity, maxWidth: .infinity, minHeight: 44, idealHeight: nil, maxHeight: 66, alignment: .center)
-        }
+                }
+                
+
+                if product.product.subscriptionPeriod?.unit == .month {
+                    Text("Monthly")
+                        .bold()
+                    Spacer()
+                    Text("\(product.product.priceLocale.currencySymbol ?? "")\(product.product.price) / Mo")
+                } else if product.product.subscriptionPeriod?.unit == .year {
+                    Text("Yearly")
+                        .bold()
+                    Spacer()
+                    Text("\(product.product.priceLocale.currencySymbol ?? "")\(product.product.price) / Yr")
+                } else {
+                    Text("\(product.product.price)")
+                }
+            }
+            .padding()
     }
 }
 struct FeatureView: View {

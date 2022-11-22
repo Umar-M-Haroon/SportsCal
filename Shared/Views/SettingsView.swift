@@ -20,7 +20,8 @@ struct SettingsView: View {
         NavigationView {
             Form {
                 NavigationLink("SportsCal Pro") {
-                    SubscriptionPage()
+                    SubscriptionPage(selectedProduct: subscriptionManager.monthlySubscription)
+                        .environmentObject(subscriptionManager)
                 }
                 Section(header: Text("SportsCal Pro Options")) {
                     HStack {
@@ -58,7 +59,7 @@ struct SettingsView: View {
                     Toggle("Hide past events", isOn: appStorage.$hidePastEvents)
                         .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                     Toggle("Show countdown", isOn: appStorage.$showStartTime)
-                    NavigationLink("Hide soccer competitions") {
+                    NavigationLink("Show soccer competitions") {
                         CompetitionPage(competitions: Leagues.allCases.filter({!$0.isSoccer}).map({$0.leagueName}))
                             .environmentObject(appStorage)
                     }

@@ -34,8 +34,6 @@ struct UpcomingGameView: View {
                         .accessibilityValue(accessibilityLabel)
                         .accessibilityLabel(accessibilityLabel)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(maxWidth: .infinity)
-                        .fixedSize(horizontal: true, vertical: true)
                         .onReceive(timer) { cur in
                             withAnimation {
                                 timeString = formatCountdown()
@@ -48,7 +46,6 @@ struct UpcomingGameView: View {
                         .accessibilityValue(accessibilityLabel)
                         .accessibilityLabel(accessibilityLabel)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(maxWidth: .infinity)
                     
                 }
                 if let isoString = game?.strTimestamp,
@@ -57,7 +54,6 @@ struct UpcomingGameView: View {
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(maxWidth: .infinity)
                 }
                 Menu {
                     FavoriteMenu(game: game)

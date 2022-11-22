@@ -56,6 +56,18 @@ struct NetworkHandler {
         return try decoder.decode([Team].self, from: data)
     }
     
+    static func getLiveSnapshot() async throws -> LiveScore {
+        let urlString = "https://sportscal.komodollc.com/live"
+#if DEBUG
+        //            urlString = "http://localhost:8080/teams"
+#endif
+        let url = URL(string: urlString)!
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let decoder = JSONDecoder()
+        
+        return try decoder.decode(LiveScore.self, from: data)
+    }
+    
     static func connectWebSocketForLive(debug: Bool = false) -> URLSessionWebSocketTask {
         
         var urlString = "wss://sportscal.komodollc.com/"

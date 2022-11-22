@@ -23,6 +23,8 @@ import ActivityKit
         self.sortedGames = sortedGames
         self.networkState = networkState
         self.gamesDict = [:]
+        super.init()
+        getInfo()
     }
     
     var appStorage: UserDefaultStorage
@@ -98,6 +100,7 @@ import ActivityKit
         do {
             let result = try await NetworkHandler.handleCall()
             self.teams = try await NetworkHandler.getTeams()
+            self.currentLiveInfo = try await NetworkHandler.getLiveSnapshot()
             webSocketTask = nil
             webSocketTask = NetworkHandler.connectWebSocketForLive()
             webSocketTask?.resume()
@@ -172,7 +175,7 @@ import ActivityKit
         }
         var allGames: [Game] = []
         if appStorage.shouldShowSoccer {
-            allGames.append(contentsOf: gamesDict[.soccer] ?? [])
+            allGames.append(contentsOf: [])
             allGames = allGames.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),

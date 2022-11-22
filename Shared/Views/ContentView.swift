@@ -235,7 +235,7 @@ struct ContentView: View {
             if viewModel.appStorage.shouldShowOnboarding {
                 sheetType = .onboarding
             }
-            viewModel.getInfo()
+//            viewModel.getInfo()
         }
     }
     

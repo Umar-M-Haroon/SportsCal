@@ -9,24 +9,16 @@ import SwiftUI
 import SportsCalModel
 struct DummySubscriptionOptionView: View {
     var body: some View {
-        HStack {
-            Text("1 week trial, then $9.99 every year")
+        HStack(spacing: 0) {
+            Text("Includes 1 week trial!")
+//                .font(.caption)
+                .foregroundColor(.secondary)
             .font(.headline)
                 Text("Save 20%!")
-                .font(.footnote)
                     .fontWeight(.bold)
-                    .foregroundColor(.white)
+                    .foregroundColor(.yellow)
                     .padding(4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .foregroundColor(.yellow)
-                            .opacity(0.8)
-                    )
-                Button("Start Now") {
                     
-                }
-                .buttonStyle(.borderedProminent)
-
         }
 
     }

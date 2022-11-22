@@ -85,7 +85,6 @@ class GameFormatter: Formatter {
         }
         let status = game.strStatus ?? ""
         let sport = SportType(league: league)
-        print(sport)
         switch sport {
         case .basketball:
             var finalString = "\(status)"
