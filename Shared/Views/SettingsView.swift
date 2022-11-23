@@ -59,10 +59,12 @@ struct SettingsView: View {
                     Toggle("Hide past events", isOn: appStorage.$hidePastEvents)
                         .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                     Toggle("Show countdown", isOn: appStorage.$showStartTime)
+                        .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                     NavigationLink("Show soccer competitions") {
                         CompetitionPage(competitions: Leagues.allCases.filter({!$0.isSoccer}).map({$0.leagueName}))
                             .environmentObject(appStorage)
                     }
+                    .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                 }
                 Section(header: Text("Scores")) {
                     HStack {
