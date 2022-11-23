@@ -124,7 +124,7 @@
 			<key>INIntentIneligibleForSuggestions</key>
 			<true/>
 			<key>INIntentLastParameterTag</key>
-			<integer>8</integer>
+			<integer>11</integer>
 			<key>INIntentName</key>
 			<string>Configuration</string>
 			<key>INIntentParameters</key>
@@ -142,11 +142,6 @@
 					<string>Enum</string>
 					<key>INIntentParameterEnumTypeNamespace</key>
 					<string>88xZPY</string>
-					<key>INIntentParameterMetadata</key>
-					<dict>
-						<key>INIntentParameterMetadataDefaultValue</key>
-						<string>NBA</string>
-					</dict>
 					<key>INIntentParameterName</key>
 					<string>GameType</string>
 					<key>INIntentParameterPromptDialogs</key>
@@ -185,7 +180,7 @@
 						</dict>
 					</array>
 					<key>INIntentParameterTag</key>
-					<integer>8</integer>
+					<integer>10</integer>
 					<key>INIntentParameterType</key>
 					<string>Integer</string>
 				</dict>

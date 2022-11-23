@@ -56,7 +56,7 @@ struct SportsFilterView: View {
             }
         } label: {
             HStack {
-                Image(sport.rawValue)
+                Image(systemName: sportToSystemImage())
                     .font(.footnote)
 //                    .modifier(SportsTint(sport: sport))
                 Text(sport.capitalized)
@@ -68,6 +68,21 @@ struct SportsFilterView: View {
         .buttonBorderStyle(isDisabled())
         .buttonBorderShape(.capsule)
 //        .padding(6)
+    }
+    
+    func sportToSystemImage() -> String {
+        switch sport {
+        case .soccer:
+            return "soccerball.inverse"
+        case .basketball:
+            return "basketball"
+        case .hockey:
+            return "hockey.puck"
+        case .mlb:
+            return "baseball"
+        case .nfl:
+            return "football"
+        }
     }
     
     func isDisabled() -> Bool {

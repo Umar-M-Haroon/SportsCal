@@ -23,6 +23,23 @@ import ActivityKit
         self.sortedGames = sortedGames
         self.networkState = networkState
         self.gamesDict = [:]
+        
+        
+        let folderURLs = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+        var gameFileURL = folderURLs[0]
+        gameFileURL.appendPathComponent("games" + ".cache")
+        var teamFileURL = folderURLs[0]
+        teamFileURL.appendPathComponent("teams" + ".cache")
+        do {
+            let data = try JSONDecoder().decode(Cache<String, LiveScore>.self, from: Data(contentsOf: gameFileURL))
+            gameCache = data
+            let teamData = try JSONDecoder().decode(Cache<String, [Team]>.self, from: Data(contentsOf: teamFileURL))
+            teamCache = teamData
+        } catch let error {
+            gameCache = Cache<String, LiveScore>()
+            teamCache = Cache<String, [Team]>()
+            print(error.localizedDescription)
+        }
         super.init()
         getInfo()
     }
@@ -39,6 +56,8 @@ import ActivityKit
     private var webSocketTask: URLSessionWebSocketTask?
     var restartTimer: Timer?
     var gamesDict: [SportType: [Game]]
+    private var gameCache: Cache<String, LiveScore>?
+    private var teamCache: Cache<String, [Team]>?
     @Published var currentLiveInfo: LiveScore?
     
     var liveEvents: [Game] {
@@ -98,6 +117,12 @@ import ActivityKit
     @objc
     private func getData() async {
         do {
+            if let gameCache, let cacheGames = gameCache.value(for: "games") {
+                setGames(result: cacheGames)
+            }
+            if let teamCache, let cacheTeams = teamCache.value(for: "teams") {
+                self.teams = cacheTeams
+            }
             let result = try await NetworkHandler.handleCall()
             self.teams = try await NetworkHandler.getTeams()
             self.currentLiveInfo = try await NetworkHandler.getLiveSnapshot()
@@ -108,6 +133,10 @@ import ActivityKit
                 try await receiveMessages()
             }
             setGames(result: result)
+            gameCache?.insert(result, for: "games")
+            teamCache?.insert(self.teams, for: "teams")
+            try gameCache?.saveToDisk(with: "games")
+            try teamCache?.saveToDisk(with: "teams")
             
             networkState = .loaded
             restartTimer = nil
@@ -156,12 +185,12 @@ import ActivityKit
         filterSports(force: true)
     }
     func filterSports(searchString: String? = nil, force: Bool = false) {
-        print("⚠️ sports duration or selected sport changed, filtering")
-        print("⚠️ should show NFL \(appStorage.shouldShowNFL)")
-        print("⚠️ should show NBA \(appStorage.shouldShowNBA)")
-        print("⚠️ should show NHL \(appStorage.shouldShowNHL)")
-        print("⚠️ should show Soccer \(appStorage.shouldShowSoccer)")
-        print("⚠️ should show MLB \(appStorage.shouldShowMLB)")
+//        print("⚠️ sports duration or selected sport changed, filtering")
+//        print("⚠️ should show NFL \(appStorage.shouldShowNFL)")
+//        print("⚠️ should show NBA \(appStorage.shouldShowNBA)")
+//        print("⚠️ should show NHL \(appStorage.shouldShowNHL)")
+//        print("⚠️ should show Soccer \(appStorage.shouldShowSoccer)")
+//        print("⚠️ should show MLB \(appStorage.shouldShowMLB)")
         if force {
             totalGames = totalGames?.filter({ game in
                 guard let leagueString = game.idLeague,

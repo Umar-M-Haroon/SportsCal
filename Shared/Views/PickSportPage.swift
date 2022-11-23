@@ -15,16 +15,61 @@ struct PickSportPage: View {
         List {
             Section {
                 Toggle("NHL", isOn: appStorage.$shouldShowNHL)
-                Toggle("NFL", isOn: appStorage.$shouldShowNFL)
-                Toggle("NBA", isOn: appStorage.$shouldShowNBA)
-                Toggle("MLB", isOn: appStorage.$shouldShowMLB)
-                Toggle("Soccer", isOn: appStorage.$shouldShowSoccer)
-                if appStorage.shouldShowSoccer {
-                    DisclosureGroup("Show Soccer Leagues") {
-                        ForEach(Leagues.allCases.filter({!$0.isSoccer}), id: \.rawValue) { league in
-                            CompetitionView(competition: league.leagueName, isHidden: !appStorage.hiddenCompetitions.contains(league.leagueName))
-                                .environmentObject(appStorage)
+                    .onTapGesture {
+                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+//                            appStorage.switchTo(sportType: .hockey)
+                            appStorage.shouldShowNFL = false
+                            appStorage.shouldShowNBA = false
+                            appStorage.shouldShowNHL.toggle()
+                            appStorage.shouldShowSoccer = false
+                            appStorage.shouldShowMLB = false
                         }
+                    }
+                Toggle("NFL", isOn: appStorage.$shouldShowNFL)
+                    .onTapGesture {
+                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                            appStorage.shouldShowNFL.toggle()
+                            appStorage.shouldShowNBA = false
+                            appStorage.shouldShowNHL = false
+                            appStorage.shouldShowSoccer = false
+                            appStorage.shouldShowMLB = false
+                        }
+                    }
+                Toggle("NBA", isOn: appStorage.$shouldShowNBA)
+                    .onTapGesture {
+                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                            appStorage.shouldShowNFL = false
+                            appStorage.shouldShowNBA.toggle()
+                            appStorage.shouldShowNHL = false
+                            appStorage.shouldShowSoccer = false
+                            appStorage.shouldShowMLB = false
+                        }
+                    }
+                Toggle("MLB", isOn: appStorage.$shouldShowMLB)
+                    .onTapGesture {
+                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                            appStorage.shouldShowNFL = false
+                            appStorage.shouldShowNBA = false
+                            appStorage.shouldShowNHL = false
+                            appStorage.shouldShowSoccer = false
+                            appStorage.shouldShowMLB.toggle()
+                        }
+                    }
+                Toggle("Soccer", isOn: appStorage.$shouldShowSoccer)
+                    .onTapGesture {
+                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                            appStorage.shouldShowNFL = false
+                            appStorage.shouldShowNBA = false
+                            appStorage.shouldShowNHL = false
+                            appStorage.shouldShowSoccer.toggle()
+                            appStorage.shouldShowMLB = false
+                        }
+                    }
+                
+                if appStorage.shouldShowSoccer {
+                    NavigationLink("Show Soccer Leagues") {
+                        CompetitionPage(competitions: Leagues.allCases.filter({!$0.isSoccer}).map({$0.leagueName}))
+                            .environmentObject(appStorage)
                     }
                 }
             } header: {
@@ -43,6 +88,7 @@ struct PickSportPage: View {
                     appStorage.shouldShowOnboarding = false
                 }, label: {
                     Text("Continue")
+                        .disabled(!(appStorage.shouldShowSoccer || appStorage.shouldShowMLB || appStorage.shouldShowNBA || appStorage.shouldShowNFL || appStorage.shouldShowNHL))
                 })
                 .frame(maxWidth: .infinity,alignment: .center)
                 .buttonStyle(.bordered)
@@ -53,11 +99,6 @@ struct PickSportPage: View {
         }
         .navigationBarBackButtonHidden(true)
         .navigationTitle("Pick Sports")
-        .onAppear {
-            for league in Leagues.allCases.filter({!$0.isSoccer}) {
-                appStorage.hiddenCompetitions.append(league.leagueName)
-            }
-        }
     }
 }
 
