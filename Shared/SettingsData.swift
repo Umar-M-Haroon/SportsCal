@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 
 enum Durations: String, Equatable {
+    case oneDay = "1 Day"
     case oneWeek = "1 Week"
     case twoWeeks = "2 Weeks"
     case threeWeeks = "3 Weeks"

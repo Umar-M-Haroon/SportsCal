@@ -7,7 +7,7 @@
 
 import Foundation
 extension DateComponents {
-    func formatted(format: String = "E, dd.MM.yy") -> String {
+    func formatted(format: String = "MM/dd/yyyy") -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = format
         guard let date = self.date else { return "" }
@@ -68,5 +68,58 @@ extension Date{
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
         formatter.timeZone = TimeZone(abbreviation: "GMT")
         return formatter.date(from: formatter.string(from: Date()))!
+    }
+    func formatToTime() -> String {
+        DateFormatters.dateFormatter.dateStyle = .none
+        DateFormatters.dateFormatter.timeStyle = .short
+        return DateFormatters.dateFormatter.string(from: self)
+    }
+    
+    func formatToDate(dateFormat: String) -> String? {
+        DateFormatters.dateFormatter.dateFormat = dateFormat
+        return DateFormatters.dateFormatter.string(from: self)
+    }
+
+    static func isoStringToDateString(dateString: String) -> String {
+        let cal = Calendar.current
+        let df = DateFormatters.dateFormatter
+        guard let date = DateFormatters.isoFormatter.date(from: dateString) else { return "" }
+        if cal.isDateInToday(date) {
+            df.dateFormat = "h:mm a"
+            return df.string(from: date)
+        }
+        df.dateFormat = "MM/dd"
+        return df.string(from: date)
+    }
+    
+    static func currentDateToDayString() -> String {
+        let df = DateFormatter()
+        df.dateFormat = "EEE"
+        return df.string(from: Date())
+    }
+    
+    static func currentDateToNumberString() -> String {
+        let df = DateFormatter()
+        df.dateFormat = "d MMM"
+        return df.string(from: Date())
+    }
+    
+    static func dateToString(formatString: String = "MM/dd", date: Date) -> String {
+        
+        let df = DateFormatter()
+        df.dateFormat = formatString
+        return df.string(from: date)
+    }
+    
+    static func sampleDate(hoursInFuture hours: Int) -> String {
+        let calendar = Calendar.current
+        let date = calendar.date(byAdding: .hour, value: hours, to: Date(), wrappingComponents: true)!
+        return DateFormatters.isoFormatter.string(from: date)
+    }
+    
+    static func sampleDate(daysInFuture days: Int) -> String {
+        let calendar = Calendar.current
+        let date = calendar.date(byAdding: .day, value: days, to: Date(), wrappingComponents: true)!
+        return DateFormatters.isoFormatter.string(from: date)
     }
 }

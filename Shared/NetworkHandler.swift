@@ -6,38 +6,93 @@
 //
 
 import Foundation
-import Combine
-enum NetworkState {
-    case loading
-    case loaded
-    case failed
+import SportsCalModel
+
+enum NetworkState: String {
+    case loading = "Loading"
+    case loaded = "Loaded"
+    case failed = "Failed"
+}
+enum ImageSize: String {
+    case preview
+    case tiny
+    case none = ""
 }
 struct NetworkHandler {
     
-    @available(iOS 15.0, *)
-    func handleCall(type: SportTypes? = nil, year: String) async throws -> Sports {
-        var urlString = "https://sportscal.komodollc.com"
-        if let type = type {
-            urlString = "https://sportscal.komodollc.com/\(type.rawValue)"
-        }
+    static func handleCall() async throws -> LiveScore {
+        let urlString = "https://sportscal.komodollc.com/schedules"
+        #if DEBUG
+//            urlString = "http://localhost:8080/schedules"
+        #endif
         let url = URL(string: urlString)!
         let (data, _) = try await URLSession.shared.data(from: url)
         let decoder = JSONDecoder()
         
-        return try decoder.decode(Sports.self, from: data)
+        return try decoder.decode(LiveScore.self, from: data)
     }
-    func handleCall(type: SportTypes? = nil) -> AnyPublisher<Sports, Error> {
-        var urlString = "https://sportscal.komodollc.com"
-        if let type = type {
-            urlString = "https://sportscal.komodollc.com/\(type.rawValue)"
-        }
+    
+    static func getScheduleFor(sport: SportType) async throws -> LiveEvent {
+        let urlString = "https://sportscal.komodollc.com/sport/\(sport.rawValue)"
+//#if DEBUG
+//        urlString = "http://localhost:8080/sport/\(sport.rawValue)"
+//#endif
         let url = URL(string: urlString)!
-        return URLSession.shared.dataTaskPublisher(for: url)
-            .map({ response in
-                return response.data
-            })
-            .decode(type: Sports.self, decoder: JSONDecoder())
-            .receive(on: RunLoop.main)
-            .eraseToAnyPublisher()
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let decoder = JSONDecoder()
+        
+        return try decoder.decode(LiveEvent.self, from: data)
+    }
+    
+    static func getTeams() async throws -> [Team] {
+        let urlString = "https://sportscal.komodollc.com/teams"
+        #if DEBUG
+//            urlString = "http://localhost:8080/teams"
+        #endif
+        let url = URL(string: urlString)!
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let decoder = JSONDecoder()
+        
+        return try decoder.decode([Team].self, from: data)
+    }
+    
+    static func getLiveSnapshot() async throws -> LiveScore {
+        let urlString = "https://sportscal.komodollc.com/live"
+#if DEBUG
+        //            urlString = "http://localhost:8080/teams"
+#endif
+        let url = URL(string: urlString)!
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let decoder = JSONDecoder()
+        
+        return try decoder.decode(LiveScore.self, from: data)
+    }
+    
+    static func connectWebSocketForLive(debug: Bool = false) -> URLSessionWebSocketTask {
+        
+        var urlString = "wss://sportscal.komodollc.com/"
+//        #if DEBUG
+//            urlString = "ws://localhost:8080/"
+//        #endif
+        let urlPath = debug ? "livedebug" : "ws"
+        urlString += urlPath
+        let url = URL(string: urlString)!
+        let task = URLSession.shared.webSocketTask(with: url)
+        return task
+    }
+    
+    static func subscribeToLiveActivityUpdate(token: String, eventID: String) async throws {
+        let urlString = "https://sportscal.komodollc.com/liveActivity/\(token)/\(eventID)"
+//        #if DEBUG
+//        urlString = "http://localhost:8080/liveActivity/\(token)/\(eventID)"
+//        #endif
+        let url = URL(string: urlString)!
+        _ = try await URLSession.shared.data(from: url)
+    }
+    
+    static func getImageFor(url: String, size: ImageSize) async throws -> Data {
+        let url = URL(string: url)!
+        let (data, _) = try await URLSession.shared.data(from: url)
+        return data
     }
 }

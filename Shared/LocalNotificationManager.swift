@@ -8,6 +8,8 @@
 
 import Foundation
 import UserNotifications
+import SportsCalModel
+
 enum NotificationDuration: String {
     case thirtyMinutes = "30 minutes"
     case oneHour = "1 hour"
@@ -17,12 +19,8 @@ struct NotificationManager {
     static public func addLocalNotification(date: Date, item: Game, duration: NotificationDuration) {
         requestNotificationAccessIfNeeded()
         let notiContent = UNMutableNotificationContent()
-        notiContent.title = "Upcoming \(item.sport.rawValue) Event"
-        if item.sport == .F1 {
-            notiContent.body = "Check out \(item.home) in \(duration.rawValue)"
-        } else {
-            notiContent.body = "Check out \(item.away) @ \(item.home) in \(duration.rawValue)"
-        }
+        notiContent.title = "Upcoming \(item.strSport) Event"
+        notiContent.body = "Check out \(item.strAwayTeam) @ \(item.strHomeTeam) in \(duration.rawValue)"
         notiContent.sound = .default
         var interval = date.timeIntervalSince(Date())
         if duration == .thirtyMinutes {
