@@ -78,7 +78,6 @@ struct ContentView: View {
                             Section {
                                 ForEach(liveEvents) { event in
                                     if let homeScore = Int(event.intHomeScore ?? ""), let awayScore = Int(event.intAwayScore ?? ""), let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: event.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: event.idAwayTeam) {
-                                        
                                         GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: true)
                                     }
                                 }
@@ -126,7 +125,7 @@ struct ContentView: View {
                     VStack {
                         if viewModel.networkState == .loading {
                             ProgressView()
-                        } else {
+                        } else if viewModel.networkState == .failed {
                             Text("No games fetched")
                                 .font(.title2)
                             Button("Retry") {
@@ -145,16 +144,7 @@ struct ContentView: View {
                 sheetType = .settings
             }, label: {
                 Image(systemName: "gear")
-            }), trailing:
-                                    HStack {
-                Button {
-                    viewModel.appStorage.soonestOnTop.toggle()
-                } label: {
-                    Image(systemName: "arrow.up.arrow.down.circle")
-                }
-                .accessibilityLabel("Toggle soonest game first")
-            }
-            )
+            }))
             .sheet(item: $sheetType) { sheetType in
                 switch sheetType {
                 case .settings:
@@ -170,11 +160,6 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: storage, perform: { _ in
-            withAnimation {
-                print("HERE")
-            }
-        })
         .onChange(of: storage.shouldShowMLB, perform: { _ in
             withAnimation {
                 viewModel.filterSports(searchString: searchString)
@@ -252,7 +237,6 @@ struct ContentView: View {
             if viewModel.appStorage.shouldShowOnboarding {
                 sheetType = .onboarding
             }
-//            viewModel.getInfo()
         }
     }
     
@@ -267,7 +251,6 @@ struct ContentView: View {
         }
         return CalendarRepresentable(eventStore: eventStore, event: event)
     }
-    
     
 }
 

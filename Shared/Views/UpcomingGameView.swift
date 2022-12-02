@@ -24,7 +24,7 @@ struct UpcomingGameView: View {
     var isFavorite: Bool = false
     var body: some View {
         HStack {
-            IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: (Int(game.intAwayScore ?? "") ?? 0) > (Int(game.intHomeScore ?? "") ?? 0), isAway: true)
+            IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: false, isAway: true)
             .frame(maxWidth: .infinity)
             VStack(alignment: .center, spacing: 8) {
                 if showCountdown {
@@ -67,7 +67,7 @@ struct UpcomingGameView: View {
                 .buttonBorderShape(.capsule)
             }
                 .fixedSize(horizontal: true, vertical: false)
-            IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: Int(game.intHomeScore ?? ""), isWinning: (Int(game.intHomeScore ?? "") ?? 0) > (Int(game.intAwayScore ?? "") ?? 0), isAway: false)
+            IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: Int(game.intHomeScore ?? ""), isWinning: false, isAway: false)
             .frame(maxWidth: .infinity)
         }
         .onAppear {
