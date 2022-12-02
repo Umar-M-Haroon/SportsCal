@@ -38,9 +38,19 @@ import ActivityKit
         } catch let error {
             gameCache = Cache<String, LiveScore>()
             teamCache = Cache<String, [Team]>()
+            liveCache = Cache<String, LiveScore>(entryLifetime: 15 * 60)
             print(error.localizedDescription)
         }
         super.init()
+        if let cacheGames = gameCache?.value(for: "games") {
+            setGames(result: cacheGames)
+        }
+        if let cacheTeams = teamCache?.value(for: "teams") {
+            self.teams = cacheTeams
+        }
+        if let liveInfo = liveCache?.value(for: "live") {
+            self.currentLiveInfo = liveInfo
+        }
         getInfo()
     }
     
@@ -118,15 +128,9 @@ import ActivityKit
     @objc
     private func getData() async {
         do {
-            if let gameCache, let cacheGames = gameCache.value(for: "games") {
-                setGames(result: cacheGames)
-            }
-            if let teamCache, let cacheTeams = teamCache.value(for: "teams") {
-                self.teams = cacheTeams
-            }
+            self.currentLiveInfo = try await NetworkHandler.getLiveSnapshot()
             let result = try await NetworkHandler.handleCall()
             self.teams = try await NetworkHandler.getTeams()
-            self.currentLiveInfo = try await NetworkHandler.getLiveSnapshot()
             webSocketTask = nil
             webSocketTask = NetworkHandler.connectWebSocketForLive()
             webSocketTask?.resume()
@@ -136,8 +140,12 @@ import ActivityKit
             setGames(result: result)
             gameCache?.insert(result, for: "games")
             teamCache?.insert(self.teams, for: "teams")
+            if let liveInfo = currentLiveInfo {
+                liveCache?.insert(liveInfo, for: "live")
+            }
             try gameCache?.saveToDisk(with: "games")
             try teamCache?.saveToDisk(with: "teams")
+            try liveCache?.saveToDisk(with: "live")
             
             networkState = .loaded
             restartTimer = nil
@@ -145,7 +153,7 @@ import ActivityKit
             print(e)
             print(e.localizedDescription)
             networkState = .failed
-            restartTimer = .init(timeInterval: 10, target: self, selector: #selector(getData), userInfo: nil, repeats: true)
+            restartTimer = .init(timeInterval: 5, target: self, selector: #selector(getData), userInfo: nil, repeats: true)
         }
     }
 
@@ -156,7 +164,9 @@ import ActivityKit
             switch webSocketMessage {
             case .string(let jsonString):
                 if let jsonData = jsonString.data(using: .utf8) {
-                    let newLiveInfo = try JSONDecoder().decode(LiveScore.self, from: jsonData)
+                    var newLiveInfo = try JSONDecoder().decode(LiveScore.self, from: jsonData)
+                    newLiveInfo.removeNonStarting()
+                    newLiveInfo.removeOtherInfo()
                     withAnimation {
                         if let currentLiveInfo = currentLiveInfo, currentLiveInfo != newLiveInfo {
                             self.currentLiveInfo = newLiveInfo
@@ -301,6 +311,9 @@ import ActivityKit
                 return isValidForFutureDuration
                 
             })
+        filteredGames?.sort(by: { lhs, rhs in
+            lhs.getDate() ?? .now < rhs.getDate() ?? .now
+        })
         print("⚠️ total amount of games, \(totalGames?.count) filtered result \(filteredGames?.count)")
         handleSearch(searchString: searchString)
         sortByDate()
@@ -313,10 +326,7 @@ import ActivityKit
             return date2
         }
         let sorted = groupDic.sorted(by: {
-            if appStorage.soonestOnTop {
-                return $0.key.date! < $1.key.date!
-            }
-            return $0.key.date! > $1.key.date!
+            return $0.key.date! < $1.key.date!
         })
         var newDict: [DateComponents: [Game]] = [:]
         for sort in sorted {
