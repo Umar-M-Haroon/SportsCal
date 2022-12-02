@@ -44,7 +44,6 @@ extension Scene {
     func backgroundTaskIfAvailable() -> some Scene {
         if #available(iOS 16.0, *) {
             return self.backgroundTask(.appRefresh("com.KomodoLLC.SportsCal.updateGamesAndActivities")) {
-                let _ = try? await NetworkHandler.testCall()
                 if #available(iOS 16.1, *) {
 #if canImport(ActivityKit)
                     for activity in Activity<LiveSportActivityAttributes>.activities {

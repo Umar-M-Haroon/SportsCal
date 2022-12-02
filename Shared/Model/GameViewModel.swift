@@ -239,7 +239,7 @@ import ActivityKit
         }
         filteredGames = allGames
             .filter({ game -> Bool in
-                guard let date = game.getDate() else { return false }
+                guard let date = game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter) else { return false }
                 if appStorage.hidePastEvents {
                     //get the date components for the game and check it is greater than 0
                     return date.timeIntervalSinceNow > 0
@@ -278,7 +278,7 @@ import ActivityKit
             .filter({ game -> Bool in
                 // filter to show correct duration or if its in the past
                 var isValidForFutureDuration: Bool = false
-                guard let date = game.getDate() else { return false }
+                guard let date = game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter) else { return false }
 
                 switch appStorage.durations {
                 case .oneWeek:
@@ -312,7 +312,7 @@ import ActivityKit
                 
             })
         filteredGames?.sort(by: { lhs, rhs in
-            lhs.getDate() ?? .now < rhs.getDate() ?? .now
+            lhs.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter) ?? .now < rhs.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter) ?? .now
         })
         print("⚠️ total amount of games, \(totalGames?.count) filtered result \(filteredGames?.count)")
         handleSearch(searchString: searchString)
@@ -321,7 +321,7 @@ import ActivityKit
     }
     func sortByDate() {
         let groupDic = Dictionary(grouping: filteredGames ?? []) { game -> DateComponents in
-            let gameDate = game.getDate() ?? .now
+            let gameDate = game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter) ?? .now
             let date2 = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: gameDate)
             return date2
         }

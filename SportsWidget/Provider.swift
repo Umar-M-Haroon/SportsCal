@@ -134,7 +134,7 @@ class Provider: IntentTimelineProvider {
             var games = try await NetworkHandler.getScheduleFor(sport: type).events
             games = games
                 .filter({ game -> Bool in
-                    guard let date = game.getDate() else { return false }
+                    guard let date = game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter) else { return false }
                     return date.timeIntervalSinceNow > 0
                 })
             async let teams = NetworkHandler.getTeams()
