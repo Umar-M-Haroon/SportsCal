@@ -21,10 +21,10 @@ enum ImageSize: String {
 struct NetworkHandler {
     
     static func handleCall() async throws -> LiveScore {
-        let urlString = "https://sportscal.komodollc.com/schedules"
-        #if DEBUG
-//            urlString = "http://localhost:8080/schedules"
-        #endif
+        var urlString = "https://sportscal.komodollc.com/schedules"
+        if let host = ProcessInfo.processInfo.environment["host"] {
+            urlString = "\(host)/schedules"
+        }
         let url = URL(string: urlString)!
         let (data, _) = try await URLSession.shared.data(from: url)
         let decoder = JSONDecoder()
@@ -33,10 +33,10 @@ struct NetworkHandler {
     }
     
     static func getScheduleFor(sport: SportType) async throws -> LiveEvent {
-        let urlString = "https://sportscal.komodollc.com/sport/\(sport.rawValue)"
-//#if DEBUG
-//        urlString = "http://localhost:8080/sport/\(sport.rawValue)"
-//#endif
+        var urlString = "https://sportscal.komodollc.com/sport/\(sport.rawValue)"
+        if let host = ProcessInfo.processInfo.environment["host"] {
+            urlString = "\(host)/sport/\(sport.rawValue)"
+        }
         let url = URL(string: urlString)!
         let (data, _) = try await URLSession.shared.data(from: url)
         let decoder = JSONDecoder()
@@ -45,10 +45,10 @@ struct NetworkHandler {
     }
     
     static func getTeams() async throws -> [Team] {
-        let urlString = "https://sportscal.komodollc.com/teams"
-        #if DEBUG
-//            urlString = "http://localhost:8080/teams"
-        #endif
+        var urlString = "https://sportscal.komodollc.com/teams"
+        if let host = ProcessInfo.processInfo.environment["host"] {
+            urlString = "\(host)/teams"
+        }
         let url = URL(string: urlString)!
         let (data, _) = try await URLSession.shared.data(from: url)
         let decoder = JSONDecoder()
@@ -57,10 +57,10 @@ struct NetworkHandler {
     }
     
     static func getLiveSnapshot() async throws -> LiveScore {
-        let urlString = "https://sportscal.komodollc.com/live"
-#if DEBUG
-        //            urlString = "http://localhost:8080/teams"
-#endif
+        var urlString = "https://sportscal.komodollc.com/live"
+        if let host = ProcessInfo.processInfo.environment["host"] {
+            urlString = "\(host)/live"
+        }
         let url = URL(string: urlString)!
         let (data, _) = try await URLSession.shared.data(from: url)
         let decoder = JSONDecoder()
@@ -69,11 +69,10 @@ struct NetworkHandler {
     }
     
     static func connectWebSocketForLive(debug: Bool = false) -> URLSessionWebSocketTask {
-        
         var urlString = "wss://sportscal.komodollc.com/"
-//        #if DEBUG
-//            urlString = "ws://localhost:8080/"
-//        #endif
+        if let host = ProcessInfo.processInfo.environment["websockethost"] {
+            urlString = "\(host)/"
+        }
         let urlPath = debug ? "livedebug" : "ws"
         urlString += urlPath
         let url = URL(string: urlString)!
@@ -82,9 +81,11 @@ struct NetworkHandler {
     }
     
     static func subscribeToLiveActivityUpdate(token: String, eventID: String) async throws {
-        let urlString = "https://sportscal.komodollc.com/liveActivity/\(token)/\(eventID)"
+        var urlString = "https://sportscal.komodollc.com/liveActivity/\(token)/\(eventID)"
 //        #if DEBUG
-//        urlString = "http://localhost:8080/liveActivity/\(token)/\(eventID)"
+        if let host = ProcessInfo.processInfo.environment["host"] {
+            urlString = "\(host)/liveActivity/\(token)/\(eventID)"
+        }
 //        #endif
         let url = URL(string: urlString)!
         _ = try await URLSession.shared.data(from: url)

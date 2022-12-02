@@ -58,6 +58,7 @@ import ActivityKit
     var gamesDict: [SportType: [Game]]
     private var gameCache: Cache<String, LiveScore>?
     private var teamCache: Cache<String, [Team]>?
+    private var liveCache: Cache<String, LiveScore>?
     @Published var currentLiveInfo: LiveScore?
     
     var liveEvents: [Game] {
@@ -165,7 +166,9 @@ import ActivityKit
                     }
                     #if canImport(ActivityKit)
                     if #available(iOS 16.1, *) {
-                        try await updateLiveActivities()
+                        Task { @MainActor in
+                            try await updateLiveActivities()
+                        }
                     }
                     #endif
                 }

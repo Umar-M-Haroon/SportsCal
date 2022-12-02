@@ -18,7 +18,6 @@
 		1D3DD52E27FBEF310086DD9E /* CompetitionPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3DD52D27FBEF310086DD9E /* CompetitionPage.swift */; };
 		1D3DD53027FBEF400086DD9E /* CompetitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3DD52F27FBEF400086DD9E /* CompetitionView.swift */; };
 		1D40808429091A2000729FFE /* UpcomingGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D40808329091A2000729FFE /* UpcomingGameView.swift */; };
-		1D408086290A021100729FFE /* Extension+UIImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D408085290A021100729FFE /* Extension+UIImage.swift */; };
 		1D408088290B610200729FFE /* GameFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D408087290B610200729FFE /* GameFormatter.swift */; };
 		1D40808C290B7CED00729FFE /* IndividualTeamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D40808B290B7CED00729FFE /* IndividualTeamView.swift */; };
 		1D40808E290B856C00729FFE /* CalendarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D40808D290B856C00729FFE /* CalendarButton.swift */; };
@@ -63,6 +62,7 @@
 		1DE04019292CB51C00073494 /* Game+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE04017292CB51C00073494 /* Game+Extensions.swift */; };
 		1DE0402D292D713800073494 /* Cache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE0402C292D713800073494 /* Cache.swift */; };
 		1DE0402E292D713800073494 /* Cache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE0402C292D713800073494 /* Cache.swift */; };
+		1DE0404B2937470000073494 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE04049293746F500073494 /* Provider.swift */; };
 		1DE16FF726F29D4A007B1B57 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DE16FF626F29D4A007B1B57 /* WidgetKit.framework */; platformFilter = maccatalyst; };
 		1DE16FF926F29D4A007B1B57 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DE16FF826F29D4A007B1B57 /* SwiftUI.framework */; platformFilter = maccatalyst; };
 		1DE16FFC26F29D4A007B1B57 /* SportsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE16FFB26F29D4A007B1B57 /* SportsWidget.swift */; };
@@ -139,7 +139,6 @@
 		1D3DD52D27FBEF310086DD9E /* CompetitionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompetitionPage.swift; sourceTree = "<group>"; };
 		1D3DD52F27FBEF400086DD9E /* CompetitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompetitionView.swift; sourceTree = "<group>"; };
 		1D40808329091A2000729FFE /* UpcomingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingGameView.swift; sourceTree = "<group>"; };
-		1D408085290A021100729FFE /* Extension+UIImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Extension+UIImage.swift"; sourceTree = "<group>"; };
 		1D408087290B610200729FFE /* GameFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameFormatter.swift; sourceTree = "<group>"; };
 		1D40808B290B7CED00729FFE /* IndividualTeamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndividualTeamView.swift; sourceTree = "<group>"; };
 		1D40808D290B856C00729FFE /* CalendarButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarButton.swift; sourceTree = "<group>"; };
@@ -342,7 +341,6 @@
 				1DEC76AB268EFB6600D217A1 /* SportsCalApp.swift */,
 				1DEDD0EB26D179F5005ABF93 /* AppDelegate.swift */,
 				1DEC76E1268EFC0500D217A1 /* NetworkHandler.swift */,
-				1D408085290A021100729FFE /* Extension+UIImage.swift */,
 				1DEC7704268F0AF200D217A1 /* NetworkErrors.swift */,
 				1D5C463626C9FB5000BA827B /* SettingsData.swift */,
 				1DEC76AD268EFB6700D217A1 /* Assets.xcassets */,
@@ -673,7 +671,6 @@
 				1D5C463426C9F10400BA827B /* Confetti.swift in Sources */,
 				1DCEBF0526C045B200913A94 /* SettingsView.swift in Sources */,
 				1DF489B22737693F00A20512 /* Constants.swift in Sources */,
-				1D408086290A021100729FFE /* Extension+UIImage.swift in Sources */,
 				1DF1FD942741EFA800783E62 /* UserDefaultStorage.swift in Sources */,
 				1DE04018292CB51C00073494 /* Game+Extensions.swift in Sources */,
 				1D1239A026D0D180001B503E /* LocalNotificationManager.swift in Sources */,
@@ -1106,6 +1103,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (

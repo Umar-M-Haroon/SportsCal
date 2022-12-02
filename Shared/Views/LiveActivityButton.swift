@@ -22,7 +22,7 @@ struct LiveActivityButton: View {
     var body: some View {
         Button {
             if let homeBadgeString = homeTeam.strTeamBadge,  let homeBadgeURL = URL(string: homeBadgeString + "/preview"), let awayBadgeString = awayTeam.strTeamBadge,  let awayBadgeURL = URL(string: awayBadgeString + "/preview") {
-                Task(priority: .high) {
+                Task(priority: .userInitiated) { @MainActor in
                     do {
                         (homeData, _) = try await URLSession.shared.data(for: URLRequest(url: homeBadgeURL, cachePolicy: .returnCacheDataElseLoad))
                         (awayData, _) = try await URLSession.shared.data(for: URLRequest(url: awayBadgeURL, cachePolicy: .returnCacheDataElseLoad))
