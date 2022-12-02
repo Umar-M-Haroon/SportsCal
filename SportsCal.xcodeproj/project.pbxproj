@@ -89,7 +89,7 @@
 		1DF489B42737693F00A20512 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF489B12737693F00A20512 /* Constants.swift */; };
 		1DF489B52737693F00A20512 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF489B12737693F00A20512 /* Constants.swift */; };
 		1DF489B62737693F00A20512 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF489B12737693F00A20512 /* Constants.swift */; };
-		1DF5C5582713F48500842FDA /* SportsWidgetExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 1DE16FF526F29D4A007B1B57 /* SportsWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1DF5C5582713F48500842FDA /* SportsWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DE16FF526F29D4A007B1B57 /* SportsWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -117,15 +117,15 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		1DF5C55B2713F48500842FDA /* Embed App Extensions */ = {
+		1DF5C55B2713F48500842FDA /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				1DF5C5582713F48500842FDA /* SportsWidgetExtension.appex in Embed App Extensions */,
+				1DF5C5582713F48500842FDA /* SportsWidgetExtension.appex in Embed Foundation Extensions */,
 			);
-			name = "Embed App Extensions";
+			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -164,6 +164,7 @@
 		1DE04017292CB51C00073494 /* Game+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Game+Extensions.swift"; sourceTree = "<group>"; };
 		1DE0401F292D633300073494 /* Intents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Intents.framework; path = System/Library/Frameworks/Intents.framework; sourceTree = SDKROOT; };
 		1DE0402C292D713800073494 /* Cache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Cache.swift; sourceTree = "<group>"; };
+		1DE04049293746F500073494 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
 		1DE16FF526F29D4A007B1B57 /* SportsWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SportsWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1DE16FF626F29D4A007B1B57 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		1DE16FF826F29D4A007B1B57 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -288,6 +289,7 @@
 			isa = PBXGroup;
 			children = (
 				1DE16FFB26F29D4A007B1B57 /* SportsWidget.swift */,
+				1DE04049293746F500073494 /* Provider.swift */,
 				1D408096290BAA6A00729FFE /* LiveSportActivityWidget.swift */,
 				1DE16FFD26F29D4A007B1B57 /* SportsWidget.intentdefinition */,
 				1DE16FFE26F29D4B007B1B57 /* Assets.xcassets */,
@@ -444,7 +446,7 @@
 				1DEC76AE268EFB6700D217A1 /* Sources */,
 				1DEC76AF268EFB6700D217A1 /* Frameworks */,
 				1DEC76B0268EFB6700D217A1 /* Resources */,
-				1DF5C55B2713F48500842FDA /* Embed App Extensions */,
+				1DF5C55B2713F48500842FDA /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
@@ -504,7 +506,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1410;
-				LastUpgradeCheck = 1320;
+				LastUpgradeCheck = 1410;
 				TargetAttributes = {
 					1DE16FF426F29D4A007B1B57 = {
 						CreatedOnToolsVersion = 13.0;
@@ -606,6 +608,7 @@
 				1D40809B290BAFE100729FFE /* IndividualTeamView.swift in Sources */,
 				1DB93DC42907659300311FAA /* Favorites.swift in Sources */,
 				1D408091290B9E3700729FFE /* Teams+Extensions.swift in Sources */,
+				1DE0404B2937470000073494 /* Provider.swift in Sources */,
 				1D408098290BAB8600729FFE /* LiveSportActivityWidget.swift in Sources */,
 				1DE04019292CB51C00073494 /* Game+Extensions.swift in Sources */,
 				1D8352D72905532D00E60D7F /* DateFormatters.swift in Sources */,
@@ -743,7 +746,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.SportsWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -775,7 +778,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.SportsWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -863,6 +866,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -922,6 +926,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -966,7 +971,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal;
 				PRODUCT_NAME = SportsCal;
 				SDKROOT = iphoneos;
@@ -1004,7 +1009,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal;
 				PRODUCT_NAME = SportsCal;
 				SDKROOT = iphoneos;
@@ -1075,6 +1080,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
