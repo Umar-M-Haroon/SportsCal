@@ -34,6 +34,7 @@ struct UpcomingGameView: View {
                         .accessibilityValue(accessibilityLabel)
                         .accessibilityLabel(accessibilityLabel)
                         .foregroundColor(Color(UIColor.secondaryLabel))
+                        .frame(maxWidth: .infinity)
                         .onReceive(timer) { cur in
                             withAnimation {
                                 timeString = formatCountdown()

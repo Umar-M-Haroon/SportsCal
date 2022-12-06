@@ -73,17 +73,27 @@
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "host"
-            value = "https://279f-2601-280-c781-8ec0-1479-9a65-1588-ced6.ngrok.io"
+            value = "https://4f7f-2601-280-c781-8ec0-b11b-bbad-bcee-61fa.ngrok.io"
             isEnabled = "NO">
          </EnvironmentVariable>
          <EnvironmentVariable
+            key = "mock-subscribed"
+            value = "true"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
             key = "websockethost"
-            value = "ws://localhost:8080"
+            value = "wss://07dd-2601-280-c781-8ec0-3011-c581-dec9-cb41.ngrok.io"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "mock-live"
+            value = "true"
             isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "host"
-            value = "http://localhost:8080"
+            value = "https://07dd-2601-280-c781-8ec0-3011-c581-dec9-cb41.ngrok.io"
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>

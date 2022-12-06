@@ -70,6 +70,7 @@
 		1DE1DD9F2761832E00740CD3 /* SportsCalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1DD9E2761832E00740CD3 /* SportsCalUITests.swift */; };
 		1DE1DDA12761832E00740CD3 /* SportsCalUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1DDA02761832E00740CD3 /* SportsCalUITestsLaunchTests.swift */; };
 		1DE1DDA8276185CE00740CD3 /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1DDA7276185CE00740CD3 /* SnapshotHelper.swift */; };
+		1DE1F0BB293F091F00741B19 /* RemoveLiveActivityButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0BA293F091F00741B19 /* RemoveLiveActivityButton.swift */; };
 		1DEA4DFE290530B300CD1D8F /* SportsFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEA4DFD290530B300CD1D8F /* SportsFilterView.swift */; };
 		1DEA4E0129053AB900CD1D8F /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D486AFF28A834470024BC32 /* GameViewModel.swift */; };
 		1DEC76C2268EFB6700D217A1 /* Tests_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76C1268EFB6700D217A1 /* Tests_iOS.swift */; };
@@ -173,6 +174,7 @@
 		1DE1DD9E2761832E00740CD3 /* SportsCalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsCalUITests.swift; sourceTree = "<group>"; };
 		1DE1DDA02761832E00740CD3 /* SportsCalUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsCalUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		1DE1DDA7276185CE00740CD3 /* SnapshotHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = SnapshotHelper.swift; path = fastlane/SnapshotHelper.swift; sourceTree = SOURCE_ROOT; };
+		1DE1F0BA293F091F00741B19 /* RemoveLiveActivityButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoveLiveActivityButton.swift; sourceTree = "<group>"; };
 		1DEA4DFD290530B300CD1D8F /* SportsFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsFilterView.swift; sourceTree = "<group>"; };
 		1DEC76AB268EFB6600D217A1 /* SportsCalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsCalApp.swift; sourceTree = "<group>"; };
 		1DEC76AC268EFB6600D217A1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -324,6 +326,7 @@
 		1DEC76AA268EFB6600D217A1 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				1DE1F0BA293F091F00741B19 /* RemoveLiveActivityButton.swift */,
 				1D408094290BA96A00729FFE /* LiveSportActivityAttributes.swift */,
 				1DA4343229079D270010364F /* Model */,
 				1D486AFE28A833280024BC32 /* Views */,
@@ -662,6 +665,7 @@
 				1DEC7705268F0AF200D217A1 /* NetworkErrors.swift in Sources */,
 				1D63E71926A9494800FC3DE6 /* Date+Extensions.swift in Sources */,
 				1D3DD53027FBEF400086DD9E /* CompetitionView.swift in Sources */,
+				1DE1F0BB293F091F00741B19 /* RemoveLiveActivityButton.swift in Sources */,
 				1D408088290B610200729FFE /* GameFormatter.swift in Sources */,
 				1D5C463426C9F10400BA827B /* Confetti.swift in Sources */,
 				1DCEBF0526C045B200913A94 /* SettingsView.swift in Sources */,

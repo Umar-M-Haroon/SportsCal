@@ -59,8 +59,14 @@ struct NetworkHandler {
     static func getLiveSnapshot() async throws -> LiveScore {
         var urlString = "https://sportscal.komodollc.com/live"
         if let host = ProcessInfo.processInfo.environment["host"] {
-            urlString = "\(host)/live"
+            urlString = "\(host)"
         }
+        var urlPath = "/live"
+
+        if let _ = ProcessInfo.processInfo.environment["mock-live"] {
+            urlPath = "/live-debug"
+        }
+        urlString += urlPath
         let url = URL(string: urlString)!
         let (data, _) = try await URLSession.shared.data(from: url)
         let decoder = JSONDecoder()
@@ -73,7 +79,10 @@ struct NetworkHandler {
         if let host = ProcessInfo.processInfo.environment["websockethost"] {
             urlString = "\(host)/"
         }
-        let urlPath = debug ? "livedebug" : "ws"
+        var urlPath = "ws"
+        if let _ = ProcessInfo.processInfo.environment["mock-live"] {
+            urlPath = "livedebug"
+        }
         urlString += urlPath
         let url = URL(string: urlString)!
         let task = URLSession.shared.webSocketTask(with: url)
@@ -82,11 +91,9 @@ struct NetworkHandler {
     
     static func subscribeToLiveActivityUpdate(token: String, eventID: String) async throws {
         var urlString = "https://sportscal.komodollc.com/liveActivity/\(token)/\(eventID)"
-//        #if DEBUG
         if let host = ProcessInfo.processInfo.environment["host"] {
             urlString = "\(host)/liveActivity/\(token)/\(eventID)"
         }
-//        #endif
         let url = URL(string: urlString)!
         _ = try await URLSession.shared.data(from: url)
     }

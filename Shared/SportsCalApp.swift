@@ -35,22 +35,33 @@ struct SportsCalApp: App {
 
     func scheduleAppRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: "com.KomodoLLC.SportsCal.updateGamesAndActivities")
-        request.earliestBeginDate = Date(timeIntervalSinceNow: 0)
-        try? BGTaskScheduler.shared.submit(request)
-        print("test")
+//        request.earliestBeginDate = Date(timeIntervalSinceNow: 0)
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            print("submitted")
+        } catch let e {
+            print(e)
+            print(e.localizedDescription)
+        }
     }
 }
 extension Scene {
     func backgroundTaskIfAvailable() -> some Scene {
         if #available(iOS 16.0, *) {
             return self.backgroundTask(.appRefresh("com.KomodoLLC.SportsCal.updateGamesAndActivities")) {
+                print("Running background task")
                 if #available(iOS 16.1, *) {
 #if canImport(ActivityKit)
                     for activity in Activity<LiveSportActivityAttributes>.activities {
                         for await data in activity.pushTokenUpdates {
                             let myToken = data.map { String(format: "%02x", $0)}.joined()
                             print("live activity updated", myToken)
-                            try? await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID)
+                            do {
+                                try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID)
+                            } catch let err {
+                                print("error updating on background", err.localizedDescription)
+                                print(err)
+                            }
                         }
                     }
 #endif

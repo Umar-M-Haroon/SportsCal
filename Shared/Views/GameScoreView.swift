@@ -24,35 +24,44 @@ struct GameScoreView: View {
     
     var isLive: Bool
     var body: some View {
-        HStack {
-            IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: awayScore, isWinning: awayScore > homeScore, isAway: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            VStack(spacing: 8) {
-                if let formatted = GameFormatter().string(for: game) {
-                    Text(formatted)
-                        .foregroundColor(.secondary)
-                }
-                Menu {
-                    #if canImport(ActivityKit)
-                    if #available(iOS 16.1, *) {
-                        if isLive && ActivityAuthorizationInfo().areActivitiesEnabled  {
-                            LiveActivityButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
-                        }
+        VStack(spacing: -10) {
+            HStack {
+                IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: awayScore, isWinning: awayScore > homeScore, isAway: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(spacing: 8) {
+                    if let formatted = GameFormatter().string(for: game) {
+                        Text(formatted)
+                            .foregroundColor(.secondary)
                     }
-                    #endif
-                    FavoriteMenu(game: game)
-                        .environmentObject(favorites)
-                    CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-                    NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-                } label: {
-                    Image(systemName: "ellipsis")
+                    Menu {
+#if canImport(ActivityKit)
+                        if #available(iOS 16.1, *) {
+                            if isLive && ActivityAuthorizationInfo().areActivitiesEnabled  {
+                                LiveActivityButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                            }
+                        }
+#endif
+                        FavoriteMenu(game: game)
+                            .environmentObject(favorites)
+                        CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+                        NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
                 }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.capsule)
+                .frame(maxWidth: .infinity, alignment: .center)
+                IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: homeScore, isWinning: homeScore > awayScore, isAway: false)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .frame(maxWidth: .infinity, alignment: .center)
-            IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: homeScore, isWinning: homeScore > awayScore, isAway: false)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+#if canImport(ActivityKit)
+            if #available(iOS 16.1, *) {
+                if isLive && ActivityAuthorizationInfo().areActivitiesEnabled && Activity<LiveSportActivityAttributes>.activities.contains(where: {$0.attributes.eventID == game.idEvent})  {
+                    RemoveLiveActivityButton()
+                }
+            }
+#endif
         }
     }
 }
