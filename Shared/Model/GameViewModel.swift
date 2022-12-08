@@ -54,7 +54,7 @@ import ActivityKit
         getInfo()
     }
     
-    var appStorage: UserDefaultStorage
+    @Published var appStorage: UserDefaultStorage
     var favorites: Favorites
     var teams: [Team] = []
     @Published var totalGames: [Game]?
@@ -65,11 +65,12 @@ import ActivityKit
     @Published var networkState: NetworkState = .loading
     private var webSocketTask: URLSessionWebSocketTask?
     var restartTimer: Timer?
-    var gamesDict: [SportType: [Game]]
+    var gamesDict: [SportType: [Game]] = [:]
     private var gameCache: Cache<String, LiveScore>?
     private var teamCache: Cache<String, [Team]>?
     private var liveCache: Cache<String, LiveScore>?
     @Published var currentLiveInfo: LiveScore?
+    private var cancellables: Set<AnyCancellable> = []
     
     var liveEvents: [Game] {
         var games: [Game] = []
@@ -125,20 +126,36 @@ import ActivityKit
         }
         return games
     }
+    
+    init(appStorage: UserDefaultStorage, favorites: Favorites) {
+        self.appStorage = appStorage
+        self.favorites = favorites
+        super.init()
+        self.appStorage.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+    }
+    
+    
     @objc
     private func getData() async {
         do {
-            self.currentLiveInfo = try await NetworkHandler.getLiveSnapshot()
-            let result = try await NetworkHandler.handleCall()
-            self.teams = try await NetworkHandler.getTeams()
+            async let liveInfo = NetworkHandler.getLiveSnapshot(debug: appStorage.debugMode)
+            self.currentLiveInfo = try await liveInfo
+            async let result = NetworkHandler.handleCall(debug: appStorage.debugMode)
+            async let teams = NetworkHandler.getTeams(debug: appStorage.debugMode)
+            self.teams = try await teams
             webSocketTask = nil
-            webSocketTask = NetworkHandler.connectWebSocketForLive()
+            webSocketTask = NetworkHandler.connectWebSocketForLive(debug: appStorage.debugMode)
             webSocketTask?.resume()
             Task {
                 try await receiveMessages()
             }
-            setGames(result: result)
-            gameCache?.insert(result, for: "games")
+            setGames(result: try await result)
+            gameCache?.insert(try await result, for: "games")
             teamCache?.insert(self.teams, for: "teams")
             if let liveInfo = currentLiveInfo {
                 liveCache?.insert(liveInfo, for: "live")
@@ -383,7 +400,7 @@ extension GameViewModel {
         for activity in Activity<LiveSportActivityAttributes>.activities {
             for await data in activity.pushTokenUpdates {
                 let myToken = data.map { String(format: "%02x", $0)}.joined()
-                try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID)
+                try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID, debug: appStorage.debugMode)
             }
             let currentState = activity.contentState
             let currentAttributes = activity.attributes

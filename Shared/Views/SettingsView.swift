@@ -12,13 +12,12 @@ import SportsCalModel
 
 struct SettingsView: View {
     @EnvironmentObject var appStorage: UserDefaultStorage
-//    @AppStorage("dateFormatString") var dateFormatString: String = "E, dd.MM.yy"
-//    @AppStorage("duration") var durations: Durations = .oneWeek
     var subscriptionManager = SubscriptionManager.shared
     @Binding var sheetType: SheetType?
     var body: some View {
         NavigationView {
             Form {
+                Toggle("Debug Mode", isOn: appStorage.$debugMode)
                 NavigationLink("SportsCal Pro") {
                     SubscriptionPage(selectedProduct: subscriptionManager.monthlySubscription)
                         .environmentObject(subscriptionManager)

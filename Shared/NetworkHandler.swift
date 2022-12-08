@@ -20,8 +20,11 @@ enum ImageSize: String {
 }
 struct NetworkHandler {
     
-    static func handleCall() async throws -> LiveScore {
+    static func handleCall(debug: Bool = false) async throws -> LiveScore {
         var urlString = "https://sportscal.komodollc.com/schedules"
+        if debug {
+            urlString = "https://debug.sportscal.komodollc.com/schedules"
+        }
         if let host = ProcessInfo.processInfo.environment["host"] {
             urlString = "\(host)/schedules"
         }
@@ -32,8 +35,11 @@ struct NetworkHandler {
         return try decoder.decode(LiveScore.self, from: data)
     }
     
-    static func getScheduleFor(sport: SportType) async throws -> LiveEvent {
+    static func getScheduleFor(sport: SportType, debug: Bool = false) async throws -> LiveEvent {
         var urlString = "https://sportscal.komodollc.com/sport/\(sport.rawValue)"
+        if debug {
+            urlString = "https://debug.sportscal.komodollc.com/sport/\(sport.rawValue)"
+        }
         if let host = ProcessInfo.processInfo.environment["host"] {
             urlString = "\(host)/sport/\(sport.rawValue)"
         }
@@ -44,8 +50,11 @@ struct NetworkHandler {
         return try decoder.decode(LiveEvent.self, from: data)
     }
     
-    static func getTeams() async throws -> [Team] {
+    static func getTeams(debug: Bool = false) async throws -> [Team] {
         var urlString = "https://sportscal.komodollc.com/teams"
+        if debug {
+            urlString = "https://debug.sportscal.komodollc.com/teams"
+        }
         if let host = ProcessInfo.processInfo.environment["host"] {
             urlString = "\(host)/teams"
         }
@@ -56,8 +65,11 @@ struct NetworkHandler {
         return try decoder.decode([Team].self, from: data)
     }
     
-    static func getLiveSnapshot() async throws -> LiveScore {
-        var urlString = "https://sportscal.komodollc.com/live"
+    static func getLiveSnapshot(debug: Bool = false) async throws -> LiveScore {
+        var urlString = "https://sportscal.komodollc.com"
+        if debug {
+            urlString = "https://debug.sportscal.komodollc.com"
+        }
         if let host = ProcessInfo.processInfo.environment["host"] {
             urlString = "\(host)"
         }
@@ -76,6 +88,9 @@ struct NetworkHandler {
     
     static func connectWebSocketForLive(debug: Bool = false) -> URLSessionWebSocketTask {
         var urlString = "wss://sportscal.komodollc.com/"
+        if debug {
+            urlString = "wss://debug.sportscal.komodollc.com/"
+        }
         if let host = ProcessInfo.processInfo.environment["websockethost"] {
             urlString = "\(host)/"
         }
@@ -89,8 +104,11 @@ struct NetworkHandler {
         return task
     }
     
-    static func subscribeToLiveActivityUpdate(token: String, eventID: String) async throws {
+    static func subscribeToLiveActivityUpdate(token: String, eventID: String, debug: Bool = false) async throws {
         var urlString = "https://sportscal.komodollc.com/liveActivity/\(token)/\(eventID)"
+        if debug {
+            urlString = "https://debug.sportscal.komodollc.com/liveActivity/\(token)/\(eventID)"
+        }
         if let host = ProcessInfo.processInfo.environment["host"] {
             urlString = "\(host)/liveActivity/\(token)/\(eventID)"
         }

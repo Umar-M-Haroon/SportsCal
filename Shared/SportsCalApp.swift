@@ -57,7 +57,7 @@ extension Scene {
                             let myToken = data.map { String(format: "%02x", $0)}.joined()
                             print("live activity updated", myToken)
                             do {
-                                try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID)
+                                try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID, debug: UserDefaultStorage().debugMode)
                             } catch let err {
                                 print("error updating on background", err.localizedDescription)
                                 print(err)

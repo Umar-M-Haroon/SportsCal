@@ -78,8 +78,8 @@
             filePath = "Shared/Model/GameViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "146"
-            endingLineNumber = "146"
+            startingLineNumber = "163"
+            endingLineNumber = "163"
             landmarkName = "getData()"
             landmarkType = "7">
          </BreakpointContent>
@@ -94,8 +94,8 @@
             filePath = "Shared/UserDefaultStorage.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "36"
-            endingLineNumber = "36"
+            startingLineNumber = "42"
+            endingLineNumber = "42"
             landmarkName = "switchTo(sportType:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -190,8 +190,8 @@
             filePath = "Shared/Model/GameViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "281"
-            endingLineNumber = "281"
+            startingLineNumber = "298"
+            endingLineNumber = "298"
             landmarkName = "filterSports(searchString:force:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -206,8 +206,8 @@
             filePath = "Shared/Model/GameViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "243"
-            endingLineNumber = "243"
+            startingLineNumber = "260"
+            endingLineNumber = "260"
             landmarkName = "filterSports(searchString:force:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -222,8 +222,8 @@
             filePath = "Shared/Model/GameViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "134"
-            endingLineNumber = "134"
+            startingLineNumber = "151"
+            endingLineNumber = "151"
             landmarkName = "getData()"
             landmarkType = "7">
          </BreakpointContent>
@@ -238,8 +238,8 @@
             filePath = "Shared/Model/GameViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "154"
-            endingLineNumber = "154"
+            startingLineNumber = "171"
+            endingLineNumber = "171"
             landmarkName = "getData()"
             landmarkType = "7">
             <Locations>
@@ -316,8 +316,8 @@
             filePath = "Shared/Model/GameViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "317"
-            endingLineNumber = "317"
+            startingLineNumber = "334"
+            endingLineNumber = "334"
             landmarkName = "filterSports(searchString:force:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -348,8 +348,8 @@
             filePath = "Shared/Model/GameViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "218"
-            endingLineNumber = "218"
+            startingLineNumber = "235"
+            endingLineNumber = "235"
             landmarkName = "filterSports(searchString:force:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -364,8 +364,8 @@
             filePath = "Shared/Model/GameViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "361"
-            endingLineNumber = "361"
+            startingLineNumber = "378"
+            endingLineNumber = "378"
             landmarkName = "getInfo()"
             landmarkType = "7">
             <Locations>
@@ -427,8 +427,8 @@
             filePath = "Shared/Model/GameViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "126"
-            endingLineNumber = "126"
+            startingLineNumber = "127"
+            endingLineNumber = "127"
             landmarkName = "liveEvents"
             landmarkType = "24">
             <Locations>
@@ -521,8 +521,8 @@
             filePath = "Shared/NetworkHandler.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "84"
-            endingLineNumber = "84"
+            startingLineNumber = "99"
+            endingLineNumber = "99"
             landmarkName = "connectWebSocketForLive(debug:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -530,16 +530,16 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "257D87A3-08D0-4407-8B78-ADC3E578DCC1"
-            shouldBeEnabled = "Yes"
+            uuid = "2BA10299-994F-4892-9133-C028F2187794"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "Shared/SportsCalApp.swift"
+            filePath = "Shared/Model/GameViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "41"
-            endingLineNumber = "41"
-            landmarkName = "scheduleAppRefresh()"
+            startingLineNumber = "137"
+            endingLineNumber = "137"
+            landmarkName = "init(appStorage:favorites:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

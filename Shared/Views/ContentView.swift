@@ -11,6 +11,9 @@ import EventKit
 import WidgetKit
 import StoreKit
 import SportsCalModel
+#if canImport(ActivityKit)
+import ActivityKit
+#endif
 
 enum SheetType: Identifiable {
     var id: String {
@@ -25,6 +28,20 @@ enum SheetType: Identifiable {
     }
     case settings, onboarding
     case calendar(game: Game?)
+}
+
+enum LiveActivityStatus: Identifiable, Hashable {
+    var id: String {
+        switch self {
+        case .loading:
+            return "loading"
+        case .added:
+            return "added"
+        case .none:
+            return "none"
+        }
+    }
+    case loading, added, none
 }
 struct ContentView: View {
     @Environment(\.scenePhase) var scenePhase
@@ -44,6 +61,7 @@ struct ContentView: View {
     
     @State var searchString: String = ""
     @State var shouldShowPromo: Bool = false
+    @State var activityState: LiveActivityStatus = .none
     var body: some View {
         NavigationView {
             Group {
@@ -65,9 +83,12 @@ struct ContentView: View {
                                 sheetType = .settings
                             } label: {
                                 Text("Learn More.")
-                                .font(.caption2)
+                                    .font(.caption2)
                             }
                         }
+                    }
+                    if #available(iOS 16.1, *) {
+                        LiveActivityStatusView(liveActivityStatus: $activityState)
                     }
                 }
 
@@ -78,7 +99,7 @@ struct ContentView: View {
                             Section {
                                 ForEach(liveEvents) { event in
                                     if let homeScore = Int(event.intHomeScore ?? ""), let awayScore = Int(event.intAwayScore ?? ""), let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: event.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: event.idAwayTeam) {
-                                        GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: true)
+                                        GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState, isLive: true)
                                     }
                                 }
                             } header: {
@@ -105,7 +126,7 @@ struct ContentView: View {
                                 ForEach(games.map({$0.value})[index]) { game in
                                     if let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idAwayTeam) {
                                         if let homeScore = Int(game.intHomeScore ?? ""), let awayScore = Int(game.intAwayScore ?? "") {
-                                            GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: false)
+                                            GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState, isLive: false)
                                                 .environmentObject(favorites)
                                         } else {
                                             UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat)
