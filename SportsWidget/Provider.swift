@@ -25,37 +25,44 @@ class Provider: IntentTimelineProvider {
     }
     
     func getSnapshot(for configuration: ConfigurationIntent, in context: Context, completion: @escaping (SimpleEntry) -> ()) {
-        Task {
-            let (games, teams) = await handleNetworking(favoriteOnly: configuration.favoritesOnly?.boolValue ?? false, type: configurationToString(configuration: configuration))
-            if games.isEmpty {
-                let entry = SimpleEntry(date: Date(), configuration: configuration, game: nil, images: nil, teams: teams)
-                completion(entry)
-                return
-            }
-            if games.count < 2 {
-                var entry = SimpleEntry(date: Date(), configuration: configuration, game: [games[0]], images: nil, teams: teams)
-                guard let homeTeam = Team.getTeamInfoFrom(teams: teams, teamID: games[0].idHomeTeam),
-                      let awayTeam = Team.getTeamInfoFrom(teams: teams, teamID: games[0].idAwayTeam) else {
-                    completion(entry)
-                    return
-                }
-                if let images = try? await getImagesFor(homeTeam: homeTeam, awayTeam: awayTeam) {
-                    entry.images = images
-                }
-                completion(entry)
-                return
-            }
+        let sampleGames: [Game] = [
+            Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+            Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134876", idAwayTeam: "134881", strHomeTeam: "Milwaukee Bucks", strAwayTeam: "Denver Nuggets", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+            Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134877", idAwayTeam: "134882", strHomeTeam: "Golden State Warriors", strAwayTeam: "Boston Celtics", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+            Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134878", idAwayTeam: "134883", strHomeTeam: "Los Angeles Lakers", strAwayTeam: "Houston Rockets", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+            Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134879", idAwayTeam: "134884", strHomeTeam: "Seattle Supersonics", strAwayTeam: "Washington Wizards", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+            Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134874", idAwayTeam: "134885", strHomeTeam: "Detroit Pistons", strAwayTeam: "Portland Trailblazers", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00")
+        ]
+        
+        let images: [String: Data] = ["134875": UIImage(systemName: "basketball.circle.fill")!.pngData()!, "134880": UIImage(systemName: "basketball.circle")!.pngData()!,
+                                      "134876": UIImage(systemName: "basketball.circle")!.pngData()!, "134881": UIImage(systemName: "basketball.circle.fill")!.pngData()!,
+                                      "134877": UIImage(systemName: "basketball")!.pngData()!, "134882": UIImage(systemName: "basketball.fill")!.pngData()!,
+                                      "134878": UIImage(systemName: "basketball.circle.fill")!.pngData()!, "134883": UIImage(systemName: "basketball")!.pngData()!,
+                                      "134879": UIImage(systemName: "basketball.fill")!.pngData()!, "134884": UIImage(systemName: "basketball.circle")!.pngData()!,
+                                      "134874": UIImage(systemName: "basketball.circle.fill")!.pngData()!, "134885": UIImage(systemName: "basketball.fill")!.pngData()!]
+        
+        let teams: [Team] = [
+            Team.init(idTeam: "134875", strTeam: "Dallas Mavericks", strTeamShort: "DAL", strAlternate: nil, strTeamBadge: nil),
+            Team.init(idTeam: "134876", strTeam: "Milwaukee Bucks", strTeamShort: "MIL", strAlternate: nil, strTeamBadge: nil),
+            Team.init(idTeam: "134877", strTeam: "Golden State Warriors", strTeamShort: "GSW", strAlternate: nil, strTeamBadge: nil),
+            Team.init(idTeam: "134878", strTeam: "Los Angeles Lakers", strTeamShort: "LAL", strAlternate: nil, strTeamBadge: nil),
+            Team.init(idTeam: "134879", strTeam: "Seattle Supersonics", strTeamShort: "SEA", strAlternate: nil, strTeamBadge: nil),
+            Team.init(idTeam: "134874", strTeam: "Detroit Pistons", strTeamShort: "DET", strAlternate: nil, strTeamBadge: nil),
+            Team.init(idTeam: "134880", strTeam: "Utah Jazz", strTeamShort: "UTA", strAlternate: nil, strTeamBadge: nil),
+            Team.init(idTeam: "134881", strTeam: "Denver Nuggets", strTeamShort: "DEN", strAlternate: nil, strTeamBadge: nil),
+            Team.init(idTeam: "134882", strTeam: "Boston Celtics", strTeamShort: "BOS", strAlternate: nil, strTeamBadge: nil),
+            Team.init(idTeam: "134883", strTeam: "Houston Rockets", strTeamShort: "HOU", strAlternate: nil, strTeamBadge: nil),
+            Team.init(idTeam: "134884", strTeam: "Washington Wizards", strTeamShort: "WAS", strAlternate: nil, strTeamBadge: nil),
+            Team.init(idTeam: "134875", strTeam: "Portland Trailblazers", strTeamShort: "POR", strAlternate: nil, strTeamBadge: nil),
             
-            var allImages: [String: Data] = [:]
-            for game in games {
-                if let homeTeam = Team.getTeamInfoFrom(teams: teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: teams, teamID: game.idAwayTeam) {
-                    async let images = getImagesFor(homeTeam: homeTeam, awayTeam: awayTeam)
-                    try await allImages.merge(images, uniquingKeysWith: {$1})
-                }
-            }
-            let entry = SimpleEntry(date: Date(), configuration: configuration, game: Array(games.prefix(through: 1)), images: allImages, teams: teams)
-            completion(entry)
-        }
+            
+            
+            
+            
+        ]
+            
+        let entry = SimpleEntry(date: Date(), configuration: configuration, game: sampleGames, images: images, teams: teams)
+        completion(entry)
     }
     
     func getImagesFor(homeTeam: Team, awayTeam: Team) async throws -> [String: Data] {
@@ -97,15 +104,14 @@ class Provider: IntentTimelineProvider {
             }
             entries.append(entry)
         } else {
-            let first2Games = games.prefix(through: 1)
             var allImages: [String: Data] = [:]
-            for game in first2Games {
+            for game in games {
                 if let homeTeam = Team.getTeamInfoFrom(teams: teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: teams, teamID: game.idAwayTeam) {
                     async let images = getImagesFor(homeTeam: homeTeam, awayTeam: awayTeam)
                     try? await allImages.merge(images, uniquingKeysWith: {$1})
                 }
             }
-            let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: Array(first2Games), images: allImages, teams: teams)
+            let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: games, images: allImages, teams: teams)
             entries.append(entry)
         }
         return Timeline(entries: entries, policy: .atEnd)
@@ -141,8 +147,12 @@ class Provider: IntentTimelineProvider {
             
             let favorites = Favorites()
             if favoriteOnly {
-                games.removeAll { game in
+                var favGames = games
+                favGames.removeAll { game in
                     !favorites.contains(game)
+                }
+                if !favGames.isEmpty {
+                    return await (favGames, try teams)
                 }
             }
             return await (games, try teams)

@@ -79,139 +79,6 @@ struct SportsView: View {
     
 }
 
-struct SportsWidgetSmallView: View {
-    var entry: Provider.Entry
-    var body: some View {
-        VStack(spacing: 4) {
-            VStack {
-                Text(Date.currentDateToDayString())
-                    .bold()
-                    .foregroundColor(.red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 8)
-                
-                HStack {
-                    Text(Date.currentDateToNumberString())
-                        .bold()
-                    Spacer()
-                    Text("Up Next")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .frame(alignment: .leading)
-                }
-            }
-            .padding(.bottom, 4)
-            if let games = entry.game, !games.isEmpty {
-                ForEach(Array(games.prefix(through: 1))) { game in
-                    SportsView(home: game.strHomeTeam, away: game.strAwayTeam, type: SportType.basketball, color: .orange, gameDate: game.strTimestamp ?? "")
-                }
-            } else {
-                Spacer()
-                Text("No upcoming games")
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
-        }
-        .padding([.leading, .trailing, .bottom], 8)
-    }
-}
-
-struct SportsWidgetMediumView: View {
-    var entry: Provider.Entry
-    var body: some View {
-        VStack {
-            VStack {
-                Text(Date.currentDateToDayString())
-                    .bold()
-                    .foregroundColor(.red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 8)
-                
-                HStack {
-                    Text(Date.currentDateToNumberString())
-                        .bold()
-                    Spacer()
-                    Text("Up Next")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .frame(alignment: .leading)
-                        .padding([.leading], 8)
-                }
-            }
-            VStack(spacing: 4) {
-                if let games = entry.game {
-                    if games.isEmpty {
-                        Text("No upcoming games")
-                            .foregroundColor(.secondary)
-                    } else {
-                        ForEach(games) { game in
-                            if let homeTeamID = game.idHomeTeam, let homeTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: homeTeamID), let awayTeamID = game.idAwayTeam, let awayTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: awayTeamID) {
-                                HStack {
-//                                    HStack {
-                                    WidgetTeamView(shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, isAway: true, data: entry.images?[awayTeamID])
-                                    Spacer()
-                                    VStack(alignment: .center, spacing: 0) {
-                                        if let isoDate = game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter) {
-                                            
-                                            Text(isoDate.formatToDate(dateFormat: "d MMM") ?? "")
-                                                .font(.system(.subheadline, design: .monospaced))
-                                                .fontWeight(.medium)
-                                            //                                                    .accessibilityValue(accessibilityLabel)
-                                            //                                                    .accessibilityLabel(accessibilityLabel)
-                                                .foregroundColor(.secondary)
-                                        }
-                                        if let isoDate = game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter),
-                                           let isoString = isoDate.formatToTime() {
-                                            Text(isoString)
-                                                .font(.system(.subheadline, design: .monospaced))
-                                                .fontWeight(.medium)
-                                                .foregroundColor(Color(UIColor.secondaryLabel))
-                                        }
-                                        //
-                                    }
-                                    Spacer()
-//                                        .frame(maxWidth: .infinity)
-                                    WidgetTeamView(shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, isAway: false, data: entry.images?[homeTeamID])
-                                            
-//                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Text("No upcoming games")
-                        .foregroundColor(.secondary)
-                }
-            }
-            Spacer()
-        }
-        .padding(8)
-    }
-}
-struct SportsWidgetLargeView: View {
-    var entry: Provider.Entry
-    var body: some View {
-        Text("Hello World!!")
-    }
-}
-struct SportsWidgetCircularView: View {
-    var entry: Provider.Entry
-    var body: some View {
-        Text("Hello World!")
-    }
-}
-struct SportsWidgetRectangularView: View {
-    var entry: Provider.Entry
-    var body: some View {
-        Text("Hello World!")
-    }
-}
-struct SportsWidgetInlineView: View {
-    var entry: Provider.Entry
-    var body: some View {
-        Text("Hello World!")
-    }
-}
 struct SportsWidgetEntryView : View {
     var entry: Provider.Entry
     @Environment(\.widgetFamily) var family
@@ -250,7 +117,15 @@ struct SportsWidget: Widget {
         }
         .configurationDisplayName("Sports Widget")
         .description("Show upcoming games for a sport")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .versionSpecificFamilies()
+    }
+}
+extension WidgetConfiguration {
+    func versionSpecificFamilies() -> some WidgetConfiguration {
+        if #available(iOS 16.0, *) {
+            return self.supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular])
+        }
+        return self.supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
@@ -258,6 +133,10 @@ struct SportsWidget_Previews: PreviewProvider {
     var sampleGames: [Game] = [
         Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
         Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00")
     ]
     
     var images: [String: Data] = ["134875": UIImage(systemName: "folder.circle")!.pngData()!, "134880": UIImage(systemName: "circle.fill")!.pngData()!]
@@ -272,19 +151,33 @@ struct SportsWidget_Previews: PreviewProvider {
                                                      configuration: .init(),
                                                      game: [
                                                         Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
-                                                        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134890", idAwayTeam: "134891", strHomeTeam: "Milwaukee Bucks", strAwayTeam: "Denver Nuggets Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+                                                        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134876", idAwayTeam: "134881", strHomeTeam: "Milwaukee Bucks", strAwayTeam: "Denver Nuggets", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+                                                        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134877", idAwayTeam: "134882", strHomeTeam: "Golden State Warriors", strAwayTeam: "Boston Celtics", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+                                                        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134878", idAwayTeam: "134883", strHomeTeam: "Los Angeles Lakers", strAwayTeam: "Houston Rockets", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+                                                        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134879", idAwayTeam: "134884", strHomeTeam: "Seattle Supersonics", strAwayTeam: "Washington Wizards", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00"),
+                                                        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134874", idAwayTeam: "134885", strHomeTeam: "Detroit Pistons", strAwayTeam: "Portland Trailblazers", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00")
 
                                                      ],
                                                      images: [
-                                                        "134875": UIImage(systemName: "folder.circle")!.pngData()!,
-                                                        "134880": UIImage(systemName: "circle.fill")!.pngData()!,
-                                                        "134890": UIImage(systemName: "folder.circle")!.pngData()!,
-                                                        "134891": UIImage(systemName: "circle.fill")!.pngData()!],
+                                                        "134875": UIImage(systemName: "basketball.circle.fill")!.pngData()!, "134880": UIImage(systemName: "basketball.circle")!.pngData()!,
+                                                        "134876": UIImage(systemName: "basketball.circle")!.pngData()!, "134881": UIImage(systemName: "basketball.circle.fill")!.pngData()!,
+                                                        "134877": UIImage(systemName: "basketball")!.pngData()!, "134882": UIImage(systemName: "basketball.fill")!.pngData()!,
+                                                        "134878": UIImage(systemName: "basketball.circle.fill")!.pngData()!, "134883": UIImage(systemName: "basketball")!.pngData()!,
+                                                        "134879": UIImage(systemName: "basketball.fill")!.pngData()!, "134884": UIImage(systemName: "basketball.circle")!.pngData()!,
+                                                        "134874": UIImage(systemName: "basketball.circle.fill")!.pngData()!, "134885": UIImage(systemName: "basketball.fill")!.pngData()!],
                                                      teams: [
                                                         Team.init(idTeam: "134875", strTeam: "Dallas Mavericks", strTeamShort: "DAL", strAlternate: nil, strTeamBadge: nil),
+                                                        Team.init(idTeam: "134876", strTeam: "Milwaukee Bucks", strTeamShort: "MIL", strAlternate: nil, strTeamBadge: nil),
+                                                        Team.init(idTeam: "134877", strTeam: "Golden State Warriors", strTeamShort: "GSW", strAlternate: nil, strTeamBadge: nil),
+                                                        Team.init(idTeam: "134878", strTeam: "Los Angeles Lakers", strTeamShort: "LAL", strAlternate: nil, strTeamBadge: nil),
+                                                        Team.init(idTeam: "134879", strTeam: "Seattle Supersonics", strTeamShort: "SEA", strAlternate: nil, strTeamBadge: nil),
+                                                        Team.init(idTeam: "134874", strTeam: "Detroit Pistons", strTeamShort: "DET", strAlternate: nil, strTeamBadge: nil),
                                                         Team.init(idTeam: "134880", strTeam: "Utah Jazz", strTeamShort: "UTA", strAlternate: nil, strTeamBadge: nil),
-                                                        Team.init(idTeam: "134890", strTeam: "Milwaukee Bucks", strTeamShort: nil, strAlternate: nil, strTeamBadge: nil),
-                                                        Team.init(idTeam: "134891", strTeam: "Denver Nuggets", strTeamShort: nil, strAlternate: nil, strTeamBadge: nil)
+                                                        Team.init(idTeam: "134881", strTeam: "Denver Nuggets", strTeamShort: "DEN", strAlternate: nil, strTeamBadge: nil),
+                                                        Team.init(idTeam: "134882", strTeam: "Boston Celtics", strTeamShort: "BOS", strAlternate: nil, strTeamBadge: nil),
+                                                        Team.init(idTeam: "134883", strTeam: "Houston Rockets", strTeamShort: "HOU", strAlternate: nil, strTeamBadge: nil),
+                                                        Team.init(idTeam: "134884", strTeam: "Washington Wizards", strTeamShort: "WAS", strAlternate: nil, strTeamBadge: nil),
+                                                        Team.init(idTeam: "134875", strTeam: "Portland Trailblazers", strTeamShort: "POR", strAlternate: nil, strTeamBadge: nil)
                                                      ]))
                 .previewContext(WidgetPreviewContext(family: .systemSmall))
         }
@@ -359,3 +252,34 @@ struct WidgetTeamView: View {
 //        .background(Color.red)
     }
 }
+
+struct TinyWidgetTeamView: View {
+    var shortName: String?
+    var longName: String?
+    var isAway: Bool
+    var data: Data? = nil
+    var showText: Bool = true
+    var body: some View {
+        VStack(spacing: 0) {
+            if let data, let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
+            }
+            if showText {
+                if let shortName {
+                    Text(shortName)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                } else if let longName {
+                    Text(longName)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+}
+
+
