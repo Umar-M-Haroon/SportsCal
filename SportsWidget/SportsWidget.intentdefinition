@@ -101,29 +101,6 @@
 				</dict>
 			</array>
 		</dict>
-		<dict>
-			<key>INEnumDisplayName</key>
-			<string>Enum</string>
-			<key>INEnumDisplayNameID</key>
-			<string>aCkdDQ</string>
-			<key>INEnumGeneratesHeader</key>
-			<true/>
-			<key>INEnumName</key>
-			<string>Enum</string>
-			<key>INEnumType</key>
-			<string>Regular</string>
-			<key>INEnumValues</key>
-			<array>
-				<dict>
-					<key>INEnumValueDisplayName</key>
-					<string>NFL</string>
-					<key>INEnumValueDisplayNameID</key>
-					<string>OIo8O2</string>
-					<key>INEnumValueName</key>
-					<string>unknown</string>
-				</dict>
-			</array>
-		</dict>
 	</array>
 	<key>INIntentDefinitionModelVersion</key>
 	<string>1.2</string>
@@ -247,26 +224,6 @@
 							<true/>
 							<key>INIntentParameterPromptDialogType</key>
 							<string>Primary</string>
-						</dict>
-						<dict>
-							<key>INIntentParameterPromptDialogCustom</key>
-							<true/>
-							<key>INIntentParameterPromptDialogFormatString</key>
-							<string>There are ${count} options matching ‘${SoccerLeague}’.</string>
-							<key>INIntentParameterPromptDialogFormatStringID</key>
-							<string>GdDhOH</string>
-							<key>INIntentParameterPromptDialogType</key>
-							<string>DisambiguationIntroduction</string>
-						</dict>
-						<dict>
-							<key>INIntentParameterPromptDialogCustom</key>
-							<true/>
-							<key>INIntentParameterPromptDialogFormatString</key>
-							<string>Just to confirm, you wanted ‘${SoccerLeague}’?</string>
-							<key>INIntentParameterPromptDialogFormatStringID</key>
-							<string>GwSI15</string>
-							<key>INIntentParameterPromptDialogType</key>
-							<string>Confirmation</string>
 						</dict>
 					</array>
 					<key>INIntentParameterRelationship</key>

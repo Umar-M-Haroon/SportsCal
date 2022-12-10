@@ -94,8 +94,8 @@
             filePath = "Shared/UserDefaultStorage.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "42"
-            endingLineNumber = "42"
+            startingLineNumber = "38"
+            endingLineNumber = "38"
             landmarkName = "switchTo(sportType:)"
             landmarkType = "7">
          </BreakpointContent>

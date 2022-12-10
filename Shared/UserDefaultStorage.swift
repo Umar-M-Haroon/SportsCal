@@ -24,11 +24,7 @@ class UserDefaultStorage: NSObject, ObservableObject {
     @AppStorage("dateFormat") var dateFormat: String = "MM/dd/yyyy"
     @AppStorage("hidePastGamesDuration") var hidePastGamesDuration: Durations = .threeWeeks
     @AppStorage("showStartTime") var showStartTime: Bool = true
-    @AppStorage("debugMode") var debugMode: Bool = false {
-        didSet {
-            print("changed")
-        }
-    }
+    @AppStorage("debugMode") var debugMode: Bool = false
     
     @AppStorage("hiddenCompetitions") var hiddenCompetitions: [String] = []
     func switchTo(sportType: SportType) {
