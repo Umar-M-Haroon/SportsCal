@@ -127,19 +127,6 @@ import ActivityKit
         return games
     }
     
-    init(appStorage: UserDefaultStorage, favorites: Favorites) {
-        self.appStorage = appStorage
-        self.favorites = favorites
-        super.init()
-        self.appStorage.objectWillChange
-            .receive(on: RunLoop.main)
-            .sink { [weak self] in
-                self?.objectWillChange.send()
-            }
-            .store(in: &cancellables)
-    }
-    
-    
     @objc
     private func getData() async {
         do {

@@ -22,6 +22,10 @@ struct SettingsView: View {
                     SubscriptionPage(selectedProduct: subscriptionManager.monthlySubscription)
                         .environmentObject(subscriptionManager)
                 }
+                NavigationLink("Visible soccer competitions") {
+                    CompetitionPage(competitions: Leagues.allCases.filter({!$0.isSoccer}).map({$0.leagueName}))
+                        .environmentObject(appStorage)
+                }
                 Section(header: Text("SportsCal Pro Options")) {
                     HStack {
                         Text("Hide events more than ")
@@ -59,10 +63,6 @@ struct SettingsView: View {
                         .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                     Toggle("Show countdown", isOn: appStorage.$showStartTime)
                         .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
-                    NavigationLink("Show soccer competitions") {
-                        CompetitionPage(competitions: Leagues.allCases.filter({!$0.isSoccer}).map({$0.leagueName}))
-                            .environmentObject(appStorage)
-                    }
                     .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                 }
                 Section(header: Text("Scores")) {

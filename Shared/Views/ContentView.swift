@@ -249,6 +249,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            WidgetCenter.shared.reloadAllTimelines()
             viewModel.appStorage.launches += 1
             if viewModel.appStorage.launches == 5 {
                 if let scene = UIApplication.shared.connectedScenes.first(where: {$0.activationState == .foregroundActive}) as? UIWindowScene {
