@@ -181,52 +181,7 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: storage.shouldShowMLB, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.shouldShowNHL, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.shouldShowNBA, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.shouldShowNFL, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.soonestOnTop, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.shouldShowSoccer, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.hidePastEvents, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.durations, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
         .onChange(of: favorites.teams, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.hiddenCompetitions, perform: { _ in
             withAnimation {
                 viewModel.filterSports(searchString: searchString)
             }
@@ -267,7 +222,7 @@ struct ContentView: View {
         print("⚠️ making calendar event for game \(game)")
         let event = EKEvent(eventStore: eventStore)
         event.title = "\(game.strAwayTeam) @ \(game.strHomeTeam)"
-        if let gameDate = game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter) {
+        if let gameDate = game.isoDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 2)
         }

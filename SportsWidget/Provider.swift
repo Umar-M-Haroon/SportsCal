@@ -131,16 +131,19 @@ class Provider: IntentTimelineProvider {
 //            let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: nil, images: nil, teams: teams)
             let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: [Game(idLeague: "4387", strHomeTeam: "uhoh", strAwayTeam: "Test")], images: nil, teams: teams)
             entries.append(entry)
-        } else if games.count < 2 {
-            var entry = SimpleEntry(date: entryDate!, configuration: configuration, game: [games[0]], images: nil, teams: teams)
-            guard let homeTeam = Team.getTeamInfoFrom(teams: teams, teamID: games[0].idHomeTeam),
-                  let awayTeam = Team.getTeamInfoFrom(teams: teams, teamID: games[0].idAwayTeam) else {
+        } else if games.count < 2, let game = games.first {
+            var entry = SimpleEntry(date: entryDate!, configuration: configuration, game: [game], images: nil, teams: teams)
+            guard let homeTeam = Team.getTeamInfoFrom(teams: teams, teamID: game.idHomeTeam),
+                  let awayTeam = Team.getTeamInfoFrom(teams: teams, teamID: game.idAwayTeam) else {
                 entries.append(entry)
                 return Timeline(entries: entries, policy: .atEnd)
             }
             if let images = try? await getImagesFor(homeTeam: homeTeam, awayTeam: awayTeam) {
                 entry.images = images
             }
+            entries.append(entry)
+        } else if games.isEmpty {
+            let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: [], images: [:], teams: [])
             entries.append(entry)
         } else {
             var allImages: [String: Data] = [:]
@@ -179,7 +182,7 @@ class Provider: IntentTimelineProvider {
             var games = try await NetworkHandler.getScheduleFor(sport: type).events
             games = games
                 .filter({ game -> Bool in
-                    guard let date = game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter) else { return false }
+                    guard let date = game.isoDate else { return false }
                     return date.timeIntervalSinceNow > 0
                 })
             async let teams = NetworkHandler.getTeams()

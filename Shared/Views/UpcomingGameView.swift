@@ -34,13 +34,13 @@ struct UpcomingGameView: View {
                         .accessibilityValue(accessibilityLabel)
                         .accessibilityLabel(accessibilityLabel)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(maxWidth: .infinity)
+//                        .frame(maxWidth: .infinity)
                         .onReceive(timer) { cur in
                             withAnimation {
                                 timeString = formatCountdown()
                             }
                         }
-                } else if isFavorite, let isoDate = game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter), let result = isoDate.formatToDate(dateFormat: dateFormat) {
+                } else if isFavorite, let isoDate = game.isoDate, let result = isoDate.formatToDate(dateFormat: dateFormat) {
                     Text(verbatim: result)
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.medium)
@@ -49,7 +49,7 @@ struct UpcomingGameView: View {
                         .foregroundColor(Color(UIColor.secondaryLabel))
                     
                 }
-                if let isoDate = game?.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter),
+                if let isoDate = game?.isoDate,
                    let isoDateString = isoDate.formatToTime() {
                     Text(isoDateString)
                         .font(.system(.subheadline, design: .monospaced))
@@ -77,7 +77,7 @@ struct UpcomingGameView: View {
     }
     
     func formatCountdown() -> String {
-        guard let gameDate = game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter) else { return "-1" }
+        guard let gameDate = game.isoDate else { return "-1" }
         timeRemaining = gameDate.timeIntervalSince(Date())
         if timeRemaining < 0 {
             return DateFormatters.relativeFormatter.localizedString(for: gameDate, relativeTo: Date())
