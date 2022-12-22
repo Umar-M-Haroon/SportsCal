@@ -7,15 +7,16 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "C113E252-ADFD-4AC2-9268-DB484B1503B6"
-            shouldBeEnabled = "Yes"
+            uuid = "094E2A2A-0FE7-47A3-AF4E-8A516FF631EF"
+            shouldBeEnabled = "No"
+            condition = "!game.hasDoneStatus &amp;&amp; Calendar.current.dateComponents([.day], from: .now, to: date).day ?? 0 &gt;= -1 "
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "Shared/Model/GameViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "217"
-            endingLineNumber = "217"
+            startingLineNumber = "255"
+            endingLineNumber = "255"
             landmarkName = "filterSports(searchString:force:)"
             landmarkType = "7">
          </BreakpointContent>

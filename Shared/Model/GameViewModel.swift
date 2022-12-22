@@ -252,7 +252,7 @@ import ActivityKit
                 guard let date = game.isoDate else { return false }
                 if appStorage.hidePastEvents {
 //                    get the date components for the game and check it is greater than 0
-                    return !game.isDone
+                    return !game.hasDoneStatus && Calendar.current.dateComponents([.day], from: .now, to: date).day ?? 0 >= -1 
                 } else {
                     
                     var isValidForPastDuration: Bool = false
