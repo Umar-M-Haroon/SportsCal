@@ -128,8 +128,7 @@ class Provider: IntentTimelineProvider {
         }
         let entryDate = Calendar.current.date(byAdding: .minute, value: 30, to: currentDate)
         if games.isEmpty {
-//            let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: nil, images: nil, teams: teams)
-            let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: [Game(idLeague: "4387", strHomeTeam: "uhoh", strAwayTeam: "Test")], images: nil, teams: teams)
+            let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: [], images: nil, teams: teams)
             entries.append(entry)
         } else if games.count < 2, let game = games.first {
             var entry = SimpleEntry(date: entryDate!, configuration: configuration, game: [game], images: nil, teams: teams)
@@ -142,9 +141,6 @@ class Provider: IntentTimelineProvider {
                 entry.images = images
             }
             entries.append(entry)
-        } else if games.isEmpty {
-            let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: [], images: [:], teams: [])
-            entries.append(entry)
         } else {
             var allImages: [String: Data] = [:]
             for game in games.prefix(upTo: min(games.count, 7)) {
@@ -153,7 +149,7 @@ class Provider: IntentTimelineProvider {
                     try? await allImages.merge(images, uniquingKeysWith: {$1})
                 }
             }
-            let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: games, images: allImages, teams: teams)
+            let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: games.sorted(by: {$0.isoDate ?? .now < $1.isoDate ?? .now}), images: allImages, teams: teams)
             entries.append(entry)
         }
         return Timeline(entries: entries, policy: .atEnd)
