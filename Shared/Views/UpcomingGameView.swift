@@ -87,9 +87,9 @@ struct UpcomingGameView: View {
         if components.day ?? -1 > 1 {
             finalString = String(format:"%2i days", components.day! + 1)
             accessibilityLabel = String(format:"%2i days", components.day! + 1)
-        } else if components.day ?? -1 == 1 {
-            finalString = String(format:"%2i days", components.day! + 1)
-            accessibilityLabel = String(format:"%2i day", components.day! + 1)
+        } else if components.day ?? -1 == 2 {
+            finalString = String(format:"%2i day", components.day!)
+            accessibilityLabel = String(format:"%2i day", components.day!)
         } else {
             finalString = String(format: "%02i:%02i:%02i", components.hour!, components.minute!, components.second!)
             accessibilityLabel = String(format:"%2i hours, %2i minutes, %2i seconds", components.day!, components.hour!, components.minute!, components.second!)

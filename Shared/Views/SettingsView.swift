@@ -17,6 +17,9 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             Form {
+                #if DEBUG
+                Toggle("Debug Mode", isOn: appStorage.$debugMode)
+                #endif
                 NavigationLink("SportsCal Pro") {
                     SubscriptionPage(selectedProduct: subscriptionManager.monthlySubscription)
                         .environmentObject(subscriptionManager)
