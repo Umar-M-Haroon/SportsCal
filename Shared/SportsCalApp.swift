@@ -7,9 +7,14 @@
 
 import SwiftUI
 import Purchases
+import BackgroundTasks
+#if canImport(ActivityKit)
+import ActivityKit
+#endif
 @main
 struct SportsCalApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @Environment(\.scenePhase) var scenePhase
 
     @StateObject var appStorage = UserDefaultStorage()
     @StateObject var favorites = Favorites()
@@ -19,6 +24,51 @@ struct SportsCalApp: App {
                 .environmentObject(SubscriptionManager.shared)
                 .environmentObject(appStorage)
                 .environmentObject(favorites)
+        }
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .background {
+                scheduleAppRefresh()
+            }
+        }
+        .backgroundTaskIfAvailable()
+    }
+
+    func scheduleAppRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: "com.KomodoLLC.SportsCal.updateGamesAndActivities")
+//        request.earliestBeginDate = Date(timeIntervalSinceNow: 0)
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            print("submitted")
+        } catch let e {
+            print(e)
+            print(e.localizedDescription)
+        }
+    }
+}
+extension Scene {
+    func backgroundTaskIfAvailable() -> some Scene {
+        if #available(iOS 16.0, *) {
+            return self.backgroundTask(.appRefresh("com.KomodoLLC.SportsCal.updateGamesAndActivities")) {
+                print("Running background task")
+                if #available(iOS 16.1, *) {
+#if canImport(ActivityKit)
+                    for activity in Activity<LiveSportActivityAttributes>.activities {
+                        for await data in activity.pushTokenUpdates {
+                            let myToken = data.map { String(format: "%02x", $0)}.joined()
+                            print("live activity updated", myToken)
+                            do {
+                                try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID, debug: UserDefaultStorage().debugMode)
+                            } catch let err {
+                                print("error updating on background", err.localizedDescription)
+                                print(err)
+                            }
+                        }
+                    }
+#endif
+                }
+            }
+        } else {
+            return self
         }
     }
 }

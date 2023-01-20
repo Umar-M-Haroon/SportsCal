@@ -11,6 +11,9 @@ import EventKit
 import WidgetKit
 import StoreKit
 import SportsCalModel
+#if canImport(ActivityKit)
+import ActivityKit
+#endif
 
 enum SheetType: Identifiable {
     var id: String {
@@ -25,6 +28,20 @@ enum SheetType: Identifiable {
     }
     case settings, onboarding
     case calendar(game: Game?)
+}
+
+enum LiveActivityStatus: Identifiable, Hashable {
+    var id: String {
+        switch self {
+        case .loading:
+            return "loading"
+        case .added:
+            return "added"
+        case .none:
+            return "none"
+        }
+    }
+    case loading, added, none
 }
 struct ContentView: View {
     @Environment(\.scenePhase) var scenePhase
@@ -44,6 +61,7 @@ struct ContentView: View {
     
     @State var searchString: String = ""
     @State var shouldShowPromo: Bool = false
+    @State var activityState: LiveActivityStatus = .none
     var body: some View {
         NavigationView {
             Group {
@@ -65,9 +83,12 @@ struct ContentView: View {
                                 sheetType = .settings
                             } label: {
                                 Text("Learn More.")
-                                .font(.caption2)
+                                    .font(.caption2)
                             }
                         }
+                    }
+                    if #available(iOS 16.1, *) {
+                        LiveActivityStatusView(liveActivityStatus: $activityState)
                     }
                 }
 
@@ -78,8 +99,7 @@ struct ContentView: View {
                             Section {
                                 ForEach(liveEvents) { event in
                                     if let homeScore = Int(event.intHomeScore ?? ""), let awayScore = Int(event.intAwayScore ?? ""), let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: event.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: event.idAwayTeam) {
-                                        
-                                        GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: true)
+                                        GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState, isLive: true)
                                     }
                                 }
                             } header: {
@@ -106,7 +126,7 @@ struct ContentView: View {
                                 ForEach(games.map({$0.value})[index]) { game in
                                     if let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idAwayTeam) {
                                         if let homeScore = Int(game.intHomeScore ?? ""), let awayScore = Int(game.intAwayScore ?? "") {
-                                            GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: false)
+                                            GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState, isLive: false)
                                                 .environmentObject(favorites)
                                         } else {
                                             UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat)
@@ -126,7 +146,7 @@ struct ContentView: View {
                     VStack {
                         if viewModel.networkState == .loading {
                             ProgressView()
-                        } else {
+                        } else if viewModel.networkState == .failed {
                             Text("No games fetched")
                                 .font(.title2)
                             Button("Retry") {
@@ -145,16 +165,7 @@ struct ContentView: View {
                 sheetType = .settings
             }, label: {
                 Image(systemName: "gear")
-            }), trailing:
-                                    HStack {
-                Button {
-                    viewModel.appStorage.soonestOnTop.toggle()
-                } label: {
-                    Image(systemName: "arrow.up.arrow.down.circle")
-                }
-                .accessibilityLabel("Toggle soonest game first")
-            }
-            )
+            }))
             .sheet(item: $sheetType) { sheetType in
                 switch sheetType {
                 case .settings:
@@ -170,57 +181,7 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: storage, perform: { _ in
-            withAnimation {
-                print("HERE")
-            }
-        })
-        .onChange(of: storage.shouldShowMLB, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.shouldShowNHL, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.shouldShowNBA, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.shouldShowNFL, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.soonestOnTop, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.shouldShowSoccer, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.hidePastEvents, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.durations, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
         .onChange(of: favorites.teams, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: storage.hiddenCompetitions, perform: { _ in
             withAnimation {
                 viewModel.filterSports(searchString: searchString)
             }
@@ -243,6 +204,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            WidgetCenter.shared.reloadAllTimelines()
             viewModel.appStorage.launches += 1
             if viewModel.appStorage.launches == 5 {
                 if let scene = UIApplication.shared.connectedScenes.first(where: {$0.activationState == .foregroundActive}) as? UIWindowScene {
@@ -252,7 +214,6 @@ struct ContentView: View {
             if viewModel.appStorage.shouldShowOnboarding {
                 sheetType = .onboarding
             }
-//            viewModel.getInfo()
         }
     }
     
@@ -261,13 +222,12 @@ struct ContentView: View {
         print("⚠️ making calendar event for game \(game)")
         let event = EKEvent(eventStore: eventStore)
         event.title = "\(game.strAwayTeam) @ \(game.strHomeTeam)"
-        if let gameDate = game.getDate() {
+        if let gameDate = game.isoDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 2)
         }
         return CalendarRepresentable(eventStore: eventStore, event: event)
     }
-    
     
 }
 

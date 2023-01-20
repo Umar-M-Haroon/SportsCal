@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import SportsCalModel
+import Combine
 
 class UserDefaultStorage: NSObject, ObservableObject {
     @AppStorage("shouldShowNBA") var shouldShowNBA: Bool = false
@@ -23,6 +24,7 @@ class UserDefaultStorage: NSObject, ObservableObject {
     @AppStorage("dateFormat") var dateFormat: String = "MM/dd/yyyy"
     @AppStorage("hidePastGamesDuration") var hidePastGamesDuration: Durations = .threeWeeks
     @AppStorage("showStartTime") var showStartTime: Bool = true
+    @AppStorage("debugMode") var debugMode: Bool = false
     
     @AppStorage("hiddenCompetitions") var hiddenCompetitions: [String] = []
     func switchTo(sportType: SportType) {

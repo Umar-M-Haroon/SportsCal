@@ -38,13 +38,29 @@ import ActivityKit
         } catch let error {
             gameCache = Cache<String, LiveScore>()
             teamCache = Cache<String, [Team]>()
+            liveCache = Cache<String, LiveScore>(entryLifetime: 15 * 60)
             print(error.localizedDescription)
         }
         super.init()
+        if let cacheGames = gameCache?.value(for: "games") {
+            setGames(result: cacheGames)
+        }
+        if let cacheTeams = teamCache?.value(for: "teams") {
+            self.teams = cacheTeams
+        }
+        if let liveInfo = liveCache?.value(for: "live") {
+            self.currentLiveInfo = liveInfo
+        }
         getInfo()
+        appStorage.objectWillChange
+            .debounce(for: 1, scheduler: RunLoop.main)
+            .sink { 
+                self.filterSports()
+            }
+            .store(in: &cancellables)
     }
     
-    var appStorage: UserDefaultStorage
+    @Published var appStorage: UserDefaultStorage
     var favorites: Favorites
     var teams: [Team] = []
     @Published var totalGames: [Game]?
@@ -55,10 +71,12 @@ import ActivityKit
     @Published var networkState: NetworkState = .loading
     private var webSocketTask: URLSessionWebSocketTask?
     var restartTimer: Timer?
-    var gamesDict: [SportType: [Game]]
+    var gamesDict: [SportType: [Game]] = [:]
     private var gameCache: Cache<String, LiveScore>?
     private var teamCache: Cache<String, [Team]>?
+    private var liveCache: Cache<String, LiveScore>?
     @Published var currentLiveInfo: LiveScore?
+    private var cancellables: Set<AnyCancellable> = []
     
     var liveEvents: [Game] {
         var games: [Game] = []
@@ -114,29 +132,30 @@ import ActivityKit
         }
         return games
     }
+    
     @objc
     private func getData() async {
         do {
-            if let gameCache, let cacheGames = gameCache.value(for: "games") {
-                setGames(result: cacheGames)
-            }
-            if let teamCache, let cacheTeams = teamCache.value(for: "teams") {
-                self.teams = cacheTeams
-            }
-            let result = try await NetworkHandler.handleCall()
-            self.teams = try await NetworkHandler.getTeams()
-            self.currentLiveInfo = try await NetworkHandler.getLiveSnapshot()
+            async let liveInfo = NetworkHandler.getLiveSnapshot(debug: appStorage.debugMode)
+            self.currentLiveInfo = try await liveInfo
+            async let result = NetworkHandler.handleCall(debug: appStorage.debugMode)
+            async let teams = NetworkHandler.getTeams(debug: appStorage.debugMode)
+            self.teams = try await teams
             webSocketTask = nil
-            webSocketTask = NetworkHandler.connectWebSocketForLive()
+            webSocketTask = NetworkHandler.connectWebSocketForLive(debug: appStorage.debugMode)
             webSocketTask?.resume()
             Task {
                 try await receiveMessages()
             }
-            setGames(result: result)
-            gameCache?.insert(result, for: "games")
+            setGames(result: try await result)
+            gameCache?.insert(try await result, for: "games")
             teamCache?.insert(self.teams, for: "teams")
+            if let liveInfo = currentLiveInfo {
+                liveCache?.insert(liveInfo, for: "live")
+            }
             try gameCache?.saveToDisk(with: "games")
             try teamCache?.saveToDisk(with: "teams")
+            try liveCache?.saveToDisk(with: "live")
             
             networkState = .loaded
             restartTimer = nil
@@ -144,7 +163,7 @@ import ActivityKit
             print(e)
             print(e.localizedDescription)
             networkState = .failed
-            restartTimer = .init(timeInterval: 10, target: self, selector: #selector(getData), userInfo: nil, repeats: true)
+            restartTimer = .init(timeInterval: 5, target: self, selector: #selector(getData), userInfo: nil, repeats: true)
         }
     }
 
@@ -155,7 +174,9 @@ import ActivityKit
             switch webSocketMessage {
             case .string(let jsonString):
                 if let jsonData = jsonString.data(using: .utf8) {
-                    let newLiveInfo = try JSONDecoder().decode(LiveScore.self, from: jsonData)
+                    var newLiveInfo = try JSONDecoder().decode(LiveScore.self, from: jsonData)
+                    newLiveInfo.removeNonStarting()
+                    newLiveInfo.removeOtherInfo()
                     withAnimation {
                         if let currentLiveInfo = currentLiveInfo, currentLiveInfo != newLiveInfo {
                             self.currentLiveInfo = newLiveInfo
@@ -165,7 +186,9 @@ import ActivityKit
                     }
                     #if canImport(ActivityKit)
                     if #available(iOS 16.1, *) {
-                        try await updateLiveActivities()
+                        Task { @MainActor in
+                            try await updateLiveActivities()
+                        }
                     }
                     #endif
                 }
@@ -226,10 +249,12 @@ import ActivityKit
         }
         filteredGames = allGames
             .filter({ game -> Bool in
-                guard let date = game.getDate() else { return false }
+                guard let date = game.isoDate else { return false }
                 if appStorage.hidePastEvents {
-                    //get the date components for the game and check it is greater than 0
-                    return date.timeIntervalSinceNow > 0
+//                    get the date components for the game and check it is greater than 0
+                    let gameIsWithinYesterday = Calendar.current.isDateInYesterday(game.isoDate ?? .now)
+                    let gameIsFarInPast = Calendar.current.dateComponents([.day], from: .now, to: game.isoDate ?? .now).day ?? 0 >= 0
+                    return game.isoDate?.timeIntervalSinceNow ?? -1 > 0
                 } else {
                     
                     var isValidForPastDuration: Bool = false
@@ -265,7 +290,7 @@ import ActivityKit
             .filter({ game -> Bool in
                 // filter to show correct duration or if its in the past
                 var isValidForFutureDuration: Bool = false
-                guard let date = game.getDate() else { return false }
+                guard let date = game.isoDate else { return false }
 
                 switch appStorage.durations {
                 case .oneWeek:
@@ -298,6 +323,9 @@ import ActivityKit
                 return isValidForFutureDuration
                 
             })
+        filteredGames?.sort(by: { lhs, rhs in
+            lhs.isoDate ?? .now < rhs.isoDate ?? .now
+        })
         print("⚠️ total amount of games, \(totalGames?.count) filtered result \(filteredGames?.count)")
         handleSearch(searchString: searchString)
         sortByDate()
@@ -305,15 +333,12 @@ import ActivityKit
     }
     func sortByDate() {
         let groupDic = Dictionary(grouping: filteredGames ?? []) { game -> DateComponents in
-            let gameDate = game.getDate() ?? .now
+            let gameDate = game.isoDate ?? .now
             let date2 = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: gameDate)
             return date2
         }
         let sorted = groupDic.sorted(by: {
-            if appStorage.soonestOnTop {
-                return $0.key.date! < $1.key.date!
-            }
-            return $0.key.date! > $1.key.date!
+            return $0.key.date! < $1.key.date!
         })
         var newDict: [DateComponents: [Game]] = [:]
         for sort in sorted {
@@ -370,7 +395,7 @@ extension GameViewModel {
         for activity in Activity<LiveSportActivityAttributes>.activities {
             for await data in activity.pushTokenUpdates {
                 let myToken = data.map { String(format: "%02x", $0)}.joined()
-                try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID)
+                try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID, debug: appStorage.debugMode)
             }
             let currentState = activity.contentState
             let currentAttributes = activity.attributes

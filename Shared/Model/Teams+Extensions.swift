@@ -15,3 +15,9 @@ extension Team {
         }
     }
 }
+
+extension Game {
+    var isoDate: Date? {
+        self.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter)
+    }
+}

@@ -54,10 +54,11 @@ public class SubscriptionManager: ObservableObject {
     }
     
     private func processInfo(info: Purchases.PurchaserInfo?) {
-        #if DEBUG
-//        subscriptionStatus = .subscribed
-//        return
-        #endif
+        
+        if let _ = ProcessInfo.processInfo.environment["mock-subscribed"] {
+            subscriptionStatus = .subscribed
+            return
+        }
         if info?.entitlements.all["Pro"]?.isActive == true {
             subscriptionStatus = .subscribed
         } else {

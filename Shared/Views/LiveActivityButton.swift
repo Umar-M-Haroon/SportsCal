@@ -18,12 +18,16 @@ struct LiveActivityButton: View {
     @State var homeData: Data?
     @State var awayData: Data?
     @State var sportActivity: Activity<LiveSportActivityAttributes>!
+    @Binding var activityState: LiveActivityStatus
 //    @Binding var activeLiveActivities: [Activity<LiveSportActivityAttributes>]
     var body: some View {
         Button {
             if let homeBadgeString = homeTeam.strTeamBadge,  let homeBadgeURL = URL(string: homeBadgeString + "/preview"), let awayBadgeString = awayTeam.strTeamBadge,  let awayBadgeURL = URL(string: awayBadgeString + "/preview") {
-                Task(priority: .high) {
+                Task(priority: .userInitiated) { @MainActor in
                     do {
+                        withAnimation {
+                            activityState = .loading
+                        }
                         (homeData, _) = try await URLSession.shared.data(for: URLRequest(url: homeBadgeURL, cachePolicy: .returnCacheDataElseLoad))
                         (awayData, _) = try await URLSession.shared.data(for: URLRequest(url: awayBadgeURL, cachePolicy: .returnCacheDataElseLoad))
                         
@@ -39,7 +43,13 @@ struct LiveActivityButton: View {
                         sportActivity = try Activity.request(attributes: activityAttributes, contentState: initialContentState, pushType: .token)
                         if let token = sportActivity.pushToken, let eventID = game.idEvent {
                             let tokenString = token.map { String(format: "%02x", $0)}.joined()
-                            try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID)
+                            try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID, debug: UserDefaultStorage().debugMode)
+                            withAnimation {
+                                activityState = .added
+                            }
+                        }
+                        withAnimation {
+                            activityState = .added
                         }
                         
                     } catch let error {

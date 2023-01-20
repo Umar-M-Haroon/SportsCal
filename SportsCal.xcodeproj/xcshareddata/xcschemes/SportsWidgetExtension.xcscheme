@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "1320"
+   LastUpgradeVersion = "1410"
    wasCreatedForAppExtension = "YES"
    version = "2.0">
    <BuildAction
@@ -67,6 +67,18 @@
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES"
       launchAutomaticallySubstyle = "2">
+      <RemoteRunnable
+         runnableDebuggingMode = "1"
+         BundleIdentifier = "com.apple.widgetkit.simulator"
+         RemotePath = "/System/Library/CoreServices/WidgetKit Simulator.app/Contents/MacOS/WidgetKit Simulator">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "1DE16FF426F29D4A007B1B57"
+            BuildableName = "SportsWidgetExtension.appex"
+            BlueprintName = "SportsWidgetExtension"
+            ReferencedContainer = "container:SportsCal.xcodeproj">
+         </BuildableReference>
+      </RemoteRunnable>
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"

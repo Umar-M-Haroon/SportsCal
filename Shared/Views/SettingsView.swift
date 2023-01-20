@@ -12,8 +12,6 @@ import SportsCalModel
 
 struct SettingsView: View {
     @EnvironmentObject var appStorage: UserDefaultStorage
-//    @AppStorage("dateFormatString") var dateFormatString: String = "E, dd.MM.yy"
-//    @AppStorage("duration") var durations: Durations = .oneWeek
     var subscriptionManager = SubscriptionManager.shared
     @Binding var sheetType: SheetType?
     var body: some View {
@@ -22,6 +20,10 @@ struct SettingsView: View {
                 NavigationLink("SportsCal Pro") {
                     SubscriptionPage(selectedProduct: subscriptionManager.monthlySubscription)
                         .environmentObject(subscriptionManager)
+                }
+                NavigationLink("Visible soccer competitions") {
+                    CompetitionPage(competitions: Leagues.allCases.filter({!$0.isSoccer}).map({$0.leagueName}))
+                        .environmentObject(appStorage)
                 }
                 Section(header: Text("SportsCal Pro Options")) {
                     HStack {
@@ -60,10 +62,6 @@ struct SettingsView: View {
                         .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                     Toggle("Show countdown", isOn: appStorage.$showStartTime)
                         .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
-                    NavigationLink("Show soccer competitions") {
-                        CompetitionPage(competitions: Leagues.allCases.filter({!$0.isSoccer}).map({$0.leagueName}))
-                            .environmentObject(appStorage)
-                    }
                     .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
                 }
                 Section(header: Text("Scores")) {
