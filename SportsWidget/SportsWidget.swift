@@ -184,36 +184,6 @@ struct SportsWidget_Previews: PreviewProvider {
     }
 }
 
-struct SportsTint: ViewModifier {
-    let sport: SportType
-    func body(content: Content) -> some View {
-        if sport == .basketball {
-            content
-                .foregroundColor(.orange)
-                .background(.black, in: Circle())
-        }
-        if sport == .mlb {
-            content
-                .foregroundColor(.white)
-                .background(.red, in: Circle())
-                .overlay(
-                    Circle()
-                        .strokeBorder(Color.secondary, lineWidth: 1, antialiased: true)
-                )
-        }
-        if sport == .nfl {
-            content
-                .foregroundColor(.brown)
-        }
-        if sport == .hockey {
-            content
-        }
-        if sport == .soccer {
-            content
-        }
-    }
-}
-
 struct WidgetTeamView: View {
     var shortName: String?
     var longName: String?

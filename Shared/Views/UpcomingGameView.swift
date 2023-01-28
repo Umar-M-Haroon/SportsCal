@@ -27,8 +27,8 @@ struct UpcomingGameView: View {
             IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: false, isAway: true)
             .frame(maxWidth: .infinity)
             VStack(alignment: .center, spacing: 8) {
-                if showCountdown {
-                    Text(timeString)
+                if showCountdown, let formatter = Date.RelativeFormatStyle(presentation: .numeric, capitalizationContext: .beginningOfSentence), let date = game.isoDate {
+                    Text(formatter.format(date))
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.medium)
                         .accessibilityValue(accessibilityLabel)
@@ -40,8 +40,8 @@ struct UpcomingGameView: View {
                                 timeString = formatCountdown()
                             }
                         }
-                } else if isFavorite, let isoDate = game.isoDate, let result = isoDate.formatToDate(dateFormat: dateFormat) {
-                    Text(verbatim: result)
+                } else if isFavorite, let isoDate = game.isoDate {
+                    Text(isoDate.formatted(.dateTime.hour().minute()))
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.medium)
                         .accessibilityValue(accessibilityLabel)

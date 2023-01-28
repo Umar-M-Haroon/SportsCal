@@ -62,17 +62,13 @@ struct ContentView: View {
     @State var searchString: String = ""
     @State var shouldShowPromo: Bool = false
     @State var activityState: LiveActivityStatus = .none
+    @State var isListLayout: Bool = true
     var body: some View {
         NavigationView {
             Group {
                 Section {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            ForEach(SportType.allCases, id: \.self) { sport in
-                                SportsFilterView(sport: sport, shouldShowPromoCount: $shouldShowPromo, appStorage: storage)
-                            }
-                        }
-                    }
+                  SportsSelectView()
+//                    SportsSelectView(shouldShowPromo: $shouldShowPromo, appStorage: storage)
                 }  footer: {
                     if shouldShowPromo {
                         HStack {
@@ -98,7 +94,7 @@ struct ContentView: View {
                         if let liveEvents = viewModel.liveEvents, !liveEvents.isEmpty {
                             Section {
                                 ForEach(liveEvents) { event in
-                                    if let homeScore = Int(event.intHomeScore ?? ""), let awayScore = Int(event.intAwayScore ?? ""), let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: event.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: event.idAwayTeam) {
+                                    if let homeScore = Int(event.intHomeScore ?? ""), let awayScore = Int(event.intAwayScore ?? ""), let homeTeam = Team.getTeamInfoFrom(teamDict: viewModel.teamsDict, teamID: event.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teamDict: viewModel.teamsDict, teamID: event.idAwayTeam) {
                                         GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState, isLive: true)
                                     }
                                 }
@@ -165,6 +161,12 @@ struct ContentView: View {
                 sheetType = .settings
             }, label: {
                 Image(systemName: "gear")
+            }), trailing: Button(action: {
+                withAnimation {
+                    isListLayout.toggle()
+                }
+            }, label: {
+                Image(systemName: isListLayout ? "square.grid.2x2" : "list.bullet")
             }))
             .sheet(item: $sheetType) { sheetType in
                 switch sheetType {

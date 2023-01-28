@@ -36,6 +36,9 @@
 		1D5C463726C9FB5000BA827B /* SettingsData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463626C9FB5000BA827B /* SettingsData.swift */; };
 		1D5C463A26C9FD0800BA827B /* OnboardingPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463926C9FD0800BA827B /* OnboardingPage.swift */; };
 		1D63E71926A9494800FC3DE6 /* Date+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */; };
+		1D77F64B297CFDCC0023E6DB /* SportsTint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D77F64A297CFDCC0023E6DB /* SportsTint.swift */; };
+		1D77F64C297CFDCC0023E6DB /* SportsTint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D77F64A297CFDCC0023E6DB /* SportsTint.swift */; };
+		1D77F64D297D161A0023E6DB /* SportsSelectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D77F647297CAFCE0023E6DB /* SportsSelectView.swift */; };
 		1D79FFBB26C9B0A40041A673 /* Purchases in Frameworks */ = {isa = PBXBuildFile; productRef = 1D79FFBA26C9B0A40041A673 /* Purchases */; };
 		1D79FFC026C9B3480041A673 /* SubscriptionPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D79FFBF26C9B3480041A673 /* SubscriptionPage.swift */; };
 		1D7DC236270192610086A6D5 /* NetworkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76E1268EFC0500D217A1 /* NetworkHandler.swift */; };
@@ -170,6 +173,8 @@
 		1D5C463626C9FB5000BA827B /* SettingsData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsData.swift; sourceTree = "<group>"; };
 		1D5C463926C9FD0800BA827B /* OnboardingPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPage.swift; sourceTree = "<group>"; };
 		1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Extensions.swift"; sourceTree = "<group>"; };
+		1D77F647297CAFCE0023E6DB /* SportsSelectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsSelectView.swift; sourceTree = "<group>"; };
+		1D77F64A297CFDCC0023E6DB /* SportsTint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsTint.swift; sourceTree = "<group>"; };
 		1D79FFBF26C9B3480041A673 /* SubscriptionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionPage.swift; sourceTree = "<group>"; };
 		1D8352D42905532D00E60D7F /* DateFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormatters.swift; sourceTree = "<group>"; };
 		1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DummySubscriptionOptionView.swift; sourceTree = "<group>"; };
@@ -284,6 +289,8 @@
 		1D486AFE28A833280024BC32 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				1D77F64A297CFDCC0023E6DB /* SportsTint.swift */,
+				1D77F647297CAFCE0023E6DB /* SportsSelectView.swift */,
 				1D20B33A2928C45A00956B14 /* PickSportPage.swift */,
 				1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */,
 				1D3DD52D27FBEF310086DD9E /* CompetitionPage.swift */,
@@ -688,6 +695,7 @@
 				1D20B339292893DD00956B14 /* GameManager.swift in Sources */,
 				1D2C79F1291A2EBA00E25E82 /* GameFormatter.swift in Sources */,
 				1DE1F0C32941B98100741B19 /* SportsWidgetRectangularView.swift in Sources */,
+				1D77F64C297CFDCC0023E6DB /* SportsTint.swift in Sources */,
 				1D7DC236270192610086A6D5 /* NetworkHandler.swift in Sources */,
 				1DE16FFC26F29D4A007B1B57 /* SportsWidget.swift in Sources */,
 				1DE1700126F29D4B007B1B57 /* SportsWidget.intentdefinition in Sources */,
@@ -743,6 +751,7 @@
 				1D9D2CF027702FFB00735AF0 /* FavoriteButtonView.swift in Sources */,
 				1D408093290BA23100729FFE /* LiveActivityButton.swift in Sources */,
 				1DEC76CF268EFB6700D217A1 /* ContentView.swift in Sources */,
+				1D77F64D297D161A0023E6DB /* SportsSelectView.swift in Sources */,
 				1D5C463A26C9FD0800BA827B /* OnboardingPage.swift in Sources */,
 				1DE1F0BD2940590000741B19 /* LiveActivityStatusView.swift in Sources */,
 				1D20B33D2929D8C900956B14 /* MiniSubscriptionPage.swift in Sources */,
@@ -772,6 +781,7 @@
 				1D408088290B610200729FFE /* GameFormatter.swift in Sources */,
 				1D5C463426C9F10400BA827B /* Confetti.swift in Sources */,
 				1DCEBF0526C045B200913A94 /* SettingsView.swift in Sources */,
+				1D77F64B297CFDCC0023E6DB /* SportsTint.swift in Sources */,
 				1DF489B22737693F00A20512 /* Constants.swift in Sources */,
 				1DF1FD942741EFA800783E62 /* UserDefaultStorage.swift in Sources */,
 				1D1239A026D0D180001B503E /* LocalNotificationManager.swift in Sources */,

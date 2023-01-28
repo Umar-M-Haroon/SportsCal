@@ -123,7 +123,7 @@ class Provider: IntentTimelineProvider {
         var entries: [SimpleEntry] = []
         let currentDate = Date()
         var (games, teams) = await handleNetworking(favoriteOnly: configuration.favoritesOnly?.boolValue ?? false, type: configurationToString(configuration: configuration))
-        if let league = configuration.SoccerLeague, configuration.GameType == .soccer {
+        if let league = configuration.SoccerLeague, configuration.GameType == .soccer, league != "All Leagues" {
             games = games.filter({ Leagues(rawValue: Int($0.idLeague ?? "") ?? 0)?.leagueName == league })
         }
         let entryDate = Calendar.current.date(byAdding: .minute, value: 30, to: currentDate)

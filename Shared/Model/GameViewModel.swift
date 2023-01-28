@@ -47,6 +47,11 @@ import ActivityKit
         }
         if let cacheTeams = teamCache?.value(for: "teams") {
             self.teams = cacheTeams
+            var teamsDict = Dictionary(grouping: self.teams, by: \.idTeam)
+            teamsDict = teamsDict.mapValues { teams in
+                return Array(Set(teams))
+            }
+            self.teamsDict = teamsDict
         }
         if let liveInfo = liveCache?.value(for: "live") {
             self.currentLiveInfo = liveInfo
@@ -63,6 +68,7 @@ import ActivityKit
     @Published var appStorage: UserDefaultStorage
     var favorites: Favorites
     var teams: [Team] = []
+    var teamsDict: [String? : [Team]] = [:]
     @Published var totalGames: [Game]?
     @Published var filteredGames: [Game]?
     @Published var teamString: String? = ""
@@ -356,8 +362,8 @@ import ActivityKit
             filteredGames = filteredGames?
                 .compactMap({$0})
                 .filter({ game in
-                    let homeTeam = Team.getTeamInfoFrom(teams: self.teams, teamID: game.idHomeTeam)
-                    let awayTeam = Team.getTeamInfoFrom(teams: self.teams, teamID: game.idAwayTeam)
+                    let homeTeam = Team.getTeamInfoFrom(teamDict: self.teamsDict, teamID: game.idHomeTeam)
+                    let awayTeam = Team.getTeamInfoFrom(teamDict: self.teamsDict, teamID: game.idAwayTeam)
                     return (homeTeam?.strTeamShort ?? "").contains(searchString) ||
                     (homeTeam?.strTeam ?? "").contains(searchString) ||
                     (awayTeam?.strTeamShort ?? "").contains(searchString) ||

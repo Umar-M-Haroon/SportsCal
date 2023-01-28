@@ -57,31 +57,28 @@ struct SportsFilterView: View {
         } label: {
             HStack {
                 Image(systemName: sportToSystemImage())
-                    .font(.footnote)
-//                    .modifier(SportsTint(sport: sport))
-                Text(sport.capitalized)
-                    .font(.footnote)
-                    .bold()
+                    .font(.title3)
+                    .modifier(SportsTint(sport: sport))
             }
-
         }
         .buttonBorderStyle(isDisabled())
         .buttonBorderShape(.capsule)
+        .buttonStyle(SportsButtonStyle())
 //        .padding(6)
     }
     
     func sportToSystemImage() -> String {
         switch sport {
         case .soccer:
-            return "soccerball.inverse"
+            return "soccerball"
         case .basketball:
-            return "basketball"
+            return "basketball.fill"
         case .hockey:
-            return "hockey.puck"
+            return "hockey.puck.fill"
         case .mlb:
-            return "baseball"
+            return "baseball.fill"
         case .nfl:
-            return "football"
+            return "football.fill"
         }
     }
     
@@ -110,6 +107,14 @@ extension Button {
         } else {
             self.buttonStyle(BorderedButtonStyle())
         }
+    }
+}
+
+struct SportsButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 1.3 : 1)
+//            .animation(.spring(), value: configuration.isPressed)
     }
 }
 
