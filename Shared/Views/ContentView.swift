@@ -94,7 +94,10 @@ struct ContentView: View {
                         if let liveEvents = viewModel.liveEvents, !liveEvents.isEmpty {
                             Section {
                                 ForEach(liveEvents) { event in
-                                    if let homeScore = Int(event.intHomeScore ?? ""), let awayScore = Int(event.intAwayScore ?? ""), let homeTeam = Team.getTeamInfoFrom(teamDict: viewModel.teamsDict, teamID: event.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teamDict: viewModel.teamsDict, teamID: event.idAwayTeam) {
+                                    if let homeScore = Int(event.intHomeScore ?? ""),
+                                       let awayScore = Int(event.intAwayScore ?? ""),
+                                       let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamName: event.strHomeTeam),
+                                       let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamName: event.strAwayTeam) {
                                         GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState, isLive: true)
                                     }
                                 }

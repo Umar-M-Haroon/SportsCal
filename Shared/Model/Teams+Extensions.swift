@@ -18,6 +18,12 @@ extension Team {
     static func getTeamInfoFrom(teamDict: [String?: [Team]], teamID: String?) -> Team? {
         return teamDict[teamID]?.first
     }
+    
+    static func getTeamInfoFrom(teams: [Team], teamName: String?) -> Team? {
+        return teams.first { team in
+            team.strTeam == teamName
+        }
+    }
 }
 
 extension Game {

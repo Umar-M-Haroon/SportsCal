@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import Combine
 import SportsCalModel
+import OrderedCollections
 #if canImport(ActivityKit)
 import ActivityKit
 #endif
@@ -88,12 +89,12 @@ import ActivityKit
         var games: [Game] = []
         if appStorage.shouldShowSoccer {
             var soccerGames = currentLiveInfo?.soccer?.events
-            soccerGames = soccerGames?.filter { game in
-                guard let leagueString = game.idLeague,
-                      let intLeague = Int(leagueString),
-                      let league = Leagues(rawValue: intLeague) else { return false }
-                return !league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
-            }
+//            soccerGames = soccerGames?.filter { game in
+//                guard let leagueString = game.idLeague,
+//                      let intLeague = Int(leagueString),
+//                      let league = Leagues(rawValue: intLeague) else { return false }
+//                return !league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+//            }
             games.append(contentsOf: soccerGames ?? [])
         }
         if appStorage.shouldShowMLB {
@@ -108,12 +109,12 @@ import ActivityKit
         }
         if appStorage.shouldShowNBA {
             var basketballGames = currentLiveInfo?.nba?.events
-            basketballGames?.removeAll(where: { game in
-                guard let leagueString = game.idLeague,
-                      let intLeague = Int(leagueString),
-                      let _ = Leagues(rawValue: intLeague) else { return true }
-                return false
-            })
+//            basketballGames?.removeAll(where: { game in
+//                guard let leagueString = game.idLeague,
+//                      let intLeague = Int(leagueString),
+//                      let _ = Leagues(rawValue: intLeague) else { return true }
+//                return false
+//            })
             games.append(contentsOf: basketballGames ?? [])
         }
         if appStorage.shouldShowNFL {
@@ -136,7 +137,7 @@ import ActivityKit
             })
             games.append(contentsOf: nhlGames ?? [])
         }
-        return games
+        return Array(OrderedSet(games))
     }
     
     @objc

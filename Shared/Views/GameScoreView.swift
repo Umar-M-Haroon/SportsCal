@@ -30,8 +30,11 @@ struct GameScoreView: View {
             IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: awayScore, isWinning: awayScore > homeScore, isAway: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
             VStack(spacing: 8) {
-                if let formatted = GameFormatter().string(for: game) {
-                    Text(formatted)
+                if let unformatted = game.strProgress {
+                    Text(unformatted)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text(game.strStatus ?? "")
                         .foregroundColor(.secondary)
                 }
                 Menu {
