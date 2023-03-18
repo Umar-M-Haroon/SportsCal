@@ -89,12 +89,12 @@ import ActivityKit
         var games: [Game] = []
         if appStorage.shouldShowSoccer {
             var soccerGames = currentLiveInfo?.soccer?.events
-//            soccerGames = soccerGames?.filter { game in
-//                guard let leagueString = game.idLeague,
-//                      let intLeague = Int(leagueString),
-//                      let league = Leagues(rawValue: intLeague) else { return false }
-//                return !league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
-//            }
+            soccerGames = soccerGames?.filter { game in
+                guard let leagueString = game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let league = Leagues(rawValue: intLeague) else { return false }
+                return !league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+            }
             games.append(contentsOf: soccerGames ?? [])
         }
         if appStorage.shouldShowMLB {

@@ -8,7 +8,7 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "094E2A2A-0FE7-47A3-AF4E-8A516FF631EF"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             condition = "game.isoDate?.timeIntervalSinceNow ?? -1 &gt; 0"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
@@ -239,8 +239,8 @@
             filePath = "Shared/NetworkHandler.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "41"
-            endingLineNumber = "41"
+            startingLineNumber = "40"
+            endingLineNumber = "40"
             landmarkName = "getScheduleFor(sport:debug:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -255,8 +255,8 @@
             filePath = "Shared/NetworkHandler.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "44"
-            endingLineNumber = "44"
+            startingLineNumber = "43"
+            endingLineNumber = "43"
             landmarkName = "getScheduleFor(sport:debug:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -271,8 +271,8 @@
             filePath = "Shared/NetworkHandler.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "50"
-            endingLineNumber = "50"
+            startingLineNumber = "49"
+            endingLineNumber = "49"
             landmarkName = "getScheduleFor(sport:debug:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -328,22 +328,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "73DC8AE5-6502-49E2-8FDE-C210B6294D11"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "Shared/NetworkHandler.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "35"
-            endingLineNumber = "35"
-            landmarkName = "handleCall(debug:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "12C4A9AA-49F0-4854-B389-6449EFA83880"
             shouldBeEnabled = "No"
             ignoreCount = "0"
@@ -367,8 +351,8 @@
             filePath = "Shared/NetworkHandler.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "95"
-            endingLineNumber = "95"
+            startingLineNumber = "94"
+            endingLineNumber = "94"
             landmarkName = "connectWebSocketForLive(debug:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -383,8 +367,8 @@
             filePath = "Shared/NetworkHandler.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "99"
-            endingLineNumber = "99"
+            startingLineNumber = "98"
+            endingLineNumber = "98"
             landmarkName = "connectWebSocketForLive(debug:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -399,8 +383,8 @@
             filePath = "Shared/NetworkHandler.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "102"
-            endingLineNumber = "102"
+            startingLineNumber = "101"
+            endingLineNumber = "101"
             landmarkName = "connectWebSocketForLive(debug:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -632,6 +616,882 @@
                   startingLineNumber = "130"
                   endingLineNumber = "130"
                   offsetFromSymbolStart = "1200">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "019F56A5-9097-4CF7-922B-D685B659C639"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Shared/NetworkHandler.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "81"
+            endingLineNumber = "81"
+            landmarkName = "getLiveSnapshot(debug:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "E317E89A-492D-4C31-974D-7DD4CCCE7E6F"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Shared/NetworkHandler.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "34"
+            endingLineNumber = "34"
+            landmarkName = "handleCall(debug:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Shared/Model/GameViewModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "149"
+            endingLineNumber = "149"
+            landmarkName = "getData()"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - 29b7505acb6166c2"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(3) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "356">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - 37199f8776b9a5f2"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(11) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - ab55a1165ceb11f6"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(15) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "88">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - ee1eaa982de5d8a"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(19) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - bf5016bd87b4a3f1"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(23) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "132">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - 6cb63b041a8d45f7"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(25) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - c0c27c9740f0b18b"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(29) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "132">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - abae7a073cc1a2f1"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(32) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - ffb83966134eef5"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(36) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "132">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - bdd1a05ef40db08b"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(38) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - 6d80cc72fae216f6"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(42) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "132">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - 13e6f13d4dfcb8f4"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(44) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - 77323a4cb22fe488"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(48) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "132">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - 718b019825aba0f1"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(50) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - d5c74b2b0b9eecf5"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(54) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "132">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - 2d395d4c8fa2d68d"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for implicit closure #3 @Sendable () async throws -&gt; Swift.Array&lt;SportsCalModel.Team&gt; in SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "44">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - 8b061a0694363482"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(2) suspend resume partial function for implicit closure #3 @Sendable () async throws -&gt; Swift.Array&lt;SportsCalModel.Team&gt; in SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "20">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - d163d6c09abb9a83"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(3) suspend resume partial function for implicit closure #3 @Sendable () async throws -&gt; Swift.Array&lt;SportsCalModel.Team&gt; in SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "44">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - 4dbe19835e948ad"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(4) await resume partial function for implicit closure #3 @Sendable () async throws -&gt; Swift.Array&lt;SportsCalModel.Team&gt; in SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "56">
+               </Location>
+               <Location
+                  uuid = "EF1D1B30-51FD-48F3-B69E-77D03DF94B38 - 84ac48b4e5945e81"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(5) suspend resume partial function for implicit closure #3 @Sendable () async throws -&gt; Swift.Array&lt;SportsCalModel.Team&gt; in SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "28">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "9E61B95E-E715-4D43-9526-D38290028237"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Shared/Model/GameViewModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "158"
+            endingLineNumber = "158"
+            landmarkName = "getData()"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "9E61B95E-E715-4D43-9526-D38290028237 - 41587c17b2d4d53f"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(7) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "158"
+                  endingLineNumber = "158"
+                  offsetFromSymbolStart = "320">
+               </Location>
+               <Location
+                  uuid = "9E61B95E-E715-4D43-9526-D38290028237 - 9e8db9241b78003e"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(8) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "158"
+                  endingLineNumber = "158"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "9E61B95E-E715-4D43-9526-D38290028237 - d4f1f632c5ed733d"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(9) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "158"
+                  endingLineNumber = "158"
+                  offsetFromSymbolStart = "220">
+               </Location>
+               <Location
+                  uuid = "9E61B95E-E715-4D43-9526-D38290028237 - fa4855bca9f71f0a"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(30) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "158"
+                  endingLineNumber = "158"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "9E61B95E-E715-4D43-9526-D38290028237 - c35b4be0f27c4a09"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(31) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "158"
+                  endingLineNumber = "158"
+                  offsetFromSymbolStart = "28">
+               </Location>
+               <Location
+                  uuid = "9E61B95E-E715-4D43-9526-D38290028237 - abae7a073cc1a2f1"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(32) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "149"
+                  endingLineNumber = "149"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "9E61B95E-E715-4D43-9526-D38290028237 - 70b168ab4555100f"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(33) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "158"
+                  endingLineNumber = "158"
+                  offsetFromSymbolStart = "28">
+               </Location>
+               <Location
+                  uuid = "9E61B95E-E715-4D43-9526-D38290028237 - 59859ecf8fda44d4"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(34) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "9E61B95E-E715-4D43-9526-D38290028237 - 26e88d73d8afbe0d"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(35) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "158"
+                  endingLineNumber = "158"
+                  offsetFromSymbolStart = "28">
+               </Location>
+               <Location
+                  uuid = "9E61B95E-E715-4D43-9526-D38290028237 - ffb83966134ee90"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(36) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "146"
+                  endingLineNumber = "146"
+                  offsetFromSymbolStart = "96">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "0FB8FE75-5546-4B22-A910-2F3EB7BB18E0"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Shared/Model/GameViewModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "212"
+            endingLineNumber = "212"
+            landmarkName = "setGames(result:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Shared/Model/GameViewModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "148"
+            endingLineNumber = "148"
+            landmarkName = "getData()"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7 - 29b7505acb6166e1"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(3) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "228">
+               </Location>
+               <Location
+                  uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7 - e57fbc4fc9924fd3"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(13) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7 - 97af1f5345a19d0"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(21) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7 - 12ec5fccede7efd6"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(27) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7 - 59859ecf8fda44d4"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(34) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7 - bfaaafaa67894cd3"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(40) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7 - c1dc158420d542a9"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(46) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7 - 27e12660b8844ad4"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(52) suspend resume partial function for SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7 - 474314d519497e55"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for implicit closure #2 @Sendable () async throws -&gt; SportsCalModel.LiveScore in SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "44">
+               </Location>
+               <Location
+                  uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7 - e209637af8e85028"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(2) suspend resume partial function for implicit closure #2 @Sendable () async throws -&gt; SportsCalModel.LiveScore in SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "20">
+               </Location>
+               <Location
+                  uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7 - 89f0e9a256170a2f"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(3) suspend resume partial function for implicit closure #2 @Sendable () async throws -&gt; SportsCalModel.LiveScore in SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "44">
+               </Location>
+               <Location
+                  uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7 - 94196679c5435ce1"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(4) await resume partial function for implicit closure #2 @Sendable () async throws -&gt; SportsCalModel.LiveScore in SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "52">
+               </Location>
+               <Location
+                  uuid = "D554173B-2F41-4FE2-B1E8-D877935D9FB7 - b06dfe7394d6d639"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(5) suspend resume partial function for implicit closure #2 @Sendable () async throws -&gt; SportsCalModel.LiveScore in SportsCal.GameViewModel.getData() async -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "148"
+                  endingLineNumber = "148"
+                  offsetFromSymbolStart = "28">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "9537BD3E-3DC3-4B0C-8AC1-EE774A7A2AF2"
+            shouldBeEnabled = "Yes"
+            condition = "intEventScore == 666733"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "../../Library/Developer/Xcode/DerivedData/SportsCal-bwftitbbcuwdxrcdvobjfdybhsde/SourcePackages/checkouts/SportsCalModel/Sources/SportsCalModel/MainAPI/LiveEvent.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "55"
+            endingLineNumber = "55"
+            landmarkName = "init(idLiveScore:idEvent:strSport:idLeague:strLeague:idHomeTeam:idAwayTeam:strHomeTeam:strAwayTeam:strHomeTeamBadge:strAwayTeamBadge:intHomeScore:intAwayScore:strPlayer:idPlayer:intEventScore:intEventScoreTotal:strStatus:strProgress:strEventTime:dateEvent:updated:strTimestamp:lastPlay:isCompleted:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "C6D13064-62D8-4350-94DD-E70B56051C50"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Shared/Model/GameViewModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "93"
+            endingLineNumber = "93"
+            landmarkName = "liveEvents"
+            landmarkType = "24">
+            <Locations>
+               <Location
+                  uuid = "C6D13064-62D8-4350-94DD-E70B56051C50 - c383e33671d95f7"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #1 (SportsCalModel.Game) -&gt; Swift.Bool in SportsCal.GameViewModel.liveEvents.getter : Swift.Array&lt;SportsCalModel.Game&gt;"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "93"
+                  endingLineNumber = "93"
+                  offsetFromSymbolStart = "64">
+               </Location>
+               <Location
+                  uuid = "C6D13064-62D8-4350-94DD-E70B56051C50 - c383e33671d95f7"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #1 (SportsCalModel.Game) -&gt; Swift.Bool in SportsCal.GameViewModel.liveEvents.getter : Swift.Array&lt;SportsCalModel.Game&gt;"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "93"
+                  endingLineNumber = "93"
+                  offsetFromSymbolStart = "100">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "41D7EC12-E4B7-41E2-B254-5E0B59A34736"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Shared/Model/GameViewModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "98"
+            endingLineNumber = "98"
+            landmarkName = "liveEvents"
+            landmarkType = "24">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "DD55DE9F-0A26-4E1F-8659-6DE0CB9827AC"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Shared/Views/ContentView.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "99"
+            endingLineNumber = "99"
+            landmarkName = "body"
+            landmarkType = "24">
+            <Locations>
+               <Location
+                  uuid = "DD55DE9F-0A26-4E1F-8659-6DE0CB9827AC - 1ea655bd8a3c531"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #1 (SportsCalModel.Game) -&gt; Swift.Optional&lt;SportsCal.GameScoreView&gt; in closure #1 () -&gt; SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt; in closure #3 () -&gt; SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt; in closure #1 () -&gt; SwiftUI.TupleView&lt;(SwiftUI.Section&lt;SwiftUI.EmptyView, SportsCal.SportsSelectView, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.HStack&lt;SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;, Swift.Optional&lt;SwiftUI.AnyView&gt;)&gt;&gt;, SwiftUI._ConditionalContent&lt;SwiftUI.List&lt;Swift.Never, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt;&gt;, SwiftUI.TupleView&lt;(SwiftUI.VStack&lt;Swift.Optional&lt;SwiftUI._ConditionalContent&lt;SwiftUI.ProgressView&lt;SwiftUI.EmptyView, SwiftUI.EmptyView&gt;, SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;&gt;, SwiftUI.Spacer)&gt;&gt;)&gt; in closure #1 () -&gt; &lt;&lt;opaque return type of SwiftUI.View.sheet&lt;&#x3c4;_0_0, &#x3c4;_0_1 where &#x3c4;_1_0: Swift.Identifiable, &#x3c4;_1_1: SwiftUI.View&gt;(item: SwiftUI.Binding&lt;Swift.Optional&lt;&#x3c4;_1_0&gt;&gt;, onDismiss: Swift.Optional&lt;() -&gt; ()&gt;, content: (&#x3c4;_1_0) -&gt; &#x3c4;_1_1) -&gt; some&gt;&gt;.0 in SportsCal.ContentView.body.getter : some"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Views/ContentView.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "99"
+                  endingLineNumber = "99"
+                  offsetFromSymbolStart = "764">
+               </Location>
+               <Location
+                  uuid = "DD55DE9F-0A26-4E1F-8659-6DE0CB9827AC - 1ea655bd8a3c531"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #1 (SportsCalModel.Game) -&gt; Swift.Optional&lt;SportsCal.GameScoreView&gt; in closure #1 () -&gt; SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt; in closure #3 () -&gt; SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt; in closure #1 () -&gt; SwiftUI.TupleView&lt;(SwiftUI.Section&lt;SwiftUI.EmptyView, SportsCal.SportsSelectView, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.HStack&lt;SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;, Swift.Optional&lt;SwiftUI.AnyView&gt;)&gt;&gt;, SwiftUI._ConditionalContent&lt;SwiftUI.List&lt;Swift.Never, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt;&gt;, SwiftUI.TupleView&lt;(SwiftUI.VStack&lt;Swift.Optional&lt;SwiftUI._ConditionalContent&lt;SwiftUI.ProgressView&lt;SwiftUI.EmptyView, SwiftUI.EmptyView&gt;, SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;&gt;, SwiftUI.Spacer)&gt;&gt;)&gt; in closure #1 () -&gt; &lt;&lt;opaque return type of SwiftUI.View.sheet&lt;&#x3c4;_0_0, &#x3c4;_0_1 where &#x3c4;_1_0: Swift.Identifiable, &#x3c4;_1_1: SwiftUI.View&gt;(item: SwiftUI.Binding&lt;Swift.Optional&lt;&#x3c4;_1_0&gt;&gt;, onDismiss: Swift.Optional&lt;() -&gt; ()&gt;, content: (&#x3c4;_1_0) -&gt; &#x3c4;_1_1) -&gt; some&gt;&gt;.0 in SportsCal.ContentView.body.getter : some"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Views/ContentView.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "99"
+                  endingLineNumber = "99"
+                  offsetFromSymbolStart = "932">
                </Location>
             </Locations>
          </BreakpointContent>

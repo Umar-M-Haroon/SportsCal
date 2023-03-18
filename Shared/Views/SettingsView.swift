@@ -14,12 +14,23 @@ struct SettingsView: View {
     @EnvironmentObject var appStorage: UserDefaultStorage
     var subscriptionManager = SubscriptionManager.shared
     @Binding var sheetType: SheetType?
+    var isTestFlight: Bool {
+        guard let path = Bundle.main.appStoreReceiptURL?.path else {
+            return false
+        }
+        return path.contains("sandboxReceipt")
+    }
     var body: some View {
         NavigationView {
             Form {
-                #if DEBUG
+#if DEBUG
                 Toggle("Debug Mode", isOn: appStorage.$debugMode)
-                #endif
+#endif
+                if isTestFlight {
+                    Text("You're on a TestFlight build")
+                        .font(.headline)
+                    Toggle("Debug Mode", isOn: appStorage.$debugMode)
+                }
                 NavigationLink("SportsCal Pro") {
                     SubscriptionPage(selectedProduct: subscriptionManager.monthlySubscription)
                         .environmentObject(subscriptionManager)
