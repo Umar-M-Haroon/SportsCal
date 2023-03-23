@@ -132,7 +132,7 @@ struct SettingsView: View {
             .onAppear {
                 dateFormats()
                 if isTestFlight {
-                    appStorage.$debugMode = true
+                    appStorage.debugMode = true
                 }
             }
         }
