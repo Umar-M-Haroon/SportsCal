@@ -27,7 +27,7 @@ struct SettingsView: View {
                 Toggle("Debug Mode", isOn: appStorage.$debugMode)
 #endif
                 if isTestFlight {
-                    Text("You're on a TestFlight build")
+                    Text("You're on a TestFlight build, debug mode is recommended for new features")
                         .font(.headline)
                     Toggle("Debug Mode", isOn: appStorage.$debugMode)
                 }
@@ -131,6 +131,9 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .onAppear {
                 dateFormats()
+                if isTestFlight {
+                    appStorage.$debugMode = true
+                }
             }
         }
     }

@@ -144,7 +144,7 @@ import ActivityKit
     private func getData() async {
         do {
             async let liveInfo = NetworkHandler.getLiveSnapshot(debug: appStorage.debugMode)
-            self.currentLiveInfo = try await liveInfo
+            self.currentLiveInfo = try? await liveInfo
             async let result = NetworkHandler.handleCall(debug: appStorage.debugMode)
             async let teams = NetworkHandler.getTeams(debug: appStorage.debugMode)
             self.teams = try await teams

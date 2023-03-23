@@ -59,7 +59,7 @@ struct LiveActivityButton: View {
                 
             }
         } label: {
-            Label("Add Live Activity", systemImage: "clock.badge")
+            Label("Follow", systemImage: "clock.badge")
         }
     }
 }

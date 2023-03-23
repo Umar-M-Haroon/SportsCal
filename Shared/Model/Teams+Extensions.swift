@@ -11,8 +11,11 @@ import SportsCalModel
 extension Team {
     @available(*, deprecated, message: "use Dictionary lookup")
     static func getTeamInfoFrom(teams: [Team], teamID: String?) -> Team? {
-        return teams.first { team in
-            team.idTeam == teamID
+        let defaultTeam = teams.first { team in
+            team.idTeam == teamID && team.strTeamShort != nil
+        }
+        return defaultTeam ?? teams.first { team in
+            team.idTeam == teamID 
         }
     }
     static func getTeamInfoFrom(teamDict: [String?: [Team]], teamID: String?) -> Team? {
@@ -21,7 +24,7 @@ extension Team {
     
     static func getTeamInfoFrom(teams: [Team], teamName: String?) -> Team? {
         return teams.first { team in
-            team.strTeam == teamName
+            team.strTeam == teamName && team.strTeamShort != nil
         }
     }
 }
