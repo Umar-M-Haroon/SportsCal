@@ -53,8 +53,7 @@ struct SportsWidgetMediumView: View {
                                             //                                                    .accessibilityLabel(accessibilityLabel)
                                                 .foregroundColor(.secondary)
                                         }
-                                        if let isoDate = game.isoDate,
-                                           let isoString = isoDate.formatToTime() {
+                                        if let isoString = game.isoDate?.formatToTime() {
                                             Text(isoString)
                                                 .font(.system(.subheadline, design: .monospaced))
                                                 .fontWeight(.medium)
