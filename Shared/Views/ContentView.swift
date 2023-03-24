@@ -131,6 +131,12 @@ struct ContentView: View {
                                             UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat)
                                                 .environmentObject(favorites)
                                         }
+                                    } else if Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idHomeTeam) == nil || Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idAwayTeam) == nil {
+                                        VStack {
+                                            Text("No game")
+                                            Text(game.strHomeTeam)
+                                            Text(game.strAwayTeam)
+                                        }
                                     }
                                 }
                             } header: {

@@ -7,7 +7,7 @@
 
 import SwiftUI
 import SportsCalModel
-import CachedAsyncImage
+import NukeUI
 struct IndividualTeamView: View {
     var teamURL: String?
     var shortName: String?
@@ -30,12 +30,14 @@ struct IndividualTeamView: View {
                             .foregroundColor(.secondary)
                     }
                     if let teamURL {
-                        CachedAsyncImage(url: URL(string: "\(teamURL)/preview")) { image in
-                            image.resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 40, height: 40)
-                        } placeholder: {
-                            ProgressView()
+                        LazyImage(request: ImageRequest(url: URL(string: "\(teamURL)/preview"), processors: [.resize(size: CGSize(width: 40, height: 40))])) { state in
+                            if let image = state.image {
+                                image.resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 40, height: 40)
+                            } else {
+                                ProgressView()
+                            }
                         }
                     }
                     if let data, let image = UIImage(data: data) {
@@ -46,12 +48,14 @@ struct IndividualTeamView: View {
                     }
                 } else {
                     if let teamURL {
-                        CachedAsyncImage(url: URL(string: "\(teamURL)/preview")) { image in
-                            image.resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 40, height: 40)
-                        } placeholder: {
-                            ProgressView()
+                        LazyImage(request: ImageRequest(url: URL(string: "\(teamURL)/preview"), processors: [.resize(size: CGSize(width: 40, height: 40))])) { state in
+                            if let image = state.image {
+                                image.resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 40, height: 40)
+                            } else {
+                                ProgressView()
+                            }
                         }
                     } else if let data, let image = UIImage(data: data) {
                         Image(uiImage: image)

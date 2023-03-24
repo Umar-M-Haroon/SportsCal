@@ -6,7 +6,6 @@
 //
 import SwiftUI
 import SportsCalModel
-import CachedAsyncImage
 
 struct UpcomingGameView: View {
     var homeTeam: Team 

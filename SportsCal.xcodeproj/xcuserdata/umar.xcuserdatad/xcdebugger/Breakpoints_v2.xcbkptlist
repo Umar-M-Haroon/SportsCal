@@ -153,7 +153,7 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "5DBB658F-7113-405C-A748-5CA35B5BE416"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "Shared/Model/GameViewModel.swift"
@@ -163,6 +163,38 @@
             endingLineNumber = "252"
             landmarkName = "filterSports(searchString:force:)"
             landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "5DBB658F-7113-405C-A748-5CA35B5BE416 - 9751a1beea706cb9"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "SportsCal.GameViewModel.filterSports(searchString: Swift.Optional&lt;Swift.String&gt;, force: Swift.Bool) -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "252"
+                  endingLineNumber = "252"
+                  offsetFromSymbolStart = "2040">
+               </Location>
+               <Location
+                  uuid = "5DBB658F-7113-405C-A748-5CA35B5BE416 - 9751a1beea706cb9"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "SportsCal.GameViewModel.filterSports(searchString: Swift.Optional&lt;Swift.String&gt;, force: Swift.Bool) -&gt; ()"
+                  moduleName = "SportsCal"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Model/GameViewModel.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "252"
+                  endingLineNumber = "252"
+                  offsetFromSymbolStart = "2056">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -456,54 +488,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "A25E0A47-C595-4924-935C-105C7ABC7D4F"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "Shared/Views/ContentView.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "97"
-            endingLineNumber = "97"
-            landmarkName = "body"
-            landmarkType = "24">
-            <Locations>
-               <Location
-                  uuid = "A25E0A47-C595-4924-935C-105C7ABC7D4F - 1ea655bd8a3c573"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #1 (SportsCalModel.Game) -&gt; Swift.Optional&lt;SportsCal.GameScoreView&gt; in closure #1 () -&gt; SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt; in closure #3 () -&gt; SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt; in closure #1 () -&gt; SwiftUI.TupleView&lt;(SwiftUI.Section&lt;SwiftUI.EmptyView, SportsCal.SportsSelectView, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.HStack&lt;SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;, Swift.Optional&lt;SwiftUI.AnyView&gt;)&gt;&gt;, SwiftUI._ConditionalContent&lt;SwiftUI.List&lt;Swift.Never, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt;&gt;, SwiftUI.TupleView&lt;(SwiftUI.VStack&lt;Swift.Optional&lt;SwiftUI._ConditionalContent&lt;SwiftUI.ProgressView&lt;SwiftUI.EmptyView, SwiftUI.EmptyView&gt;, SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;&gt;, SwiftUI.Spacer)&gt;&gt;)&gt; in closure #1 () -&gt; &lt;&lt;opaque return type of SwiftUI.View.sheet&lt;&#x3c4;_0_0, &#x3c4;_0_1 where &#x3c4;_1_0: Swift.Identifiable, &#x3c4;_1_1: SwiftUI.View&gt;(item: SwiftUI.Binding&lt;Swift.Optional&lt;&#x3c4;_1_0&gt;&gt;, onDismiss: Swift.Optional&lt;() -&gt; ()&gt;, content: (&#x3c4;_1_0) -&gt; &#x3c4;_1_1) -&gt; some&gt;&gt;.0 in SportsCal.ContentView.body.getter : some"
-                  moduleName = "SportsCal"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Views/ContentView.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "97"
-                  endingLineNumber = "97"
-                  offsetFromSymbolStart = "296">
-               </Location>
-               <Location
-                  uuid = "A25E0A47-C595-4924-935C-105C7ABC7D4F - 1ea655bd8a3c573"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #1 (SportsCalModel.Game) -&gt; Swift.Optional&lt;SportsCal.GameScoreView&gt; in closure #1 () -&gt; SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt; in closure #3 () -&gt; SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt; in closure #1 () -&gt; SwiftUI.TupleView&lt;(SwiftUI.Section&lt;SwiftUI.EmptyView, SportsCal.SportsSelectView, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.HStack&lt;SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;, Swift.Optional&lt;SwiftUI.AnyView&gt;)&gt;&gt;, SwiftUI._ConditionalContent&lt;SwiftUI.List&lt;Swift.Never, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt;&gt;, SwiftUI.TupleView&lt;(SwiftUI.VStack&lt;Swift.Optional&lt;SwiftUI._ConditionalContent&lt;SwiftUI.ProgressView&lt;SwiftUI.EmptyView, SwiftUI.EmptyView&gt;, SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;&gt;, SwiftUI.Spacer)&gt;&gt;)&gt; in closure #1 () -&gt; &lt;&lt;opaque return type of SwiftUI.View.sheet&lt;&#x3c4;_0_0, &#x3c4;_0_1 where &#x3c4;_1_0: Swift.Identifiable, &#x3c4;_1_1: SwiftUI.View&gt;(item: SwiftUI.Binding&lt;Swift.Optional&lt;&#x3c4;_1_0&gt;&gt;, onDismiss: Swift.Optional&lt;() -&gt; ()&gt;, content: (&#x3c4;_1_0) -&gt; &#x3c4;_1_1) -&gt; some&gt;&gt;.0 in SportsCal.ContentView.body.getter : some"
-                  moduleName = "SportsCal"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Views/ContentView.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "97"
-                  endingLineNumber = "97"
-                  offsetFromSymbolStart = "512">
-               </Location>
-            </Locations>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "0BC7D30C-FE05-4AF4-A38E-AC6EB260D5A8"
             shouldBeEnabled = "No"
             ignoreCount = "0"
@@ -531,93 +515,6 @@
             endingLineNumber = "235"
             landmarkName = "filterSports(searchString:force:)"
             landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "F1A0A564-7332-40AF-80B7-4C5BE9BC42BE"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "Shared/Views/ContentView.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "101"
-            endingLineNumber = "101"
-            landmarkName = "body"
-            landmarkType = "24">
-            <Actions>
-               <BreakpointActionProxy
-                  ActionExtensionID = "Xcode.BreakpointAction.DebuggerCommand">
-                  <ActionContent
-                     consoleCommand = "po event.idEvent">
-                  </ActionContent>
-               </BreakpointActionProxy>
-            </Actions>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "428ACFB6-DBC5-4A4D-A398-C6E643C7FCC0"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "Shared/Views/ContentView.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "126"
-            endingLineNumber = "126"
-            landmarkName = "body"
-            landmarkType = "24">
-            <Locations>
-               <Location
-                  uuid = "428ACFB6-DBC5-4A4D-A398-C6E643C7FCC0 - 9ec626d9a7a7edb9"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #2 (SportsCalModel.Game) -&gt; Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt; in closure #1 () -&gt; SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt; in closure #6 (Swift.Int) -&gt; SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt; in closure #3 () -&gt; SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt; in closure #1 () -&gt; SwiftUI.TupleView&lt;(SwiftUI.Section&lt;SwiftUI.EmptyView, SportsCal.SportsSelectView, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.HStack&lt;SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;, Swift.Optional&lt;SwiftUI.AnyView&gt;)&gt;&gt;, SwiftUI._ConditionalContent&lt;SwiftUI.List&lt;Swift.Never, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt;&gt;, SwiftUI.TupleView&lt;(SwiftUI.VStack&lt;Swift.Optional&lt;SwiftUI._ConditionalContent&lt;SwiftUI.ProgressView&lt;SwiftUI.EmptyView, SwiftUI.EmptyView&gt;, SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;&gt;, SwiftUI.Spacer)&gt;&gt;)&gt; in closure #1 () -&gt; &lt;&lt;opaque return type of SwiftUI.View.sheet&lt;&#x3c4;_0_0, &#x3c4;_0_1 where &#x3c4;_1_0: Swift.Identifiable, &#x3c4;_1_1: SwiftUI.View&gt;(item: SwiftUI.Binding&lt;Swift.Optional&lt;&#x3c4;_1_0&gt;&gt;, onDismiss: Swift.Optional&lt;() -&gt; ()&gt;, content: (&#x3c4;_1_0) -&gt; &#x3c4;_1_1) -&gt; some&gt;&gt;.0 in SportsCal.ContentView.body.getter : some"
-                  moduleName = "SportsCal"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Views/ContentView.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "130"
-                  endingLineNumber = "130"
-                  offsetFromSymbolStart = "808">
-               </Location>
-               <Location
-                  uuid = "428ACFB6-DBC5-4A4D-A398-C6E643C7FCC0 - 9ec626d9a7a7edb9"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #2 (SportsCalModel.Game) -&gt; Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt; in closure #1 () -&gt; SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt; in closure #6 (Swift.Int) -&gt; SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt; in closure #3 () -&gt; SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt; in closure #1 () -&gt; SwiftUI.TupleView&lt;(SwiftUI.Section&lt;SwiftUI.EmptyView, SportsCal.SportsSelectView, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.HStack&lt;SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;, Swift.Optional&lt;SwiftUI.AnyView&gt;)&gt;&gt;, SwiftUI._ConditionalContent&lt;SwiftUI.List&lt;Swift.Never, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt;&gt;, SwiftUI.TupleView&lt;(SwiftUI.VStack&lt;Swift.Optional&lt;SwiftUI._ConditionalContent&lt;SwiftUI.ProgressView&lt;SwiftUI.EmptyView, SwiftUI.EmptyView&gt;, SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;&gt;, SwiftUI.Spacer)&gt;&gt;)&gt; in closure #1 () -&gt; &lt;&lt;opaque return type of SwiftUI.View.sheet&lt;&#x3c4;_0_0, &#x3c4;_0_1 where &#x3c4;_1_0: Swift.Identifiable, &#x3c4;_1_1: SwiftUI.View&gt;(item: SwiftUI.Binding&lt;Swift.Optional&lt;&#x3c4;_1_0&gt;&gt;, onDismiss: Swift.Optional&lt;() -&gt; ()&gt;, content: (&#x3c4;_1_0) -&gt; &#x3c4;_1_1) -&gt; some&gt;&gt;.0 in SportsCal.ContentView.body.getter : some"
-                  moduleName = "SportsCal"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Views/ContentView.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "130"
-                  endingLineNumber = "130"
-                  offsetFromSymbolStart = "980">
-               </Location>
-               <Location
-                  uuid = "428ACFB6-DBC5-4A4D-A398-C6E643C7FCC0 - 9ec626d9a7a7edb9"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #2 (SportsCalModel.Game) -&gt; Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt; in closure #1 () -&gt; SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt; in closure #6 (Swift.Int) -&gt; SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt; in closure #3 () -&gt; SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt; in closure #1 () -&gt; SwiftUI.TupleView&lt;(SwiftUI.Section&lt;SwiftUI.EmptyView, SportsCal.SportsSelectView, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.HStack&lt;SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;, Swift.Optional&lt;SwiftUI.AnyView&gt;)&gt;&gt;, SwiftUI._ConditionalContent&lt;SwiftUI.List&lt;Swift.Never, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt;&gt;, SwiftUI.TupleView&lt;(SwiftUI.VStack&lt;Swift.Optional&lt;SwiftUI._ConditionalContent&lt;SwiftUI.ProgressView&lt;SwiftUI.EmptyView, SwiftUI.EmptyView&gt;, SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;&gt;, SwiftUI.Spacer)&gt;&gt;)&gt; in closure #1 () -&gt; &lt;&lt;opaque return type of SwiftUI.View.sheet&lt;&#x3c4;_0_0, &#x3c4;_0_1 where &#x3c4;_1_0: Swift.Identifiable, &#x3c4;_1_1: SwiftUI.View&gt;(item: SwiftUI.Binding&lt;Swift.Optional&lt;&#x3c4;_1_0&gt;&gt;, onDismiss: Swift.Optional&lt;() -&gt; ()&gt;, content: (&#x3c4;_1_0) -&gt; &#x3c4;_1_1) -&gt; some&gt;&gt;.0 in SportsCal.ContentView.body.getter : some"
-                  moduleName = "SportsCal"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Views/ContentView.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "130"
-                  endingLineNumber = "130"
-                  offsetFromSymbolStart = "1200">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -1446,54 +1343,6 @@
             endingLineNumber = "98"
             landmarkName = "liveEvents"
             landmarkType = "24">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "DD55DE9F-0A26-4E1F-8659-6DE0CB9827AC"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "Shared/Views/ContentView.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "99"
-            endingLineNumber = "99"
-            landmarkName = "body"
-            landmarkType = "24">
-            <Locations>
-               <Location
-                  uuid = "DD55DE9F-0A26-4E1F-8659-6DE0CB9827AC - 1ea655bd8a3c531"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #1 (SportsCalModel.Game) -&gt; Swift.Optional&lt;SportsCal.GameScoreView&gt; in closure #1 () -&gt; SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt; in closure #3 () -&gt; SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt; in closure #1 () -&gt; SwiftUI.TupleView&lt;(SwiftUI.Section&lt;SwiftUI.EmptyView, SportsCal.SportsSelectView, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.HStack&lt;SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;, Swift.Optional&lt;SwiftUI.AnyView&gt;)&gt;&gt;, SwiftUI._ConditionalContent&lt;SwiftUI.List&lt;Swift.Never, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt;&gt;, SwiftUI.TupleView&lt;(SwiftUI.VStack&lt;Swift.Optional&lt;SwiftUI._ConditionalContent&lt;SwiftUI.ProgressView&lt;SwiftUI.EmptyView, SwiftUI.EmptyView&gt;, SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;&gt;, SwiftUI.Spacer)&gt;&gt;)&gt; in closure #1 () -&gt; &lt;&lt;opaque return type of SwiftUI.View.sheet&lt;&#x3c4;_0_0, &#x3c4;_0_1 where &#x3c4;_1_0: Swift.Identifiable, &#x3c4;_1_1: SwiftUI.View&gt;(item: SwiftUI.Binding&lt;Swift.Optional&lt;&#x3c4;_1_0&gt;&gt;, onDismiss: Swift.Optional&lt;() -&gt; ()&gt;, content: (&#x3c4;_1_0) -&gt; &#x3c4;_1_1) -&gt; some&gt;&gt;.0 in SportsCal.ContentView.body.getter : some"
-                  moduleName = "SportsCal"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Views/ContentView.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "99"
-                  endingLineNumber = "99"
-                  offsetFromSymbolStart = "764">
-               </Location>
-               <Location
-                  uuid = "DD55DE9F-0A26-4E1F-8659-6DE0CB9827AC - 1ea655bd8a3c531"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #1 (SportsCalModel.Game) -&gt; Swift.Optional&lt;SportsCal.GameScoreView&gt; in closure #1 () -&gt; SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt; in closure #3 () -&gt; SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt; in closure #1 () -&gt; SwiftUI.TupleView&lt;(SwiftUI.Section&lt;SwiftUI.EmptyView, SportsCal.SportsSelectView, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.HStack&lt;SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;, Swift.Optional&lt;SwiftUI.AnyView&gt;)&gt;&gt;, SwiftUI._ConditionalContent&lt;SwiftUI.List&lt;Swift.Never, SwiftUI.TupleView&lt;(Swift.Optional&lt;SwiftUI.Section&lt;SportsCal.LiveAnimatedView, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SportsCal.GameScoreView&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, Swift.Optional&lt;SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;, SwiftUI.EmptyView&gt;&gt;, SwiftUI.ForEach&lt;Swift.Range&lt;Swift.Int&gt;, Swift.Int, SwiftUI.Section&lt;SwiftUI.HStack&lt;SwiftUI.Text&gt;, SwiftUI.ForEach&lt;Swift.Array&lt;SportsCalModel.Game&gt;, Swift.String, Swift.Optional&lt;SwiftUI._ConditionalContent&lt;&lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0, &lt;&lt;opaque return type of SwiftUI.View.environmentObject&lt;&#x3c4;_0_0 where &#x3c4;_1_0: Combine.ObservableObject&gt;(&#x3c4;_1_0) -&gt; some&gt;&gt;.0&gt;&gt;&gt;, SwiftUI.EmptyView&gt;&gt;)&gt;&gt;, SwiftUI.TupleView&lt;(SwiftUI.VStack&lt;Swift.Optional&lt;SwiftUI._ConditionalContent&lt;SwiftUI.ProgressView&lt;SwiftUI.EmptyView, SwiftUI.EmptyView&gt;, SwiftUI.TupleView&lt;(SwiftUI.Text, SwiftUI.Button&lt;SwiftUI.Text&gt;)&gt;&gt;&gt;&gt;, SwiftUI.Spacer)&gt;&gt;)&gt; in closure #1 () -&gt; &lt;&lt;opaque return type of SwiftUI.View.sheet&lt;&#x3c4;_0_0, &#x3c4;_0_1 where &#x3c4;_1_0: Swift.Identifiable, &#x3c4;_1_1: SwiftUI.View&gt;(item: SwiftUI.Binding&lt;Swift.Optional&lt;&#x3c4;_1_0&gt;&gt;, onDismiss: Swift.Optional&lt;() -&gt; ()&gt;, content: (&#x3c4;_1_0) -&gt; &#x3c4;_1_1) -&gt; some&gt;&gt;.0 in SportsCal.ContentView.body.getter : some"
-                  moduleName = "SportsCal"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/umar/Developer/SportsCal/Shared/Views/ContentView.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "99"
-                  endingLineNumber = "99"
-                  offsetFromSymbolStart = "932">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

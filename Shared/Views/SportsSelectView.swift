@@ -14,9 +14,11 @@ struct SportsSelectView: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: true) {
             HStack {
+                Spacer()
                 ForEach(SportType.allCases, id: \.self) { sport in
                     SportsFilterView(sport: sport, shouldShowPromoCount: $shouldShowPromo, appStorage: storage)
                 }
+                Spacer()
             }
         }
     }

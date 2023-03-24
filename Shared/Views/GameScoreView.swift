@@ -7,7 +7,6 @@
 
 import SwiftUI
 import SportsCalModel
-import CachedAsyncImage
 #if canImport(ActivityKit)
 import ActivityKit
 #endif
