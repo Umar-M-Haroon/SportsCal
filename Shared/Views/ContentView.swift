@@ -89,11 +89,11 @@ struct ContentView: View {
                 }
 
 
-                if let games = viewModel.sortedGames, !games.isEmpty {
+                if !viewModel.sortedGames.isEmpty {
                     List {
-                        if let liveEvents = viewModel.liveEvents, !liveEvents.isEmpty {
+                        if !viewModel.liveEvents.isEmpty {
                             Section {
-                                ForEach(liveEvents) { event in
+                                ForEach(viewModel.liveEvents) { event in
                                     if let homeScore = Int(event.intHomeScore ?? ""),
                                        let awayScore = Int(event.intAwayScore ?? ""),
                                        let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamName: event.strHomeTeam),
@@ -120,9 +120,9 @@ struct ContentView: View {
                                 }
                             }
                         }
-                        ForEach(games.map({$0.key}).indices, id: \.self) { index in
+                        ForEach(viewModel.sortedGames.map({$0.key}).indices, id: \.self) { index in
                             Section {
-                                ForEach(games.map({$0.value})[index]) { game in
+                                ForEach(viewModel.sortedGames.map({$0.value})[index]) { game in
                                     if let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idAwayTeam) {
                                         if let homeScore = Int(game.intHomeScore ?? ""), let awayScore = Int(game.intAwayScore ?? "") {
                                             GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState, isLive: false)
@@ -135,7 +135,7 @@ struct ContentView: View {
                                 }
                             } header: {
                                 HStack {
-                                    Text("\(games.map({$0.key})[index].formatted(format: viewModel.appStorage.dateFormat))")
+                                    Text("\(viewModel.sortedGames.map({$0.key})[index].formatted(format: viewModel.appStorage.dateFormat))")
                                         .font(.headline)
                                 }
                             }

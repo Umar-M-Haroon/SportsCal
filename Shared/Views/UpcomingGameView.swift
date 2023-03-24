@@ -22,12 +22,13 @@ struct UpcomingGameView: View {
     @Binding var sheetType: SheetType?
     @State var dateFormat: String
     var isFavorite: Bool = false
+    var formatter =  Date.RelativeFormatStyle(presentation: .numeric, capitalizationContext: .beginningOfSentence)
     var body: some View {
         HStack {
             IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: false, isAway: true)
             .frame(maxWidth: .infinity)
             VStack(alignment: .center, spacing: 8) {
-                if showCountdown, let formatter = Date.RelativeFormatStyle(presentation: .numeric, capitalizationContext: .beginningOfSentence), let date = game.isoDate {
+                if showCountdown, let date = game.isoDate {
                     Text(formatter.format(date))
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.medium)
@@ -49,8 +50,7 @@ struct UpcomingGameView: View {
                         .foregroundColor(Color(UIColor.secondaryLabel))
                     
                 }
-                if let isoDate = game?.isoDate,
-                   let isoDateString = isoDate.formatToTime() {
+                if let isoDateString = game.isoDate?.formatToTime() {
                     Text(isoDateString)
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.medium)
