@@ -68,7 +68,6 @@ struct ContentView: View {
             Group {
                 Section {
                   SportsSelectView()
-//                    SportsSelectView(shouldShowPromo: $shouldShowPromo, appStorage: storage)
                 }  footer: {
                     if shouldShowPromo {
                         HStack {
@@ -91,39 +90,18 @@ struct ContentView: View {
 
                 if !viewModel.sortedGames.isEmpty {
                     List {
-                        if !viewModel.liveEvents.isEmpty {
-                            Section {
-                                ForEach(viewModel.liveEvents) { event in
-                                    if let homeScore = Int(event.intHomeScore ?? ""),
-                                       let awayScore = Int(event.intAwayScore ?? ""),
-                                       let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamName: event.strHomeTeam),
-                                       let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamName: event.strAwayTeam) {
-                                        GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState, isLive: true)
-                                    }
-                                }
-                            } header: {
-                                LiveAnimatedView()
-                            }
-                        }
-                        if let favoriteGames = viewModel.favoriteGames, !favoriteGames.isEmpty {
-                            Section {
-                                ForEach(favoriteGames) { game in
-                                    if let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idAwayTeam) {
-                                        UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat, isFavorite: true)
-                                            .environmentObject(favorites)
-                                    }
-                                }
-                            } header: {
-                                HStack {
-                                    Text("Favorites")
-                                        .font(.headline)
-                                }
-                            }
-                        }
+                        LiveEventsView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState)
+                            .environmentObject(favorites)
+                            .environmentObject(storage)
+                            .environmentObject(viewModel)
+                        FavoriteGamesView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
+                            .environmentObject(favorites)
+                            .environmentObject(storage)
+                            .environmentObject(viewModel)
                         ForEach(viewModel.sortedGames.map({$0.key}).indices, id: \.self) { index in
                             Section {
                                 ForEach(viewModel.sortedGames.map({$0.value})[index]) { game in
-                                    if let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idAwayTeam) {
+                                    if let (homeTeam, awayTeam) = viewModel.getTeams(for: game) {
                                         if let homeScore = Int(game.intHomeScore ?? ""), let awayScore = Int(game.intAwayScore ?? "") {
                                             GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState, isLive: false)
                                                 .environmentObject(favorites)
@@ -131,12 +109,14 @@ struct ContentView: View {
                                             UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat)
                                                 .environmentObject(favorites)
                                         }
-                                    } else if Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idHomeTeam) == nil || Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idAwayTeam) == nil {
+                                    } else {
+                                        #if DEBUG
                                         VStack {
                                             Text("No game")
                                             Text(game.strHomeTeam)
                                             Text(game.strAwayTeam)
                                         }
+                                        #endif
                                     }
                                 }
                             } header: {
@@ -170,12 +150,6 @@ struct ContentView: View {
                 sheetType = .settings
             }, label: {
                 Image(systemName: "gear")
-            }), trailing: Button(action: {
-                withAnimation {
-                    isListLayout.toggle()
-                }
-            }, label: {
-                Image(systemName: isListLayout ? "square.grid.2x2" : "list.bullet")
             }))
             .sheet(item: $sheetType) { sheetType in
                 switch sheetType {

@@ -53,6 +53,11 @@ import ActivityKit
                 return Array(Set(teams))
             }
             self.teamsDict = teamsDict
+            var teamsDictName = Dictionary(grouping: self.teams, by: \.strTeam)
+            teamsDictName = teamsDict.mapValues { teams in
+                return Array(Set(teams))
+            }
+            self.teamsDictName = teamsDictName
         }
         if let liveInfo = liveCache?.value(for: "live") {
             self.currentLiveInfo = liveInfo
@@ -70,6 +75,7 @@ import ActivityKit
     var favorites: Favorites
     var teams: [Team] = []
     var teamsDict: [String? : [Team]] = [:]
+    var teamsDictName: [String? : [Team]] = [:]
     @Published var totalGames: [Game]?
     @Published var filteredGames: [Game]?
     @Published var teamString: String? = ""
@@ -215,12 +221,14 @@ import ActivityKit
         filterSports(force: true)
     }
     func filterSports(searchString: String? = nil, force: Bool = false) {
-//        print("⚠️ sports duration or selected sport changed, filtering")
-//        print("⚠️ should show NFL \(appStorage.shouldShowNFL)")
-//        print("⚠️ should show NBA \(appStorage.shouldShowNBA)")
-//        print("⚠️ should show NHL \(appStorage.shouldShowNHL)")
-//        print("⚠️ should show Soccer \(appStorage.shouldShowSoccer)")
-//        print("⚠️ should show MLB \(appStorage.shouldShowMLB)")
+        #if DEBUG
+        print("⚠️ sports duration or selected sport changed, filtering")
+        print("⚠️ should show NFL \(appStorage.shouldShowNFL)")
+        print("⚠️ should show NBA \(appStorage.shouldShowNBA)")
+        print("⚠️ should show NHL \(appStorage.shouldShowNHL)")
+        print("⚠️ should show Soccer \(appStorage.shouldShowSoccer)")
+        print("⚠️ should show MLB \(appStorage.shouldShowMLB)")
+        #endif
         if force {
             totalGames = totalGames?.filter({ game in
                 guard let leagueString = game.idLeague,
@@ -255,17 +263,15 @@ import ActivityKit
             allGames.append(contentsOf: gamesDict[.hockey] ?? [])
         }
         filteredGames = allGames
+            .lazy
             .filter({ game -> Bool in
                 guard let date = game.isoDate else { return false }
-                if appStorage.hidePastEvents {
-//                    get the date components for the game and check it is greater than 0
-                    let gameIsWithinYesterday = Calendar.current.isDateInYesterday(game.isoDate ?? .now)
-                    let gameIsFarInPast = Calendar.current.dateComponents([.day], from: .now, to: game.isoDate ?? .now).day ?? 0 >= 0
+                if self.appStorage.hidePastEvents {
                     return game.isoDate?.timeIntervalSinceNow ?? -1 > 0
                 } else {
                     
                     var isValidForPastDuration: Bool = false
-                    switch appStorage.hidePastGamesDuration {
+                    switch self.appStorage.hidePastGamesDuration {
                     case .oneWeek:
                         guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
                         isValidForPastDuration = (days >= -7)
@@ -358,6 +364,21 @@ import ActivityKit
         favoriteGames = filteredGames?.filter({favorites.contains($0)})
     }
     
+    
+    func getTeams(for game: Game) -> (home: Team, away: Team)? {
+        let strHomeTeam = game.strHomeTeam
+        let strAwayTeam = game.strAwayTeam
+        guard let idHomeTeam = game.idHomeTeam,
+              let idAwayTeam = game.idAwayTeam,
+              let foundHomeTeam = Team.getTeamInfoFrom(teamDict: self.teamsDict, teamID: idHomeTeam) ?? Team.getTeamInfoFrom(teamDict: self.teamsDictName, teamName: strHomeTeam),
+              let foundAwayTeam = Team.getTeamInfoFrom(teamDict: self.teamsDict, teamID: idAwayTeam) ?? Team.getTeamInfoFrom(teamDict: self.teamsDictName, teamName: strAwayTeam)
+        else {
+            return nil
+        }
+        
+        return (foundHomeTeam, foundAwayTeam)
+    }
+    
     func handleSearch(searchString: String?) {
         if let searchString, isValidSearchString(searchString: searchString) {
             filteredGames = filteredGames?
@@ -385,7 +406,7 @@ import ActivityKit
 extension GameViewModel: URLSessionWebSocketDelegate {
     public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
         self.webSocketTask = nil
-           restartTimer = .init(timeInterval: 10, target: self, selector: #selector(receiveMessages), userInfo: nil, repeats: true)
+        restartTimer = .init(timeInterval: 10, target: self, selector: #selector(receiveMessages), userInfo: nil, repeats: true)
     }
 }
 #if canImport(ActivityKit)

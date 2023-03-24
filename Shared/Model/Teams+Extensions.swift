@@ -9,23 +9,29 @@ import Foundation
 import SportsCalModel
 
 extension Team {
-    @available(*, deprecated, message: "use Dictionary lookup")
     static func getTeamInfoFrom(teams: [Team], teamID: String?) -> Team? {
         let defaultTeam = teams.first { team in
             team.idTeam == teamID && team.strTeamShort != nil
         }
         return defaultTeam ?? teams.first { team in
-            team.idTeam == teamID 
+            team.idTeam == teamID
         }
     }
     static func getTeamInfoFrom(teamDict: [String?: [Team]], teamID: String?) -> Team? {
-        return teamDict[teamID]?.first
+        return teamDict[teamID]?.first(where: {$0.strTeamShort != nil}) ?? teamDict[teamID]?.first
     }
     
     static func getTeamInfoFrom(teams: [Team], teamName: String?) -> Team? {
-        return teams.first { team in
+        let defaultTeam = teams.first { team in
             team.strTeam == teamName && team.strTeamShort != nil
         }
+        return defaultTeam ?? teams.first { team in
+            team.strTeam == teamName
+        }
+    }
+    
+    static func getTeamInfoFrom(teamDict: [String?: [Team]], teamName: String?) -> Team? {
+        return teamDict[teamName]?.first(where: {$0.strTeamShort != nil}) ?? teamDict[teamName]?.first
     }
 }
 

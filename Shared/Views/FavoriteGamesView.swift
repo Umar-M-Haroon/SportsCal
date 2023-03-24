@@ -14,11 +14,22 @@ struct FavoriteGamesView: View {
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var sheetType: SheetType?
     var body: some View {
-        ForEach(viewModel.favoriteGames ?? []) { game in
-            if let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idAwayTeam) {
-                UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat, isFavorite: true)
-                    .environmentObject(favorites)
+        if let favoriteGames = viewModel.favoriteGames, !favoriteGames.isEmpty {
+            Section {
+                ForEach(viewModel.favoriteGames ?? []) { game in
+                    if let (homeTeam, awayTeam) = viewModel.getTeams(for: game) {
+                        UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat, isFavorite: true)
+                            .environmentObject(favorites)
+                    }
+                }
+            } header: {
+                HStack {
+                    Text("Favorites")
+                        .font(.headline)
+                }
             }
+        } else {
+            EmptyView()
         }
     }
 }
