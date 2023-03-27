@@ -11,6 +11,7 @@
 		1D1DAB8F29CDAA5A005434D6 /* LiveEventsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D1DAB8E29CDAA5A005434D6 /* LiveEventsView.swift */; };
 		1D1DAB9929CDB50D005434D6 /* SportsCalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D1DAB9829CDB50D005434D6 /* SportsCalTests.swift */; };
 		1D1DABA029CDB55F005434D6 /* Purchases in Frameworks */ = {isa = PBXBuildFile; productRef = 1D1DAB9F29CDB55F005434D6 /* Purchases */; };
+		1D1DABC929D18D62005434D6 /* RectangularWidgetTeamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D1DABC729D18D46005434D6 /* RectangularWidgetTeamView.swift */; };
 		1D20B3362927739C00956B14 /* Date+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */; };
 		1D20B338292893DD00956B14 /* GameManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B337292893DD00956B14 /* GameManager.swift */; };
 		1D20B339292893DD00956B14 /* GameManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B337292893DD00956B14 /* GameManager.swift */; };
@@ -153,6 +154,7 @@
 		1D1DAB8E29CDAA5A005434D6 /* LiveEventsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveEventsView.swift; sourceTree = "<group>"; };
 		1D1DAB9629CDB50D005434D6 /* SportsCalTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SportsCalTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1D1DAB9829CDB50D005434D6 /* SportsCalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsCalTests.swift; sourceTree = "<group>"; };
+		1D1DABC729D18D46005434D6 /* RectangularWidgetTeamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RectangularWidgetTeamView.swift; sourceTree = "<group>"; };
 		1D20B337292893DD00956B14 /* GameManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameManager.swift; sourceTree = "<group>"; };
 		1D20B33A2928C45A00956B14 /* PickSportPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickSportPage.swift; sourceTree = "<group>"; };
 		1D20B33C2929D8C900956B14 /* MiniSubscriptionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniSubscriptionPage.swift; sourceTree = "<group>"; };
@@ -340,6 +342,7 @@
 				1DE1F0C62941B9B300741B19 /* SportsWidgetSmallView.swift */,
 				1DE1F0C42941B99A00741B19 /* SportsWidgetInlineView.swift */,
 				1DE1F0C22941B98100741B19 /* SportsWidgetRectangularView.swift */,
+				1D1DABC729D18D46005434D6 /* RectangularWidgetTeamView.swift */,
 				1DE1F0C02941B96C00741B19 /* SportsWidgetCircularView.swift */,
 				1DE1F0BE2941B94F00741B19 /* SportsWidgetLargeView.swift */,
 				1DE04049293746F500073494 /* Provider.swift */,
@@ -683,6 +686,7 @@
 				1DE1700126F29D4B007B1B57 /* SportsWidget.intentdefinition in Sources */,
 				1DE1F0C92941B9D100741B19 /* SportsWidgetMediumView.swift in Sources */,
 				1D40809B290BAFE100729FFE /* IndividualTeamView.swift in Sources */,
+				1D1DABC929D18D62005434D6 /* RectangularWidgetTeamView.swift in Sources */,
 				1DB93DC42907659300311FAA /* Favorites.swift in Sources */,
 				1D408091290B9E3700729FFE /* Teams+Extensions.swift in Sources */,
 				1DE1F0C72941B9B300741B19 /* SportsWidgetSmallView.swift in Sources */,
