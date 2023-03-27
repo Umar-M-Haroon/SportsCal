@@ -40,8 +40,8 @@ struct SportsWidgetMediumView: View {
                         ForEach(Array(games.prefix(upTo: 2))) { game in
                             if let homeTeamID = game.idHomeTeam, let homeTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: homeTeamID), let awayTeamID = game.idAwayTeam, let awayTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: awayTeamID) {
                                 HStack {
-                                    //                                    HStack {
                                     WidgetTeamView(shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, isAway: true, data: entry.images?[awayTeamID])
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                     Spacer()
                                     VStack(alignment: .center, spacing: 0) {
                                         if let isoDate = game.isoDate {
@@ -49,8 +49,6 @@ struct SportsWidgetMediumView: View {
                                             Text(isoDate.formatToDate(dateFormat: "d MMM") ?? "")
                                                 .font(.system(.subheadline, design: .monospaced))
                                                 .fontWeight(.medium)
-                                            //                                                    .accessibilityValue(accessibilityLabel)
-                                            //                                                    .accessibilityLabel(accessibilityLabel)
                                                 .foregroundColor(.secondary)
                                         }
                                         if let isoString = game.isoDate?.formatToTime() {
@@ -62,10 +60,8 @@ struct SportsWidgetMediumView: View {
                                         //
                                     }
                                     Spacer()
-                                    //                                        .frame(maxWidth: .infinity)
                                     WidgetTeamView(shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, isAway: false, data: entry.images?[homeTeamID])
-                                    
-                                    //                                    }
+                                        .frame(maxWidth: .infinity, alignment: .trailing)
                                 }
                             }
                         }

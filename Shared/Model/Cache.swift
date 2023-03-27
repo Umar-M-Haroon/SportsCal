@@ -46,6 +46,11 @@ final class Cache<Key: Hashable, Value> {
         }
     }
     
+    func deleteAll() {
+        for key in keyTracker.keys {
+            removeValue(for: key)
+        }
+    }
 }
 private extension Cache {
     final class WrappedKey: NSObject {

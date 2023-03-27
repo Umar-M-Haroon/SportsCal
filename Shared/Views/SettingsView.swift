@@ -14,6 +14,7 @@ struct SettingsView: View {
     @EnvironmentObject var appStorage: UserDefaultStorage
     var subscriptionManager = SubscriptionManager.shared
     @Binding var sheetType: SheetType?
+    @EnvironmentObject var viewModel: GameViewModel
     var isTestFlight: Bool {
         guard let path = Bundle.main.appStoreReceiptURL?.path else {
             return false
@@ -25,6 +26,13 @@ struct SettingsView: View {
             Form {
 #if DEBUG
                 Toggle("Debug Mode", isOn: appStorage.$debugMode)
+                Button("Dump Caches") {
+                    do {
+                        try viewModel.dumpCaches()
+                    } catch {
+                        print(error.localizedDescription)
+                    }
+                }
 #endif
                 if isTestFlight {
                     Text("You're on a TestFlight build, debug mode is recommended for new features")

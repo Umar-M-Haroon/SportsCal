@@ -156,6 +156,7 @@ struct ContentView: View {
                 case .settings:
                     SettingsView(sheetType: $sheetType)
                         .environmentObject(storage)
+                        .environmentObject(viewModel)
                 case .onboarding:
                     OnboardingPage(sheetType: $sheetType)
                         .environmentObject(storage)

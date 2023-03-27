@@ -48,6 +48,17 @@
                ReferencedContainer = "container:SportsCal.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "1D1DAB9529CDB50C005434D6"
+               BuildableName = "SportsCalTests.xctest"
+               BlueprintName = "SportsCalTests"
+               ReferencedContainer = "container:SportsCal.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
@@ -73,7 +84,7 @@
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "host"
-            value = "https://4f7f-2601-280-c781-8ec0-b11b-bbad-bcee-61fa.ngrok.io"
+            value = "https://yellow-mice-shake-73-95-99-240.loca.lt"
             isEnabled = "NO">
          </EnvironmentVariable>
          <EnvironmentVariable
@@ -83,7 +94,7 @@
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "websockethost"
-            value = "wss://07dd-2601-280-c781-8ec0-3011-c581-dec9-cb41.ngrok.io"
+            value = "wss://yellow-mice-shake-73-95-99-240.loca.lt"
             isEnabled = "NO">
          </EnvironmentVariable>
          <EnvironmentVariable

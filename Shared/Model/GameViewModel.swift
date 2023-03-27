@@ -146,30 +146,64 @@ import ActivityKit
         return Array(OrderedSet(games))
     }
     
+    fileprivate func handleLiveGames() async throws {
+        async let liveInfo = NetworkHandler.getLiveSnapshot(debug: appStorage.debugMode)
+        self.currentLiveInfo = try await liveInfo
+        if let liveInfo = currentLiveInfo {
+            liveCache?.insert(liveInfo, for: "live")
+        }
+        try liveCache?.saveToDisk(with: "live")
+    }
+    
+    fileprivate func handleTeams() async throws {
+        //                gameCache?.insert(result, for: "games")
+        //                try gameCache?.saveToDisk(with: "games")
+        
+        async let teams = NetworkHandler.getTeams(debug: appStorage.debugMode)
+        self.teams = try await teams
+        self.teamsDict = Dictionary(grouping: self.teams, by: \.idTeam)
+        var teamsDictName = Dictionary(grouping: self.teams, by: \.strTeam)
+        teamsDictName = teamsDict.mapValues { teams in
+            return Array(Set(teams))
+        }
+        teamCache?.insert(self.teams, for: "teams")
+        try teamCache?.saveToDisk(with: "teams")
+        self.teamsDictName = teamsDictName
+    }
+    
+    fileprivate func handleLiveWebsocket() {
+        webSocketTask = nil
+        webSocketTask = NetworkHandler.connectWebSocketForLive(debug: appStorage.debugMode)
+        webSocketTask?.resume()
+        Task {
+            try await receiveMessages()
+        }
+    }
+    
     @objc
     private func getData() async {
         do {
-            async let liveInfo = NetworkHandler.getLiveSnapshot(debug: appStorage.debugMode)
-            self.currentLiveInfo = try? await liveInfo
-            async let result = NetworkHandler.handleCall(debug: appStorage.debugMode)
-            async let teams = NetworkHandler.getTeams(debug: appStorage.debugMode)
-            self.teams = try await teams
-            webSocketTask = nil
-            webSocketTask = NetworkHandler.connectWebSocketForLive(debug: appStorage.debugMode)
-            webSocketTask?.resume()
-            Task {
-                try await receiveMessages()
-            }
-            setGames(result: try await result)
-            gameCache?.insert(try await result, for: "games")
-            teamCache?.insert(self.teams, for: "teams")
-            if let liveInfo = currentLiveInfo {
-                liveCache?.insert(liveInfo, for: "live")
-            }
-            try gameCache?.saveToDisk(with: "games")
-            try teamCache?.saveToDisk(with: "teams")
-            try liveCache?.saveToDisk(with: "live")
             
+            try await handleLiveGames()
+//            let result = try await withThrowingTaskGroup(of: [SportType: LiveEvent].self) { group in
+//                var events: [SportType: LiveEvent] = [:]
+//                for sport in SportType.allCases {
+//                    group.addTask {
+//                        return [sport: try await NetworkHandler.getScheduleFor(sport: sport, debug: self.appStorage.debugMode)]
+//                    }
+//                }
+//                for try await schedule in group {
+//                    events.merge(schedule) { liveEvent1, liveEvent2 in
+//                        liveEvent2
+//                    }
+//                }
+//                return LiveScore(nba: events[.basketball], mlb: events[.mlb], soccer: events[.soccer], nfl: events[.nfl], nhl: events[.hockey])
+//            }
+            
+            let result = try await NetworkHandler.handleCall(debug: appStorage.debugMode)
+            setGames(result: result)
+            try await handleTeams()
+            handleLiveWebsocket()
             networkState = .loaded
             restartTimer = nil
         } catch let e {
@@ -254,7 +288,9 @@ import ActivityKit
             allGames.append(contentsOf: gamesDict[.mlb] ?? [])
         }
         if appStorage.shouldShowNBA {
-            allGames.append(contentsOf: gamesDict[.basketball] ?? [])
+            if let basketballGames = gamesDict[.basketball] {
+                allGames.append(contentsOf: basketballGames)
+            }
         }
         if appStorage.shouldShowNFL {
             allGames.append(contentsOf: gamesDict[.nfl] ?? [])
@@ -263,9 +299,11 @@ import ActivityKit
             allGames.append(contentsOf: gamesDict[.hockey] ?? [])
         }
         filteredGames = allGames
-            .lazy
             .filter({ game -> Bool in
-                guard let date = game.isoDate else { return false }
+                guard let date = game.isoDate else {
+                    print(game)
+                    return false
+                }
                 if self.appStorage.hidePastEvents {
                     return game.isoDate?.timeIntervalSinceNow ?? -1 > 0
                 } else {
@@ -370,8 +408,10 @@ import ActivityKit
         let strAwayTeam = game.strAwayTeam
         guard let idHomeTeam = game.idHomeTeam,
               let idAwayTeam = game.idAwayTeam,
-              let foundHomeTeam = Team.getTeamInfoFrom(teamDict: self.teamsDict, teamID: idHomeTeam) ?? Team.getTeamInfoFrom(teamDict: self.teamsDictName, teamName: strHomeTeam),
+              let foundHomeTeam = Team.getTeamInfoFrom(teamDict: self.teamsDict, teamID: idHomeTeam) ?? Team.getTeamInfoFrom(teamDict: self.teamsDictName, teamName: strHomeTeam)
+                  ?? Team.getTeamInfoFrom(teams: self.teams, teamName: strHomeTeam),
               let foundAwayTeam = Team.getTeamInfoFrom(teamDict: self.teamsDict, teamID: idAwayTeam) ?? Team.getTeamInfoFrom(teamDict: self.teamsDictName, teamName: strAwayTeam)
+                ?? Team.getTeamInfoFrom(teams: self.teams, teamName: strAwayTeam)
         else {
             return nil
         }
@@ -400,6 +440,16 @@ import ActivityKit
         Task {
             await getData()
         }
+    }
+    
+    func dumpCaches() throws {
+        teamCache?.deleteAll()
+        gameCache?.deleteAll()
+        liveCache?.deleteAll()
+        try gameCache?.saveToDisk(with: "games")
+        try teamCache?.saveToDisk(with: "teams")
+        try liveCache?.saveToDisk(with: "live")
+        getInfo()
     }
 }
 
