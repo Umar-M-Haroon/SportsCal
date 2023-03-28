@@ -14,85 +14,29 @@ import OrderedCollections
 import ActivityKit
 #endif
 @MainActor public class GameViewModel: NSObject, ObservableObject {
-    init(appStorage: UserDefaultStorage, favorites: Favorites, totalGames: [Game]? = nil, filteredGames: [Game]? = nil, teamString: String? = "", favoriteGames: [Game]? = nil, sortedGames: Array<(key: DateComponents, value: Array<Game>)> = [], networkState: NetworkState = .loading) {
-        self.appStorage = appStorage
-        self.favorites = favorites
-        self.totalGames = totalGames
-        self.filteredGames = filteredGames
-        self.teamString = teamString
-        self.favoriteGames = favoriteGames
-        self.sortedGames = sortedGames
-        self.networkState = networkState
-        self.gamesDict = [:]
-        
-        
-        let folderURLs = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-        var gameFileURL = folderURLs[0]
-        gameFileURL.appendPathComponent("games" + ".cache")
-        var teamFileURL = folderURLs[0]
-        teamFileURL.appendPathComponent("teams" + ".cache")
-        do {
-            let data = try JSONDecoder().decode(Cache<String, LiveScore>.self, from: Data(contentsOf: gameFileURL))
-            gameCache = data
-            let teamData = try JSONDecoder().decode(Cache<String, [Team]>.self, from: Data(contentsOf: teamFileURL))
-            teamCache = teamData
-        } catch let error {
-            gameCache = Cache<String, LiveScore>()
-            teamCache = Cache<String, [Team]>()
-            liveCache = Cache<String, LiveScore>(entryLifetime: 15 * 60)
-            print(error.localizedDescription)
-        }
-        super.init()
-        if let cacheGames = gameCache?.value(for: "games") {
-            setGames(result: cacheGames)
-        }
-        if let cacheTeams = teamCache?.value(for: "teams") {
-            self.teams = cacheTeams
-            var teamsDict = Dictionary(grouping: self.teams, by: \.idTeam)
-            teamsDict = teamsDict.mapValues { teams in
-                return Array(Set(teams))
-            }
-            self.teamsDict = teamsDict
-            var teamsDictName = Dictionary(grouping: self.teams, by: \.strTeam)
-            teamsDictName = teamsDict.mapValues { teams in
-                return Array(Set(teams))
-            }
-            self.teamsDictName = teamsDictName
-        }
-        if let liveInfo = liveCache?.value(for: "live") {
-            self.currentLiveInfo = liveInfo
-        }
-        getInfo()
-        appStorage.objectWillChange
-            .debounce(for: 1, scheduler: RunLoop.main)
-            .sink {
-                self.networkState = .loading
-                self.getInfo()
-                self.filterSports()
-            }
-            .store(in: &cancellables)
-    }
     
     @Published var appStorage: UserDefaultStorage
-    var favorites: Favorites
-    var teams: [Team] = []
-    var teamsDict: [String? : [Team]] = [:]
-    var teamsDictName: [String? : [Team]] = [:]
     @Published var totalGames: [Game]?
     @Published var filteredGames: [Game]?
     @Published var teamString: String? = ""
     @Published var favoriteGames: [Game]?
     @Published var sortedGames: Array<(key: DateComponents, value: Array<Game>)> = []
     @Published var networkState: NetworkState = .loading
-    private var webSocketTask: URLSessionWebSocketTask?
+    @Published var currentLiveInfo: LiveScore?
+    @Published var currentlyLiveSports: [SportType] = []
+
+    var favorites: Favorites
+    var teams: [Team] = []
+    var teamsDict: [String? : [Team]] = [:]
+    var teamsDictName: [String? : [Team]] = [:]
     var restartTimer: Timer?
     var gamesDict: [SportType: [Game]] = [:]
+    
+    private var webSocketTask: URLSessionWebSocketTask?
     private var gameCache: Cache<String, LiveScore>?
     private var teamCache: Cache<String, [Team]>?
     private var liveCache: Cache<String, LiveScore>?
-    @Published var currentLiveInfo: LiveScore?
     private var cancellables: Set<AnyCancellable> = []
-    @Published var currentlyLiveSports: [SportType] = []
     
     var liveEvents: [Game] {
         var games: [Game] = []
@@ -175,6 +119,67 @@ import ActivityKit
         return Array(OrderedSet(games))
     }
     
+    init(appStorage: UserDefaultStorage, favorites: Favorites, totalGames: [Game]? = nil, filteredGames: [Game]? = nil, teamString: String? = "", favoriteGames: [Game]? = nil, sortedGames: Array<(key: DateComponents, value: Array<Game>)> = [], networkState: NetworkState = .loading) {
+        self.appStorage = appStorage
+        self.favorites = favorites
+        self.totalGames = totalGames
+        self.filteredGames = filteredGames
+        self.teamString = teamString
+        self.favoriteGames = favoriteGames
+        self.sortedGames = sortedGames
+        self.networkState = networkState
+        self.gamesDict = [:]
+        
+        
+        let folderURLs = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+        var gameFileURL = folderURLs[0]
+        gameFileURL.appendPathComponent("games" + ".cache")
+        var teamFileURL = folderURLs[0]
+        teamFileURL.appendPathComponent("teams" + ".cache")
+        do {
+            let data = try JSONDecoder().decode(Cache<String, LiveScore>.self, from: Data(contentsOf: gameFileURL))
+            gameCache = data
+            let teamData = try JSONDecoder().decode(Cache<String, [Team]>.self, from: Data(contentsOf: teamFileURL))
+            teamCache = teamData
+        } catch let error {
+            gameCache = Cache<String, LiveScore>()
+            teamCache = Cache<String, [Team]>()
+            liveCache = Cache<String, LiveScore>(entryLifetime: 15 * 60)
+            print(error.localizedDescription)
+        }
+        super.init()
+        if let cacheGames = gameCache?.value(for: "games") {
+            setGames(result: cacheGames)
+        }
+        if let cacheTeams = teamCache?.value(for: "teams") {
+            self.teams = cacheTeams
+            var teamsDict = Dictionary(grouping: self.teams, by: \.idTeam)
+            teamsDict = teamsDict.mapValues { teams in
+                return Array(Set(teams))
+            }
+            self.teamsDict = teamsDict
+            var teamsDictName = Dictionary(grouping: self.teams, by: \.strTeam)
+            teamsDictName = teamsDict.mapValues { teams in
+                return Array(Set(teams))
+            }
+            self.teamsDictName = teamsDictName
+        }
+        if let liveInfo = liveCache?.value(for: "live") {
+            self.currentLiveInfo = liveInfo
+        }
+        getInfo()
+        appStorage.objectWillChange
+            .debounce(for: 1, scheduler: RunLoop.main)
+            .sink {
+                withAnimation {
+                    self.networkState = .loading
+                    self.getInfo()
+                    self.filterSports()
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
     fileprivate func handleLiveGames() async throws {
         async let liveInfo = NetworkHandler.getLiveSnapshot(debug: appStorage.debugMode)
         self.currentLiveInfo = try await liveInfo
@@ -185,9 +190,6 @@ import ActivityKit
     }
     
     fileprivate func handleTeams() async throws {
-        //                gameCache?.insert(result, for: "games")
-        //                try gameCache?.saveToDisk(with: "games")
-        
         async let teams = NetworkHandler.getTeams(debug: appStorage.debugMode)
         self.teams = try await teams
         self.teamsDict = Dictionary(grouping: self.teams, by: \.idTeam)

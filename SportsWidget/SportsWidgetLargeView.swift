@@ -12,21 +12,19 @@ struct SportsWidgetLargeView: View {
     var body: some View {
             VStack {
                 VStack {
-                    Text(Date.currentDateToDayString())
+                    Text(Date().formatted(.dateTime.weekday(.abbreviated)))
                         .bold()
                         .foregroundColor(.red)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 8)
-                    
                     HStack {
-                        Text(Date.currentDateToNumberString())
+                        Text(Date().formatted(.dateTime.month(.abbreviated).day(.twoDigits)))
                             .bold()
                         Spacer()
                         Text("Up Next")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .frame(alignment: .leading)
-                            .padding([.leading], 8)
                     }
                 }
                 VStack(spacing: 4) {

@@ -14,14 +14,13 @@ struct SportsWidgetSmallView: View {
     var body: some View {
         VStack(spacing: 4) {
             VStack {
-                Text(Date.currentDateToDayString())
+                Text(Date().formatted(.dateTime.weekday(.abbreviated)))
                     .bold()
                     .foregroundColor(.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 8)
-                
                 HStack {
-                    Text(Date.currentDateToNumberString())
+                    Text(Date().formatted(.dateTime.month(.abbreviated).day(.twoDigits)))
                         .bold()
                     Spacer()
                     Text("Up Next")

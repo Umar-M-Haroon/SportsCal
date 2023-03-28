@@ -23,20 +23,10 @@ struct RectangularWidgetTeamView: View {
                     .frame(width: 15, height: 15)
             }
             if showText {
-                if #available(iOS 16.0, *) {
-                    ViewThatFits {
-                        if let longName {
-                            Text(longName)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                } else {
-                    if let longName {
-                        Text(longName.uppercased())
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
+                if let longName {
+                    Text(longName.uppercased())
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
             }
         }

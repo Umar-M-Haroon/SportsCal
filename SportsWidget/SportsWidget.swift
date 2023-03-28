@@ -57,13 +57,12 @@ struct SportsView: View {
             SportsLine(type: type)
             VStack(alignment: .leading) {
                 HStack {
-                    Text(Date.isoStringToDateString(dateString: gameDate))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-//                    Text(Date.formatToTime(gameDate))
-//                        .font(.caption)
-//                        .foregroundColor(.secondary)
+                    if let date = DateFormatters.isoFormatter.date(from: gameDate) {
+                        Text(date.formatted(.dateTime.weekday(.abbreviated).month(.defaultDigits).day().hour().minute()))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
                 VStack(alignment: .leading) {
                     Text(home)
@@ -153,7 +152,7 @@ struct SportsWidget_Previews: PreviewProvider {
                                                      game: sampleGames,
                                                      images: images,
                                                      teams: teams))
-            .previewContext(WidgetPreviewContext(family: .accessoryRectangular))
+            .previewContext(WidgetPreviewContext(family: .systemLarge))
         }
     }
 }

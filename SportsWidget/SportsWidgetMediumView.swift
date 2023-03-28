@@ -14,21 +14,19 @@ struct SportsWidgetMediumView: View {
     var body: some View {
         VStack {
             VStack {
-                Text(Date.currentDateToDayString())
+                Text(Date().formatted(.dateTime.weekday(.abbreviated)))
                     .bold()
                     .foregroundColor(.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 8)
-                
                 HStack {
-                    Text(Date.currentDateToNumberString())
+                    Text(Date().formatted(.dateTime.month(.abbreviated).day(.twoDigits)))
                         .bold()
                     Spacer()
                     Text("Up Next")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .frame(alignment: .leading)
-                        .padding([.leading], 8)
                 }
             }
             VStack(spacing: 4) {
@@ -45,8 +43,7 @@ struct SportsWidgetMediumView: View {
                                     Spacer()
                                     VStack(alignment: .center, spacing: 0) {
                                         if let isoDate = game.isoDate {
-                                            
-                                            Text(isoDate.formatToDate(dateFormat: "d MMM") ?? "")
+                                            Text(isoDate.formatted(.dateTime.month().day()))
                                                 .font(.system(.subheadline, design: .monospaced))
                                                 .fontWeight(.medium)
                                                 .foregroundColor(.secondary)
@@ -57,7 +54,6 @@ struct SportsWidgetMediumView: View {
                                                 .fontWeight(.medium)
                                                 .foregroundColor(Color(UIColor.secondaryLabel))
                                         }
-                                        //
                                     }
                                     Spacer()
                                     WidgetTeamView(shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, isAway: false, data: entry.images?[homeTeamID])
