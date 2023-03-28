@@ -65,7 +65,9 @@ import ActivityKit
         getInfo()
         appStorage.objectWillChange
             .debounce(for: 1, scheduler: RunLoop.main)
-            .sink { 
+            .sink {
+                self.networkState = .loading
+                self.getInfo()
                 self.filterSports()
             }
             .store(in: &cancellables)
@@ -90,6 +92,7 @@ import ActivityKit
     private var liveCache: Cache<String, LiveScore>?
     @Published var currentLiveInfo: LiveScore?
     private var cancellables: Set<AnyCancellable> = []
+    @Published var currentlyLiveSports: [SportType] = []
     
     var liveEvents: [Game] {
         var games: [Game] = []
@@ -101,7 +104,12 @@ import ActivityKit
                       let league = Leagues(rawValue: intLeague) else { return false }
                 return !league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
             }
-            games.append(contentsOf: soccerGames ?? [])
+            if let soccerGames {
+                games.append(contentsOf: soccerGames)
+                if !games.isEmpty {
+                    currentlyLiveSports.append(.soccer)
+                }
+            }
         }
         if appStorage.shouldShowMLB {
             var baseballGames = currentLiveInfo?.mlb?.events
@@ -111,7 +119,12 @@ import ActivityKit
                       let _ = Leagues(rawValue: intLeague) else { return true }
                 return false
             })
-            games.append(contentsOf: currentLiveInfo?.mlb?.events ?? [])
+            if let baseballGames {
+                games.append(contentsOf: baseballGames)
+                if !games.isEmpty {
+                    currentlyLiveSports.append(.mlb)
+                }
+            }
         }
         if appStorage.shouldShowNBA {
             var basketballGames = currentLiveInfo?.nba?.events
@@ -121,7 +134,12 @@ import ActivityKit
 //                      let _ = Leagues(rawValue: intLeague) else { return true }
 //                return false
 //            })
-            games.append(contentsOf: basketballGames ?? [])
+            if let basketballGames {
+                games.append(contentsOf: basketballGames)
+                if !games.isEmpty {
+                    currentlyLiveSports.append(.basketball)
+                }
+            }
         }
         if appStorage.shouldShowNFL {
             var nflGames = currentLiveInfo?.nfl?.events
@@ -131,7 +149,12 @@ import ActivityKit
                       let _ = Leagues(rawValue: intLeague) else { return true }
                 return false
             })
-            games.append(contentsOf: nflGames ?? [])
+            if let nflGames {
+                games.append(contentsOf: nflGames)
+                if !games.isEmpty {
+                    currentlyLiveSports.append(.nfl)
+                }
+            }
         }
         if appStorage.shouldShowNHL {
             var nhlGames = currentLiveInfo?.nhl?.events
@@ -141,7 +164,13 @@ import ActivityKit
                       let _ = Leagues(rawValue: intLeague) else { return true }
                 return false
             })
-            games.append(contentsOf: nhlGames ?? [])
+
+            if let nhlGames {
+                games.append(contentsOf: nhlGames)
+                if !games.isEmpty {
+                    currentlyLiveSports.append(.hockey)
+                }
+            }
         }
         return Array(OrderedSet(games))
     }
@@ -412,7 +441,9 @@ import ActivityKit
         for sort in sorted {
             newDict[sort.key] = sort.value
         }
-        sortedGames = sorted
+        withAnimation {
+            sortedGames = sorted
+        }
     }
     
     func setFavorites() {

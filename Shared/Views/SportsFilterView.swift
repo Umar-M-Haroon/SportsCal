@@ -10,6 +10,7 @@ import SwiftUI
 import SportsCalModel
 struct SportsFilterView: View {
     var sport: SportType
+    var isLive: Bool = false
     @Binding var shouldShowPromoCount: Bool
     @ObservedObject var appStorage: UserDefaultStorage
     
@@ -55,15 +56,17 @@ struct SportsFilterView: View {
                 }
             }
         } label: {
-            HStack {
+            HStack(spacing: 4) {
                 Image(systemName: sportToSystemImage())
-                    .font(.title3)
                     .modifier(SportsTint(sport: sport))
+                if isLive {
+                    LiveViewCircle()
+                }
             }
         }
         .buttonBorderStyle(isDisabled())
         .buttonBorderShape(.capsule)
-        .buttonStyle(SportsButtonStyle())
+//        .buttonStyle(SportsButtonStyle())
 //        .padding(6)
     }
     
@@ -83,7 +86,6 @@ struct SportsFilterView: View {
     }
     
     func isDisabled() -> Bool {
-        
         switch sport {
         case .basketball:
             return appStorage.shouldShowNBA
@@ -114,7 +116,6 @@ struct SportsButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 1.3 : 1)
-//            .animation(.spring(), value: configuration.isPressed)
     }
 }
 

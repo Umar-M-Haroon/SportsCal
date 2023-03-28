@@ -67,7 +67,7 @@ struct ContentView: View {
         NavigationView {
             Group {
                 Section {
-                  SportsSelectView()
+                    SportsSelectView(currentlyLiveSports: viewModel.currentlyLiveSports)
                 }  footer: {
                     if shouldShowPromo {
                         HStack {
@@ -86,10 +86,8 @@ struct ContentView: View {
                         LiveActivityStatusView(liveActivityStatus: $activityState)
                     }
                 }
-
-
-                if !viewModel.sortedGames.isEmpty {
-                    List {
+                List {
+                    if !viewModel.sortedGames.isEmpty {
                         LiveEventsView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState)
                             .environmentObject(favorites)
                             .environmentObject(storage)
@@ -110,13 +108,13 @@ struct ContentView: View {
                                                 .environmentObject(favorites)
                                         }
                                     } else {
-                                        #if DEBUG
+#if DEBUG
                                         VStack {
                                             Text("No game")
                                             Text(game.strHomeTeam)
                                             Text(game.strAwayTeam)
                                         }
-                                        #endif
+#endif
                                     }
                                 }
                             } header: {
@@ -126,24 +124,29 @@ struct ContentView: View {
                                 }
                             }
                         }
-                    }
-                } else {
-                    VStack {
+                    } else {
                         if viewModel.networkState == .loading {
-                            ProgressView()
-                        } else if viewModel.networkState == .failed {
-                            Text("No games fetched")
-                                .font(.title2)
-                            Button("Retry") {
-                                viewModel.getInfo()
+                            HStack {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity)
                             }
+                            .listRowBackground(Color.clear)
+                        } else {
+                            VStack {
+                                Text("No games fetched")
+                                    .foregroundColor(.secondary)
+                                Button("Retry") {
+                                    viewModel.getInfo()
+                                }
+                                .foregroundColor(Color.blue)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .listRowBackground(Color.clear)
                         }
                     }
-                Spacer()
                 }
-
+                .searchable(text: $searchString, placement: SearchFieldPlacement.navigationBarDrawer(displayMode: .automatic), prompt: "Teams: ")
             }
-            .searchable(text: $searchString, placement: SearchFieldPlacement.navigationBarDrawer(displayMode: .automatic), prompt: "Teams: ")
             .navigationBarTitle("SportsCal")
             .navigationBarItems(leading: Button(action: {
                 shouldShowSettings = true
