@@ -19,33 +19,7 @@ struct LiveActivityStatusView: View {
             case .loading:
                 ProgressView()
                     .progressViewStyle(.circular)
-            case .added:
-#if canImport(ActivityKit)
-                if !Activity<LiveSportActivityAttributes>.activities.isEmpty {
-                    HStack {
-                        Text("\(Activity<LiveSportActivityAttributes>.activities.count) active Live Activities")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        Button {
-                            for activity in Activity<LiveSportActivityAttributes>.activities {
-                                let currentState = activity.contentState
-                                Task {
-                                    await activity.end(using: currentState, dismissalPolicy: .immediate)
-                                }
-                            }
-                            withAnimation {
-                                if Activity<LiveSportActivityAttributes>.activities.isEmpty {
-                                    liveActivityStatus = .none
-                                }
-                            }
-                        } label: {
-                            Text("End Activities")
-                                .font(.caption2)
-                        }
-                    }
-                }
-#endif
-            case .none:
+            case .added, .none:
                 EmptyView()
             }
         }

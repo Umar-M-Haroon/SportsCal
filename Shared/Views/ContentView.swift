@@ -160,6 +160,7 @@ struct ContentView: View {
                 case .onboarding:
                     OnboardingPage(sheetType: $sheetType)
                         .environmentObject(storage)
+                        .environmentObject(viewModel)
                 case .calendar(let eventGame):
                     if let game = eventGame {
                         makeCalendarEvent(game: game)

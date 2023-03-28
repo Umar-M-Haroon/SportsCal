@@ -419,7 +419,6 @@ import ActivityKit
         favoriteGames = filteredGames?.filter({favorites.contains($0)})
     }
     
-    
     func getTeams(for game: Game) -> (home: Team, away: Team)? {
         let strHomeTeam = game.strHomeTeam
         let strAwayTeam = game.strAwayTeam

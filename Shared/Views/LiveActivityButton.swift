@@ -41,12 +41,15 @@ struct LiveActivityButton: View {
                         let initialContentState = LiveSportActivityAttributes.ContentState(homeScore: Int(game.intHomeScore ?? "") ?? 0, awayScore: Int(game.intAwayScore ?? "") ?? 0, status: game.strStatus, progress: game.strProgress)
                         let activityAttributes = LiveSportActivityAttributes(homeTeam: homeTeam.strTeamShort ?? homeTeam.strTeam ?? "", awayTeam: awayTeam.strTeamShort ?? awayTeam.strTeam ?? "", homeID: homeTeam.idTeam ?? "''", awayID: awayTeam.idTeam ?? "", eventID: game.idEvent ?? "", league: game.idLeague, awayURL: awayTeam.strTeamBadge, homeURL: homeTeam.strTeamBadge)
                         sportActivity = try Activity.request(attributes: activityAttributes, contentState: initialContentState, pushType: .token)
+                        print(sportActivity.pushToken)
                         if let token = sportActivity.pushToken, let eventID = game.idEvent {
                             let tokenString = token.map { String(format: "%02x", $0)}.joined()
                             try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID, debug: UserDefaultStorage().debugMode)
                             withAnimation {
                                 activityState = .added
                             }
+                        } else {
+                            print("Failed to get token")
                         }
                         withAnimation {
                             activityState = .added

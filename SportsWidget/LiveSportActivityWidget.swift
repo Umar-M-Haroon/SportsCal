@@ -17,10 +17,9 @@ struct LiveSportActivityWidget: Widget {
                 if let awayID = context.attributes.awayID, let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(awayID) {
                     IndividualTeamView(shortName: context.attributes.awayTeam, longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true, data: try? Data(contentsOf: fileURL))
                 } else {
-                    Text("no file url")
                     IndividualTeamView(shortName: context.attributes.awayTeam, longName: context.attributes.awayTeam, score: -1, isWinning: context.state.awayScore > context.state.homeScore, isAway: true)
                 }
-                if let formatted = GameFormatter().string(for: (context.attributes, context.state)) {
+                if let formatted = context.state.progress {
                     Text(formatted)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -90,7 +89,7 @@ struct LiveSportActivityWidget: Widget {
                 }
                 
                 DynamicIslandExpandedRegion(.bottom) {
-                    if let formatted = GameFormatter().string(for: (context.attributes, context.state)) {
+                    if let formatted = context.state.progress {
                         Text(formatted)
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -98,24 +97,44 @@ struct LiveSportActivityWidget: Widget {
                 }
                 
             } compactLeading: {
-                Text(context.attributes.awayTeam)
-                    .font(.caption2)
-                if context.state.awayScore > context.state.homeScore {
-                    Text("\(context.state.awayScore)")
-                        .fontWeight(.heavy)
-                } else {
-                    Text("\(context.state.awayScore)")
-                        .foregroundColor(.secondary)
+                HStack(spacing: 0) {
+                    if let homeID = context.attributes.awayID, let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(homeID),
+                       let data = try? Data(contentsOf: fileURL),
+                       let image = UIImage(data: data) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 10, height: 10)
+                    }
+                    Text(context.attributes.awayTeam)
+                        .font(.caption2)
+                    if context.state.awayScore > context.state.homeScore {
+                        Text("\(context.state.awayScore)")
+                            .fontWeight(.heavy)
+                    } else {
+                        Text("\(context.state.awayScore)")
+                            .foregroundColor(.secondary)
+                    }
                 }
             } compactTrailing: {
-                Text(context.attributes.homeTeam)
-                    .font(.caption2)
-                if context.state.awayScore < context.state.homeScore {
-                    Text("\(context.state.homeScore)")
-                        .fontWeight(.heavy)
-                } else {
-                    Text("\(context.state.homeScore)")
-                        .foregroundColor(.secondary)
+                HStack(spacing: 0) {
+                    if let homeID = context.attributes.awayID, let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(homeID),
+                       let data = try? Data(contentsOf: fileURL),
+                       let image = UIImage(data: data) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 10, height: 10)
+                    }
+                    Text(context.attributes.homeTeam)
+                        .font(.caption2)
+                    if context.state.awayScore < context.state.homeScore {
+                        Text("\(context.state.homeScore)")
+                            .fontWeight(.heavy)
+                    } else {
+                        Text("\(context.state.homeScore)")
+                            .foregroundColor(.secondary)
+                    }
                 }
             } minimal: {
                 if context.state.awayScore > context.state.homeScore {
@@ -130,10 +149,4 @@ struct LiveSportActivityWidget: Widget {
         
     }
 }
-
-//struct LiveSportActivityWidget_Previews: PreviewProvider {
-//    static var previews: some View {
-//        LiveSportActivityWidget()
-//    }
-//}
 #endif
