@@ -22,11 +22,6 @@ struct LiveSportActivityAttributes: ActivityAttributes {
     
     var homeTeam: String
     var awayTeam: String
-    var homeID: String?
-    var awayID: String?
     var eventID: String
-    var league: String?
-    var awayURL: String?
-    var homeURL: String?
 }
 #endif

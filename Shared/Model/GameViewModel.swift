@@ -23,7 +23,7 @@ import ActivityKit
     @Published var sortedGames: Array<(key: DateComponents, value: Array<Game>)> = []
     @Published var networkState: NetworkState = .loading
     @Published var currentLiveInfo: LiveScore?
-    @Published var currentlyLiveSports: [SportType] = []
+    var currentlyLiveSports: [SportType] = []
 
     var favorites: Favorites
     var teams: [Team] = []
@@ -72,12 +72,12 @@ import ActivityKit
         }
         if appStorage.shouldShowNBA {
             var basketballGames = currentLiveInfo?.nba?.events
-//            basketballGames?.removeAll(where: { game in
-//                guard let leagueString = game.idLeague,
-//                      let intLeague = Int(leagueString),
-//                      let _ = Leagues(rawValue: intLeague) else { return true }
-//                return false
-//            })
+            basketballGames?.removeAll(where: { game in
+                guard let leagueString = game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let _ = Leagues(rawValue: intLeague) else { return true }
+                return false
+            })
             if let basketballGames {
                 games.append(contentsOf: basketballGames)
                 if !games.isEmpty {
@@ -248,7 +248,8 @@ import ActivityKit
                 return LiveScore(nba: events[.basketball], mlb: events[.mlb], soccer: events[.soccer], nfl: events[.nfl], nhl: events[.hockey])
             }
             
-//            let result = try await NetworkHandler.handleCall(debug: appStorage.debugMode)
+            gameCache?.insert(groupResult, for: "games")
+            try gameCache?.saveToDisk(with: "games")
             setGames(result: groupResult)
             try await handleTeams()
             handleLiveWebsocket()
@@ -349,7 +350,6 @@ import ActivityKit
         filteredGames = allGames
             .filter({ game -> Bool in
                 guard let date = game.isoDate else {
-                    print(game)
                     return false
                 }
                 if self.appStorage.hidePastEvents {

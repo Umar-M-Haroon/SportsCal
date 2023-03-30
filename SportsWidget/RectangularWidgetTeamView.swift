@@ -9,11 +9,9 @@ import Foundation
 import SwiftUI
 
 struct RectangularWidgetTeamView: View {
-    var shortName: String?
     var longName: String?
     var isAway: Bool
     var data: Data? = nil
-    var showText: Bool = true
     var body: some View {
         HStack(spacing: 4) {
             if let data, let image = UIImage(data: data) {
@@ -22,12 +20,11 @@ struct RectangularWidgetTeamView: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 15, height: 15)
             }
-            if showText {
-                if let longName {
-                    Text(longName.uppercased())
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
+            if let longName {
+                Text(longName)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

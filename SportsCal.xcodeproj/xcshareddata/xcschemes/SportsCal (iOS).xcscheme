@@ -90,7 +90,7 @@
          <EnvironmentVariable
             key = "mock-subscribed"
             value = "true"
-            isEnabled = "NO">
+            isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "websockethost"
@@ -100,7 +100,7 @@
          <EnvironmentVariable
             key = "mock-live"
             value = "true"
-            isEnabled = "NO">
+            isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "host"

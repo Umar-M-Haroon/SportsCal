@@ -66,8 +66,6 @@ struct SportsFilterView: View {
         }
         .buttonBorderStyle(isDisabled())
         .buttonBorderShape(.capsule)
-//        .buttonStyle(SportsButtonStyle())
-//        .padding(6)
     }
     
     func sportToSystemImage() -> String {

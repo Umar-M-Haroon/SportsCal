@@ -173,18 +173,15 @@ struct WidgetTeamView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 30, height: 30)
-//                        .frame(maxWidth: .infinity, alignment: (shortName == nil && isAway) ? .leading : .trailing)
                 }
                 if shortName == nil && isAway {
                     Spacer()
                 }
             }
-//            .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             if let shortName {
                 Text(shortName)
                     .font(.caption2)
                     .foregroundColor(.secondary)
-//                    .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             } else if let longName {
                 Text(longName)
                     .font(.caption2)
@@ -192,7 +189,6 @@ struct WidgetTeamView: View {
                     .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             }
         }
-//        .background(Color.red)
     }
 }
 
