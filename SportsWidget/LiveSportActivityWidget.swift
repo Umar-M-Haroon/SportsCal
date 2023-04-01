@@ -43,12 +43,12 @@ struct LiveSportActivityWidget: Widget {
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 35, height: 35)
                         } else {
-                            #if DEBUG
+#if DEBUG
                             Image(systemName: "circle.fill")
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 35, height: 35)
-                            #endif
+#endif
                         }
                         VStack {
                             if context.state.awayScore > context.state.homeScore {
@@ -111,11 +111,16 @@ struct LiveSportActivityWidget: Widget {
                 }
                 
             } compactLeading: {
-                HStack(spacing: 0) {
+                HStack(spacing: 4) {
                     if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent( context.attributes.awayTeam),
                        let data = try? Data(contentsOf: fileURL),
                        let image = UIImage(data: data) {
                         Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 10, height: 10)
+                    } else {
+                        Image(systemName: "circle.fill")
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 10, height: 10)
@@ -131,11 +136,16 @@ struct LiveSportActivityWidget: Widget {
                     }
                 }
             } compactTrailing: {
-                HStack(spacing: 0) {
+                HStack(spacing: 4) {
                     if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.homeTeam),
                        let data = try? Data(contentsOf: fileURL),
                        let image = UIImage(data: data) {
                         Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 10, height: 10)
+                    } else {
+                        Image(systemName: "circle.fill")
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 10, height: 10)
@@ -151,88 +161,70 @@ struct LiveSportActivityWidget: Widget {
                     }
                 }
             } minimal: {
-                VStack(spacing: 4) {
-                    HStack(spacing: 2) {
+                VStack(spacing: 0) {
+                    HStack(spacing: 4) {
                         if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.awayTeam),
                            let data = try? Data(contentsOf: fileURL),
                            let image = UIImage(data: data) {
                             Image(uiImage: image)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .frame(width: 5, height: 5)
+                                .frame(width: 10, height: 10)
                         } else {
 #if DEBUG
                             Image(systemName: "circle.fill")
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .frame(width: 5, height: 5)
+                                .frame(width: 10, height: 10)
 #endif
                         }
-//                        if context.state.awayScore > context.state.homeScore {
-//                            Text(context.attributes.awayTeam)
-//                                .font(.system(size: 5))
-//                        } else {
-//                            Text(context.attributes.homeTeam)
-//                                .font(.system(size: 5))
-//                        }
-                        Text("114")
-                            .font(.system(size: 5))
-
+                        Text("\(context.state.awayScore)")
+                            .font(.system(size: 8))
                     }
-                    HStack(spacing: 2) {
-                        if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.awayTeam),
+                    HStack(spacing: 4) {
+                        if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.homeTeam),
                            let data = try? Data(contentsOf: fileURL),
                            let image = UIImage(data: data) {
                             Image(uiImage: image)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .frame(width: 5, height: 5)
+                                .frame(width: 10, height: 10)
                         } else {
 #if DEBUG
                             Image(systemName: "circle.fill")
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .frame(width: 5, height: 5)
+                                .frame(width: 10, height: 10)
 #endif
                         }
-//                        if context.state.awayScore > context.state.homeScore {
-//                            Text(context.attributes.awayTeam)
-//                                .font(.system(size: 5))
-//                        } else {
-//                            Text(context.attributes.homeTeam)
-//                                .font(.system(size: 5))
-//                        }
-                        Text("114")
-                                .font(.system(size: 5))
+                        Text("\(context.state.homeScore)")
+                            .font(.system(size: 8))
                     }
                 }
-//                    .scenePadding()
             }
         }
+    }
+    
+    @available(iOSApplicationExtension 16.2, *)
+    struct LiveActivityWidgetLiveActivity_Previews: PreviewProvider {
         
+        static let attributes = LiveSportActivityAttributes(homeTeam: "VGK", awayTeam: "EDM", eventID: "401459774")
+        static let contentState = LiveSportActivityAttributes.ContentState(homeScore: 3, awayScore: 6, status: "in", progress: "2:14 - 2nd")
+        
+        static var previews: some View {
+            attributes
+                .previewContext(contentState, viewKind: .dynamicIsland(.compact))
+                .previewDisplayName("Island Compact")
+            attributes
+                .previewContext(contentState, viewKind: .dynamicIsland(.expanded))
+                .previewDisplayName("Island Expanded")
+            attributes
+                .previewContext(contentState, viewKind: .dynamicIsland(.minimal))
+                .previewDisplayName("Minimal")
+            attributes
+                .previewContext(contentState, viewKind: .content)
+                .previewDisplayName("Notification")
+        }
     }
 }
-
-@available(iOSApplicationExtension 16.2, *)
-struct LiveActivityWidgetLiveActivity_Previews: PreviewProvider {
-    
-    static let attributes = LiveSportActivityAttributes(homeTeam: "VGK", awayTeam: "EDM", eventID: "401459774")
-    static let contentState = LiveSportActivityAttributes.ContentState(homeScore: 3, awayScore: 6, status: "in", progress: "2:14 - 2nd")
-    
-    static var previews: some View {
-        attributes
-            .previewContext(contentState, viewKind: .dynamicIsland(.compact))
-            .previewDisplayName("Island Compact")
-        attributes
-            .previewContext(contentState, viewKind: .dynamicIsland(.expanded))
-            .previewDisplayName("Island Expanded")
-        attributes
-            .previewContext(contentState, viewKind: .dynamicIsland(.minimal))
-            .previewDisplayName("Minimal")
-        attributes
-            .previewContext(contentState, viewKind: .content)
-            .previewDisplayName("Notification")
-    }
-}
-
 #endif
