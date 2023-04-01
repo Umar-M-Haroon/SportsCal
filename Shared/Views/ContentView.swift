@@ -30,19 +30,6 @@ enum SheetType: Identifiable {
     case calendar(game: Game?)
 }
 
-enum LiveActivityStatus: Identifiable, Hashable {
-    var id: String {
-        switch self {
-        case .loading:
-            return "loading"
-        case .added:
-            return "added"
-        case .none:
-            return "none"
-        }
-    }
-    case loading, added, none
-}
 struct ContentView: View {
     @Environment(\.scenePhase) var scenePhase
     
@@ -61,7 +48,6 @@ struct ContentView: View {
     
     @State var searchString: String = ""
     @State var shouldShowPromo: Bool = false
-    @State var activityState: LiveActivityStatus = .none
     @State var isListLayout: Bool = true
     var body: some View {
         NavigationView {
@@ -83,12 +69,12 @@ struct ContentView: View {
                         }
                     }
                     if #available(iOS 16.1, *) {
-                        LiveActivityStatusView(liveActivityStatus: $activityState)
+                        LiveActivityStatusView()
                     }
                 }
                 List {
                     if !viewModel.sortedGames.isEmpty {
-                        LiveEventsView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState)
+                        LiveEventsView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
                             .environmentObject(favorites)
                             .environmentObject(storage)
                             .environmentObject(viewModel)
@@ -101,7 +87,7 @@ struct ContentView: View {
                                 ForEach(viewModel.sortedGames.map({$0.value})[index]) { game in
                                     if let (homeTeam, awayTeam) = viewModel.getTeams(for: game) {
                                         if let homeScore = Int(game.intHomeScore ?? ""), let awayScore = Int(game.intAwayScore ?? "") {
-                                            GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState, isLive: false)
+                                            GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: false)
                                                 .environmentObject(favorites)
                                         } else {
                                             UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat)

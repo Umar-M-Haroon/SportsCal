@@ -12,17 +12,7 @@ import ActivityKit
 
 @available(iOS 16.1, *)
 struct LiveActivityStatusView: View {
-    @Binding var liveActivityStatus: LiveActivityStatus
     var body: some View {
-        Group {
-            switch liveActivityStatus {
-            case .loading:
-                ProgressView()
-                    .progressViewStyle(.circular)
-<<<<<<< HEAD
-            case .added, .none:
-=======
-            case .added:
 #if canImport(ActivityKit)
                 if !Activity<LiveSportActivityAttributes>.activities.filter({$0.pushToken != nil}).isEmpty {
                     HStack {
@@ -36,29 +26,21 @@ struct LiveActivityStatusView: View {
                                     await activity.end(using: currentState, dismissalPolicy: .immediate)
                                 }
                             }
-                            withAnimation {
-                                if Activity<LiveSportActivityAttributes>.activities.isEmpty {
-                                    liveActivityStatus = .none
-                                }
-                            }
                         } label: {
                             Text("End Activities")
                                 .font(.caption2)
                         }
                     }
+                } else {
+                    EmptyView()
                 }
 #endif
-            case .none:
->>>>>>> update live activities to work again
-                EmptyView()
-            }
-        }
     }
 }
 
 @available(iOS 16.1, *)
 struct LiveActivityStatus_Previews: PreviewProvider {
     static var previews: some View {
-        LiveActivityStatusView(liveActivityStatus: .constant(.loading) )
+        LiveActivityStatusView()
     }
 }

@@ -14,7 +14,7 @@ struct LiveSportActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: LiveSportActivityAttributes.self) { context in
             HStack {
-                if let awayID = context.attributes.awayID, let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(awayID) {
+                if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.awayTeam) {
                     IndividualTeamView(shortName: context.attributes.awayTeam, longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true, data: try? Data(contentsOf: fileURL))
                 } else {
                     IndividualTeamView(shortName: context.attributes.awayTeam, longName: context.attributes.awayTeam, score: -1, isWinning: context.state.awayScore > context.state.homeScore, isAway: true)
@@ -24,7 +24,7 @@ struct LiveSportActivityWidget: Widget {
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
-                if let homeID = context.attributes.homeID, let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(homeID) {
+                if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.homeTeam) {
                     IndividualTeamView(shortName: context.attributes.homeTeam, longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false, data: try? Data(contentsOf: fileURL))
                 } else {
                     IndividualTeamView(shortName: context.attributes.homeTeam, longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false)
@@ -35,7 +35,7 @@ struct LiveSportActivityWidget: Widget {
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack {
-                        if let awayID = context.attributes.awayID, let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(awayID),
+                        if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.awayTeam),
                            let data = try? Data(contentsOf: fileURL),
                            let image = UIImage(data: data) {
                             Image(uiImage: image)
@@ -79,7 +79,7 @@ struct LiveSportActivityWidget: Widget {
                             }
                             Text(context.attributes.homeTeam)
                         }
-                        if let homeID = context.attributes.homeID, let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(homeID),
+                        if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.homeTeam),
                            let data = try? Data(contentsOf: fileURL),
                            let image = UIImage(data: data) {
                             Image(uiImage: image)
@@ -111,9 +111,8 @@ struct LiveSportActivityWidget: Widget {
                 }
                 
             } compactLeading: {
-<<<<<<< HEAD
                 HStack(spacing: 0) {
-                    if let homeID = context.attributes.awayID, let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(homeID),
+                    if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent( context.attributes.awayTeam),
                        let data = try? Data(contentsOf: fileURL),
                        let image = UIImage(data: data) {
                         Image(uiImage: image)
@@ -133,7 +132,7 @@ struct LiveSportActivityWidget: Widget {
                 }
             } compactTrailing: {
                 HStack(spacing: 0) {
-                    if let homeID = context.attributes.awayID, let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(homeID),
+                    if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.homeTeam),
                        let data = try? Data(contentsOf: fileURL),
                        let image = UIImage(data: data) {
                         Image(uiImage: image)
@@ -151,39 +150,10 @@ struct LiveSportActivityWidget: Widget {
                             .foregroundColor(.secondary)
                     }
                 }
-            } minimal: {
-                if context.state.awayScore > context.state.homeScore {
-=======
-                VStack {
->>>>>>> update live activities to work again
-                    Text(context.attributes.awayTeam)
-                        .font(.caption2)
-                    if context.state.awayScore > context.state.homeScore {
-                        Text("\(context.state.awayScore)")
-                            .fontWeight(.heavy)
-                    } else {
-                        Text("\(context.state.awayScore)")
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .scenePadding()
-            } compactTrailing: {
-                VStack {
-                    Text(context.attributes.homeTeam)
-                        .font(.caption2)
-                    if context.state.awayScore < context.state.homeScore {
-                        Text("\(context.state.homeScore)")
-                            .fontWeight(.heavy)
-                    } else {
-                        Text("\(context.state.homeScore)")
-                            .foregroundColor(.secondary)
-                    }
-                }
-                    .scenePadding()
             } minimal: {
                 VStack(spacing: 4) {
                     HStack(spacing: 2) {
-                        if let awayID = context.attributes.awayID, let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(awayID),
+                        if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.awayTeam),
                            let data = try? Data(contentsOf: fileURL),
                            let image = UIImage(data: data) {
                             Image(uiImage: image)
@@ -210,7 +180,7 @@ struct LiveSportActivityWidget: Widget {
 
                     }
                     HStack(spacing: 2) {
-                        if let awayID = context.attributes.awayID, let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(awayID),
+                        if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.awayTeam),
                            let data = try? Data(contentsOf: fileURL),
                            let image = UIImage(data: data) {
                             Image(uiImage: image)
@@ -242,13 +212,11 @@ struct LiveSportActivityWidget: Widget {
         
     }
 }
-<<<<<<< HEAD
-=======
 
 @available(iOSApplicationExtension 16.2, *)
 struct LiveActivityWidgetLiveActivity_Previews: PreviewProvider {
     
-    static let attributes = LiveSportActivityAttributes(homeTeam: "VGK", awayTeam: "EDM", homeID: "135913", awayID: "134849", eventID: "401459774")
+    static let attributes = LiveSportActivityAttributes(homeTeam: "VGK", awayTeam: "EDM", eventID: "401459774")
     static let contentState = LiveSportActivityAttributes.ContentState(homeScore: 3, awayScore: 6, status: "in", progress: "2:14 - 2nd")
     
     static var previews: some View {
@@ -267,5 +235,4 @@ struct LiveActivityWidgetLiveActivity_Previews: PreviewProvider {
     }
 }
 
->>>>>>> update live activities to work again
 #endif

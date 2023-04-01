@@ -14,7 +14,6 @@ struct LiveEventsView: View {
     @EnvironmentObject var storage: UserDefaultStorage
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var sheetType: SheetType?
-    @Binding var activityState: LiveActivityStatus
     var body: some View {
         if !viewModel.liveEvents.isEmpty {
             Section {
@@ -22,7 +21,7 @@ struct LiveEventsView: View {
                     if let homeScore = Int(event.intHomeScore ?? ""),
                        let awayScore = Int(event.intAwayScore ?? ""),
                        let (homeTeam, awayTeam) = viewModel.getTeams(for: event) {
-                        GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState, isLive: true)
+                        GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: true)
                     }
                 }
             } header: {
