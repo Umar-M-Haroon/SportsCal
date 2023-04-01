@@ -19,7 +19,37 @@ struct LiveActivityStatusView: View {
             case .loading:
                 ProgressView()
                     .progressViewStyle(.circular)
+<<<<<<< HEAD
             case .added, .none:
+=======
+            case .added:
+#if canImport(ActivityKit)
+                if !Activity<LiveSportActivityAttributes>.activities.filter({$0.pushToken != nil}).isEmpty {
+                    HStack {
+                        Text("^[Following \(Activity<LiveSportActivityAttributes>.activities.filter({$0.pushToken != nil}).count) games](inflect: true)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Button {
+                            for activity in Activity<LiveSportActivityAttributes>.activities {
+                                let currentState = activity.contentState
+                                Task {
+                                    await activity.end(using: currentState, dismissalPolicy: .immediate)
+                                }
+                            }
+                            withAnimation {
+                                if Activity<LiveSportActivityAttributes>.activities.isEmpty {
+                                    liveActivityStatus = .none
+                                }
+                            }
+                        } label: {
+                            Text("End Activities")
+                                .font(.caption2)
+                        }
+                    }
+                }
+#endif
+            case .none:
+>>>>>>> update live activities to work again
                 EmptyView()
             }
         }

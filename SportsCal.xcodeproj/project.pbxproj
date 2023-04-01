@@ -18,11 +18,9 @@
 		1D20B33B2928C45A00956B14 /* PickSportPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B33A2928C45A00956B14 /* PickSportPage.swift */; };
 		1D20B33D2929D8C900956B14 /* MiniSubscriptionPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B33C2929D8C900956B14 /* MiniSubscriptionPage.swift */; };
 		1D20B33F292A115200956B14 /* SubscriptionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B33E292A115200956B14 /* SubscriptionSheet.swift */; };
-		1D2C79F1291A2EBA00E25E82 /* GameFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D408087290B610200729FFE /* GameFormatter.swift */; };
 		1D3DD52E27FBEF310086DD9E /* CompetitionPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3DD52D27FBEF310086DD9E /* CompetitionPage.swift */; };
 		1D3DD53027FBEF400086DD9E /* CompetitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3DD52F27FBEF400086DD9E /* CompetitionView.swift */; };
 		1D40808429091A2000729FFE /* UpcomingGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D40808329091A2000729FFE /* UpcomingGameView.swift */; };
-		1D408088290B610200729FFE /* GameFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D408087290B610200729FFE /* GameFormatter.swift */; };
 		1D40808C290B7CED00729FFE /* IndividualTeamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D40808B290B7CED00729FFE /* IndividualTeamView.swift */; };
 		1D40808E290B856C00729FFE /* CalendarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D40808D290B856C00729FFE /* CalendarButton.swift */; };
 		1D408090290B862700729FFE /* NotifyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D40808F290B862700729FFE /* NotifyButton.swift */; };
@@ -162,7 +160,6 @@
 		1D3DD52D27FBEF310086DD9E /* CompetitionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompetitionPage.swift; sourceTree = "<group>"; };
 		1D3DD52F27FBEF400086DD9E /* CompetitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompetitionView.swift; sourceTree = "<group>"; };
 		1D40808329091A2000729FFE /* UpcomingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingGameView.swift; sourceTree = "<group>"; };
-		1D408087290B610200729FFE /* GameFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameFormatter.swift; sourceTree = "<group>"; };
 		1D40808B290B7CED00729FFE /* IndividualTeamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndividualTeamView.swift; sourceTree = "<group>"; };
 		1D40808D290B856C00729FFE /* CalendarButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarButton.swift; sourceTree = "<group>"; };
 		1D40808F290B862700729FFE /* NotifyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifyButton.swift; sourceTree = "<group>"; };
@@ -405,7 +402,6 @@
 				1DF489B12737693F00A20512 /* Constants.swift */,
 				1D12399F26D0D180001B503E /* LocalNotificationManager.swift */,
 				1D5C463026C9C5F900BA827B /* SubscriptionManager.swift */,
-				1D408087290B610200729FFE /* GameFormatter.swift */,
 				1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */,
 				1DEC76AB268EFB6600D217A1 /* SportsCalApp.swift */,
 				1DEDD0EB26D179F5005ABF93 /* AppDelegate.swift */,
@@ -678,7 +674,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				1D20B339292893DD00956B14 /* GameManager.swift in Sources */,
-				1D2C79F1291A2EBA00E25E82 /* GameFormatter.swift in Sources */,
 				1DE1F0C32941B98100741B19 /* SportsWidgetRectangularView.swift in Sources */,
 				1D77F64C297CFDCC0023E6DB /* SportsTint.swift in Sources */,
 				1D7DC236270192610086A6D5 /* NetworkHandler.swift in Sources */,
@@ -756,7 +751,6 @@
 				1DEC7705268F0AF200D217A1 /* NetworkErrors.swift in Sources */,
 				1D63E71926A9494800FC3DE6 /* Date+Extensions.swift in Sources */,
 				1D3DD53027FBEF400086DD9E /* CompetitionView.swift in Sources */,
-				1D408088290B610200729FFE /* GameFormatter.swift in Sources */,
 				1D5C463426C9F10400BA827B /* Confetti.swift in Sources */,
 				1DCEBF0526C045B200913A94 /* SettingsView.swift in Sources */,
 				1D77F64B297CFDCC0023E6DB /* SportsTint.swift in Sources */,

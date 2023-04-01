@@ -22,7 +22,16 @@ struct LiveActivityButton: View {
 //    @Binding var activeLiveActivities: [Activity<LiveSportActivityAttributes>]
     var body: some View {
         Button {
-            if let homeBadgeString = homeTeam.strTeamBadge,  let homeBadgeURL = URL(string: homeBadgeString + "/preview"), let awayBadgeString = awayTeam.strTeamBadge,  let awayBadgeURL = URL(string: awayBadgeString + "/preview") {
+            if Activity<LiveSportActivityAttributes>.activities.contains(where: {$0.attributes.eventID == game.idEvent }) {
+                // Unfollow logic
+                if let activity = Activity<LiveSportActivityAttributes>.activities.first(where: {$0.attributes.eventID == game.idEvent}) {
+                    Task {
+                        await activity.end(using: activity.contentState, dismissalPolicy: .immediate)
+                    }
+                }
+                return
+            }
+            if let homeBadgeString = homeTeam.strTeamBadge,  let homeBadgeURL = URL(string: homeBadgeString + "/tiny"), let awayBadgeString = awayTeam.strTeamBadge,  let awayBadgeURL = URL(string: awayBadgeString + "/tiny") {
                 Task(priority: .userInitiated) { @MainActor in
                     do {
                         withAnimation {
@@ -40,8 +49,16 @@ struct LiveActivityButton: View {
                         }
                         let initialContentState = LiveSportActivityAttributes.ContentState(homeScore: Int(game.intHomeScore ?? "") ?? 0, awayScore: Int(game.intAwayScore ?? "") ?? 0, status: game.strStatus, progress: game.strProgress)
                         let activityAttributes = LiveSportActivityAttributes(homeTeam: homeTeam.strTeamShort ?? homeTeam.strTeam ?? "", awayTeam: awayTeam.strTeamShort ?? awayTeam.strTeam ?? "", homeID: homeTeam.idTeam ?? "''", awayID: awayTeam.idTeam ?? "", eventID: game.idEvent ?? "", league: game.idLeague, awayURL: awayTeam.strTeamBadge, homeURL: homeTeam.strTeamBadge)
+<<<<<<< HEAD
                         sportActivity = try Activity.request(attributes: activityAttributes, contentState: initialContentState, pushType: .token)
                         print(sportActivity.pushToken)
+=======
+                        if #available(iOS 16.2, *) {
+                            sportActivity = try Activity.request(attributes: activityAttributes, content: .init(state: initialContentState, staleDate: .distantFuture, relevanceScore:  100), pushType: .token)
+                        } else {
+                            sportActivity = try Activity.request(attributes: activityAttributes, contentState: initialContentState, pushType: .token)
+                        }
+>>>>>>> update live activities to work again
                         if let token = sportActivity.pushToken, let eventID = game.idEvent {
                             let tokenString = token.map { String(format: "%02x", $0)}.joined()
                             try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID, debug: UserDefaultStorage().debugMode)
@@ -62,7 +79,11 @@ struct LiveActivityButton: View {
                 
             }
         } label: {
-            Label("Follow", systemImage: "clock.badge")
+            if Activity<LiveSportActivityAttributes>.activities.contains(where: {$0.attributes.eventID == game.idEvent }) {
+                Label("Unfollow", systemImage: "clock.badge.xmark.fill")
+            } else {
+                Label("Follow", systemImage: "clock.badge")
+            }
         }
     }
 }
