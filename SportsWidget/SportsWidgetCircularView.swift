@@ -22,7 +22,7 @@ struct SportsWidgetCircularView: View {
                             TinyWidgetTeamView(shortName: awayTeam.strTeamShort, longName: String(awayTeam.strTeam?.prefix(3) ?? "") , isAway: true, data: entry.images?[awayTeamID])
                             TinyWidgetTeamView(shortName: homeTeam.strTeamShort, longName: String(homeTeam.strTeam?.prefix(3) ?? "") , isAway: false, data: entry.images?[homeTeamID])
                         }
-                        if let date = game.isoDate {
+                        if let date = game.standardDate {
                             if Calendar.current.isDateInToday(date) {
                                 Text(date.formatted(date: .omitted, time: .shortened))
                                     .font(.system(size: 6, weight: .semibold))

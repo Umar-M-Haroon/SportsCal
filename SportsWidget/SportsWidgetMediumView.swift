@@ -48,7 +48,7 @@ struct SportsWidgetMediumView: View {
                                                 .fontWeight(.medium)
                                                 .foregroundColor(.secondary)
                                         }
-                                        if let isoString = game.isoDate?.formatToTime() ?? game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter)?.formatToTime() {
+                                        if let isoString = game.standardDate?.formatToTime() ?? game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter)?.formatToTime() {
                                             Text(isoString)
                                                 .font(.system(.subheadline, design: .monospaced))
                                                 .fontWeight(.medium)

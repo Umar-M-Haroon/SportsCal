@@ -345,55 +345,80 @@ import ActivityKit
         return allGames
     }
     
+    func isValidInPast(game: Game) -> Bool {
+        guard let date = game.standardDate else { return true }
+        var isValidForPastDuration: Bool = false
+        if self.appStorage.hidePastEvents {
+            return date.timeIntervalSinceNow > 0
+        } else {
+            switch self.appStorage.hidePastGamesDuration {
+            case .oneWeek:
+                guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                isValidForPastDuration = (days <= 7)
+            case .twoWeeks:
+                guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                isValidForPastDuration = (days >= -14)
+            case .threeWeeks:
+                guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                isValidForPastDuration = (days >= -21)
+            case .oneMonth:
+                guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+                isValidForPastDuration = (month1 <= -1)
+            case .twoMonths:
+                guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+                isValidForPastDuration = (month1 <= -2)
+            case .sixMonths:
+                guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+                isValidForPastDuration = (month1 <= -6)
+            case .oneYear:
+                guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+                isValidForPastDuration = (month1 <= -12)
+            case .oneDay:
+                guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                isValidForPastDuration = (days >= -1)
+            }
+        }
+        return isValidForPastDuration
+    }
+    
+    func isValidInFuture(game: Game) -> Bool {
+        guard let date = game.standardDate else { return true }
+        var isValidForFutureDuration: Bool = false
+        switch self.appStorage.durations {
+        case .oneWeek:
+            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+            isValidForFutureDuration = (days <= 7)
+        case .twoWeeks:
+            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+            isValidForFutureDuration = (days <= 14)
+        case .threeWeeks:
+            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+            isValidForFutureDuration = (days <= 21)
+        case .oneMonth:
+            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+            isValidForFutureDuration = (month1 < 1)
+        case .twoMonths:
+            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+            isValidForFutureDuration = (month1 < 2)
+        case .sixMonths:
+            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+            isValidForFutureDuration = (month1 < 2)
+        case .oneYear:
+            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+            isValidForFutureDuration = (month1 < 12)
+        case .oneDay:
+            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+            isValidForFutureDuration = (days < 1)
+        }
+        return isValidForFutureDuration
+    }
+    
     func filterAndSortGamesFromUserPreferences(games: [Game]) -> [Game] {
-        return games.lazy.filter({ game -> Bool in
-            guard let date = game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter) else {
-                return false
-            }
-            if self.appStorage.hidePastEvents {
-                return date.timeIntervalSinceNow > 0
-            } else {
-                var isValidForFutureDuration: Bool = false
-                var isValidForPastDuration: Bool = false
-                switch self.appStorage.hidePastGamesDuration {
-                case .oneWeek:
-                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                    isValidForFutureDuration = (days <= 7)
-                    isValidForPastDuration = (days >= -7)
-                case .twoWeeks:
-                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                    isValidForPastDuration = (days >= -14)
-                    isValidForFutureDuration = (days <= 14)
-                case .threeWeeks:
-                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                    isValidForPastDuration = (days >= -21)
-                    isValidForFutureDuration = (days <= 21)
-                case .oneMonth:
-                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                    isValidForPastDuration = (month1 <= -1)
-                    isValidForFutureDuration = (month1 < 1)
-                case .twoMonths:
-                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                    isValidForPastDuration = (month1 <= -2)
-                    isValidForFutureDuration = (month1 < 2)
-                case .sixMonths:
-                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                    isValidForPastDuration = (month1 <= -6)
-                    isValidForFutureDuration = (month1 < 2)
-                case .oneYear:
-                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                    isValidForPastDuration = (month1 <= -12)
-                    isValidForFutureDuration = (month1 < 12)
-                case .oneDay:
-                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                    isValidForPastDuration = (days >= -1)
-                    isValidForFutureDuration = (days < 1)
-                }
-                return isValidForPastDuration && isValidForFutureDuration
-            }
+        return games.filter({ game -> Bool in
+            return isValidInPast(game: game) && isValidInFuture(game: game)
         })
         .sorted { lhs, rhs in
-            lhs.isoDate ?? .now < rhs.isoDate ?? .now
+            lhs.standardDate ?? .now < rhs.standardDate ?? .now
         }
     }
     
@@ -426,7 +451,7 @@ import ActivityKit
     }
     func sortByDate() {
         let groupDic = Dictionary(grouping: filteredGames ?? []) { game -> DateComponents in
-            let gameDate = game.isoDate ?? .now
+            let gameDate = game.standardDate ?? .now
             let date2 = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: gameDate)
             return date2
         }

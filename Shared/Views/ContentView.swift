@@ -198,7 +198,7 @@ struct ContentView: View {
         print("⚠️ making calendar event for game \(game)")
         let event = EKEvent(eventStore: eventStore)
         event.title = "\(game.strAwayTeam) @ \(game.strHomeTeam)"
-        if let gameDate = game.isoDate {
+        if let gameDate = game.standardDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 2)
         }

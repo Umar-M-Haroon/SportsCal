@@ -75,7 +75,7 @@ struct UpcomingGameView: View {
     }
     
     func formatCountdown() -> String {
-        guard let gameDate = game.isoDate else { return "-1" }
+        guard let gameDate = game.standardDate else { return "-1" }
         timeRemaining = gameDate.timeIntervalSince(Date())
         if timeRemaining < 0 {
             return DateFormatters.relativeFormatter.localizedString(for: gameDate, relativeTo: Date())
