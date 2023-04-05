@@ -37,6 +37,7 @@ import ActivityKit
     private var teamCache: Cache<String, [Team]>?
     private var liveCache: Cache<String, LiveScore>?
     private var cancellables: Set<AnyCancellable> = []
+    private var networkFetchTask: Task<Void, Never>?
     
     var liveEvents: [Game] {
         var games: [Game] = []
@@ -46,7 +47,7 @@ import ActivityKit
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
-                return !league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+                return league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
             }
             if let soccerGames {
                 games.append(contentsOf: soccerGames)
@@ -130,7 +131,6 @@ import ActivityKit
         self.networkState = networkState
         self.gamesDict = [:]
         
-        
         let folderURLs = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
         var gameFileURL = folderURLs[0]
         gameFileURL.appendPathComponent("games" + ".cache")
@@ -173,14 +173,13 @@ import ActivityKit
             .sink {
                 withAnimation {
                     self.networkState = .loading
-                    self.getInfo()
-                    self.filterSports()
+                    
                 }
             }
             .store(in: &cancellables)
     }
     
-    fileprivate func handleLiveGames() async throws {
+    private func handleLiveGames() async throws {
         async let liveInfo = NetworkHandler.getLiveSnapshot(debug: appStorage.debugMode)
         self.currentLiveInfo = try await liveInfo
         if let liveInfo = currentLiveInfo {
@@ -189,7 +188,7 @@ import ActivityKit
         try liveCache?.saveToDisk(with: "live")
     }
     
-    fileprivate func handleTeams() async throws {
+    private func handleTeams() async throws {
         async let teams = NetworkHandler.getTeams(debug: appStorage.debugMode)
         self.teams = try await teams
         self.teamsDict = Dictionary(grouping: self.teams, by: \.idTeam)
@@ -202,7 +201,7 @@ import ActivityKit
         self.teamsDictName = teamsDictName
     }
     
-    fileprivate func handleLiveWebsocket() {
+    private func handleLiveWebsocket() {
         webSocketTask = nil
         webSocketTask = NetworkHandler.connectWebSocketForLive(debug: appStorage.debugMode)
         webSocketTask?.resume()
@@ -255,11 +254,11 @@ import ActivityKit
             handleLiveWebsocket()
             networkState = .loaded
             restartTimer = nil
+            networkFetchTask = nil
         } catch let e {
             print(e)
             print(e.localizedDescription)
             networkState = .failed
-            restartTimer = .init(timeInterval: 5, target: self, selector: #selector(getData), userInfo: nil, repeats: true)
         }
     }
 
@@ -303,6 +302,101 @@ import ActivityKit
             .flatMap({$0})
         filterSports(force: true)
     }
+    
+    func handleSports(force: Bool = false) {
+        if force {
+            totalGames = totalGames?.filter({ game in
+                guard let leagueString = game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let _ = Leagues(rawValue: intLeague) else { return false }
+                return true
+            }) ?? []
+            gamesDict = Dictionary(grouping: totalGames ?? [], by: { game in
+                SportType(league: Leagues.init(rawValue: Int(game.idLeague!)!)!)
+            })
+        }
+    }
+    
+    func getGamesFromUserPreferences() -> [Game] {
+        var allGames: [Game] = []
+        if appStorage.shouldShowSoccer {
+            allGames.append(contentsOf: gamesDict[.soccer] ?? [])
+            allGames = allGames.filter { game in
+                guard let leagueString = game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let league = Leagues(rawValue: intLeague) else { return false }
+                return league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+            }
+        }
+        if appStorage.shouldShowMLB {
+            allGames.append(contentsOf: gamesDict[.mlb] ?? [])
+        }
+        if appStorage.shouldShowNBA {
+            if let basketballGames = gamesDict[.basketball] {
+                allGames.append(contentsOf: basketballGames)
+            }
+        }
+        if appStorage.shouldShowNFL {
+            allGames.append(contentsOf: gamesDict[.nfl] ?? [])
+        }
+        if appStorage.shouldShowNHL {
+            allGames.append(contentsOf: gamesDict[.hockey] ?? [])
+        }
+        return allGames
+    }
+    
+    func filterAndSortGamesFromUserPreferences(games: [Game]) -> [Game] {
+        return games.lazy.filter({ game -> Bool in
+            guard let date = game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter) else {
+                return false
+            }
+            if self.appStorage.hidePastEvents {
+                return date.timeIntervalSinceNow > 0
+            } else {
+                var isValidForFutureDuration: Bool = false
+                var isValidForPastDuration: Bool = false
+                switch self.appStorage.hidePastGamesDuration {
+                case .oneWeek:
+                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                    isValidForFutureDuration = (days <= 7)
+                    isValidForPastDuration = (days >= -7)
+                case .twoWeeks:
+                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                    isValidForPastDuration = (days >= -14)
+                    isValidForFutureDuration = (days <= 14)
+                case .threeWeeks:
+                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                    isValidForPastDuration = (days >= -21)
+                    isValidForFutureDuration = (days <= 21)
+                case .oneMonth:
+                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+                    isValidForPastDuration = (month1 <= -1)
+                    isValidForFutureDuration = (month1 < 1)
+                case .twoMonths:
+                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+                    isValidForPastDuration = (month1 <= -2)
+                    isValidForFutureDuration = (month1 < 2)
+                case .sixMonths:
+                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+                    isValidForPastDuration = (month1 <= -6)
+                    isValidForFutureDuration = (month1 < 2)
+                case .oneYear:
+                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+                    isValidForPastDuration = (month1 <= -12)
+                    isValidForFutureDuration = (month1 < 12)
+                case .oneDay:
+                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                    isValidForPastDuration = (days >= -1)
+                    isValidForFutureDuration = (days < 1)
+                }
+                return isValidForPastDuration && isValidForFutureDuration
+            }
+        })
+        .sorted { lhs, rhs in
+            lhs.isoDate ?? .now < rhs.isoDate ?? .now
+        }
+    }
+    
     func filterSports(searchString: String? = nil, force: Bool = false) {
         #if DEBUG
         print("⚠️ sports duration or selected sport changed, filtering")
@@ -323,109 +417,9 @@ import ActivityKit
                 SportType(league: Leagues.init(rawValue: Int(game.idLeague!)!)!)
             })
         }
-        var allGames: [Game] = []
-        if appStorage.shouldShowSoccer {
-            allGames.append(contentsOf: gamesDict[.soccer] ?? [])
-            allGames = allGames.filter { game in
-                guard let leagueString = game.idLeague,
-                      let intLeague = Int(leagueString),
-                      let league = Leagues(rawValue: intLeague) else { return false }
-                return !league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
-            }
-        }
-        if appStorage.shouldShowMLB {
-            allGames.append(contentsOf: gamesDict[.mlb] ?? [])
-        }
-        if appStorage.shouldShowNBA {
-            if let basketballGames = gamesDict[.basketball] {
-                allGames.append(contentsOf: basketballGames)
-            }
-        }
-        if appStorage.shouldShowNFL {
-            allGames.append(contentsOf: gamesDict[.nfl] ?? [])
-        }
-        if appStorage.shouldShowNHL {
-            allGames.append(contentsOf: gamesDict[.hockey] ?? [])
-        }
-        filteredGames = allGames
-            .filter({ game -> Bool in
-                guard let date = game.isoDate else {
-                    return false
-                }
-                if self.appStorage.hidePastEvents {
-                    return game.isoDate?.timeIntervalSinceNow ?? -1 > 0
-                } else {
-                    
-                    var isValidForPastDuration: Bool = false
-                    switch self.appStorage.hidePastGamesDuration {
-                    case .oneWeek:
-                        guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                        isValidForPastDuration = (days >= -7)
-                    case .twoWeeks:
-                        guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                        isValidForPastDuration = (days >= -14)
-                    case .threeWeeks:
-                        guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                        isValidForPastDuration = (days >= -21)
-                    case .oneMonth:
-                        guard let month = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                        isValidForPastDuration = (month <= -1)
-                    case .twoMonths:
-                        guard let month = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                        isValidForPastDuration = (month <= -2)
-                    case .sixMonths:
-                        guard let month = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                        isValidForPastDuration = (month <= -6)
-                    case .oneYear:
-                        guard let month = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                        isValidForPastDuration = (month <= -12)
-                    case .oneDay:
-                        guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                        isValidForPastDuration = (days >= -1)
-                    }
-                    return isValidForPastDuration
-                }
-            })
-            .filter({ game -> Bool in
-                // filter to show correct duration or if its in the past
-                var isValidForFutureDuration: Bool = false
-                guard let date = game.isoDate else { return false }
+        filteredGames = filterAndSortGamesFromUserPreferences(games: getGamesFromUserPreferences())
 
-                switch appStorage.durations {
-                case .oneWeek:
-                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                    isValidForFutureDuration = (days <= 7)
-                case .twoWeeks:
-                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                    isValidForFutureDuration = (days <= 14)
-                case .threeWeeks:
-                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                    isValidForFutureDuration = (days <= 21)
-                case .oneMonth:
-                    let components = Calendar.current.dateComponents([.month, .day], from: .now, to: date)
-                    guard
-                          let month = components.month else { return false }
-                    isValidForFutureDuration = (month < 1)
-                case .twoMonths:
-                    guard let month = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                    isValidForFutureDuration = (month < 2)
-                case .sixMonths:
-                    guard let month = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                    isValidForFutureDuration = (month < 6)
-                case .oneYear:
-                    guard let month = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                    isValidForFutureDuration = (month < 12)
-                case .oneDay:
-                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                    isValidForFutureDuration = (days < 1)
-                }
-                return isValidForFutureDuration
-                
-            })
-        filteredGames?.sort(by: { lhs, rhs in
-            lhs.isoDate ?? .now < rhs.isoDate ?? .now
-        })
-        print("⚠️ total amount of games, \(totalGames?.count) filtered result \(filteredGames?.count)")
+        print("⚠️ total amount of games, \(totalGames?.count ?? 0) filtered result \(filteredGames?.count ?? 0)")
         handleSearch(searchString: searchString)
         sortByDate()
         setFavorites()
@@ -471,14 +465,12 @@ import ActivityKit
     func handleSearch(searchString: String?) {
         if let searchString, isValidSearchString(searchString: searchString) {
             filteredGames = filteredGames?
-                .compactMap({$0})
                 .filter({ game in
-                    let homeTeam = Team.getTeamInfoFrom(teamDict: self.teamsDict, teamID: game.idHomeTeam)
-                    let awayTeam = Team.getTeamInfoFrom(teamDict: self.teamsDict, teamID: game.idAwayTeam)
-                    return (homeTeam?.strTeamShort ?? "").contains(searchString) ||
-                    (homeTeam?.strTeam ?? "").contains(searchString) ||
-                    (awayTeam?.strTeamShort ?? "").contains(searchString) ||
-                    (awayTeam?.strTeam ?? "").contains(searchString)
+                    guard let (homeTeam, awayTeam) = getTeams(for: game) else { return false }
+                    return (homeTeam.strTeamShort ?? "").contains(searchString) ||
+                    (homeTeam.strTeam ?? "").contains(searchString) ||
+                    (awayTeam.strTeamShort ?? "").contains(searchString) ||
+                    (awayTeam.strTeam ?? "").contains(searchString)
                 })
         }
     }
@@ -486,8 +478,11 @@ import ActivityKit
         return !searchString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     func getInfo() {
-        Task {
-            await getData()
+        if networkFetchTask?.isCancelled ?? true || networkFetchTask == nil {
+            networkState = .loading
+            networkFetchTask = Task {
+                await getData()
+            }
         }
     }
     

@@ -42,13 +42,13 @@ struct SportsWidgetMediumView: View {
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                     Spacer()
                                     VStack(alignment: .center, spacing: 0) {
-                                        if let isoDate = game.isoDate {
+                                        if let isoDate = game.standardDate {
                                             Text(isoDate.formatted(.dateTime.month().day()))
                                                 .font(.system(.subheadline, design: .monospaced))
                                                 .fontWeight(.medium)
                                                 .foregroundColor(.secondary)
                                         }
-                                        if let isoString = game.isoDate?.formatToTime() {
+                                        if let isoString = game.isoDate?.formatToTime() ?? game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter)?.formatToTime() {
                                             Text(isoString)
                                                 .font(.system(.subheadline, design: .monospaced))
                                                 .fontWeight(.medium)

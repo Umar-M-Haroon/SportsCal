@@ -12,11 +12,13 @@ struct SportsSelectView: View {
     @State var shouldShowPromo: Bool = false
     @EnvironmentObject var storage: UserDefaultStorage
     @State var currentlyLiveSports: [SportType] = []
+    @EnvironmentObject var model: GameViewModel
     var body: some View {
         ScrollView(.horizontal, showsIndicators: true) {
             HStack {
                 ForEach(SportType.allCases, id: \.self) { sport in
                     SportsFilterView(sport: sport, isLive: currentlyLiveSports.contains(sport), shouldShowPromoCount: $shouldShowPromo, appStorage: storage)
+                        .environmentObject(model)
                 }
             }
         }

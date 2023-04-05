@@ -44,7 +44,7 @@ struct SettingsView: View {
                         .environmentObject(subscriptionManager)
                 }
                 NavigationLink("Visible soccer competitions") {
-                    CompetitionPage(competitions: Leagues.allCases.filter({!$0.isSoccer}).map({$0.leagueName}))
+                    CompetitionPage(competitions: Leagues.allCases.filter({$0.isSoccer}).map({$0.leagueName}))
                         .environmentObject(appStorage)
                 }
                 Section(header: Text("SportsCal Pro Options")) {

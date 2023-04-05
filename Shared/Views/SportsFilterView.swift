@@ -13,6 +13,7 @@ struct SportsFilterView: View {
     var isLive: Bool = false
     @Binding var shouldShowPromoCount: Bool
     @ObservedObject var appStorage: UserDefaultStorage
+    @EnvironmentObject var model: GameViewModel
     
     var body: some View {
         Button {
@@ -25,6 +26,8 @@ struct SportsFilterView: View {
                         appStorage.switchTo(sportType: .basketball)
                         shouldShowPromoCount = true
                     }
+                    model.getInfo()
+                    model.filterSports()
                 case .soccer:
                     if SubscriptionManager.shared.subscriptionStatus == .subscribed {
                         appStorage.shouldShowSoccer.toggle()
@@ -32,6 +35,8 @@ struct SportsFilterView: View {
                         appStorage.switchTo(sportType: .soccer)
                         shouldShowPromoCount = true
                     }
+                    model.getInfo()
+                    model.filterSports()
                 case .hockey:
                     if SubscriptionManager.shared.subscriptionStatus == .subscribed {
                         appStorage.shouldShowNHL.toggle()
@@ -39,6 +44,8 @@ struct SportsFilterView: View {
                         appStorage.switchTo(sportType: .hockey)
                         shouldShowPromoCount = true
                     }
+                    model.getInfo()
+                    model.filterSports()
                 case .mlb:
                     if SubscriptionManager.shared.subscriptionStatus == .subscribed {
                         appStorage.shouldShowMLB.toggle()
@@ -46,6 +53,8 @@ struct SportsFilterView: View {
                         appStorage.switchTo(sportType: .mlb)
                         shouldShowPromoCount = true
                     }
+                    model.getInfo()
+                    model.filterSports()
                 case .nfl:
                     if SubscriptionManager.shared.subscriptionStatus == .subscribed {
                         appStorage.shouldShowNFL.toggle()
@@ -53,6 +62,8 @@ struct SportsFilterView: View {
                         appStorage.switchTo(sportType: .nfl)
                         shouldShowPromoCount = true
                     }
+                    model.getInfo()
+                    model.filterSports()
                 }
             }
         } label: {

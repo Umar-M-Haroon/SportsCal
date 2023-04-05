@@ -69,7 +69,7 @@ struct PickSportPage: View {
                 
                 if appStorage.shouldShowSoccer {
                     NavigationLink("Show Soccer Leagues") {
-                        CompetitionPage(competitions: Leagues.allCases.filter({!$0.isSoccer}).map({$0.leagueName}))
+                        CompetitionPage(competitions: Leagues.allCases.filter({$0.isSoccer}).map({$0.leagueName}))
                             .environmentObject(appStorage)
                     }
                 }

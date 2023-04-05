@@ -40,7 +40,7 @@ struct SportsWidgetLargeView: View {
                                         WidgetTeamView(shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, isAway: true, data: entry.images?[awayTeamID])
                                         Spacer()
                                         VStack(alignment: .center, spacing: 0) {
-                                            if let isoDate = game.isoDate {
+                                            if let isoDate = game.standardDate {
                                                 
                                                 Text(isoDate.formatToDate(dateFormat: "d MMM") ?? "")
                                                     .font(.system(.subheadline, design: .monospaced))
@@ -50,7 +50,7 @@ struct SportsWidgetLargeView: View {
                                                     .foregroundColor(.secondary)
                                             }
                                             
-                                            if let isoString = game.isoDate?.formatToTime() {
+                                            if let isoString = game.isoDate?.formatToTime() ?? game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter)?.formatToTime() {
                                                 Text(isoString)
                                                     .font(.system(.subheadline, design: .monospaced))
                                                     .fontWeight(.medium)
