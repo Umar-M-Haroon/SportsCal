@@ -76,7 +76,9 @@ import ActivityKit
             basketballGames?.removeAll(where: { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
-                      let _ = Leagues(rawValue: intLeague) else { return true }
+                      let _ = Leagues(rawValue: intLeague) else {
+                    return true
+                }
                 return false
             })
             if let basketballGames {
@@ -180,6 +182,7 @@ import ActivityKit
     }
     
     private func handleLiveGames() async throws {
+        print("🛜getting Live Games")
         async let liveInfo = NetworkHandler.getLiveSnapshot(debug: appStorage.debugMode)
         self.currentLiveInfo = try await liveInfo
         if let liveInfo = currentLiveInfo {
@@ -189,6 +192,7 @@ import ActivityKit
     }
     
     private func handleTeams() async throws {
+        print("🛜getting teams")
         async let teams = NetworkHandler.getTeams(debug: appStorage.debugMode)
         self.teams = try await teams
         self.teamsDict = Dictionary(grouping: self.teams, by: \.idTeam)
@@ -225,32 +229,45 @@ import ActivityKit
         }
     }
     
+    fileprivate func handleGames() async throws {
+        let groupResult = try await withThrowingTaskGroup(of: [SportType: LiveEvent].self) { group in
+            var events: [SportType: LiveEvent] = [:]
+            for sport in SportType.allCases {
+                if shouldAddTask(sport: sport) {
+                    print("🛜adding task and requesting \(sport)")
+                    group.addTask {
+                        return [sport: try await NetworkHandler.getScheduleFor(sport: sport, debug: self.appStorage.debugMode)]
+                    }
+                }
+            }
+            for try await schedule in group {
+                events.merge(schedule) { liveEvent1, liveEvent2 in
+                    liveEvent2
+                }
+            }
+            return LiveScore(nba: events[.basketball], mlb: events[.mlb], soccer: events[.soccer], nfl: events[.nfl], nhl: events[.hockey])
+        }
+        
+        gameCache?.insert(groupResult, for: "games")
+        try gameCache?.saveToDisk(with: "games")
+        setGames(result: groupResult)
+    }
+    
     @objc
     private func getData() async {
         do {
-            
-            try await handleLiveGames()
-            let groupResult = try await withThrowingTaskGroup(of: [SportType: LiveEvent].self) { group in
-                var events: [SportType: LiveEvent] = [:]
-                for sport in SportType.allCases {
-                    if shouldAddTask(sport: sport) {
-                        group.addTask {
-                            return [sport: try await NetworkHandler.getScheduleFor(sport: sport, debug: self.appStorage.debugMode)]
-                        }
-                    }
+            try await withThrowingTaskGroup(of: Void.self, body: { group in
+                group.addTask {
+                    try await self.handleTeams()
                 }
-                for try await schedule in group {
-                    events.merge(schedule) { liveEvent1, liveEvent2 in
-                        liveEvent2
-                    }
+                group.addTask {
+                    try await self.handleLiveGames()
                 }
-                return LiveScore(nba: events[.basketball], mlb: events[.mlb], soccer: events[.soccer], nfl: events[.nfl], nhl: events[.hockey])
-            }
-            
-            gameCache?.insert(groupResult, for: "games")
-            try gameCache?.saveToDisk(with: "games")
-            setGames(result: groupResult)
-            try await handleTeams()
+                group.addTask {
+                    try await self.handleGames()
+                }
+                try await group.waitForAll()
+            })
             handleLiveWebsocket()
             networkState = .loaded
             restartTimer = nil

@@ -69,9 +69,6 @@ struct ContentView: View {
                             }
                         }
                     }
-                    if #available(iOS 16.1, *) {
-                        LiveActivityStatusView()
-                    }
                 }
                 List {
                     if !viewModel.sortedGames.isEmpty {
@@ -94,14 +91,6 @@ struct ContentView: View {
                                             UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat)
                                                 .environmentObject(favorites)
                                         }
-                                    } else {
-#if DEBUG
-                                        VStack {
-                                            Text("No game")
-                                            Text(game.strHomeTeam)
-                                            Text(game.strAwayTeam)
-                                        }
-#endif
                                     }
                                 }
                             } header: {

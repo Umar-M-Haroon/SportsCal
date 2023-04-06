@@ -74,8 +74,8 @@ struct OnboardingPage_Previews: PreviewProvider {
     static var previews: some View {
         OnboardingPage(sheetType: Binding(get: {
             .onboarding
-        }, set: { val in
-            val
+        }, set: { _ in
+            
         }))
         .environmentObject(UserDefaultStorage())
     }
