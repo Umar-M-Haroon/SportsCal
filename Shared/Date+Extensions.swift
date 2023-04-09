@@ -7,10 +7,14 @@
 
 import Foundation
 extension DateComponents {
-    func formatted(format: String = "MM/dd/yyyy") -> String {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = format
-        guard let date = self.date else { return "" }
+    func formatted(format: Int = 4, isRelative: Bool) -> String {
+        guard let date = self.date,
+        let formatStyle = DateFormatter.Style(rawValue: UInt(format))
+        else { return "" }
+        let dateFormatter = DateFormatters.dateFormatter
+        dateFormatter.dateStyle = formatStyle
+        dateFormatter.timeStyle = .none
+        dateFormatter.doesRelativeDateFormatting = isRelative
         return dateFormatter.string(from: date)
     }
 }

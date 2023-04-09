@@ -95,7 +95,7 @@ struct ContentView: View {
                                 }
                             } header: {
                                 HStack {
-                                    Text("\(viewModel.sortedGames.map({$0.key})[index].formatted(format: viewModel.appStorage.dateFormat))")
+                                    Text("\(viewModel.sortedGames.map({$0.key})[index].formatted(format: viewModel.appStorage.dateFormat, isRelative: viewModel.appStorage.useRelativeValue))")
                                         .font(.headline)
                                 }
                             }

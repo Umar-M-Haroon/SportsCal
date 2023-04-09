@@ -15,6 +15,11 @@ struct SettingsView: View {
     var subscriptionManager = SubscriptionManager.shared
     @Binding var sheetType: SheetType?
     @EnvironmentObject var viewModel: GameViewModel
+    var datesAndFormats: [(Date, DateFormatter.Style)] {
+        let dates = [Date.now, Date.dateAfterDaysFromNow(days: 1), Date.dateAfterDaysFromNow(days: 2), Date.dateAfterDaysFromNow(days: 3)]
+        let formats = [DateFormatter.Style.short, .medium, .full, .long]
+        return dates.enumerated().map({($1, formats[$0])})
+    }
     var isTestFlight: Bool {
         guard let path = Bundle.main.appStoreReceiptURL?.path else {
             return false
@@ -121,15 +126,21 @@ struct SettingsView: View {
                     .disabled(appStorage.hidePastEvents)
 
                 }
-//                NavigationLink("Date Format") {
-                    Picker.init("Date Format", selection: appStorage.$dateFormat) {
-                        ForEach(DateFormatStrings.allCases) { dateFormat in
-                            Text(dateFormat.toExample())
-                                .tag(dateFormat)
-                        }
+                Toggle(isOn: appStorage.$useRelativeValue, label: {
+                    Text("Use Relative Time")
+                })
+                Picker.init("Date Format", selection: appStorage.$dateFormat) {
+                    ForEach(datesAndFormats, id: \.0) { (date, format) in
+                        Text(format.toExample(date: date))
+                            .tag(Int(format.rawValue))
                     }
-                    .pickerStyle(.inline)
-//                }
+                }
+                Section("Preview", content: {
+                    ForEach([Date.now, Date.dateAfterDaysFromNow(days: 1), Date.dateAfterDaysFromNow(days: 2), Date.dateAfterDaysFromNow(days: 3)], id: \.self) { date in
+                        Text(formatFromStorage(date: date, isRelative: appStorage.useRelativeValue))
+                    }
+                })
+                .pickerStyle(.inline)
             }
             .navigationBarItems(leading: Button(action: {
                 sheetType = nil
@@ -138,7 +149,6 @@ struct SettingsView: View {
             }))
             .navigationTitle("Settings")
             .onAppear {
-                dateFormats()
                 if isTestFlight {
                     appStorage.debugMode = true
                 }
@@ -156,17 +166,27 @@ struct SettingsView: View {
         return string
     }
     
-    func dateFormats() {
+    func formatFromStorage(date: Date, isRelative: Bool) -> String {
         let formatter = DateFormatters.dateFormatter
-        let allCases = [DateFormatter.Style.none, .short, .medium, .full, .long]
-        var dateCombos: [String] = []
+        formatter.dateStyle = DateFormatter.Style(rawValue: UInt(appStorage.dateFormat))!
+        formatter.timeStyle = .none
+        formatter.doesRelativeDateFormatting = isRelative
+        let string = formatter.string(from: date)
+        return string
+    }
+    
+    func dateFormats() -> [String: UInt] {
+        let formatter = DateFormatters.dateFormatter
+        let allCases = [DateFormatter.Style.short, .medium, .full, .long]
+        var combos: [String: UInt] = [:]
         for dateStyle in allCases {
             //            for timeStyle in allCases {
             formatter.dateStyle = dateStyle
             formatter.timeStyle = .none
             let string = formatter.string(from: .now)
-            dateCombos.append(string)
+            combos[string] = dateStyle.rawValue
         }
+        return combos
     }
 }
 //
@@ -174,5 +194,24 @@ struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
         SettingsView(sheetType: Binding<SheetType?>.constant(.settings))
             .environmentObject(UserDefaultStorage.init())
+    }
+}
+
+extension DateFormatter.Style {
+    func toExample(date: Date = .now) -> String {
+        let formatter = DateFormatters.dateFormatter
+        formatter.dateStyle = self
+        formatter.timeStyle = .none
+        formatter.doesRelativeDateFormatting = false
+        let string = formatter.string(from: date)
+        return string
+    }
+    func relativeExample(date: Date = .now) -> String {
+        let formatter = DateFormatters.dateFormatter
+        formatter.dateStyle = self
+        formatter.timeStyle = .none
+        formatter.doesRelativeDateFormatting = true
+        let string = formatter.string(from: date)
+        return string
     }
 }

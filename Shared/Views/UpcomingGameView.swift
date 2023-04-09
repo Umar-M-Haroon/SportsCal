@@ -18,7 +18,7 @@ struct UpcomingGameView: View {
     @EnvironmentObject var favorites: Favorites
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var sheetType: SheetType?
-    @State var dateFormat: String
+    @State var dateFormat: Int
     var isFavorite: Bool = false
     var formatter =  Date.RelativeFormatStyle(presentation: .numeric, capitalizationContext: .beginningOfSentence)
     var body: some View {
