@@ -270,12 +270,14 @@ import ActivityKit
             })
             handleLiveWebsocket()
             networkState = .loaded
-            restartTimer = nil
             networkFetchTask = nil
         } catch let e {
             print(e)
             print(e.localizedDescription)
             networkState = .failed
+            restartTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true, block: { [weak self] _ in
+                self?.getInfo()
+            })
         }
     }
 
@@ -525,6 +527,9 @@ import ActivityKit
             networkFetchTask = Task {
                 await getData()
             }
+        } else {
+            networkFetchTask?.cancel()
+            getInfo()
         }
     }
     
@@ -542,7 +547,11 @@ import ActivityKit
 extension GameViewModel: URLSessionWebSocketDelegate {
     public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
         self.webSocketTask = nil
-        restartTimer = .init(timeInterval: 10, target: self, selector: #selector(receiveMessages), userInfo: nil, repeats: true)
+        restartTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true, block: { [weak self] _ in
+            if self?.networkState != .loaded {
+                self?.getInfo()
+            }
+        })
     }
 }
 #if canImport(ActivityKit)
