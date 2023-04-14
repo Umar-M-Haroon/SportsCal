@@ -21,12 +21,13 @@ class UserDefaultStorage: NSObject, ObservableObject {
     @AppStorage("soonestOnTop") var soonestOnTop: Bool = true
     @AppStorage("duration") var durations: Durations = .threeWeeks
     @AppStorage("launches") var launches: Int = 0
-    @AppStorage("dateFormat") var dateFormat: String = "MM/dd/yyyy"
+    @AppStorage("dateFormat") var dateFormat: Int = 1
     @AppStorage("hidePastGamesDuration") var hidePastGamesDuration: Durations = .threeWeeks
     @AppStorage("showStartTime") var showStartTime: Bool = true
     @AppStorage("debugMode") var debugMode: Bool = false
-    
     @AppStorage("hiddenCompetitions") var hiddenCompetitions: [String] = []
+    @AppStorage("useRelativeValue") var useRelativeValue: Bool = false
+
     func switchTo(sportType: SportType) {
         switch sportType {
         case .hockey:

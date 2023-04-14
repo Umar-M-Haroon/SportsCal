@@ -31,7 +31,6 @@ struct NetworkHandler {
         let url = URL(string: urlString)!
         let (data, _) = try await URLSession.shared.data(from: url)
         let decoder = JSONDecoder()
-        
         return try decoder.decode(LiveScore.self, from: data)
     }
     

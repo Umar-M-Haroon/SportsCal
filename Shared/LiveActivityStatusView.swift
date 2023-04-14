@@ -12,18 +12,11 @@ import ActivityKit
 
 @available(iOS 16.1, *)
 struct LiveActivityStatusView: View {
-    @Binding var liveActivityStatus: LiveActivityStatus
     var body: some View {
-        Group {
-            switch liveActivityStatus {
-            case .loading:
-                ProgressView()
-                    .progressViewStyle(.circular)
-            case .added:
 #if canImport(ActivityKit)
-                if !Activity<LiveSportActivityAttributes>.activities.isEmpty {
+                if !Activity<LiveSportActivityAttributes>.activities.filter({$0.pushToken != nil}).isEmpty {
                     HStack {
-                        Text("\(Activity<LiveSportActivityAttributes>.activities.count) active Live Activities")
+                        Text("^[Following \(Activity<LiveSportActivityAttributes>.activities.filter({$0.pushToken != nil}).count) games](inflect: true)")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                         Button {
@@ -33,28 +26,21 @@ struct LiveActivityStatusView: View {
                                     await activity.end(using: currentState, dismissalPolicy: .immediate)
                                 }
                             }
-                            withAnimation {
-                                if Activity<LiveSportActivityAttributes>.activities.isEmpty {
-                                    liveActivityStatus = .none
-                                }
-                            }
                         } label: {
                             Text("End Activities")
                                 .font(.caption2)
                         }
                     }
+                } else {
+                    EmptyView()
                 }
 #endif
-            case .none:
-                EmptyView()
-            }
-        }
     }
 }
 
 @available(iOS 16.1, *)
 struct LiveActivityStatus_Previews: PreviewProvider {
     static var previews: some View {
-        LiveActivityStatusView(liveActivityStatus: .constant(.loading) )
+        LiveActivityStatusView()
     }
 }

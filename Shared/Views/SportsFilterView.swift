@@ -10,8 +10,10 @@ import SwiftUI
 import SportsCalModel
 struct SportsFilterView: View {
     var sport: SportType
+    var isLive: Bool = false
     @Binding var shouldShowPromoCount: Bool
     @ObservedObject var appStorage: UserDefaultStorage
+    @EnvironmentObject var model: GameViewModel
     
     var body: some View {
         Button {
@@ -24,6 +26,8 @@ struct SportsFilterView: View {
                         appStorage.switchTo(sportType: .basketball)
                         shouldShowPromoCount = true
                     }
+                    model.getInfo()
+                    model.filterSports()
                 case .soccer:
                     if SubscriptionManager.shared.subscriptionStatus == .subscribed {
                         appStorage.shouldShowSoccer.toggle()
@@ -31,6 +35,8 @@ struct SportsFilterView: View {
                         appStorage.switchTo(sportType: .soccer)
                         shouldShowPromoCount = true
                     }
+                    model.getInfo()
+                    model.filterSports()
                 case .hockey:
                     if SubscriptionManager.shared.subscriptionStatus == .subscribed {
                         appStorage.shouldShowNHL.toggle()
@@ -38,6 +44,8 @@ struct SportsFilterView: View {
                         appStorage.switchTo(sportType: .hockey)
                         shouldShowPromoCount = true
                     }
+                    model.getInfo()
+                    model.filterSports()
                 case .mlb:
                     if SubscriptionManager.shared.subscriptionStatus == .subscribed {
                         appStorage.shouldShowMLB.toggle()
@@ -45,6 +53,8 @@ struct SportsFilterView: View {
                         appStorage.switchTo(sportType: .mlb)
                         shouldShowPromoCount = true
                     }
+                    model.getInfo()
+                    model.filterSports()
                 case .nfl:
                     if SubscriptionManager.shared.subscriptionStatus == .subscribed {
                         appStorage.shouldShowNFL.toggle()
@@ -52,41 +62,39 @@ struct SportsFilterView: View {
                         appStorage.switchTo(sportType: .nfl)
                         shouldShowPromoCount = true
                     }
+                    model.getInfo()
+                    model.filterSports()
                 }
             }
         } label: {
-            HStack {
+            HStack(spacing: 4) {
                 Image(systemName: sportToSystemImage())
-                    .font(.footnote)
-//                    .modifier(SportsTint(sport: sport))
-                Text(sport.capitalized)
-                    .font(.footnote)
-                    .bold()
+                    .modifier(SportsTint(sport: sport))
+                if isLive {
+                    LiveViewCircle()
+                }
             }
-
         }
         .buttonBorderStyle(isDisabled())
         .buttonBorderShape(.capsule)
-//        .padding(6)
     }
     
     func sportToSystemImage() -> String {
         switch sport {
         case .soccer:
-            return "soccerball.inverse"
+            return "soccerball"
         case .basketball:
-            return "basketball"
+            return "basketball.fill"
         case .hockey:
-            return "hockey.puck"
+            return "hockey.puck.fill"
         case .mlb:
-            return "baseball"
+            return "baseball.fill"
         case .nfl:
-            return "football"
+            return "football.fill"
         }
     }
     
     func isDisabled() -> Bool {
-        
         switch sport {
         case .basketball:
             return appStorage.shouldShowNBA
@@ -110,6 +118,13 @@ extension Button {
         } else {
             self.buttonStyle(BorderedButtonStyle())
         }
+    }
+}
+
+struct SportsButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 1.3 : 1)
     }
 }
 

@@ -1,6 +1,15 @@
 {
   "pins" : [
     {
+      "identity" : "nuke",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kean/Nuke",
+      "state" : {
+        "revision" : "6241e100294a2aa70d1811641585ab7da780bd0f",
+        "version" : "12.0.0"
+      }
+    },
+    {
       "identity" : "purchases-ios",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/RevenueCat/purchases-ios.git",
@@ -15,16 +24,16 @@
       "location" : "https://github.com/Umar-M-Haroon/SportsCalModel/",
       "state" : {
         "branch" : "main",
-        "revision" : "7f576b9464001425a68582aea6e01c9c391b6fa7"
+        "revision" : "8a7c3063f8719d485aa5d59e5378f02341fbcb75"
       }
     },
     {
-      "identity" : "swiftui-cachedasyncimage",
+      "identity" : "swift-collections",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/lorenzofiamingo/SwiftUI-CachedAsyncImage",
+      "location" : "https://github.com/apple/swift-collections.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "f94be38411297c71aa8df69c6875127e6d8d7a92"
+        "revision" : "937e904258d22af6e447a0b72c0bc67583ef64a2",
+        "version" : "1.0.4"
       }
     }
   ],

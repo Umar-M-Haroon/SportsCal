@@ -9,6 +9,18 @@ import SwiftUI
 import SportsCalModel
 
 struct LiveAnimatedView: View {
+    var body: some View {
+        HStack {
+            LiveViewCircle()
+            .padding(2)
+            Text("Live".uppercased())
+                .font(.headline)
+                .foregroundColor(.red)
+        }
+    }
+}
+
+struct LiveViewCircle: View {
     @State var animationScale: Double = 1
     var repeatingAnimation: Animation {
         Animation
@@ -17,28 +29,23 @@ struct LiveAnimatedView: View {
             .repeatForever()
     }
     var body: some View {
-        HStack {
-            ZStack {
-                Circle()
-                    .frame(width: 8, height: 8)
-                    .scaleEffect(animationScale)
-                    .foregroundColor(.red)
-                    .opacity(0.5)
-                    .transition(.scale(scale: 2.5))
-                    .onAppear {
-                        withAnimation(repeatingAnimation) {
-                            self.animationScale = 2.5
-                        }
+        ZStack {
+            Circle()
+                .frame(width: 8, height: 8)
+                .scaleEffect(animationScale)
+                .foregroundColor(.red)
+                .opacity(0.5)
+                .transition(.scale(scale: 2.5))
+                .onAppear {
+                    withAnimation(repeatingAnimation) {
+                        self.animationScale = 2.5
                     }
-                Circle()
-                    .frame(width: 8, height: 8)
-                    .foregroundColor(.red)
-            }
-            .padding(2)
-            Text("Live".uppercased())
-                .font(.headline)
+                }
+            Circle()
+                .frame(width: 8, height: 8)
                 .foregroundColor(.red)
         }
+        .padding(2)
     }
 }
 

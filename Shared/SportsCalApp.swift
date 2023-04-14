@@ -24,6 +24,9 @@ struct SportsCalApp: App {
                 .environmentObject(SubscriptionManager.shared)
                 .environmentObject(appStorage)
                 .environmentObject(favorites)
+                .onAppear {
+                    appStorage.launches += 1
+                }
         }
         .onChange(of: scenePhase) { newPhase in
             if newPhase == .background {
@@ -35,10 +38,8 @@ struct SportsCalApp: App {
 
     func scheduleAppRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: "com.KomodoLLC.SportsCal.updateGamesAndActivities")
-//        request.earliestBeginDate = Date(timeIntervalSinceNow: 0)
         do {
             try BGTaskScheduler.shared.submit(request)
-            print("submitted")
         } catch let e {
             print(e)
             print(e.localizedDescription)

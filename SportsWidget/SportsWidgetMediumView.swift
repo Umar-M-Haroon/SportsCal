@@ -14,21 +14,19 @@ struct SportsWidgetMediumView: View {
     var body: some View {
         VStack {
             VStack {
-                Text(Date.currentDateToDayString())
+                Text(Date().formatted(.dateTime.weekday(.abbreviated)))
                     .bold()
                     .foregroundColor(.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 8)
-                
                 HStack {
-                    Text(Date.currentDateToNumberString())
+                    Text(Date().formatted(.dateTime.month(.abbreviated).day(.twoDigits)))
                         .bold()
                     Spacer()
                     Text("Up Next")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .frame(alignment: .leading)
-                        .padding([.leading], 8)
                 }
             }
             VStack(spacing: 4) {
@@ -40,33 +38,26 @@ struct SportsWidgetMediumView: View {
                         ForEach(Array(games.prefix(upTo: 2))) { game in
                             if let homeTeamID = game.idHomeTeam, let homeTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: homeTeamID), let awayTeamID = game.idAwayTeam, let awayTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: awayTeamID) {
                                 HStack {
-                                    //                                    HStack {
                                     WidgetTeamView(shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, isAway: true, data: entry.images?[awayTeamID])
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                     Spacer()
                                     VStack(alignment: .center, spacing: 0) {
-                                        if let isoDate = game.isoDate {
-                                            
-                                            Text(isoDate.formatToDate(dateFormat: "d MMM") ?? "")
+                                        if let isoDate = game.standardDate {
+                                            Text(isoDate.formatted(.dateTime.month().day()))
                                                 .font(.system(.subheadline, design: .monospaced))
                                                 .fontWeight(.medium)
-                                            //                                                    .accessibilityValue(accessibilityLabel)
-                                            //                                                    .accessibilityLabel(accessibilityLabel)
                                                 .foregroundColor(.secondary)
                                         }
-                                        if let isoDate = game.isoDate,
-                                           let isoString = isoDate.formatToTime() {
+                                        if let isoString = game.standardDate?.formatToTime() ?? game.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter)?.formatToTime() {
                                             Text(isoString)
                                                 .font(.system(.subheadline, design: .monospaced))
                                                 .fontWeight(.medium)
                                                 .foregroundColor(Color(UIColor.secondaryLabel))
                                         }
-                                        //
                                     }
                                     Spacer()
-                                    //                                        .frame(maxWidth: .infinity)
                                     WidgetTeamView(shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, isAway: false, data: entry.images?[homeTeamID])
-                                    
-                                    //                                    }
+                                        .frame(maxWidth: .infinity, alignment: .trailing)
                                 }
                             }
                         }

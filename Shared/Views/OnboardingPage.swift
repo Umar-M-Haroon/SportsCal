@@ -11,6 +11,7 @@ import SportsCalModel
 struct OnboardingPage: View {
     @EnvironmentObject var appStorage: UserDefaultStorage
     @Binding var sheetType: SheetType?
+    @EnvironmentObject var viewModel: GameViewModel
     var body: some View {
         NavigationView {
                 VStack(alignment: .leading) {
@@ -24,9 +25,8 @@ struct OnboardingPage: View {
                         ZStack {
                             NavigationLink(destination: PickSportPage(sheetType: $sheetType)
                                 .environmentObject(appStorage)
+                                .environmentObject(viewModel)
                             ) {
-                                
-                                
                                 Text("Next")
                                     .frame(maxWidth: .infinity)
                                     .padding(4)
@@ -74,8 +74,8 @@ struct OnboardingPage_Previews: PreviewProvider {
     static var previews: some View {
         OnboardingPage(sheetType: Binding(get: {
             .onboarding
-        }, set: { val in
-            val
+        }, set: { _ in
+            
         }))
         .environmentObject(UserDefaultStorage())
     }

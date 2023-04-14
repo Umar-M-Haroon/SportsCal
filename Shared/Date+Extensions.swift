@@ -7,10 +7,14 @@
 
 import Foundation
 extension DateComponents {
-    func formatted(format: String = "MM/dd/yyyy") -> String {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = format
-        guard let date = self.date else { return "" }
+    func formatted(format: Int = 4, isRelative: Bool) -> String {
+        guard let date = self.date,
+        let formatStyle = DateFormatter.Style(rawValue: UInt(format))
+        else { return "" }
+        let dateFormatter = DateFormatters.dateFormatter
+        dateFormatter.dateStyle = formatStyle
+        dateFormatter.timeStyle = .none
+        dateFormatter.doesRelativeDateFormatting = isRelative
         return dateFormatter.string(from: date)
     }
 }
@@ -36,33 +40,7 @@ extension Date{
     func afterSecondsFromNow(seconds: Int) -> Date {
         return Calendar(identifier: .gregorian).date(byAdding: .second, value: seconds, to: self)!
     }
-    func toDetailedString() -> String{
-        let components = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day, .hour], from: Date(), to: self)
-        var returnedString = ""
-        guard let hours = components.hour else {return ""}
-        if let months = components.month{
-            if months != 0{
-                if months > 1{
-                    returnedString += "\(months) months, "
-                }else{
-                    returnedString += "\(months) month, "
-                }
-            }
-        }
-        if var days = components.day{
-            if hours == 23{
-                days += 1
-            }
-            if days != 0{
-                if days > 1{
-                    returnedString += "\(days) days"
-                }else{
-                    returnedString += "\(days) day"
-                }
-            }
-        }
-        return returnedString
-    }
+
     func toGMT() -> Date {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
@@ -78,37 +56,6 @@ extension Date{
     func formatToDate(dateFormat: String) -> String? {
         DateFormatters.dateFormatter.dateFormat = dateFormat
         return DateFormatters.dateFormatter.string(from: self)
-    }
-
-    static func isoStringToDateString(dateString: String) -> String {
-        let cal = Calendar.current
-        let df = DateFormatters.dateFormatter
-        guard let date = DateFormatters.isoFormatter.date(from: dateString) else { return "" }
-        if cal.isDateInToday(date) {
-            df.dateFormat = "h:mm a"
-            return df.string(from: date)
-        }
-        df.dateFormat = "MM/dd"
-        return df.string(from: date)
-    }
-    
-    static func currentDateToDayString() -> String {
-        let df = DateFormatter()
-        df.dateFormat = "EEE"
-        return df.string(from: Date())
-    }
-    
-    static func currentDateToNumberString() -> String {
-        let df = DateFormatter()
-        df.dateFormat = "d MMM"
-        return df.string(from: Date())
-    }
-    
-    static func dateToString(formatString: String = "MM/dd", date: Date) -> String {
-        
-        let df = DateFormatter()
-        df.dateFormat = formatString
-        return df.string(from: date)
     }
     
     static func sampleDate(hoursInFuture hours: Int) -> String {

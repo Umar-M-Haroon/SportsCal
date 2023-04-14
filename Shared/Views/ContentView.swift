@@ -30,19 +30,6 @@ enum SheetType: Identifiable {
     case calendar(game: Game?)
 }
 
-enum LiveActivityStatus: Identifiable, Hashable {
-    var id: String {
-        switch self {
-        case .loading:
-            return "loading"
-        case .added:
-            return "added"
-        case .none:
-            return "none"
-        }
-    }
-    case loading, added, none
-}
 struct ContentView: View {
     @Environment(\.scenePhase) var scenePhase
     
@@ -61,18 +48,13 @@ struct ContentView: View {
     
     @State var searchString: String = ""
     @State var shouldShowPromo: Bool = false
-    @State var activityState: LiveActivityStatus = .none
+    @State var isListLayout: Bool = true
     var body: some View {
         NavigationView {
             Group {
                 Section {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            ForEach(SportType.allCases, id: \.self) { sport in
-                                SportsFilterView(sport: sport, shouldShowPromoCount: $shouldShowPromo, appStorage: storage)
-                            }
-                        }
-                    }
+                    SportsSelectView(currentlyLiveSports: viewModel.currentlyLiveSports)
+                        .environmentObject(viewModel)
                 }  footer: {
                     if shouldShowPromo {
                         HStack {
@@ -87,46 +69,23 @@ struct ContentView: View {
                             }
                         }
                     }
-                    if #available(iOS 16.1, *) {
-                        LiveActivityStatusView(liveActivityStatus: $activityState)
-                    }
                 }
-
-
-                if let games = viewModel.sortedGames, !games.isEmpty {
-                    List {
-                        if let liveEvents = viewModel.liveEvents, !liveEvents.isEmpty {
+                List {
+                    if !viewModel.sortedGames.isEmpty {
+                        LiveEventsView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
+                            .environmentObject(favorites)
+                            .environmentObject(storage)
+                            .environmentObject(viewModel)
+                        FavoriteGamesView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
+                            .environmentObject(favorites)
+                            .environmentObject(storage)
+                            .environmentObject(viewModel)
+                        ForEach(viewModel.sortedGames.map({$0.key}).indices, id: \.self) { index in
                             Section {
-                                ForEach(liveEvents) { event in
-                                    if let homeScore = Int(event.intHomeScore ?? ""), let awayScore = Int(event.intAwayScore ?? ""), let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: event.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: event.idAwayTeam) {
-                                        GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState, isLive: true)
-                                    }
-                                }
-                            } header: {
-                                LiveAnimatedView()
-                            }
-                        }
-                        if let favoriteGames = viewModel.favoriteGames, !favoriteGames.isEmpty {
-                            Section {
-                                ForEach(favoriteGames) { game in
-                                    if let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idAwayTeam) {
-                                        UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat, isFavorite: true)
-                                            .environmentObject(favorites)
-                                    }
-                                }
-                            } header: {
-                                HStack {
-                                    Text("Favorites")
-                                        .font(.headline)
-                                }
-                            }
-                        }
-                        ForEach(games.map({$0.key}).indices, id: \.self) { index in
-                            Section {
-                                ForEach(games.map({$0.value})[index]) { game in
-                                    if let homeTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: viewModel.teams, teamID: game.idAwayTeam) {
+                                ForEach(viewModel.sortedGames.map({$0.value})[index]) { game in
+                                    if let (homeTeam, awayTeam) = viewModel.getTeams(for: game) {
                                         if let homeScore = Int(game.intHomeScore ?? ""), let awayScore = Int(game.intAwayScore ?? "") {
-                                            GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, activityState: $activityState, isLive: false)
+                                            GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: false)
                                                 .environmentObject(favorites)
                                         } else {
                                             UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat)
@@ -136,29 +95,34 @@ struct ContentView: View {
                                 }
                             } header: {
                                 HStack {
-                                    Text("\(games.map({$0.key})[index].formatted(format: viewModel.appStorage.dateFormat))")
+                                    Text("\(viewModel.sortedGames.map({$0.key})[index].formatted(format: viewModel.appStorage.dateFormat, isRelative: viewModel.appStorage.useRelativeValue))")
                                         .font(.headline)
                                 }
                             }
                         }
-                    }
-                } else {
-                    VStack {
+                    } else {
                         if viewModel.networkState == .loading {
-                            ProgressView()
-                        } else if viewModel.networkState == .failed {
-                            Text("No games fetched")
-                                .font(.title2)
-                            Button("Retry") {
-                                viewModel.getInfo()
+                            HStack {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity)
                             }
+                            .listRowBackground(Color.clear)
+                        } else {
+                            VStack {
+                                Text("No games fetched")
+                                    .foregroundColor(.secondary)
+                                Button("Retry") {
+                                    viewModel.getInfo()
+                                }
+                                .foregroundColor(Color.blue)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .listRowBackground(Color.clear)
                         }
                     }
-                Spacer()
                 }
-
+                .searchable(text: $searchString, placement: SearchFieldPlacement.navigationBarDrawer(displayMode: .automatic), prompt: "Teams: ")
             }
-            .searchable(text: $searchString, placement: SearchFieldPlacement.navigationBarDrawer(displayMode: .automatic), prompt: "Teams: ")
             .navigationBarTitle("SportsCal")
             .navigationBarItems(leading: Button(action: {
                 shouldShowSettings = true
@@ -171,9 +135,11 @@ struct ContentView: View {
                 case .settings:
                     SettingsView(sheetType: $sheetType)
                         .environmentObject(storage)
+                        .environmentObject(viewModel)
                 case .onboarding:
                     OnboardingPage(sheetType: $sheetType)
                         .environmentObject(storage)
+                        .environmentObject(viewModel)
                 case .calendar(let eventGame):
                     if let game = eventGame {
                         makeCalendarEvent(game: game)
@@ -205,7 +171,6 @@ struct ContentView: View {
         }
         .onAppear {
             WidgetCenter.shared.reloadAllTimelines()
-            viewModel.appStorage.launches += 1
             if viewModel.appStorage.launches == 5 {
                 if let scene = UIApplication.shared.connectedScenes.first(where: {$0.activationState == .foregroundActive}) as? UIWindowScene {
                     SKStoreReviewController.requestReview(in: scene)
@@ -222,7 +187,7 @@ struct ContentView: View {
         print("⚠️ making calendar event for game \(game)")
         let event = EKEvent(eventStore: eventStore)
         event.title = "\(game.strAwayTeam) @ \(game.strHomeTeam)"
-        if let gameDate = game.isoDate {
+        if let gameDate = game.standardDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 2)
         }

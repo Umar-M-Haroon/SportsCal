@@ -11,6 +11,7 @@ struct PickSportPage: View {
     @State var subscriptionPresented: Bool = false
     @EnvironmentObject var appStorage: UserDefaultStorage
     @Binding var sheetType: SheetType?
+    @EnvironmentObject var viewModel: GameViewModel
     var body: some View {
         List {
             Section {
@@ -68,7 +69,7 @@ struct PickSportPage: View {
                 
                 if appStorage.shouldShowSoccer {
                     NavigationLink("Show Soccer Leagues") {
-                        CompetitionPage(competitions: Leagues.allCases.filter({!$0.isSoccer}).map({$0.leagueName}))
+                        CompetitionPage(competitions: Leagues.allCases.filter({$0.isSoccer}).map({$0.leagueName}))
                             .environmentObject(appStorage)
                     }
                 }
@@ -86,6 +87,7 @@ struct PickSportPage: View {
                 Button(action: {
                     sheetType = .none
                     appStorage.shouldShowOnboarding = false
+                    viewModel.getInfo()
                 }, label: {
                     Text("Continue")
                         .disabled(!(appStorage.shouldShowSoccer || appStorage.shouldShowMLB || appStorage.shouldShowNBA || appStorage.shouldShowNFL || appStorage.shouldShowNHL))

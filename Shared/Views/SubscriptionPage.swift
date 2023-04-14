@@ -77,26 +77,35 @@ struct SubscriptionPage: View {
                         .padding(.bottom, 4)
                         
                     } footer: {
-                        HStack {
-                            Button("Privacy Policy") {
-                                self.url = "https://komodollc.com/privacy"
-                                url = "https://komodollc.com/privacy"
-                                isPrivacy = true
-                                showSF = true
-                            }
-                            Spacer()
-                            Button("Terms of Use") {
-                                self.url = "https://komodollc.com/Terms"
-                                url = "https://komodollc.com/Terms"
-                                isPrivacy = false
-                                showSF = true
+                        VStack(spacing: 20) {
+                            Button(action: {
+                                SubscriptionManager.shared.restorePurchase()
+                            }, label: {
+                                Text("Restore Purchases")
+                            })
+                            .buttonBorderShape(.roundedRectangle(radius: 4))
+                            HStack {
+                                Button {
+                                    self.url = "https://komodollc.com/privacy"
+                                    url = "https://komodollc.com/privacy"
+                                    isPrivacy = true
+                                    showSF = true
+                                } label: {
+                                    Text("Privacy Policy")
+                                        .font(.caption2)
+                                }
+                                Spacer()
+                                Button {
+                                    self.url = "https://komodollc.com/Terms"
+                                    url = "https://komodollc.com/Terms"
+                                    isPrivacy = false
+                                    showSF = true
+                                } label: {
+                                    Text("Terms of Use")
+                                        .font(.caption2)
+                                }
                             }
                         }
-                        Button(action: {
-                            SubscriptionManager.shared.restorePurchase()
-                        }, label: {
-                            Text("Restore Purchases")
-                        })
                     }
                     .listRowSeparator(.hidden)
                     .frame(maxWidth: .infinity, alignment: .center)
