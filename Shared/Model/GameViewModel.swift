@@ -275,8 +275,10 @@ import ActivityKit
             print(e)
             print(e.localizedDescription)
             networkState = .failed
-            restartTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true, block: { [weak self] _ in
-                self?.getInfo()
+            restartTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true, block: { [weak self] _ in
+                if self?.networkState == .failed {
+                    self?.getInfo()
+                }
             })
         }
     }
@@ -548,8 +550,9 @@ import ActivityKit
 extension GameViewModel: URLSessionWebSocketDelegate {
     public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
         self.webSocketTask = nil
-        restartTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true, block: { [weak self] _ in
-            if self?.networkState != .loaded {
+        self.networkState = .failed
+        restartTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true, block: { [weak self] _ in
+            if self?.networkState == .failed {
                 self?.getInfo()
             }
         })
