@@ -48,7 +48,7 @@ struct ContentView: View {
     
     @State var searchString: String = ""
     @State var shouldShowPromo: Bool = false
-    @State var isListLayout: Bool = true
+    @State var isListLayout: Bool = false
     var body: some View {
         NavigationView {
             Group {
@@ -70,65 +70,79 @@ struct ContentView: View {
                         }
                     }
                 }
-                List {
-                    if !viewModel.sortedGames.isEmpty {
-                        LiveEventsView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
-                            .environmentObject(favorites)
-                            .environmentObject(storage)
-                            .environmentObject(viewModel)
-                        FavoriteGamesView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
-                            .environmentObject(favorites)
-                            .environmentObject(storage)
-                            .environmentObject(viewModel)
-                        ForEach(viewModel.sortedGames.map({$0.key}).indices, id: \.self) { index in
-                            Section {
-                                ForEach(viewModel.sortedGames.map({$0.value})[index]) { game in
-                                    if let (homeTeam, awayTeam) = viewModel.getTeams(for: game) {
-                                        if let homeScore = Int(game.intHomeScore ?? ""), let awayScore = Int(game.intAwayScore ?? "") {
-                                            GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: false)
-                                                .environmentObject(favorites)
-                                        } else {
-                                            UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat)
-                                                .environmentObject(favorites)
-                                        }
+                if isListLayout {
+                    List {
+                        if !viewModel.sortedGames.isEmpty {
+                            LiveEventsView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
+                                .environmentObject(favorites)
+                                .environmentObject(storage)
+                                .environmentObject(viewModel)
+                            FavoriteGamesView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
+                                .environmentObject(favorites)
+                                .environmentObject(storage)
+                                .environmentObject(viewModel)
+                            ForEach(viewModel.sortedGames.map({$0.key}).indices, id: \.self) { index in
+                                Section {
+                                    ForEach(viewModel.sortedGames.map({$0.value})[index]) { game in
+                                        GameView(game: game)
+                                            .environmentObject(viewModel)
+                                            .environmentObject(favorites)
+                                            .environmentObject(storage)
+                                    }
+                                } header: {
+                                    HStack {
+                                        Text("\(viewModel.sortedGames.map({$0.key})[index].formatted(format: viewModel.appStorage.dateFormat, isRelative: viewModel.appStorage.useRelativeValue))")
+                                            .font(.headline)
                                     }
                                 }
-                            } header: {
-                                HStack {
-                                    Text("\(viewModel.sortedGames.map({$0.key})[index].formatted(format: viewModel.appStorage.dateFormat, isRelative: viewModel.appStorage.useRelativeValue))")
-                                        .font(.headline)
-                                }
                             }
-                        }
-                    } else {
-                        if viewModel.networkState == .loading {
-                            HStack {
-                                ProgressView()
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .listRowBackground(Color.clear)
                         } else {
-                            VStack {
-                                Text("No games fetched")
-                                    .foregroundColor(.secondary)
-                                Button("Retry") {
-                                    viewModel.getInfo()
+                            if viewModel.networkState == .loading {
+                                HStack {
+                                    ProgressView()
+                                        .frame(maxWidth: .infinity)
                                 }
-                                .foregroundColor(Color.blue)
+                                .listRowBackground(Color.clear)
+                            } else {
+                                VStack {
+                                    Text("No games fetched")
+                                        .foregroundColor(.secondary)
+                                    Button("Retry") {
+                                        viewModel.getInfo()
+                                    }
+                                    .foregroundColor(Color.blue)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .listRowBackground(Color.clear)
                             }
-                            .frame(maxWidth: .infinity)
-                            .listRowBackground(Color.clear)
                         }
                     }
+                    .searchable(text: $searchString, placement: SearchFieldPlacement.navigationBarDrawer(displayMode: .automatic), prompt: "Teams: ")
+                } else {
+                    ScrollView {
+                        GameGridView()
+                            .environmentObject(favorites)
+                            .environmentObject(storage)
+                            .environmentObject(viewModel)
+                    }
                 }
-                .searchable(text: $searchString, placement: SearchFieldPlacement.navigationBarDrawer(displayMode: .automatic), prompt: "Teams: ")
             }
             .navigationBarTitle("SportsCal")
-            .navigationBarItems(leading: Button(action: {
+            .navigationBarItems(leading:
+                                    Button(action: {
                 shouldShowSettings = true
                 sheetType = .settings
             }, label: {
                 Image(systemName: "gear")
+            })
+            )
+            .navigationBarItems(trailing:
+                                    Button(action: {
+                withAnimation {
+                    isListLayout.toggle()
+                }
+            }, label: {
+                Image(systemName: "square.fill")
             }))
             .sheet(item: $sheetType) { sheetType in
                 switch sheetType {

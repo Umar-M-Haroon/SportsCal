@@ -63,6 +63,8 @@
 		1DE0402D292D713800073494 /* Cache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE0402C292D713800073494 /* Cache.swift */; };
 		1DE0402E292D713800073494 /* Cache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE0402C292D713800073494 /* Cache.swift */; };
 		1DE0404B2937470000073494 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE04049293746F500073494 /* Provider.swift */; };
+		1DE106D129EA8CBA0000B333 /* GameGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE106D029EA8CBA0000B333 /* GameGridView.swift */; };
+		1DE106D329EA979E0000B333 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE106D229EA979E0000B333 /* GameView.swift */; };
 		1DE16FF726F29D4A007B1B57 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DE16FF626F29D4A007B1B57 /* WidgetKit.framework */; platformFilter = maccatalyst; };
 		1DE16FF926F29D4A007B1B57 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DE16FF826F29D4A007B1B57 /* SwiftUI.framework */; platformFilter = maccatalyst; };
 		1DE16FFC26F29D4A007B1B57 /* SportsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE16FFB26F29D4A007B1B57 /* SportsWidget.swift */; };
@@ -186,6 +188,8 @@
 		1DE0401F292D633300073494 /* Intents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Intents.framework; path = System/Library/Frameworks/Intents.framework; sourceTree = SDKROOT; };
 		1DE0402C292D713800073494 /* Cache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Cache.swift; sourceTree = "<group>"; };
 		1DE04049293746F500073494 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
+		1DE106D029EA8CBA0000B333 /* GameGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameGridView.swift; sourceTree = "<group>"; };
+		1DE106D229EA979E0000B333 /* GameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameView.swift; sourceTree = "<group>"; };
 		1DE16FF526F29D4A007B1B57 /* SportsWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SportsWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1DE16FF626F29D4A007B1B57 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		1DE16FF826F29D4A007B1B57 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -304,6 +308,8 @@
 				1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */,
 				1D5C463326C9F10400BA827B /* Confetti.swift */,
 				1DEC76AC268EFB6600D217A1 /* ContentView.swift */,
+				1DE106D229EA979E0000B333 /* GameView.swift */,
+				1DE106D029EA8CBA0000B333 /* GameGridView.swift */,
 				1DC8774529B834A900895C22 /* FavoriteGamesView.swift */,
 				1D1DAB8E29CDAA5A005434D6 /* LiveEventsView.swift */,
 				1DEA4DFD290530B300CD1D8F /* SportsFilterView.swift */,
@@ -727,6 +733,7 @@
 				1D5C463A26C9FD0800BA827B /* OnboardingPage.swift in Sources */,
 				1DE1F0BD2940590000741B19 /* LiveActivityStatusView.swift in Sources */,
 				1D20B33D2929D8C900956B14 /* MiniSubscriptionPage.swift in Sources */,
+				1DE106D329EA979E0000B333 /* GameView.swift in Sources */,
 				1DD35DB62907B6AE009A2113 /* LiveAnimatedView.swift in Sources */,
 				1D20B33B2928C45A00956B14 /* PickSportPage.swift in Sources */,
 				1DA4343429079D3D0010364F /* Teams+Extensions.swift in Sources */,
@@ -753,6 +760,7 @@
 				1D3DD53027FBEF400086DD9E /* CompetitionView.swift in Sources */,
 				1D5C463426C9F10400BA827B /* Confetti.swift in Sources */,
 				1DCEBF0526C045B200913A94 /* SettingsView.swift in Sources */,
+				1DE106D129EA8CBA0000B333 /* GameGridView.swift in Sources */,
 				1D77F64B297CFDCC0023E6DB /* SportsTint.swift in Sources */,
 				1DF489B22737693F00A20512 /* Constants.swift in Sources */,
 				1DF1FD942741EFA800783E62 /* UserDefaultStorage.swift in Sources */,
@@ -1101,7 +1109,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1140,7 +1148,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

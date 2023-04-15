@@ -34,7 +34,7 @@ struct IndividualTeamView: View {
                             if let image = state.image {
                                 image.resizable()
                                     .aspectRatio(contentMode: .fit)
-                                    .frame(width: 40, height: 40)
+                                    .frame(minWidth: 20, maxWidth: 40, minHeight: 20, maxHeight: 40)
                             } else {
                                 ProgressView()
                             }
@@ -52,7 +52,7 @@ struct IndividualTeamView: View {
                             if let image = state.image {
                                 image.resizable()
                                     .aspectRatio(contentMode: .fit)
-                                    .frame(width: 40, height: 40)
+                                    .frame(minWidth: 20, maxWidth: 40, minHeight: 20, maxHeight: 40)
                             } else {
                                 ProgressView()
                             }
