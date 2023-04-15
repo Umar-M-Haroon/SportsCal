@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SportsCalModel
 import UIKit
 
 @available(iOS 16.0, *)
@@ -47,8 +48,19 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
     @MainActor func calendarView(_ calendarView: UICalendarView, decorationFor dateComponents: DateComponents) -> UICalendarView.Decoration? {
         guard let date = Calendar.current.date(from: dateComponents) else { return nil }
         let comps = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: date)
-        if (model.sortedGames.first(where: {$0.key == comps}) != nil) {
+        if let (_, games) = model.sortedGames.first(where: {$0.key == comps}) {
+            let sports = games.compactMap { game -> SportType? in
+                guard let league = game.idLeague,
+                      let leagueInt = Int(league),
+                      let foundLeague = Leagues(rawValue: leagueInt)
+                      else {
+                    return nil
+                }
+                return SportType(league: foundLeague)
+            }
+            
             return .customView {
+//                let view = UIHostingController(rootView: DecorationView(showBasketball: sports.contains(.basketball), showSoccer: sports.contains(.soccer), showHockey: sports.contains(.hockey), showBaseball: sports.contains(.mlb), showFootball: sports.contains(.nfl))).view
                 let view = UIHostingController(rootView: DecorationView(showBasketball: true, showSoccer: true, showHockey: true, showBaseball: true, showFootball: true)).view
                 return view!
             }
