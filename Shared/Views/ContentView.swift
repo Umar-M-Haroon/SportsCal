@@ -46,83 +46,11 @@ struct ContentView: View {
     
     @StateObject var viewModel: GameViewModel
     
-    @State var searchString: String = ""
     @State var shouldShowPromo: Bool = false
     @State var isListLayout: Bool = true
     var body: some View {
         NavigationView {
-            Group {
-                Section {
-                    SportsSelectView(currentlyLiveSports: viewModel.currentlyLiveSports)
-                        .environmentObject(viewModel)
-                }  footer: {
-                    if shouldShowPromo {
-                        HStack {
-                            Text("Try SportsCal Pro to see multiple sports at once")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                            Button {
-                                sheetType = .settings
-                            } label: {
-                                Text("Learn More.")
-                                    .font(.caption2)
-                            }
-                        }
-                    }
-                }
-                List {
-                    if !viewModel.sortedGames.isEmpty {
-                        LiveEventsView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
-                            .environmentObject(favorites)
-                            .environmentObject(storage)
-                            .environmentObject(viewModel)
-                        FavoriteGamesView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
-                            .environmentObject(favorites)
-                            .environmentObject(storage)
-                            .environmentObject(viewModel)
-                        ForEach(viewModel.sortedGames.map({$0.key}).indices, id: \.self) { index in
-                            Section {
-                                ForEach(viewModel.sortedGames.map({$0.value})[index]) { game in
-                                    if let (homeTeam, awayTeam) = viewModel.getTeams(for: game) {
-                                        if let homeScore = Int(game.intHomeScore ?? ""), let awayScore = Int(game.intAwayScore ?? "") {
-                                            GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: false)
-                                                .environmentObject(favorites)
-                                        } else {
-                                            UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat)
-                                                .environmentObject(favorites)
-                                        }
-                                    }
-                                }
-                            } header: {
-                                HStack {
-                                    Text("\(viewModel.sortedGames.map({$0.key})[index].formatted(format: viewModel.appStorage.dateFormat, isRelative: viewModel.appStorage.useRelativeValue))")
-                                        .font(.headline)
-                                }
-                            }
-                        }
-                    } else {
-                        if viewModel.networkState == .loading {
-                            HStack {
-                                ProgressView()
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .listRowBackground(Color.clear)
-                        } else {
-                            VStack {
-                                Text("No games fetched")
-                                    .foregroundColor(.secondary)
-                                Button("Retry") {
-                                    viewModel.getInfo()
-                                }
-                                .foregroundColor(Color.blue)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .listRowBackground(Color.clear)
-                        }
-                    }
-                }
-                .searchable(text: $searchString, placement: SearchFieldPlacement.navigationBarDrawer(displayMode: .automatic), prompt: "Teams: ")
-            }
+            showAppropriateLaunchScreen()
             .navigationBarTitle("SportsCal")
             .navigationBarItems(leading: Button(action: {
                 shouldShowSettings = true
@@ -147,16 +75,6 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: favorites.teams, perform: { _ in
-            withAnimation {
-                viewModel.filterSports(searchString: searchString)
-            }
-        })
-        .onChange(of: searchString, perform: { newValue in
-            withAnimation {
-                viewModel.filterSports(searchString: newValue)
-            }
-        })
         .refreshable(action: {
             viewModel.getInfo()
         })
@@ -192,6 +110,27 @@ struct ContentView: View {
             event.endDate = gameDate.afterHoursFromNow(hours: 2)
         }
         return CalendarRepresentable(eventStore: eventStore, event: event)
+    }
+    
+    func showAppropriateLaunchScreen() -> some View {
+        if #available(iOS 16.0, *) {
+           return TabView {
+                ListPage(shouldShowPromo: shouldShowPromo, shouldShowSportsCalProAlert: shouldShowSportsCalProAlert, shouldShowSettings: shouldShowSettings)
+                    .environmentObject(viewModel)
+                    .environmentObject(storage)
+                    .environmentObject(favorites)
+                    .tabItem {
+                        Label("Upcoming", systemImage: "sportscourt")
+                    }
+                CalendarViewRepresentable()
+                    .environmentObject(viewModel)
+                    .tabItem {
+                        Label("calendar", systemImage: "calendar")
+                    }
+            }
+        } else {
+            return EmptyView()
+        }
     }
     
 }

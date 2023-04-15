@@ -42,6 +42,9 @@
 		1D77F64D297D161A0023E6DB /* SportsSelectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D77F647297CAFCE0023E6DB /* SportsSelectView.swift */; };
 		1D79FFBB26C9B0A40041A673 /* Purchases in Frameworks */ = {isa = PBXBuildFile; productRef = 1D79FFBA26C9B0A40041A673 /* Purchases */; };
 		1D79FFC026C9B3480041A673 /* SubscriptionPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D79FFBF26C9B3480041A673 /* SubscriptionPage.swift */; };
+		1D7D46AA29EA9F9A00179018 /* CalendarViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7D46A929EA9F9A00179018 /* CalendarViewRepresentable.swift */; };
+		1D7D46AC29EAA26E00179018 /* ListPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7D46AB29EAA26E00179018 /* ListPage.swift */; };
+		1D7D46AE29EAAE1700179018 /* DecorationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7D46AD29EAAE1700179018 /* DecorationView.swift */; };
 		1D7DC236270192610086A6D5 /* NetworkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76E1268EFC0500D217A1 /* NetworkHandler.swift */; };
 		1D8352D52905532D00E60D7F /* DateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8352D42905532D00E60D7F /* DateFormatters.swift */; };
 		1D8352D72905532D00E60D7F /* DateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8352D42905532D00E60D7F /* DateFormatters.swift */; };
@@ -175,6 +178,9 @@
 		1D77F647297CAFCE0023E6DB /* SportsSelectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsSelectView.swift; sourceTree = "<group>"; };
 		1D77F64A297CFDCC0023E6DB /* SportsTint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsTint.swift; sourceTree = "<group>"; };
 		1D79FFBF26C9B3480041A673 /* SubscriptionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionPage.swift; sourceTree = "<group>"; };
+		1D7D46A929EA9F9A00179018 /* CalendarViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewRepresentable.swift; sourceTree = "<group>"; };
+		1D7D46AB29EAA26E00179018 /* ListPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListPage.swift; sourceTree = "<group>"; };
+		1D7D46AD29EAAE1700179018 /* DecorationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecorationView.swift; sourceTree = "<group>"; };
 		1D8352D42905532D00E60D7F /* DateFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormatters.swift; sourceTree = "<group>"; };
 		1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DummySubscriptionOptionView.swift; sourceTree = "<group>"; };
 		1D9D2CEF27702FFB00735AF0 /* FavoriteButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteButtonView.swift; sourceTree = "<group>"; };
@@ -304,6 +310,9 @@
 				1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */,
 				1D5C463326C9F10400BA827B /* Confetti.swift */,
 				1DEC76AC268EFB6600D217A1 /* ContentView.swift */,
+				1D7D46AB29EAA26E00179018 /* ListPage.swift */,
+				1D7D46A929EA9F9A00179018 /* CalendarViewRepresentable.swift */,
+				1D7D46AD29EAAE1700179018 /* DecorationView.swift */,
 				1DC8774529B834A900895C22 /* FavoriteGamesView.swift */,
 				1D1DAB8E29CDAA5A005434D6 /* LiveEventsView.swift */,
 				1DEA4DFD290530B300CD1D8F /* SportsFilterView.swift */,
@@ -725,6 +734,8 @@
 				1D77F64D297D161A0023E6DB /* SportsSelectView.swift in Sources */,
 				1D1DAB8F29CDAA5A005434D6 /* LiveEventsView.swift in Sources */,
 				1D5C463A26C9FD0800BA827B /* OnboardingPage.swift in Sources */,
+				1D7D46AC29EAA26E00179018 /* ListPage.swift in Sources */,
+				1D7D46AA29EA9F9A00179018 /* CalendarViewRepresentable.swift in Sources */,
 				1DE1F0BD2940590000741B19 /* LiveActivityStatusView.swift in Sources */,
 				1D20B33D2929D8C900956B14 /* MiniSubscriptionPage.swift in Sources */,
 				1DD35DB62907B6AE009A2113 /* LiveAnimatedView.swift in Sources */,
@@ -751,6 +762,7 @@
 				1DEC7705268F0AF200D217A1 /* NetworkErrors.swift in Sources */,
 				1D63E71926A9494800FC3DE6 /* Date+Extensions.swift in Sources */,
 				1D3DD53027FBEF400086DD9E /* CompetitionView.swift in Sources */,
+				1D7D46AE29EAAE1700179018 /* DecorationView.swift in Sources */,
 				1D5C463426C9F10400BA827B /* Confetti.swift in Sources */,
 				1DCEBF0526C045B200913A94 /* SettingsView.swift in Sources */,
 				1D77F64B297CFDCC0023E6DB /* SportsTint.swift in Sources */,

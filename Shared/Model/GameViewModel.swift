@@ -436,7 +436,7 @@ import ActivityKit
     
     func filterAndSortGamesFromUserPreferences(games: [Game]) -> [Game] {
         return games.filter({ game -> Bool in
-            return isValidInPast(game: game) && isValidInFuture(game: game)
+            return isValidInPast(game: game) || isValidInFuture(game: game)
         })
         .sorted { lhs, rhs in
             lhs.standardDate ?? .now < rhs.standardDate ?? .now
