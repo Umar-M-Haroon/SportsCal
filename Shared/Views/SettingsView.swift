@@ -150,7 +150,7 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .onAppear {
                 if isTestFlight {
-                    appStorage.debugMode = true
+//                    appStorage.debugMode = true
                 }
             }
         }
