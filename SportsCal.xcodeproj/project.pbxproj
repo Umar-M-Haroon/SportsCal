@@ -45,6 +45,7 @@
 		1D7D46AA29EA9F9A00179018 /* CalendarViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7D46A929EA9F9A00179018 /* CalendarViewRepresentable.swift */; };
 		1D7D46AC29EAA26E00179018 /* ListPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7D46AB29EAA26E00179018 /* ListPage.swift */; };
 		1D7D46AE29EAAE1700179018 /* DecorationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7D46AD29EAAE1700179018 /* DecorationView.swift */; };
+		1D7D46B029EBC3BF00179018 /* DetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7D46AF29EBC3BF00179018 /* DetailView.swift */; };
 		1D7DC236270192610086A6D5 /* NetworkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76E1268EFC0500D217A1 /* NetworkHandler.swift */; };
 		1D8352D52905532D00E60D7F /* DateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8352D42905532D00E60D7F /* DateFormatters.swift */; };
 		1D8352D72905532D00E60D7F /* DateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8352D42905532D00E60D7F /* DateFormatters.swift */; };
@@ -181,6 +182,7 @@
 		1D7D46A929EA9F9A00179018 /* CalendarViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewRepresentable.swift; sourceTree = "<group>"; };
 		1D7D46AB29EAA26E00179018 /* ListPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListPage.swift; sourceTree = "<group>"; };
 		1D7D46AD29EAAE1700179018 /* DecorationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecorationView.swift; sourceTree = "<group>"; };
+		1D7D46AF29EBC3BF00179018 /* DetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailView.swift; sourceTree = "<group>"; };
 		1D8352D42905532D00E60D7F /* DateFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormatters.swift; sourceTree = "<group>"; };
 		1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DummySubscriptionOptionView.swift; sourceTree = "<group>"; };
 		1D9D2CEF27702FFB00735AF0 /* FavoriteButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteButtonView.swift; sourceTree = "<group>"; };
@@ -310,6 +312,7 @@
 				1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */,
 				1D5C463326C9F10400BA827B /* Confetti.swift */,
 				1DEC76AC268EFB6600D217A1 /* ContentView.swift */,
+				1D7D46AF29EBC3BF00179018 /* DetailView.swift */,
 				1D7D46AB29EAA26E00179018 /* ListPage.swift */,
 				1D7D46A929EA9F9A00179018 /* CalendarViewRepresentable.swift */,
 				1D7D46AD29EAAE1700179018 /* DecorationView.swift */,
@@ -749,6 +752,7 @@
 				1D20B338292893DD00956B14 /* GameManager.swift in Sources */,
 				1D486B0028A834470024BC32 /* GameViewModel.swift in Sources */,
 				1D8352D52905532D00E60D7F /* DateFormatters.swift in Sources */,
+				1D7D46B029EBC3BF00179018 /* DetailView.swift in Sources */,
 				1D5C463726C9FB5000BA827B /* SettingsData.swift in Sources */,
 				1D3DD52E27FBEF310086DD9E /* CompetitionPage.swift in Sources */,
 				1DEDD0EC26D179F5005ABF93 /* AppDelegate.swift in Sources */,

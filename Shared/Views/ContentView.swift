@@ -24,10 +24,13 @@ enum SheetType: Identifiable {
             return "onboarding"
         case .calendar(_):
             return "calendar"
+        case .detail:
+            return "detail"
         }
     }
     case settings, onboarding
     case calendar(game: Game?)
+    case detail
 }
 
 struct ContentView: View {
@@ -72,6 +75,8 @@ struct ContentView: View {
                     if let game = eventGame {
                         makeCalendarEvent(game: game)
                     }
+                case .detail:
+                    DetailView()
                 }
             }
         }
@@ -122,7 +127,7 @@ struct ContentView: View {
                     .tabItem {
                         Label("Upcoming", systemImage: "sportscourt")
                     }
-                CalendarViewRepresentable()
+                CalendarViewRepresentable(sheetType: $sheetType)
                     .environmentObject(viewModel)
                     .tabItem {
                         Label("calendar", systemImage: "calendar")

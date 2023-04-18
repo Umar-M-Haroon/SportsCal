@@ -14,6 +14,7 @@ struct DecorationView: View {
     var showHockey: Bool
     var showBaseball: Bool
     var showFootball: Bool
+    var showFavorites: Bool
     var totalShowing: Int {
         var total = 0
         if showBasketball {
@@ -68,6 +69,12 @@ struct DecorationView: View {
                         .resizable()
                         .frame(width: 9, height: 9)
                         .modifier(SportsTint(sport: .nfl))
+                }
+                if showFootball {
+                    Image(systemName: "star.fill")
+                        .resizable()
+                        .frame(width: 9, height: 9)
+                        .foregroundColor(.yellow)
                 }
             }
         }

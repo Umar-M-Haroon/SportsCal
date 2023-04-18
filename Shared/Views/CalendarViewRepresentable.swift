@@ -12,10 +12,13 @@ import UIKit
 @available(iOS 16.0, *)
 struct CalendarViewRepresentable: UIViewRepresentable {
     @EnvironmentObject var viewModel: GameViewModel
+    @EnvironmentObject var favorites: Favorites
+    @State var selectedDate: DateComponents? = nil
+    @Binding var sheetType: SheetType?
     func makeUIView(context: Context) -> UICalendarView {
         let calendarView = UICalendarView()
         calendarView.calendar = Calendar.current
-        calendarView.availableDateRange = DateInterval(start: viewModel.sortedGames.first?.key.date ?? .now, end: viewModel.sortedGames.last?.key.date ?? .now)
+        calendarView.availableDateRange = DateInterval(start: viewModel.totalGames?.first?.standardDate ?? .now, end: viewModel.totalGames?.last?.standardDate ?? .now)
         calendarView.delegate = context.coordinator
         calendarView.locale = Locale.current
         calendarView.wantsDateDecorations = true
@@ -25,9 +28,11 @@ struct CalendarViewRepresentable: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: UICalendarView, context: Context) {
+        let componentsToReload = context.coordinator.reloadApplicableDecorations()
+        uiView.reloadDecorations(forDateComponents: componentsToReload, animated: true)
     }
     func makeCoordinator() -> CalendarCoordinator {
-        CalendarCoordinator(model: viewModel)
+        CalendarCoordinator(games: $viewModel.totalGames, date: $selectedDate, sheet: $sheetType, favorites: favorites.teams)
     }
     
     typealias UIViewType = UICalendarView
@@ -35,10 +40,17 @@ struct CalendarViewRepresentable: UIViewRepresentable {
 }
 @available(iOS 16.0, *)
 class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelectionSingleDateDelegate {
-    var model: GameViewModel
     
-    init(model: GameViewModel) {
-        self.model = model
+    @Binding var games: [Game]?
+    @Binding var selectedDate: DateComponents?
+    @Binding var sheetType: SheetType?
+    var favorites: Set<String>
+    
+    init(games: Binding<[Game]?>, date: Binding<DateComponents?>, sheet: Binding<SheetType?>, favorites: Set<String>) {
+        self._games = games
+        self._selectedDate = date
+        self._sheetType = sheet
+        self.favorites = favorites
     }
     
     func dateSelection(_ selection: UICalendarSelectionSingleDate, didSelectDate dateComponents: DateComponents?) {
@@ -48,8 +60,9 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
     @MainActor func calendarView(_ calendarView: UICalendarView, decorationFor dateComponents: DateComponents) -> UICalendarView.Decoration? {
         guard let date = Calendar.current.date(from: dateComponents) else { return nil }
         let comps = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: date)
-        if let (_, games) = model.sortedGames.first(where: {$0.key == comps}) {
-            let sports = games.compactMap { game -> SportType? in
+        
+        if let filteredGames = games?.filter({$0.standardDate?.toComponents() == comps}) {
+            let sports = filteredGames.compactMap { game -> SportType? in
                 guard let league = game.idLeague,
                       let leagueInt = Int(league),
                       let foundLeague = Leagues(rawValue: leagueInt)
@@ -60,14 +73,16 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
             }
             
             return .customView {
-//                let view = UIHostingController(rootView: DecorationView(showBasketball: sports.contains(.basketball), showSoccer: sports.contains(.soccer), showHockey: sports.contains(.hockey), showBaseball: sports.contains(.mlb), showFootball: sports.contains(.nfl))).view
-                let view = UIHostingController(rootView: DecorationView(showBasketball: true, showSoccer: true, showHockey: true, showBaseball: true, showFootball: true)).view
+//                let view = UIHostingController(rootView: DecorationView(showBasketball: sports.contains(.basketball), showSoccer: sports.contains(.soccer), showHockey: sports.contains(.hockey), showBaseball: sports.contains(.mlb), showFootball: sports.contains(.nfl), showFavorites: true)).view
+                let view = UIHostingController(rootView: DecorationView(showBasketball: true, showSoccer: true, showHockey: true, showBaseball: true, showFootball: true, showFavorites: true)).view
                 return view!
             }
         }
         return nil
     }
-    
+    func reloadApplicableDecorations() -> [DateComponents] {
+        []
+    }
 }
 
 //struct CalendarViewRepresentable_Previews: PreviewProvider {
@@ -76,3 +91,8 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
 //    }
 //}
 
+extension Date {
+    func toComponents() -> DateComponents {
+        Calendar.current.dateComponents([.day, .month, .year], from: self)
+    }
+}
