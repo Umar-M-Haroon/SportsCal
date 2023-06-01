@@ -13,6 +13,7 @@ import OrderedCollections
 #if canImport(ActivityKit)
 import ActivityKit
 #endif
+import Sentry
 @MainActor public class GameViewModel: NSObject, ObservableObject {
     
     @Published var appStorage: UserDefaultStorage
@@ -502,6 +503,7 @@ import ActivityKit
               let foundAwayTeam = Team.getTeamInfoFrom(teamDict: self.teamsDict, teamID: idAwayTeam) ?? Team.getTeamInfoFrom(teamDict: self.teamsDictName, teamName: strAwayTeam)
                 ?? Team.getTeamInfoFrom(teams: self.teams, teamName: strAwayTeam)
         else {
+            SentrySDK.capture(error: ModelErrors.unknownTeam(game))
             return nil
         }
         

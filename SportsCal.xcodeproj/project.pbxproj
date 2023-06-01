@@ -36,6 +36,10 @@
 		1D5C463426C9F10400BA827B /* Confetti.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463326C9F10400BA827B /* Confetti.swift */; };
 		1D5C463726C9FB5000BA827B /* SettingsData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463626C9FB5000BA827B /* SettingsData.swift */; };
 		1D5C463A26C9FD0800BA827B /* OnboardingPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463926C9FD0800BA827B /* OnboardingPage.swift */; };
+		1D619F572A28695D006E889E /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 1D619F562A28695D006E889E /* Sentry */; };
+		1D619F592A28696D006E889E /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 1D619F582A28696D006E889E /* Sentry */; };
+		1D619F5B2A286A01006E889E /* ModelError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D619F5A2A286A01006E889E /* ModelError.swift */; };
+		1D619F5C2A286A01006E889E /* ModelError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D619F5A2A286A01006E889E /* ModelError.swift */; };
 		1D63E71926A9494800FC3DE6 /* Date+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */; };
 		1D77F64B297CFDCC0023E6DB /* SportsTint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D77F64A297CFDCC0023E6DB /* SportsTint.swift */; };
 		1D77F64C297CFDCC0023E6DB /* SportsTint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D77F64A297CFDCC0023E6DB /* SportsTint.swift */; };
@@ -175,6 +179,7 @@
 		1D5C463326C9F10400BA827B /* Confetti.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Confetti.swift; sourceTree = "<group>"; };
 		1D5C463626C9FB5000BA827B /* SettingsData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsData.swift; sourceTree = "<group>"; };
 		1D5C463926C9FD0800BA827B /* OnboardingPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPage.swift; sourceTree = "<group>"; };
+		1D619F5A2A286A01006E889E /* ModelError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelError.swift; sourceTree = "<group>"; };
 		1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Extensions.swift"; sourceTree = "<group>"; };
 		1D77F647297CAFCE0023E6DB /* SportsSelectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsSelectView.swift; sourceTree = "<group>"; };
 		1D77F64A297CFDCC0023E6DB /* SportsTint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsTint.swift; sourceTree = "<group>"; };
@@ -254,6 +259,7 @@
 				1DE16FF926F29D4A007B1B57 /* SwiftUI.framework in Frameworks */,
 				1DE16FF726F29D4A007B1B57 /* WidgetKit.framework in Frameworks */,
 				1DC72186290777A500628B14 /* SportsCalModel in Frameworks */,
+				1D619F592A28696D006E889E /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -275,6 +281,7 @@
 				1DE94A7C29CD952200BE87D1 /* NukeUI in Frameworks */,
 				1DC8774029B8326100895C22 /* Collections in Frameworks */,
 				1D79FFBB26C9B0A40041A673 /* Purchases in Frameworks */,
+				1D619F572A28695D006E889E /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -419,6 +426,7 @@
 				1DEDD0EB26D179F5005ABF93 /* AppDelegate.swift */,
 				1DEC76E1268EFC0500D217A1 /* NetworkHandler.swift */,
 				1DEC7704268F0AF200D217A1 /* NetworkErrors.swift */,
+				1D619F5A2A286A01006E889E /* ModelError.swift */,
 				1D5C463626C9FB5000BA827B /* SettingsData.swift */,
 				1DEC76AD268EFB6700D217A1 /* Assets.xcassets */,
 				1D8352D42905532D00E60D7F /* DateFormatters.swift */,
@@ -505,6 +513,7 @@
 				1DC72185290777A500628B14 /* SportsCalModel */,
 				1DC8774329B8332400895C22 /* OrderedCollections */,
 				1DE94A7F29CD960100BE87D1 /* NukeUI */,
+				1D619F582A28696D006E889E /* Sentry */,
 			);
 			productName = SportsWidgetExtension;
 			productReference = 1DE16FF526F29D4A007B1B57 /* SportsWidgetExtension.appex */;
@@ -552,6 +561,7 @@
 				1DC8773F29B8326100895C22 /* Collections */,
 				1DC8774129B8326100895C22 /* OrderedCollections */,
 				1DE94A7B29CD952200BE87D1 /* NukeUI */,
+				1D619F562A28695D006E889E /* Sentry */,
 			);
 			productName = "SportsCal (iOS)";
 			productReference = 1DEC76B2268EFB6700D217A1 /* SportsCal.app */;
@@ -618,6 +628,7 @@
 				1DC721802907779A00628B14 /* XCRemoteSwiftPackageReference "SportsCalModel" */,
 				1DC8773E29B8326100895C22 /* XCRemoteSwiftPackageReference "swift-collections" */,
 				1DE94A7829CD94B100BE87D1 /* XCRemoteSwiftPackageReference "Nuke" */,
+				1D619F102A259AFC006E889E /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 			);
 			productRefGroup = 1DEC76B3268EFB6700D217A1 /* Products */;
 			projectDirPath = "";
@@ -708,6 +719,7 @@
 				1D408099290BAB9000729FFE /* LiveSportActivityAttributes.swift in Sources */,
 				1DEA4E0129053AB900CD1D8F /* GameViewModel.swift in Sources */,
 				1D4080A0290C803400729FFE /* LiveAnimatedView.swift in Sources */,
+				1D619F5C2A286A01006E889E /* ModelError.swift in Sources */,
 				1DC2651526F3CCF1005539C1 /* SettingsData.swift in Sources */,
 				1DF489B62737693F00A20512 /* Constants.swift in Sources */,
 				1DE1F0BF2941B94F00741B19 /* SportsWidgetLargeView.swift in Sources */,
@@ -768,6 +780,7 @@
 				1D3DD53027FBEF400086DD9E /* CompetitionView.swift in Sources */,
 				1D7D46AE29EAAE1700179018 /* DecorationView.swift in Sources */,
 				1D5C463426C9F10400BA827B /* Confetti.swift in Sources */,
+				1D619F5B2A286A01006E889E /* ModelError.swift in Sources */,
 				1DCEBF0526C045B200913A94 /* SettingsView.swift in Sources */,
 				1D77F64B297CFDCC0023E6DB /* SportsTint.swift in Sources */,
 				1DF489B22737693F00A20512 /* Constants.swift in Sources */,
@@ -1286,6 +1299,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		1D619F102A259AFC006E889E /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
 		1D79FFB926C9B0A30041A673 /* XCRemoteSwiftPackageReference "purchases-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/RevenueCat/purchases-ios.git";
@@ -1325,6 +1346,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1D79FFB926C9B0A30041A673 /* XCRemoteSwiftPackageReference "purchases-ios" */;
 			productName = Purchases;
+		};
+		1D619F562A28695D006E889E /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1D619F102A259AFC006E889E /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
+		};
+		1D619F582A28696D006E889E /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1D619F102A259AFC006E889E /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
 		};
 		1D79FFBA26C9B0A40041A673 /* Purchases */ = {
 			isa = XCSwiftPackageProductDependency;

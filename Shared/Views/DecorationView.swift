@@ -15,25 +15,25 @@ struct DecorationView: View {
     var showBaseball: Bool
     var showFootball: Bool
     var showFavorites: Bool
-    var totalShowing: Int {
-        var total = 0
-        if showBasketball {
-            total += 1
-        }
-        if showSoccer {
-            total += 1
-        }
-        if showHockey {
-            total += 1
-        }
-        if showBaseball {
-            total += 1
-        }
-        if showFootball {
-            total += 1
-        }
-        return total
-    }
+//    var totalShowing: Int {
+//        var total = 0
+//        if showBasketball {
+//            total += 1
+//        }
+//        if showSoccer {
+//            total += 1
+//        }
+//        if showHockey {
+//            total += 1
+//        }
+//        if showBaseball {
+//            total += 1
+//        }
+//        if showFootball {
+//            total += 1
+//        }
+//        return total
+//    }
 
     var body: some View {
         Grid(alignment: .center, horizontalSpacing: 2, verticalSpacing: 0) {
@@ -70,7 +70,7 @@ struct DecorationView: View {
                         .frame(width: 9, height: 9)
                         .modifier(SportsTint(sport: .nfl))
                 }
-                if showFootball {
+                if showFavorites {
                     Image(systemName: "star.fill")
                         .resizable()
                         .frame(width: 9, height: 9)

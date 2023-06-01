@@ -19,6 +19,15 @@
       }
     },
     {
+      "identity" : "sentry-cocoa",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/getsentry/sentry-cocoa.git",
+      "state" : {
+        "revision" : "9cf7d2e514af1600cc2b3c5592e2848c6c5a76d6",
+        "version" : "8.7.3"
+      }
+    },
+    {
       "identity" : "sportscalmodel",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Umar-M-Haroon/SportsCalModel/",

@@ -71,17 +71,23 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
                 }
                 return SportType(league: foundLeague)
             }
+            if sports.isEmpty {
+                return nil
+            }
+//            let showFavorites = filteredGames.contains(where: {favorites.contains($0.strAwayTeam) || favorites.contains($0.strHomeTeam)})
             
             return .customView {
-//                let view = UIHostingController(rootView: DecorationView(showBasketball: sports.contains(.basketball), showSoccer: sports.contains(.soccer), showHockey: sports.contains(.hockey), showBaseball: sports.contains(.mlb), showFootball: sports.contains(.nfl), showFavorites: true)).view
-                let view = UIHostingController(rootView: DecorationView(showBasketball: true, showSoccer: true, showHockey: true, showBaseball: true, showFootball: true, showFavorites: true)).view
+                let view = UIHostingController(rootView: DecorationView(showBasketball: sports.contains(.basketball), showSoccer: sports.contains(.soccer), showHockey: sports.contains(.hockey), showBaseball: sports.contains(.mlb), showFootball: true, showFavorites: true)).view
+//                let view = UIHostingController(rootView: DecorationView(showBasketball: true, showSoccer: true, showHockey: true, showBaseball: true, showFootball: true, showFavorites: true)).view
                 return view!
             }
+        } else {
+            print("no filtered games")
         }
         return nil
     }
     func reloadApplicableDecorations() -> [DateComponents] {
-        []
+        [Date.now.toComponents()]
     }
 }
 
@@ -93,6 +99,6 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
 
 extension Date {
     func toComponents() -> DateComponents {
-        Calendar.current.dateComponents([.day, .month, .year], from: self)
+        Calendar.current.dateComponents([.day, .month, .year, .calendar], from: self)
     }
 }
