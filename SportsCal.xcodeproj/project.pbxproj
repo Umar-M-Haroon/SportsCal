@@ -547,7 +547,6 @@
 				1DEC76AF268EFB6700D217A1 /* Frameworks */,
 				1DEC76B0268EFB6700D217A1 /* Resources */,
 				1DF5C55B2713F48500842FDA /* Embed Foundation Extensions */,
-				1D619F5D2A286CE6006E889E /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -683,27 +682,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		1D619F5D2A286CE6006E889E /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
-			);
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nif which sentry-cli >/dev/null; then\nexport SENTRY_ORG=mighty-panda-llc\nexport SENTRY_PROJECT=apple-ios\nexport SENTRY_AUTH_TOKEN=6a4b644efcea41a4babba0b3f95cc41b97f4598ede864964bf6c88b0ad0ced3f\nERROR=$(sentry-cli upload-dif \"$DWARF_DSYM_FOLDER_PATH\" 2>&1 >/dev/null)\nif [ ! $? -eq 0 ]; then\necho \"warning: sentry-cli - $ERROR\"\nfi\nelse\necho \"warning: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi\n";
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1D1DAB9229CDB50C005434D6 /* Sources */ = {
