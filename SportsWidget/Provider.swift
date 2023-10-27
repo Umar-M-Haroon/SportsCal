@@ -11,6 +11,7 @@ import SwiftUI
 import Intents
 import Combine
 import SportsCalModel
+import Sentry
 
 struct SimpleEntry: TimelineEntry {
     let date: Date
@@ -155,6 +156,7 @@ class Provider: IntentTimelineProvider {
             }
             return await (games, try teams)
         } catch let e {
+            SentrySDK.capture(error: e)
             return ([Game(idLeague: "4387", strHomeTeam: "g", strAwayTeam: e.localizedDescription, isoDate: nil)], [])
         }
     }

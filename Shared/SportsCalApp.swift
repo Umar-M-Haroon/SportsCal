@@ -18,6 +18,12 @@ struct SportsCalApp: App {
 
     @StateObject var appStorage = UserDefaultStorage()
     @StateObject var favorites = Favorites()
+    var isTestFlight: Bool {
+        guard let path = Bundle.main.appStoreReceiptURL?.path else {
+            return false
+        }
+        return path.contains("sandboxReceipt")
+    }
     var body: some Scene {
         WindowGroup {
             ContentView(viewModel: GameViewModel(appStorage: appStorage, favorites: favorites))
@@ -26,6 +32,9 @@ struct SportsCalApp: App {
                 .environmentObject(favorites)
                 .onAppear {
                     appStorage.launches += 1
+                    if isTestFlight {
+                        appStorage.debugMode = true
+                    }
                 }
         }
         .onChange(of: scenePhase) { newPhase in

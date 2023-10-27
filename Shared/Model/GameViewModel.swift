@@ -167,9 +167,9 @@ import Sentry
             }
             self.teamsDictName = teamsDictName
         }
-        if let liveInfo = liveCache?.value(for: "live") {
-            self.currentLiveInfo = liveInfo
-        }
+//        if let liveInfo = liveCache?.value(for: "live") {
+//            self.currentLiveInfo = liveInfo
+//        }
         getInfo()
         appStorage.objectWillChange
             .debounce(for: 1, scheduler: RunLoop.main)
@@ -186,6 +186,11 @@ import Sentry
         print("🛜getting Live Games")
         async let liveInfo = NetworkHandler.getLiveSnapshot(debug: appStorage.debugMode)
         self.currentLiveInfo = try await liveInfo
+        print("found", self.currentLiveInfo?.mlb?.events.count, "mlb games")
+        print("found", self.currentLiveInfo?.nba?.events.count, "nba games")
+        print("found", self.currentLiveInfo?.nfl?.events.count, "nfl games")
+        print("found", self.currentLiveInfo?.nhl?.events.count, "nhl games")
+        print("found", self.currentLiveInfo?.soccer?.events.count, "soccer games")
         if let liveInfo = currentLiveInfo {
             liveCache?.insert(liveInfo, for: "live")
         }
@@ -246,7 +251,7 @@ import Sentry
                     liveEvent2
                 }
             }
-            return LiveScore(nba: events[.basketball], mlb: events[.mlb], soccer: events[.soccer], nfl: events[.nfl], nhl: events[.hockey])
+            return LiveScore(nba: events[.basketball] ?? nil, mlb: events[.mlb] ?? nil, soccer: events[.soccer] ?? nil, nfl: events[.nfl] ?? nil, nhl: events[.hockey] ?? nil)
         }
         
         gameCache?.insert(groupResult, for: "games")
@@ -300,6 +305,12 @@ import Sentry
                         } else if currentLiveInfo == nil {
                             self.currentLiveInfo = newLiveInfo
                         }
+                        
+                        print("found", self.currentLiveInfo?.mlb?.events.count, "mlb games")
+                        print("found", self.currentLiveInfo?.nba?.events.count, "nba games")
+                        print("found", self.currentLiveInfo?.nfl?.events.count, "nfl games")
+                        print("found", self.currentLiveInfo?.nhl?.events.count, "nhl games")
+                        print("found", self.currentLiveInfo?.soccer?.events.count, "soccer games")
                     }
                     #if canImport(ActivityKit)
                     if #available(iOS 16.1, *) {
@@ -365,6 +376,72 @@ import Sentry
             allGames.append(contentsOf: gamesDict[.hockey] ?? [])
         }
         return allGames
+    }
+    
+    func showGame(game: Game) -> Bool {
+        // if hidePastEvents
+        // if game in past
+        guard let date = game.standardDate else { return false}
+        if date.timeIntervalSinceNow < 0 {
+            if self.appStorage.hidePastEvents{
+                return false
+            } else {
+                switch self.appStorage.hidePastGamesDuration {
+                case .oneWeek:
+                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                    return (days <= 7)
+                case .twoWeeks:
+                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                    return (days >= -14)
+                case .threeWeeks:
+                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                    return (days >= -21)
+                case .oneMonth:
+                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+                    return (month1 <= -1)
+                case .twoMonths:
+                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+                    return (month1 <= -2)
+                case .sixMonths:
+                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+                    return (month1 <= -6)
+                case .oneYear:
+                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+                    return (month1 <= -12)
+                case .oneDay:
+                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+                    return (days >= -1)
+                }
+            }
+        }
+        
+        switch self.appStorage.durations {
+        case .oneWeek:
+            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+            return (days <= 7)
+        case .twoWeeks:
+            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+            return (days <= 14)
+        case .threeWeeks:
+            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+            return (days <= 21)
+        case .oneMonth:
+            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+            return (month1 < 1)
+        case .twoMonths:
+            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+            return (month1 < 2)
+        case .sixMonths:
+            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+            return (month1 < 2)
+        case .oneYear:
+            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
+            return (month1 < 12)
+        case .oneDay:
+            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
+            return (days < 1)
+        }
+        
     }
     
     func isValidInPast(game: Game) -> Bool {
@@ -437,7 +514,7 @@ import Sentry
     
     func filterAndSortGamesFromUserPreferences(games: [Game]) -> [Game] {
         return games.filter({ game -> Bool in
-            return isValidInPast(game: game) && isValidInFuture(game: game)
+            return showGame(game: game)
         })
         .sorted { lhs, rhs in
             lhs.standardDate ?? .now < rhs.standardDate ?? .now
@@ -509,6 +586,11 @@ import Sentry
         
         return (foundHomeTeam, foundAwayTeam)
     }
+
+    func retry() {
+        networkFetchTask = nil
+        getInfo()
+    }
     
     func handleSearch(searchString: String?) {
         if let searchString, isValidSearchString(searchString: searchString) {
@@ -526,16 +608,18 @@ import Sentry
         return !searchString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     func getInfo() {
-        if networkFetchTask?.isCancelled ?? true || networkFetchTask == nil {
-            networkState = .loading
-            networkFetchTask = Task {
-                restartTimer = nil
-                await getData()
-            }
-        } else {
-            networkFetchTask?.cancel()            
-            getInfo()
+//        if networkFetchTask?.isCancelled ?? true || networkFetchTask == nil {
+        networkState = .loading
+        networkFetchTask = Task {
+            restartTimer = nil
+            await getData()
         }
+//        } else {
+//            if !teams.isEmpty && !(totalGames?.isEmpty ?? true) {
+////                networkFetchTask?.cancel()
+//                getInfo()
+//            }
+//        }
     }
     
     func dumpCaches() throws {
@@ -563,6 +647,53 @@ extension GameViewModel: URLSessionWebSocketDelegate {
 #if canImport(ActivityKit)
 @available(iOS 16.1, *)
 extension GameViewModel {
+    func configureDataForLiveActivity(game: Game, homeTeam: Team, awayTeam: Team) async throws -> (attributes: LiveSportActivityAttributes, contentState: LiveSportActivityAttributes.ContentState) {
+        if let homeBadgeString = homeTeam.strTeamBadge,  let homeBadgeURL = URL(string: homeBadgeString + "/tiny"), let awayBadgeString = awayTeam.strTeamBadge,  let awayBadgeURL = URL(string: awayBadgeString + "/tiny") {
+            do {
+                async let (homeData, _) = URLSession.shared.data(for: URLRequest(url: homeBadgeURL, cachePolicy: .returnCacheDataElseLoad))
+                async let (awayData, _) = URLSession.shared.data(for: URLRequest(url: awayBadgeURL, cachePolicy: .returnCacheDataElseLoad))
+                guard let homeTeamName = homeTeam.strTeamShort ?? homeTeam.strTeam,
+                      let awayTeamName = awayTeam.strTeamShort ?? awayTeam.strTeam else { throw ModelErrors.unknownTeam(game) }
+                
+                if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appending(path: homeTeamName) {
+                    try await homeData.write(to: fileURL)
+                }
+                
+                if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appending(path: awayTeamName) {
+                    try await awayData.write(to: fileURL)
+                }
+                let initialContentState = LiveSportActivityAttributes.ContentState(homeScore: Int(game.intHomeScore ?? "") ?? 0, awayScore: Int(game.intAwayScore ?? "") ?? 0, status: game.strStatus, progress: game.strProgress)
+                let activityAttributes = LiveSportActivityAttributes(homeTeam: homeTeamName, awayTeam: awayTeamName, eventID: game.idEvent ?? "")
+                return (activityAttributes, initialContentState)
+            } catch let error {
+                SentrySDK.capture(error: error)
+                print(error.localizedDescription)
+            }
+        }
+        throw ModelErrors.unknownTeam(game)
+        
+    }
+    func requestActivity(game: Game, homeTeam: Team, awayTeam: Team) {
+        Task { @MainActor in
+            let (activityAttributes, initialContentState) = try await configureDataForLiveActivity(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+            let activity: Activity<LiveSportActivityAttributes>
+            //                    if #available(iOS 16.2, *) {
+            //                        activity = try Activity.request(attributes: activityAttributes, content: .init(state: initialContentState, staleDate: .distantFuture, relevanceScore:  100), pushType: .token)
+            //                    } else {
+            activity = try Activity.request(attributes: activityAttributes, contentState: initialContentState, pushType: .token)
+            //                    }
+            
+            if let token = activity.pushToken, let eventID = game.idEvent {
+                let tokenString = token.map { String(format: "%02x", $0)}.joined()
+                try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID, debug: UserDefaultStorage().debugMode)
+            }
+        }
+    }
+    
+    func observeLiveActivities() {
+        
+    }
+    
     func updateLiveActivities() async throws {
         var states: [String: LiveSportActivityAttributes.ContentState] = [:]
         for liveEvent in liveEvents {

@@ -76,6 +76,7 @@ struct NetworkHandler {
 
         if let _ = ProcessInfo.processInfo.environment["mock-live"] {
             urlPath = "/live-debug"
+            return LiveScore(nba: LiveEvent(events: [Game(idLiveScore: "401469290", idEvent: "401469290", strSport: "basketball", idLeague: "4387", strLeague: "NBA", idHomeTeam: "9", idAwayTeam: "3", strHomeTeam: "Golden State Warriors", strAwayTeam: "New Orleans Pelicans", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "60", intAwayScore: "73", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "in", strProgress: "6:43 - 3rd", strEventTime: "2023-03-29T02:00Z", dateEvent: "2023-03-29T02:00Z", updated: nil, strTimestamp: "2023-03-29T02:00Z", lastPlay: "CJ McCollum makes 11-foot driving floating jump shot (Jonas Valanciunas assists)", isCompleted: false, isoDate: Date.now)]))
         }
         urlString += urlPath
         let url = URL(string: urlString)!

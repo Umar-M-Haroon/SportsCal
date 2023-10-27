@@ -26,11 +26,17 @@ enum SheetType: Identifiable {
             return "calendar"
         case .detail:
             return "detail"
+        case .listDetail(games: _):
+            return "listDetail"
+        case .paywall:
+            return "paywall"
         }
     }
     case settings, onboarding
     case calendar(game: Game?)
     case detail
+    case listDetail(games: Array<(key: DateComponents, value: Array<Game>)>, liveGames: [Game])
+    case paywall
 }
 
 struct ContentView: View {
@@ -51,6 +57,7 @@ struct ContentView: View {
     
     @State var shouldShowPromo: Bool = false
     @State var isListLayout: Bool = true
+    @State var shouldShowSportOptions = false
     var body: some View {
         NavigationView {
             showAppropriateLaunchScreen()
@@ -77,8 +84,33 @@ struct ContentView: View {
                     }
                 case .detail:
                     DetailView()
+                case .listDetail(let listGames, let liveGames):
+                    ListDetailView(listGames: listGames, liveGames: liveGames, sheetType: $sheetType)
+                        .environmentObject(storage)
+                        .environmentObject(viewModel)
+                        .environmentObject(favorites)
+                        .presentationDetents([.medium])
+                case .paywall:
+                    NavigationView {
+                        SubscriptionPage(selectedProduct: SubscriptionManager.shared.monthlySubscription)
+                            .environmentObject(SubscriptionManager.shared)
+                            .toolbar(content: {
+                                Button {
+                                    self.sheetType = nil
+                                } label: {
+                                    Text("Cancel")
+                                }
+                            })
+                            .toolbarRole(.automatic)
+                    }
                 }
             }
+            .toolbarRole(.navigationStack)
+            .toolbar(content: {
+                SportSlideView(shouldShowButton: $shouldShowSportOptions)
+                    .environmentObject(viewModel)
+//                SportsSelectView(currentlyLiveSports: viewModel.currentlyLiveSports)
+            })
         }
         .refreshable(action: {
             viewModel.getInfo()
@@ -120,7 +152,7 @@ struct ContentView: View {
     func showAppropriateLaunchScreen() -> some View {
         if #available(iOS 16.0, *) {
            return TabView {
-                ListPage(shouldShowPromo: shouldShowPromo, shouldShowSportsCalProAlert: shouldShowSportsCalProAlert, shouldShowSettings: shouldShowSettings)
+               ListPage(shouldShowPromo: shouldShowPromo, shouldShowSportsCalProAlert: shouldShowSportsCalProAlert, shouldShowSettings: shouldShowSettings, shouldShowSportOptions: $shouldShowSportOptions)
                     .environmentObject(viewModel)
                     .environmentObject(storage)
                     .environmentObject(favorites)
@@ -128,9 +160,18 @@ struct ContentView: View {
                         Label("Upcoming", systemImage: "sportscourt")
                     }
                 CalendarViewRepresentable(sheetType: $sheetType)
+                   .conditionalModifier(SubscriptionManager.shared.subscriptionStatus == .subscribed, ifTrue: { view in
+                       view
+                   }, ifFalse: { view in
+                       view
+                           .overlay {
+                               SubscriptionRequiredView(sheetType: $sheetType)
+                           }
+                   })
                     .environmentObject(viewModel)
+                    .environmentObject(favorites)
                     .tabItem {
-                        Label("calendar", systemImage: "calendar")
+                        Label("Calendar", systemImage: "calendar")
                     }
             }
         } else {
@@ -144,6 +185,7 @@ struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView(viewModel: GameViewModel(appStorage: UserDefaultStorage(), favorites: Favorites()))
             .environmentObject(UserDefaultStorage())
+            .environmentObject(Favorites())
         //            .environment(\.sizeCategory, .accessibilityLarge)
     }
 }

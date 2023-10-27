@@ -22,6 +22,7 @@ struct LiveEventsView: View {
                        let awayScore = Int(event.intAwayScore ?? ""),
                        let (homeTeam, awayTeam) = viewModel.getTeams(for: event) {
                         GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: true)
+                            .environmentObject(viewModel)
                     }
                 }
             } header: {

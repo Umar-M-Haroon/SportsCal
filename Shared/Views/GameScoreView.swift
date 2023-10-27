@@ -18,6 +18,7 @@ struct GameScoreView: View {
     var awayScore: Int
     var game: Game
     @EnvironmentObject var favorites: Favorites
+    @EnvironmentObject var viewModel: GameViewModel
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var sheetType: SheetType?
     
@@ -39,6 +40,7 @@ struct GameScoreView: View {
                     if #available(iOS 16.1, *) {
                         if isLive && ActivityAuthorizationInfo().areActivitiesEnabled  {
                             LiveActivityButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                                .environmentObject(viewModel)
                         }
                     }
 #endif

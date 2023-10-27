@@ -17,25 +17,30 @@ struct ListPage: View {
     @State var shouldShowSportsCalProAlert: Bool
     @State var shouldShowSettings: Bool
     @State var searchString: String = ""
+    @Binding var shouldShowSportOptions: Bool
     var body: some View {
         List {
-            Section {
-                SportsSelectView(currentlyLiveSports: viewModel.currentlyLiveSports)
-                    .environmentObject(viewModel)
-            }  footer: {
-                if shouldShowPromo {
-                    HStack {
-                        Text("Try SportsCal Pro to see multiple sports at once")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        Button {
-                            sheetType = .settings
-                        } label: {
-                            Text("Learn More.")
+            if shouldShowSportOptions {
+                Section {
+                    SportsSelectView(currentlyLiveSports: viewModel.currentlyLiveSports, shouldShow: $shouldShowSportOptions)
+                        .environmentObject(viewModel)
+                        .listRowBackground(Color.clear)
+                }  footer: {
+                    if shouldShowPromo {
+                        HStack {
+                            Text("Try SportsCal Pro to see multiple sports at once")
                                 .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Button {
+                                sheetType = .settings
+                            } label: {
+                                Text("Learn More.")
+                                    .font(.caption2)
+                            }
                         }
                     }
                 }
+                .transition(.scale(scale: 1, anchor: .top))
             }
             if !viewModel.sortedGames.isEmpty {
                 LiveEventsView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType)
@@ -53,6 +58,7 @@ struct ListPage: View {
                                 if let homeScore = Int(game.intHomeScore ?? ""), let awayScore = Int(game.intAwayScore ?? "") {
                                     GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: false)
                                         .environmentObject(favorites)
+                                        .environmentObject(viewModel)
                                 } else {
                                     UpcomingGameView(homeTeam: homeTeam, awayTeam: awayTeam, game: game, showCountdown: storage.$showStartTime, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, dateFormat:  storage.dateFormat)
                                         .environmentObject(favorites)
@@ -78,7 +84,7 @@ struct ListPage: View {
                         Text("No games fetched")
                             .foregroundColor(.secondary)
                         Button("Retry") {
-                            viewModel.getInfo()
+                            viewModel.retry()
                         }
                         .foregroundColor(Color.blue)
                     }
@@ -100,9 +106,9 @@ struct ListPage: View {
         })
     }
 }
-
-struct ListPage_Previews: PreviewProvider {
-    static var previews: some View {
-        ListPage(shouldShowPromo: false, shouldShowSportsCalProAlert: false, shouldShowSettings: false)
-    }
-}
+//
+//struct ListPage_Previews: PreviewProvider {
+//    static var previews: some View {
+//        ListPage(shouldShowPromo: false, shouldShowSportsCalProAlert: false, shouldShowSettings: false)
+//    }
+//}
