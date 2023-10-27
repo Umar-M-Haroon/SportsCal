@@ -11,6 +11,7 @@ import SportsCalModel
 struct SportsFilterView: View {
     var sport: SportType
     var isLive: Bool = false
+    @State var scale = 0.0
     @Binding var shouldShowPromoCount: Bool
     @ObservedObject var appStorage: UserDefaultStorage
     @EnvironmentObject var model: GameViewModel
@@ -67,16 +68,31 @@ struct SportsFilterView: View {
                 }
             }
         } label: {
-            HStack(spacing: 4) {
+//            HStack(spacing: 4) {
                 Image(systemName: sportToSystemImage())
+                    .resizable()
                     .modifier(SportsTint(sport: sport))
-                if isLive {
-                    LiveViewCircle()
-                }
-            }
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 15)
+//                if isLive {
+//                    LiveViewCircle()
+//                }
+//            }
+        .buttonBorderShape(.capsule)
+        .transition(.slide)
         }
         .buttonBorderStyle(isDisabled())
         .buttonBorderShape(.capsule)
+        .opacity(scale)
+        .scaleEffect(scale)
+        .onAppear {
+            let baseAnimation = Animation.spring()
+                            let repeated = baseAnimation.repeatForever(autoreverses: true)
+            
+            withAnimation(baseAnimation) {
+                scale = 1
+            }
+        }
     }
     
     func sportToSystemImage() -> String {

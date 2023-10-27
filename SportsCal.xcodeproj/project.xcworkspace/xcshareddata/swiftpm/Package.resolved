@@ -5,8 +5,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kean/Nuke",
       "state" : {
-        "revision" : "6241e100294a2aa70d1811641585ab7da780bd0f",
-        "version" : "12.0.0"
+        "revision" : "f4d9b95788679d0654c032961f73e7e9c16ca6b4",
+        "version" : "12.1.0"
       }
     },
     {
@@ -19,12 +19,21 @@
       }
     },
     {
+      "identity" : "sentry-cocoa",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/getsentry/sentry-cocoa.git",
+      "state" : {
+        "revision" : "9cf7d2e514af1600cc2b3c5592e2848c6c5a76d6",
+        "version" : "8.7.3"
+      }
+    },
+    {
       "identity" : "sportscalmodel",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Umar-M-Haroon/SportsCalModel/",
       "state" : {
         "branch" : "main",
-        "revision" : "8a7c3063f8719d485aa5d59e5378f02341fbcb75"
+        "revision" : "4563af00e2ceb34ea264869af67a248a747442e3"
       }
     },
     {

@@ -15,57 +15,92 @@ struct PickSportPage: View {
     var body: some View {
         List {
             Section {
-                Toggle("NHL", isOn: appStorage.$shouldShowNHL)
-                    .onTapGesture {
-                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-//                            appStorage.switchTo(sportType: .hockey)
-                            appStorage.shouldShowNFL = false
-                            appStorage.shouldShowNBA = false
-                            appStorage.shouldShowNHL.toggle()
-                            appStorage.shouldShowSoccer = false
-                            appStorage.shouldShowMLB = false
-                        }
+                Toggle(isOn: appStorage.$shouldShowNHL) {
+                    Label {
+                        Text("NHL")
+                    } icon: {
+                        Image(systemName: "hockey.puck.fill")
+                            .modifier(SportsTint(sport: .hockey))
                     }
-                Toggle("NFL", isOn: appStorage.$shouldShowNFL)
-                    .onTapGesture {
-                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                            appStorage.shouldShowNFL.toggle()
-                            appStorage.shouldShowNBA = false
-                            appStorage.shouldShowNHL = false
-                            appStorage.shouldShowSoccer = false
-                            appStorage.shouldShowMLB = false
-                        }
+                }
+                .onTapGesture {
+                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                        //                            appStorage.switchTo(sportType: .hockey)
+                        appStorage.shouldShowNFL = false
+                        appStorage.shouldShowNBA = false
+                        appStorage.shouldShowNHL.toggle()
+                        appStorage.shouldShowSoccer = false
+                        appStorage.shouldShowMLB = false
                     }
-                Toggle("NBA", isOn: appStorage.$shouldShowNBA)
-                    .onTapGesture {
-                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                            appStorage.shouldShowNFL = false
-                            appStorage.shouldShowNBA.toggle()
-                            appStorage.shouldShowNHL = false
-                            appStorage.shouldShowSoccer = false
-                            appStorage.shouldShowMLB = false
-                        }
+                }
+                Toggle(isOn: appStorage.$shouldShowNFL) {
+                    Label {
+                        Text("NFL")
+                    } icon: {
+                        Image(systemName: "football.fill")
+                            .modifier(SportsTint(sport: .nfl))
                     }
-                Toggle("MLB", isOn: appStorage.$shouldShowMLB)
-                    .onTapGesture {
-                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                            appStorage.shouldShowNFL = false
-                            appStorage.shouldShowNBA = false
-                            appStorage.shouldShowNHL = false
-                            appStorage.shouldShowSoccer = false
-                            appStorage.shouldShowMLB.toggle()
-                        }
+                }
+                .onTapGesture {
+                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                        appStorage.shouldShowNFL.toggle()
+                        appStorage.shouldShowNBA = false
+                        appStorage.shouldShowNHL = false
+                        appStorage.shouldShowSoccer = false
+                        appStorage.shouldShowMLB = false
                     }
-                Toggle("Soccer", isOn: appStorage.$shouldShowSoccer)
-                    .onTapGesture {
-                        if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                            appStorage.shouldShowNFL = false
-                            appStorage.shouldShowNBA = false
-                            appStorage.shouldShowNHL = false
-                            appStorage.shouldShowSoccer.toggle()
-                            appStorage.shouldShowMLB = false
-                        }
+                }
+                Toggle(isOn: appStorage.$shouldShowNBA) {
+                    Label {
+                        Text("NBA")
+                    } icon: {
+                        Image(systemName: "basketball.fill")
+                            .modifier(SportsTint(sport: .basketball))
                     }
+                }
+                .onTapGesture {
+                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                        appStorage.shouldShowNFL = false
+                        appStorage.shouldShowNBA.toggle()
+                        appStorage.shouldShowNHL = false
+                        appStorage.shouldShowSoccer = false
+                        appStorage.shouldShowMLB = false
+                    }
+                }
+                Toggle(isOn: appStorage.$shouldShowMLB) {
+                    Label {
+                      Text("MLB")
+                    } icon: {
+                        Image(systemName: "baseball.fill")
+                            .modifier(SportsTint(sport: .mlb))
+                    }
+                }
+                .onTapGesture {
+                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                        appStorage.shouldShowNFL = false
+                        appStorage.shouldShowNBA = false
+                        appStorage.shouldShowNHL = false
+                        appStorage.shouldShowSoccer = false
+                        appStorage.shouldShowMLB.toggle()
+                    }
+                }
+                Toggle(isOn: appStorage.$shouldShowSoccer) {
+                    Label {
+                        Text("Soccer")
+                    } icon: {
+                        Image(systemName: "soccerball")
+                            .modifier(SportsTint(sport: .soccer))
+                    }
+                }
+                .onTapGesture {
+                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
+                        appStorage.shouldShowNFL = false
+                        appStorage.shouldShowNBA = false
+                        appStorage.shouldShowNHL = false
+                        appStorage.shouldShowSoccer.toggle()
+                        appStorage.shouldShowMLB = false
+                    }
+                }
                 
                 if appStorage.shouldShowSoccer {
                     NavigationLink("Show Soccer Leagues") {
@@ -80,7 +115,7 @@ struct PickSportPage: View {
                     Spacer()
                 }
             }
-
+            
             Section {
                 MiniSubscriptionPage(subscriptionPresented: $subscriptionPresented)
             } footer: {
