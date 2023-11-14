@@ -184,7 +184,7 @@ import Sentry
     
     private func handleLiveGames() async throws {
         print("🛜getting Live Games")
-        async let liveInfo = NetworkHandler.getLiveSnapshot(debug: appStorage.debugMode)
+        async let liveInfo = NetworkHandler.getLiveSnapshot()
         self.currentLiveInfo = try await liveInfo
         print("found", self.currentLiveInfo?.mlb?.events.count, "mlb games")
         print("found", self.currentLiveInfo?.nba?.events.count, "nba games")
@@ -199,7 +199,7 @@ import Sentry
     
     private func handleTeams() async throws {
         print("🛜getting teams")
-        async let teams = NetworkHandler.getTeams(debug: appStorage.debugMode)
+        async let teams = NetworkHandler.getTeams()
         self.teams = try await teams
         self.teamsDict = Dictionary(grouping: self.teams, by: \.idTeam)
         var teamsDictName = Dictionary(grouping: self.teams, by: \.strTeam)
@@ -213,7 +213,7 @@ import Sentry
     
     private func handleLiveWebsocket() {
         webSocketTask = nil
-        webSocketTask = NetworkHandler.connectWebSocketForLive(debug: appStorage.debugMode)
+        webSocketTask = NetworkHandler.connectWebSocketForLive()
         webSocketTask?.resume()
         Task {
             try await receiveMessages()
@@ -242,7 +242,7 @@ import Sentry
                 if shouldAddTask(sport: sport) {
                     print("🛜adding task and requesting \(sport)")
                     group.addTask {
-                        return [sport: try await NetworkHandler.getScheduleFor(sport: sport, debug: self.appStorage.debugMode)]
+                        return [sport: try await NetworkHandler.getScheduleFor(sport: sport)]
                     }
                 }
             }
@@ -685,7 +685,7 @@ extension GameViewModel {
             
             if let token = activity.pushToken, let eventID = game.idEvent {
                 let tokenString = token.map { String(format: "%02x", $0)}.joined()
-                try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID, debug: UserDefaultStorage().debugMode)
+                try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID)
             }
         }
     }
@@ -705,7 +705,7 @@ extension GameViewModel {
         for activity in Activity<LiveSportActivityAttributes>.activities {
             for await data in activity.pushTokenUpdates {
                 let myToken = data.map { String(format: "%02x", $0)}.joined()
-                try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID, debug: appStorage.debugMode)
+                try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID)
             }
             let currentState = activity.contentState
             let currentAttributes = activity.attributes
