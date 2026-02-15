@@ -1,0 +1,274 @@
+//
+//  Provider.swift
+//  SportsCal (iOS)
+//
+//  Created by Umar Haroon on 11/30/22.
+//
+
+import Foundation
+import WidgetKit
+import SwiftUI
+import Intents
+import Combine
+import SportsCalModel
+import Sentry
+import os
+
+struct SimpleEntry: TimelineEntry {
+    let date: Date
+    let configuration: ConfigurationIntent
+    let game: [Game]?
+    var images: [String: Data]?
+    let teams: [Team]
+}
+
+// MARK: - Widget Image Cache
+/// Caches team badge images in the app group container to avoid fetching every timeline refresh
+class WidgetImageCache {
+    static let shared = WidgetImageCache()
+
+    private let cacheDirectory: URL?
+    private let cacheExpirationInterval: TimeInterval = 24 * 60 * 60 // 24 hours
+
+    private init() {
+        cacheDirectory = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent("ImageCache", isDirectory: true)
+
+        // Create cache directory if needed
+        if let cacheDir = cacheDirectory {
+            try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        }
+    }
+
+    /// Get cached image data or nil if not cached/expired
+    func getCachedImage(for teamID: String) -> Data? {
+        guard let cacheDir = cacheDirectory else { return nil }
+
+        let fileURL = cacheDir.appendingPathComponent("\(teamID).png")
+        let metadataURL = cacheDir.appendingPathComponent("\(teamID).meta")
+
+        // Check if cache exists and is not expired
+        guard FileManager.default.fileExists(atPath: fileURL.path),
+              FileManager.default.fileExists(atPath: metadataURL.path) else {
+            return nil
+        }
+
+        // Check expiration
+        if let metadataData = try? Data(contentsOf: metadataURL),
+           let metadata = try? JSONDecoder().decode(ImageCacheMetadata.self, from: metadataData) {
+            if Date().timeIntervalSince(metadata.cachedAt) > cacheExpirationInterval {
+                // Cache expired, remove files
+                try? FileManager.default.removeItem(at: fileURL)
+                try? FileManager.default.removeItem(at: metadataURL)
+                return nil
+            }
+        }
+
+        return try? Data(contentsOf: fileURL)
+    }
+
+    /// Cache image data for a team
+    func cacheImage(_ data: Data, for teamID: String) {
+        guard let cacheDir = cacheDirectory else { return }
+
+        let fileURL = cacheDir.appendingPathComponent("\(teamID).png")
+        let metadataURL = cacheDir.appendingPathComponent("\(teamID).meta")
+
+        do {
+            try data.write(to: fileURL)
+
+            let metadata = ImageCacheMetadata(teamID: teamID, cachedAt: Date())
+            let metadataData = try JSONEncoder().encode(metadata)
+            try metadataData.write(to: metadataURL)
+        } catch {
+            AppLogger.widget.error("Failed to cache image for team \(teamID): \(error.localizedDescription)")
+        }
+    }
+
+    /// Get image from cache or fetch from network
+    func getImage(for teamID: String, imageURL: String) async throws -> Data {
+        // Check cache first
+        if let cachedData = getCachedImage(for: teamID) {
+            return cachedData
+        }
+
+        // Fetch from network
+        let data = try await NetworkHandler.getImageFor(url: imageURL, size: .tiny)
+
+        // Cache the result
+        cacheImage(data, for: teamID)
+
+        return data
+    }
+}
+
+struct ImageCacheMetadata: Codable {
+    let teamID: String
+    let cachedAt: Date
+}
+class Provider: IntentTimelineProvider {
+    let sampleGames: [Game] = [
+        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00", isoDate: nil),
+        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134876", idAwayTeam: "134881", strHomeTeam: "Milwaukee Bucks", strAwayTeam: "Denver Nuggets", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00", isoDate: nil),
+        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134877", idAwayTeam: "134882", strHomeTeam: "Golden State Warriors", strAwayTeam: "Boston Celtics", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00", isoDate: nil),
+        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134878", idAwayTeam: "134883", strHomeTeam: "Los Angeles Lakers", strAwayTeam: "Houston Rockets", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00", isoDate: nil),
+        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134879", idAwayTeam: "134884", strHomeTeam: "Seattle Supersonics", strAwayTeam: "Washington Wizards", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00, isoDate: nil", isoDate: nil),
+        Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134874", idAwayTeam: "134885", strHomeTeam: "Detroit Pistons", strAwayTeam: "Portland Trailblazers", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00", isoDate: nil)
+    ]
+    
+    let images: [String: Data] = ["134875": UIImage(systemName: "basketball.circle.fill")!.pngData()!, "134880": UIImage(systemName: "basketball.circle")!.pngData()!,
+                                  "134876": UIImage(systemName: "basketball.circle")!.pngData()!, "134881": UIImage(systemName: "basketball.circle.fill")!.pngData()!,
+                                  "134877": UIImage(systemName: "basketball")!.pngData()!, "134882": UIImage(systemName: "basketball.fill")!.pngData()!,
+                                  "134878": UIImage(systemName: "basketball.circle.fill")!.pngData()!, "134883": UIImage(systemName: "basketball")!.pngData()!,
+                                  "134879": UIImage(systemName: "basketball.fill")!.pngData()!, "134884": UIImage(systemName: "basketball.circle")!.pngData()!,
+                                  "134874": UIImage(systemName: "basketball.circle.fill")!.pngData()!, "134885": UIImage(systemName: "basketball.fill")!.pngData()!]
+    
+    let teams: [Team] = [
+        Team.init(idTeam: "134875", strTeam: "Dallas Mavericks", strTeamShort: "DAL", strAlternate: nil, strTeamBadge: nil),
+        Team.init(idTeam: "134876", strTeam: "Milwaukee Bucks", strTeamShort: "MIL", strAlternate: nil, strTeamBadge: nil),
+        Team.init(idTeam: "134877", strTeam: "Golden State Warriors", strTeamShort: "GSW", strAlternate: nil, strTeamBadge: nil),
+        Team.init(idTeam: "134878", strTeam: "Los Angeles Lakers", strTeamShort: "LAL", strAlternate: nil, strTeamBadge: nil),
+        Team.init(idTeam: "134879", strTeam: "Seattle Supersonics", strTeamShort: "SEA", strAlternate: nil, strTeamBadge: nil),
+        Team.init(idTeam: "134874", strTeam: "Detroit Pistons", strTeamShort: "DET", strAlternate: nil, strTeamBadge: nil),
+        Team.init(idTeam: "134880", strTeam: "Utah Jazz", strTeamShort: "UTA", strAlternate: nil, strTeamBadge: nil),
+        Team.init(idTeam: "134881", strTeam: "Denver Nuggets", strTeamShort: "DEN", strAlternate: nil, strTeamBadge: nil),
+        Team.init(idTeam: "134882", strTeam: "Boston Celtics", strTeamShort: "BOS", strAlternate: nil, strTeamBadge: nil),
+        Team.init(idTeam: "134883", strTeam: "Houston Rockets", strTeamShort: "HOU", strAlternate: nil, strTeamBadge: nil),
+        Team.init(idTeam: "134884", strTeam: "Washington Wizards", strTeamShort: "WAS", strAlternate: nil, strTeamBadge: nil),
+        Team.init(idTeam: "134875", strTeam: "Portland Trailblazers", strTeamShort: "POR", strAlternate: nil, strTeamBadge: nil),
+    ]
+    
+    func placeholder(in context: Context) -> SimpleEntry {
+        let entry = SimpleEntry(date: Date(), configuration: .init(), game: sampleGames, images: images, teams: teams)
+        return entry
+    }
+    
+    func getSnapshot(for configuration: ConfigurationIntent, in context: Context, completion: @escaping (SimpleEntry) -> ()) {
+        let entry = SimpleEntry(date: Date(), configuration: configuration, game: sampleGames, images: images, teams: teams)
+        completion(entry)
+    }
+    
+    func getImagesFor(homeTeam: Team, awayTeam: Team) async throws -> [String: Data] {
+        guard let homeImageURL = homeTeam.strTeamBadge,
+              let homeID = homeTeam.idTeam,
+              let awayImageURL = awayTeam.strTeamBadge,
+              let awayID = awayTeam.idTeam else {
+            return [:]
+        }
+
+        // Use cached images when available
+        let cache = WidgetImageCache.shared
+        async let homeImage = cache.getImage(for: homeID, imageURL: homeImageURL)
+        async let awayImage = cache.getImage(for: awayID, imageURL: awayImageURL)
+
+        return [homeID: try await homeImage, awayID: try await awayImage]
+    }
+    
+    func getTimeline(for configuration: ConfigurationIntent, in context: Context, completion: @escaping (Timeline<SimpleEntry>) -> ()) {
+        Task { @MainActor in
+            await completion(timelineHandler(configuration: configuration))
+        }
+    }
+    
+    func timelineHandler(configuration: ConfigurationIntent) async -> Timeline<SimpleEntry> {
+        var entries: [SimpleEntry] = []
+        let currentDate = Date()
+        var (games, teams) = await handleNetworking(favoriteOnly: configuration.favoritesOnly?.boolValue ?? false, type: configurationToString(configuration: configuration))
+        if let league = configuration.SoccerLeague, configuration.GameType == .soccer, league != "All Leagues" {
+            games = games.filter({ Leagues(rawValue: Int($0.idLeague ?? "") ?? 0)?.leagueName == league })
+        }
+        let entryDate = Calendar.current.date(byAdding: .minute, value: 30, to: currentDate)
+        if games.isEmpty {
+            let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: [], images: nil, teams: teams)
+            entries.append(entry)
+        } else if games.count < 2, let game = games.first {
+            var entry = SimpleEntry(date: entryDate!, configuration: configuration, game: [game], images: nil, teams: teams)
+            guard let homeTeam = Team.getTeamInfoFrom(teams: teams, teamID: game.idHomeTeam),
+                  let awayTeam = Team.getTeamInfoFrom(teams: teams, teamID: game.idAwayTeam) else {
+                entries.append(entry)
+                return Timeline(entries: entries, policy: .atEnd)
+            }
+            if let images = try? await getImagesFor(homeTeam: homeTeam, awayTeam: awayTeam) {
+                entry.images = images
+            }
+            entries.append(entry)
+        } else {
+            var allImages: [String: Data] = [:]
+            for game in games.prefix(upTo: min(games.count, 7)) {
+                if let homeTeam = Team.getTeamInfoFrom(teams: teams, teamID: game.idHomeTeam), let awayTeam = Team.getTeamInfoFrom(teams: teams, teamID: game.idAwayTeam) {
+                    async let images = getImagesFor(homeTeam: homeTeam, awayTeam: awayTeam)
+                    try? await allImages.merge(images, uniquingKeysWith: {$1})
+                }
+            }
+            let entry = SimpleEntry(date: entryDate!, configuration: configuration, game: games.sorted(by: {$0.isoDate ?? .now < $1.isoDate ?? .now}), images: allImages, teams: teams)
+            entries.append(entry)
+        }
+        return Timeline(entries: entries, policy: .atEnd)
+    }
+    
+    func configurationToString(configuration: ConfigurationIntent) -> SportType {
+        switch configuration.GameType {
+        case .mLB:
+            return .mlb
+        case .nBA:
+            return .basketball
+        case .nHL:
+            return .hockey
+        case .nFL:
+            return .nfl
+        case .soccer:
+            return .soccer
+        case .unknown:
+            return .hockey
+        }
+    }
+    
+    
+    func handleNetworking(favoriteOnly: Bool, type: SportType) async -> ([Game], [Team])  {
+        do {
+            var games = try await NetworkHandler.getScheduleFor(sport: type).events
+            games = games
+                .filter({ game -> Bool in
+                    guard let date = game.standardDate else { return false }
+                    return date.timeIntervalSinceNow > 0
+                })
+            async let teams = NetworkHandler.getTeams()
+
+            let favorites = Favorites()
+
+            if favoriteOnly {
+                // When favorites mode is on, filter to only favorite games
+                var favGames = games
+                favGames.removeAll { game in
+                    !favorites.contains(game)
+                }
+                if !favGames.isEmpty {
+                    return await (favGames, try teams)
+                }
+                // If no favorite games, fall through to prioritized list
+            }
+
+            // Prioritize favorite team games at the top, then sort by date
+            let sortedGames = games.sorted { game1, game2 in
+                let game1IsFavorite = favorites.contains(game1)
+                let game2IsFavorite = favorites.contains(game2)
+
+                // Favorites first
+                if game1IsFavorite && !game2IsFavorite {
+                    return true
+                } else if !game1IsFavorite && game2IsFavorite {
+                    return false
+                }
+
+                // Then sort by date
+                let date1 = game1.standardDate ?? .distantFuture
+                let date2 = game2.standardDate ?? .distantFuture
+                return date1 < date2
+            }
+
+            return await (sortedGames, try teams)
+        } catch let e {
+            SentrySDK.capture(error: e)
+            return ([Game(idLeague: "4387", strHomeTeam: "g", strAwayTeam: e.localizedDescription, isoDate: nil)], [])
+        }
+    }
+}

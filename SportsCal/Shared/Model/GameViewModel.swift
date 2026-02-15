@@ -13,6 +13,7 @@ import OrderedCollections
 import ActivityKit
 #endif
 import Sentry
+import os
 
 // MARK: - GameWithTeams
 // Pre-computed game with team data to avoid expensive lookups during rendering
@@ -50,7 +51,72 @@ public class GameViewModel: NSObject {
     var sortedGamesWithTeams: [GameDateSection] = []
     var networkState: NetworkState = .loading
     var currentLiveInfo: LiveScore?
-    var currentlyLiveSports: [SportType] {
+    var currentlyLiveSports: [SportType] = []
+    var liveGameCountsBySport: [SportType: Int] = [:]
+    var liveEventsWithTeams: [GameWithTeams] = []
+    var todayGames: [Game] = []
+    var todayGamesWithTeams: [GameWithTeams] = []
+    var todayFavoriteGamesWithTeams: [GameWithTeams] = []
+    var todayOtherGamesBySport: [SportType: [GameWithTeams]] = [:]
+
+    var favorites: Favorites
+    var teams: [Team] = []
+    var teamsDict: [String? : [Team]] = [:]
+    var teamsDictName: [String? : [Team]] = [:]
+    // Optimized O(1) lookup caches - maps team ID directly to Team (not array)
+    var teamByID: [String: Team] = [:]
+    var teamByName: [String: Team] = [:]
+    var restartTimer: Timer?
+    var gamesDict: [SportType: [Game]] = [:]
+    
+    private var webSocketTask: URLSessionWebSocketTask?
+    private var gameCache: Cache<String, LiveScore>?
+    private var teamCache: Cache<String, [Team]>?
+    private var liveCache: Cache<String, LiveScore>?
+    private var networkFetchTask: Task<Void, Never>?
+    private var wsReconnectAttempts = 0
+    private static let maxWSReconnectAttempts = 5
+    
+    var currentPushToStartToken: String?
+    var liveEvents: [Game] = []
+
+    /// All live events regardless of sport preferences (used by calendar)
+    var allLiveEvents: [Game] = []
+
+    // MARK: - Batch Live Data Update
+    // All 9 derived properties are recomputed in one pass to avoid redundant per-access recalculation.
+
+    func updateLiveData() {
+        let start = appStorage.debugMode ? CFAbsoluteTimeGetCurrent() : 0
+
+        let computedLiveEvents = computeLiveEvents()
+        let computedLiveEventsWithTeams = computedLiveEvents.compactMap { makeGameWithTeams($0) }
+        let computedAllLiveEvents = computeAllLiveEvents()
+        let computedCurrentlyLiveSports = computeCurrentlyLiveSports()
+        let computedLiveGameCounts = computeLiveGameCountsBySport()
+        let computedTodayGames = computeTodayGames()
+        let computedTodayGamesWithTeams = computedTodayGames.compactMap { makeGameWithTeams($0) }
+        let computedTodayFavorites = computedTodayGamesWithTeams.filter { favorites.contains($0.game) }
+        let computedTodayOther = computeTodayOtherGamesBySport(todayGamesWithTeams: computedTodayGamesWithTeams)
+
+        // Batch-assign all 9 stored properties — SwiftUI coalesces into one update
+        liveEvents = computedLiveEvents
+        liveEventsWithTeams = computedLiveEventsWithTeams
+        allLiveEvents = computedAllLiveEvents
+        currentlyLiveSports = computedCurrentlyLiveSports
+        liveGameCountsBySport = computedLiveGameCounts
+        todayGames = computedTodayGames
+        todayGamesWithTeams = computedTodayGamesWithTeams
+        todayFavoriteGamesWithTeams = computedTodayFavorites
+        todayOtherGamesBySport = computedTodayOther
+
+        if appStorage.debugMode {
+            let elapsed = (CFAbsoluteTimeGetCurrent() - start) * 1000
+            AppLogger.viewModel.debug("updateLiveData: \(String(format: "%.1f", elapsed))ms — live: \(computedLiveEvents.count), allLive: \(computedAllLiveEvents.count), today: \(computedTodayGames.count), todayFavs: \(computedTodayFavorites.count), sports: \(computedCurrentlyLiveSports.map(\.displayName))")
+        }
+    }
+
+    private func computeCurrentlyLiveSports() -> [SportType] {
         var sports: [SportType] = []
         if appStorage.shouldShowSoccer, let events = currentLiveInfo?.soccer?.events, !events.isEmpty {
             let filtered = events.filter { game in
@@ -85,8 +151,7 @@ public class GameViewModel: NSObject {
         return sports
     }
 
-    // Computed property to get count of live games per sport type
-    var liveGameCountsBySport: [SportType: Int] {
+    private func computeLiveGameCountsBySport() -> [SportType: Int] {
         var counts: [SportType: Int] = [:]
 
         if let soccerEvents = currentLiveInfo?.soccer?.events {
@@ -188,13 +253,7 @@ public class GameViewModel: NSObject {
         return counts
     }
 
-    // Pre-computed live events with team data
-    var liveEventsWithTeams: [GameWithTeams] {
-        return liveEvents.compactMap { makeGameWithTeams($0) }
-    }
-
-    // Games scheduled for today (not yet started or currently live)
-    var todayGames: [Game] {
+    private func computeTodayGames() -> [Game] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
@@ -205,20 +264,7 @@ public class GameViewModel: NSObject {
         }
     }
 
-    // Pre-computed today's games with team data
-    var todayGamesWithTeams: [GameWithTeams] {
-        return todayGames.compactMap { makeGameWithTeams($0) }
-    }
-
-    // Today's favorite games
-    var todayFavoriteGamesWithTeams: [GameWithTeams] {
-        return todayGamesWithTeams.filter { gameWithTeams in
-            favorites.contains(gameWithTeams.game)
-        }
-    }
-
-    // Today's non-favorite games grouped by sport
-    var todayOtherGamesBySport: [SportType: [GameWithTeams]] {
+    private func computeTodayOtherGamesBySport(todayGamesWithTeams: [GameWithTeams]) -> [SportType: [GameWithTeams]] {
         let nonFavorites = todayGamesWithTeams.filter { gameWithTeams in
             !favorites.contains(gameWithTeams.game)
         }
@@ -237,23 +283,7 @@ public class GameViewModel: NSObject {
         return grouped
     }
 
-    var favorites: Favorites
-    var teams: [Team] = []
-    var teamsDict: [String? : [Team]] = [:]
-    var teamsDictName: [String? : [Team]] = [:]
-    // Optimized O(1) lookup caches - maps team ID directly to Team (not array)
-    var teamByID: [String: Team] = [:]
-    var teamByName: [String: Team] = [:]
-    var restartTimer: Timer?
-    var gamesDict: [SportType: [Game]] = [:]
-    
-    private var webSocketTask: URLSessionWebSocketTask?
-    private var gameCache: Cache<String, LiveScore>?
-    private var teamCache: Cache<String, [Team]>?
-    private var liveCache: Cache<String, LiveScore>?
-    private var networkFetchTask: Task<Void, Never>?
-    
-    var liveEvents: [Game] {
+    private func computeLiveEvents() -> [Game] {
         var games: [Game] = []
         if appStorage.shouldShowSoccer {
             var soccerGames = currentLiveInfo?.soccer?.events
@@ -356,8 +386,7 @@ public class GameViewModel: NSObject {
         return Array(OrderedSet(games))
     }
 
-    /// All live events regardless of sport preferences (used by calendar)
-    var allLiveEvents: [Game] {
+    private func computeAllLiveEvents() -> [Game] {
         let allSportEvents: [[Game]?] = [
             currentLiveInfo?.nba?.events,
             currentLiveInfo?.mlb?.events,
@@ -405,9 +434,9 @@ public class GameViewModel: NSObject {
             self.gameCache = Cache<String, LiveScore>()
             self.teamCache = Cache<String, [Team]>()
             self.liveCache = Cache<String, LiveScore>(entryLifetime: 15 * 60)
-            print(error.localizedDescription)
+            AppLogger.viewModel.error("Cache load failed: \(error.localizedDescription)")
         }
-        
+
         // Call super.init() after all stored properties are initialized
         super.init()
         
@@ -428,11 +457,12 @@ public class GameViewModel: NSObject {
     }
     
     private func handleLiveGames() async throws {
-        print("🛜getting Live Games")
+        AppLogger.networking.info("Getting live games")
         var liveInfo = try await NetworkHandler.getLiveSnapshot(debug: appStorage.debugMode)
         liveInfo.removeNonStarting()
         liveInfo.removeOtherInfo()
         self.currentLiveInfo = liveInfo
+        updateLiveData()
 //        print("found", self.currentLiveInfo?.mlb?.events.count, "mlb games")
 //        print("found", self.currentLiveInfo?.nba?.events.count, "nba games")
 //        print("found", self.currentLiveInfo?.nfl?.events.count, "nfl games")
@@ -447,7 +477,7 @@ public class GameViewModel: NSObject {
     }
     
     private func handleTeams() async throws {
-        print("🛜getting teams")
+        AppLogger.networking.info("Getting teams")
         async let teams = NetworkHandler.getTeams(debug: appStorage.debugMode)
         self.teams = try await teams
         buildTeamLookupCaches()
@@ -500,17 +530,44 @@ public class GameViewModel: NSObject {
         self.teamByID = byID
         self.teamByName = byName
 
-        #if DEBUG
-        print("📊 Built team lookup caches: \(byID.count) by ID, \(byName.count) by name")
-        #endif
+        if appStorage.debugMode {
+            AppLogger.viewModel.debug("Built team lookup caches: \(byID.count) by ID, \(byName.count) by name")
+        }
     }
     
     private func handleLiveWebsocket() {
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
+        wsReconnectAttempts = 0
         webSocketTask = NetworkHandler.connectWebSocketForLive(debug: appStorage.debugMode)
         webSocketTask?.resume()
         Task {
             try await receiveMessages()
+        }
+    }
+
+    private func reconnectWebSocketOnly() {
+        guard wsReconnectAttempts < Self.maxWSReconnectAttempts else {
+            if appStorage.debugMode {
+                AppLogger.networking.notice("WebSocket max reconnect attempts (\(Self.maxWSReconnectAttempts)) reached, stopping")
+            }
+            return
+        }
+        wsReconnectAttempts += 1
+        let delay = min(Double(wsReconnectAttempts * wsReconnectAttempts) * 2, 60) // exponential backoff: 2, 8, 18, 32, 50s
+        if appStorage.debugMode {
+            AppLogger.networking.info("WebSocket reconnect attempt \(self.wsReconnectAttempts)/\(Self.maxWSReconnectAttempts) in \(delay)s")
+        }
+        restartTimer?.invalidate()
+        restartTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            self?.restartTimer = nil
+            self?.webSocketTask?.cancel(with: .goingAway, reason: nil)
+            self?.webSocketTask = nil
+            self?.webSocketTask = NetworkHandler.connectWebSocketForLive(debug: self?.appStorage.debugMode ?? false)
+            self?.webSocketTask?.resume()
+            Task { @MainActor [weak self] in
+                try await self?.receiveMessages()
+            }
         }
     }
     
@@ -541,12 +598,12 @@ public class GameViewModel: NSObject {
             // Fetch all sports so the calendar can show everything
             for sport in SportType.allCases {
                 if shouldAddTask(sport: sport) {
-                    print("🛜adding task and requesting \(sport)")
+                    AppLogger.networking.info("Requesting schedule for \(sport.displayName)")
                     group.addTask {
                         do {
                             return [sport: try await NetworkHandler.getScheduleFor(sport: sport, debug: self.appStorage.debugMode)]
                         } catch {
-                            print("⚠️ Failed to fetch schedule for \(sport): \(error.localizedDescription)")
+                            AppLogger.networking.error("Failed to fetch schedule for \(sport.displayName): \(error.localizedDescription)")
                             return [:]
                         }
                     }
@@ -567,45 +624,39 @@ public class GameViewModel: NSObject {
     
     @objc
     private func getData() async {
-        do {
-            try await withThrowingTaskGroup(of: Void.self, body: { group in
-                group.addTask {
-                    try await self.handleTeams()
-                }
-                group.addTask {
-                    try await self.handleLiveGames()
-                }
-                group.addTask {
-                    try await self.handleGames()
-                }
-                try await group.waitForAll()
-            })
-            handleLiveWebsocket()
-            #if canImport(ActivityKit) && os(iOS)
-            if #available(iOS 16.1, *) {
-                registerPushToStartIfNeeded()
-                preCacheFavoriteTeamBadges()
+        // Each handler catches its own errors so a single failure doesn't trigger a full retry
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                do { try await self.handleTeams() }
+                catch { AppLogger.networking.error("handleTeams failed: \(error.localizedDescription)") }
             }
-            #endif
-            appStorage.cleanupExpiredAutoFollows(games: totalGames ?? [])
-            networkState = .loaded
-            networkFetchTask = nil
-        } catch let e {
-            print(e)
-            print(e.localizedDescription)
-            networkState = .failed
-            restartTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true, block: { [weak self] _ in
-                if self?.networkState == .failed {
-                    self?.getInfo()
-                }
-            })
+            group.addTask {
+                do { try await self.handleLiveGames() }
+                catch { AppLogger.networking.error("handleLiveGames failed: \(error.localizedDescription)") }
+            }
+            group.addTask {
+                do { try await self.handleGames() }
+                catch { AppLogger.networking.error("handleGames failed: \(error.localizedDescription)") }
+            }
+            await group.waitForAll()
         }
+        handleLiveWebsocket()
+        #if canImport(ActivityKit) && os(iOS)
+        if #available(iOS 16.1, *) {
+            registerPushToStartIfNeeded()
+            preCacheFavoriteTeamBadges()
+        }
+        #endif
+        appStorage.cleanupExpiredAutoFollows(games: totalGames ?? [])
+        networkState = .loaded
+        networkFetchTask = nil
     }
 
     @objc
     func receiveMessages() async throws {
-        if let webSocket = webSocketTask {
+        while let webSocket = webSocketTask {
             let webSocketMessage = try await webSocket.receive()
+            wsReconnectAttempts = 0 // Reset on successful receive
             switch webSocketMessage {
             case .string(let jsonString):
                 if let jsonData = jsonString.data(using: .utf8) {
@@ -618,14 +669,7 @@ public class GameViewModel: NSObject {
                         } else if currentLiveInfo == nil {
                             self.currentLiveInfo = newLiveInfo
                         }
-//                        
-//                        print("found", self.currentLiveInfo?.mlb?.events.count, "mlb games")
-//                        print("found", self.currentLiveInfo?.nba?.events.count, "nba games")
-//                        print("found", self.currentLiveInfo?.nfl?.events.count, "nfl games")
-//                        print("found", self.currentLiveInfo?.nhl?.events.count, "nhl games")
-//                        print("found", self.currentLiveInfo?.soccer?.events.count, "soccer games")
-//                        print("found", self.currentLiveInfo?.golf?.events.count, "golf games")
-//                        print("found", self.currentLiveInfo?.tennis?.events.count, "tennis games")
+                        updateLiveData()
                     }
                     #if canImport(ActivityKit) && os(iOS)
                     if #available(iOS 16.1, *) {
@@ -641,7 +685,6 @@ public class GameViewModel: NSObject {
             @unknown default:
                 break
             }
-            try await receiveMessages()
         }
     }
     
@@ -847,17 +890,9 @@ public class GameViewModel: NSObject {
     }
     
     func filterSports(searchString: String? = nil, force: Bool = false) {
-        #if DEBUG
-        print("⚠️ sports duration or selected sport changed, filtering")
-        print("⚠️ should show NFL \(appStorage.shouldShowNFL)")
-        print("⚠️ should show NBA \(appStorage.shouldShowNBA)")
-        print("⚠️ should show NHL \(appStorage.shouldShowNHL)")
-        print("⚠️ should show Soccer \(appStorage.shouldShowSoccer)")
-        print("⚠️ should show MLB \(appStorage.shouldShowMLB)")
-        print("⚠️ should show Golf \(appStorage.shouldShowGolf)")
-        print("⚠️ should show Tennis \(appStorage.shouldShowTennis)")
-        print("⚠️ should show Racing \(appStorage.shouldShowRacing)")
-        #endif
+        if appStorage.debugMode {
+            AppLogger.viewModel.debug("Sports filter changed — NFL:\(self.appStorage.shouldShowNFL) NBA:\(self.appStorage.shouldShowNBA) NHL:\(self.appStorage.shouldShowNHL) Soccer:\(self.appStorage.shouldShowSoccer) MLB:\(self.appStorage.shouldShowMLB) Golf:\(self.appStorage.shouldShowGolf) Tennis:\(self.appStorage.shouldShowTennis) Racing:\(self.appStorage.shouldShowRacing)")
+        }
         if force {
             totalGames = totalGames?.filter({ game in
                 guard let leagueString = game.idLeague,
@@ -883,10 +918,11 @@ public class GameViewModel: NSObject {
         }
         calendarGames = allValidGames.sorted { ($0.standardDate ?? .now) < ($1.standardDate ?? .now) }
 
-        print("⚠️ total amount of games, \(totalGames?.count ?? 0) filtered result \(filteredGames?.count ?? 0)")
+        AppLogger.viewModel.info("Total games: \(self.totalGames?.count ?? 0), filtered: \(self.filteredGames?.count ?? 0)")
         handleSearch(searchString: searchString)
         sortByDate()
         setFavorites()
+        updateLiveData()
     }
     func sortByDate() {
         let groupDic = Dictionary(grouping: filteredGames ?? []) { game -> DateComponents in
@@ -917,32 +953,32 @@ public class GameViewModel: NSObject {
         }
 
         if totalCount >= Self.maxDisplayedGames {
-            print("⚠️ Performance: Limited display to \(totalCount) games out of \(filteredGames?.count ?? 0) filtered games")
+            AppLogger.viewModel.notice("Performance: Limited display to \(totalCount) games out of \(self.filteredGames?.count ?? 0) filtered games")
         }
 
         // Pre-compute games with team data to avoid expensive lookups during rendering
         let sortedWithTeams = limitedSorted.compactMap { (key, games) -> GameDateSection? in
             let gamesWithTeams = games.compactMap { game -> GameWithTeams? in
                 guard let gwt = makeGameWithTeams(game) else {
-                    #if DEBUG
-                    print("⚠️ Failed to find teams for game: \(game.strHomeTeam) @ \(game.strAwayTeam), idHome: \(game.idHomeTeam ?? "nil"), idAway: \(game.idAwayTeam ?? "nil")")
-                    #endif
+                    if appStorage.debugMode {
+                        AppLogger.viewModel.notice("Failed to find teams for game: \(game.strHomeTeam) @ \(game.strAwayTeam), idHome: \(game.idHomeTeam ?? "nil"), idAway: \(game.idAwayTeam ?? "nil")")
+                    }
                     return nil
                 }
                 return gwt
             }
             // Only include sections that have at least one game with team data
             guard !gamesWithTeams.isEmpty else {
-                #if DEBUG
-                print("⚠️ Section \(key.date?.formatted() ?? "unknown") has no games with team data")
-                #endif
+                if appStorage.debugMode {
+                    AppLogger.viewModel.notice("Section \(key.date?.formatted() ?? "unknown") has no games with team data")
+                }
                 return nil
             }
             return GameDateSection(date: key, games: gamesWithTeams)
         }
 
-        print("📊 Display stats: \(sortedWithTeams.count) sections, total games with teams: \(sortedWithTeams.reduce(0) { $0 + $1.games.count })")
-        print("📊 Teams loaded: \(teams.count), teamsDict entries: \(teamsDict.count)")
+        AppLogger.viewModel.info("Display stats: \(sortedWithTeams.count) sections, total games with teams: \(sortedWithTeams.reduce(0) { $0 + $1.games.count })")
+        AppLogger.viewModel.info("Teams loaded: \(self.teams.count), teamsDict entries: \(self.teamsDict.count)")
 
         withAnimation {
             sortedGames = limitedSorted
@@ -1085,18 +1121,14 @@ public class GameViewModel: NSObject {
         return !searchString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     func getInfo() {
-//        if networkFetchTask?.isCancelled ?? true || networkFetchTask == nil {
+        // Guard against concurrent fetches — don't start a new one if already in progress
+        guard networkFetchTask == nil else { return }
         networkState = .loading
+        restartTimer?.invalidate()
+        restartTimer = nil
         networkFetchTask = Task {
-            restartTimer = nil
             await getData()
         }
-//        } else {
-//            if !teams.isEmpty && !(totalGames?.isEmpty ?? true) {
-////                networkFetchTask?.cancel()
-//                getInfo()
-//            }
-//        }
     }
     
     func dumpCaches() throws {
@@ -1113,18 +1145,18 @@ public class GameViewModel: NSObject {
 extension GameViewModel: URLSessionWebSocketDelegate {
     public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
         self.webSocketTask = nil
-        self.networkState = .failed
-        restartTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true, block: { [weak self] _ in
-            if self?.networkState == .failed {
-                self?.getInfo()
-            }
-        })
+        // Only reconnect WebSocket — don't refetch all data
+        reconnectWebSocketOnly()
     }
 }
 #if canImport(ActivityKit) && os(iOS)
 @available(iOS 16.1, *)
 extension GameViewModel {
     func configureDataForLiveActivity(game: Game, homeTeam: Team, awayTeam: Team) async throws -> (attributes: LiveSportActivityAttributes, contentState: LiveSportActivityAttributes.ContentState) {
+        guard let homeTeamName = homeTeam.strTeamShort ?? homeTeam.strTeam,
+              let awayTeamName = awayTeam.strTeamShort ?? awayTeam.strTeam else { throw ModelErrors.unknownTeam(game) }
+
+        // Download and cache badge images when available
         if let homeBadgeString = homeTeam.strTeamBadge,
            let homeBadgeURL = URL(string: homeBadgeString.contains("thesportsdb.com") ? homeBadgeString + "/tiny" : homeBadgeString),
            let awayBadgeString = awayTeam.strTeamBadge,
@@ -1132,40 +1164,49 @@ extension GameViewModel {
             do {
                 async let (homeData, _) = URLSession.shared.data(for: URLRequest(url: homeBadgeURL, cachePolicy: .returnCacheDataElseLoad))
                 async let (awayData, _) = URLSession.shared.data(for: URLRequest(url: awayBadgeURL, cachePolicy: .returnCacheDataElseLoad))
-                guard let homeTeamName = homeTeam.strTeamShort ?? homeTeam.strTeam,
-                      let awayTeamName = awayTeam.strTeamShort ?? awayTeam.strTeam else { throw ModelErrors.unknownTeam(game) }
-                
+
                 if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appending(path: homeTeamName) {
                     try await homeData.write(to: fileURL)
                 }
-                
+
                 if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appending(path: awayTeamName) {
                     try await awayData.write(to: fileURL)
                 }
-                let initialContentState = LiveSportActivityAttributes.ContentState(homeScore: Int(game.intHomeScore ?? "") ?? 0, awayScore: Int(game.intAwayScore ?? "") ?? 0, status: game.strStatus, progress: game.strProgress, lastPlay: nil)
-                let activityAttributes = LiveSportActivityAttributes(homeTeam: homeTeamName, awayTeam: awayTeamName, eventID: game.idEvent ?? "")
-                return (activityAttributes, initialContentState)
-            } catch let error {
-                SentrySDK.capture(error: error)
-                print(error.localizedDescription)
+            } catch {
+                // Badge download failed — continue without badges (e.g. debug fake teams)
+                AppLogger.liveActivity.notice("Badge download failed, continuing without images: \(error.localizedDescription)")
             }
         }
-        throw ModelErrors.unknownTeam(game)
-        
+
+        let initialContentState = LiveSportActivityAttributes.ContentState(homeScore: Int(game.intHomeScore ?? "") ?? 0, awayScore: Int(game.intAwayScore ?? "") ?? 0, status: game.strStatus, progress: game.strProgress, lastPlay: nil)
+        let activityAttributes = LiveSportActivityAttributes(homeTeam: homeTeamName, awayTeam: awayTeamName, eventID: game.idEvent ?? "")
+        return (activityAttributes, initialContentState)
     }
     func requestActivity(game: Game, homeTeam: Team, awayTeam: Team) {
         Task { @MainActor in
-            let (activityAttributes, initialContentState) = try await configureDataForLiveActivity(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
-            let activity: Activity<LiveSportActivityAttributes>
-            //                    if #available(iOS 16.2, *) {
-            //                        activity = try Activity.request(attributes: activityAttributes, content: .init(state: initialContentState, staleDate: .distantFuture, relevanceScore:  100), pushType: .token)
-            //                    } else {
-            activity = try Activity.request(attributes: activityAttributes, contentState: initialContentState, pushType: .token)
-            //                    }
-            
-            if let token = activity.pushToken, let eventID = game.idEvent {
-                let tokenString = token.map { String(format: "%02x", $0)}.joined()
-                try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID, debug: appStorage.debugMode)
+            do {
+                let (activityAttributes, initialContentState) = try await configureDataForLiveActivity(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                let activity: Activity<LiveSportActivityAttributes>
+                activity = try Activity.request(attributes: activityAttributes, contentState: initialContentState, pushType: .token)
+
+                if appStorage.debugMode {
+                    if let pushToken = activity.pushToken {
+                        let tokenPrefix = pushToken.map { String(format: "%02x", $0) }.joined().prefix(12)
+                        AutoFollowLogger.shared.log("Live activity started, push token: \(tokenPrefix)...", level: .success)
+                    } else {
+                        AutoFollowLogger.shared.log("Live activity started (no push token yet)", level: .success)
+                    }
+                }
+
+                if let token = activity.pushToken, let eventID = game.idEvent {
+                    let tokenString = token.map { String(format: "%02x", $0)}.joined()
+                    try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID, debug: appStorage.debugMode)
+                }
+            } catch {
+                if appStorage.debugMode {
+                    AutoFollowLogger.shared.log("Live activity request failed: \(error.localizedDescription)", level: .error)
+                }
+                AppLogger.liveActivity.error("Failed to request live activity: \(error.localizedDescription)")
             }
         }
     }
@@ -1181,19 +1222,33 @@ extension GameViewModel {
         let hasAutoFollows = !appStorage.autoFollowEventIDs.isEmpty
         guard hasFavorites || hasAutoFollows else { return }
 
+        if appStorage.debugMode {
+            AutoFollowLogger.shared.log("Registering push-to-start (favorites: \(favorites.teams.count), events: \(appStorage.autoFollowEventIDs.count))")
+        }
+
         if #available(iOS 17.2, *) {
             guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
             Task { @MainActor in
                 for await token in Activity<LiveSportActivityAttributes>.pushToStartTokenUpdates {
                     let tokenString = token.map { String(format: "%02x", $0) }.joined()
+                    self.currentPushToStartToken = tokenString
+                    if appStorage.debugMode {
+                        AutoFollowLogger.shared.log("Got push-to-start token: \(tokenString.prefix(12))...", level: .success)
+                    }
                     let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
                     let eventIDs = Array(appStorage.autoFollowEventIDs)
                     do {
                         try await NetworkHandler.registerPushToStart(token: tokenString, favorites: favoritesList, eventIDs: eventIDs, debug: self.appStorage.debugMode)
-                        print("📲 Registered push-to-start token with \(favoritesList.count) favorites, \(eventIDs.count) auto-follow events")
+                        if appStorage.debugMode {
+                            AutoFollowLogger.shared.log("Server registered push-to-start OK", level: .success)
+                        }
+                        AppLogger.liveActivity.info("Registered push-to-start token with \(favoritesList.count) favorites, \(eventIDs.count) auto-follow events")
                     } catch {
-                        print("⚠️ Failed to register push-to-start: \(error.localizedDescription)")
+                        if appStorage.debugMode {
+                            AutoFollowLogger.shared.log("Server registration failed: \(error.localizedDescription)", level: .error)
+                        }
+                        AppLogger.liveActivity.error("Failed to register push-to-start: \(error.localizedDescription)")
                     }
                 }
             }
@@ -1217,14 +1272,29 @@ extension GameViewModel {
         if #available(iOS 17.2, *) {
             guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
-            Task { @MainActor in
-                for await token in Activity<LiveSportActivityAttributes>.pushToStartTokenUpdates {
-                    let tokenString = token.map { String(format: "%02x", $0) }.joined()
+            // Use cached token for immediate re-registration (don't wait for token update)
+            if let cachedToken = currentPushToStartToken {
+                Task { @MainActor in
                     let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
                     let eventIDs = Array(appStorage.autoFollowEventIDs)
-                    try? await NetworkHandler.registerPushToStart(token: tokenString, favorites: favoritesList, eventIDs: eventIDs, debug: self.appStorage.debugMode)
-                    print("📲 Re-registered push-to-start with \(favoritesList.count) favorites, \(eventIDs.count) auto-follow events")
-                    break
+                    try? await NetworkHandler.registerPushToStart(token: cachedToken, favorites: favoritesList, eventIDs: eventIDs, debug: self.appStorage.debugMode)
+                    if appStorage.debugMode {
+                        AutoFollowLogger.shared.log("Re-registered push-to-start with \(favoritesList.count) favorites, \(eventIDs.count) events", level: .success)
+                    }
+                    AppLogger.liveActivity.info("Re-registered push-to-start with \(favoritesList.count) favorites, \(eventIDs.count) auto-follow events")
+                }
+            } else {
+                // Fallback: wait for next token update
+                Task { @MainActor in
+                    for await token in Activity<LiveSportActivityAttributes>.pushToStartTokenUpdates {
+                        let tokenString = token.map { String(format: "%02x", $0) }.joined()
+                        self.currentPushToStartToken = tokenString
+                        let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
+                        let eventIDs = Array(appStorage.autoFollowEventIDs)
+                        try? await NetworkHandler.registerPushToStart(token: tokenString, favorites: favoritesList, eventIDs: eventIDs, debug: self.appStorage.debugMode)
+                        AppLogger.liveActivity.info("Re-registered push-to-start with \(favoritesList.count) favorites, \(eventIDs.count) auto-follow events")
+                        break
+                    }
                 }
             }
         }
@@ -1232,6 +1302,9 @@ extension GameViewModel {
 
     /// Called from AutoFollowButton when the user toggles auto-follow for a game.
     func sendAutoFollowRegistration() {
+        if appStorage.debugMode {
+            AutoFollowLogger.shared.log("Re-registering push-to-start (auto-follow changed)")
+        }
         sendPushToStartRegistration()
     }
 
@@ -1252,7 +1325,7 @@ extension GameViewModel {
                     let (data, _) = try await URLSession.shared.data(for: URLRequest(url: badgeURL, cachePolicy: .returnCacheDataElseLoad))
                     try data.write(to: fileURL)
                 } catch {
-                    print("⚠️ Failed to pre-cache badge for \(teamName): \(error.localizedDescription)")
+                    AppLogger.liveActivity.notice("Failed to pre-cache badge for \(teamName): \(error.localizedDescription)")
                 }
             }
         }
@@ -1277,7 +1350,7 @@ extension GameViewModel {
                     let (data, _) = try await URLSession.shared.data(for: URLRequest(url: badgeURL, cachePolicy: .returnCacheDataElseLoad))
                     try data.write(to: fileURL)
                 } catch {
-                    print("⚠️ Failed to pre-cache badge for \(teamName): \(error.localizedDescription)")
+                    AppLogger.liveActivity.notice("Failed to pre-cache badge for \(teamName): \(error.localizedDescription)")
                 }
             }
         }
@@ -1288,7 +1361,13 @@ extension GameViewModel {
         let autoFollowIDs = appStorage.autoFollowEventIDs
         guard !autoFollowIDs.isEmpty else { return }
 
-        for game in liveEvents {
+        var allLive = liveEvents
+        if appStorage.debugMode {
+            allLive += debugFakeGames.filter { $0.strStatus == "in" }
+            AutoFollowLogger.shared.log("Checking \(autoFollowIDs.count) auto-follow IDs against \(allLive.count) live events")
+        }
+
+        for game in allLive {
             guard let eventID = game.idEvent,
                   autoFollowIDs.contains(eventID),
                   game.strStatus == "in" else { continue }
@@ -1299,9 +1378,12 @@ extension GameViewModel {
             }
 
             guard let (homeTeam, awayTeam) = getTeams(for: game) else { continue }
+            if appStorage.debugMode {
+                AutoFollowLogger.shared.log("Auto-starting live activity for \(eventID) (\(game.strHomeTeam) vs \(game.strAwayTeam))", level: .success)
+            }
             requestActivity(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
             appStorage.removeAutoFollow(eventID)
-            print("📲 Auto-started Live Activity for auto-followed event \(eventID)")
+            AppLogger.liveActivity.info("Auto-started Live Activity for auto-followed event \(eventID)")
         }
     }
 
@@ -1328,3 +1410,88 @@ extension GameViewModel {
     }
 }
 #endif
+
+// MARK: - Debug Fake Game Injection
+extension GameViewModel {
+    /// Static storage for debug fake games.
+    nonisolated(unsafe) private static var _debugFakeGames: [Game] = []
+
+    /// Holds injected fake games for testing.
+    var debugFakeGames: [Game] {
+        get { Self._debugFakeGames }
+        set { Self._debugFakeGames = newValue }
+    }
+
+    /// Injects a fake upcoming game and returns it.
+    @discardableResult
+    func injectFakeUpcomingGame(sport: SportType = .basketball) -> Game {
+        let game = DebugGameFactory.createFakeUpcomingGame(sport: sport, secondsFromNow: 300)
+        Self._debugFakeGames.append(game)
+
+        // Register synthetic teams so getTeams(for:) works
+        let (home, away) = DebugGameFactory.fakeTeams(for: game)
+        if let id = home.idTeam { teamByID[id] = home }
+        if let name = home.strTeam { teamByName[name] = home }
+        if let id = away.idTeam { teamByID[id] = away }
+        if let name = away.strTeam { teamByName[name] = away }
+
+        // Merge into totalGames so it appears in the list
+        if totalGames != nil {
+            totalGames?.append(game)
+        } else {
+            totalGames = [game]
+        }
+        filterSports(force: true)
+
+        AutoFollowLogger.shared.log("Created fake game: \(game.idEvent ?? "?") (\(game.strHomeTeam) vs \(game.strAwayTeam))", level: .info)
+        return game
+    }
+
+    /// Transitions a fake game to live status and triggers auto-follow check.
+    func transitionFakeGameToLive(eventID: String) {
+        guard let index = Self._debugFakeGames.firstIndex(where: { $0.idEvent == eventID }) else { return }
+        let liveGame = DebugGameFactory.transitionToLive(Self._debugFakeGames[index])
+        Self._debugFakeGames[index] = liveGame
+
+        // Update in totalGames too
+        if let totalIndex = totalGames?.firstIndex(where: { $0.idEvent == eventID }) {
+            totalGames?[totalIndex] = liveGame
+        }
+        filterSports(force: true)
+
+        AutoFollowLogger.shared.log("Fake game \(eventID) transitioned to LIVE", level: .success)
+
+        // Trigger auto-follow check
+        #if canImport(ActivityKit) && os(iOS)
+        if #available(iOS 16.1, *) {
+            checkAutoFollowedGamesForLiveStart()
+        }
+        #endif
+    }
+
+    /// Schedules auto-transition to live after a delay.
+    func scheduleAutoTransitionToLive(eventID: String, delay: TimeInterval) {
+        AutoFollowLogger.shared.log("Scheduling auto-transition for \(eventID) in \(Int(delay))s")
+        Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.transitionFakeGameToLive(eventID: eventID)
+            }
+        }
+    }
+
+    /// Removes all fake games and cleans up.
+    func clearDebugFakeGames() {
+        let fakeIDs = Set(Self._debugFakeGames.compactMap(\.idEvent))
+        totalGames?.removeAll { game in
+            guard let id = game.idEvent else { return false }
+            return fakeIDs.contains(id)
+        }
+        // Remove auto-follow entries for fake games
+        for id in fakeIDs {
+            appStorage.removeAutoFollow(id)
+        }
+        Self._debugFakeGames.removeAll()
+        filterSports(force: true)
+        AutoFollowLogger.shared.log("Cleared all debug fake games", level: .info)
+    }
+}
