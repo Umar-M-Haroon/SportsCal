@@ -111,6 +111,11 @@ struct ESPNFetchJob: AsyncScheduledJob {
         guard !newlyStarted.isEmpty else { return }
         Self.logger.info("Detected \(newlyStarted.count) newly started games for push-to-start")
 
+        guard context.application.storage[APNSConfiguredKey.self] == true else {
+            Self.logger.warning("APNS not configured — skipping push-to-start notifications")
+            return
+        }
+
         // Scan all PushToStart-* registrations
         let keyPattern = isDebug ? "debug-PushToStart-*" : "PushToStart-*"
         guard let registrationKeys = try? await context.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
@@ -119,16 +124,20 @@ struct ESPNFetchJob: AsyncScheduledJob {
             .map({ RedisKey($0) }),
               !registrationKeys.isEmpty else { return }
 
-        let apnsClient = await context.application.apns.client
+        let apnsClient = isDebug
+            ? await context.application.apns.client(.development)
+            : await context.application.apns.client(.production)
         let keyPrefix = isDebug ? "debug-PushToStart-" : "PushToStart-"
 
         let newlyStartedIDs = Set(newlyStarted.compactMap(\.idEvent))
+        Self.logger.info("Scanning \(registrationKeys.count) push-to-start registrations")
 
         for registrationKey in registrationKeys {
             guard let favorites = try? await context.application.redis.get(registrationKey, asJSON: [String].self) else { continue }
 
             let favoritesSet = Set(favorites)
             let token = String(registrationKey.rawValue.dropFirst(keyPrefix.count))
+            Self.logger.info("Registration \(token.prefix(8))... has \(favoritesSet.count) favorites")
 
             for game in newlyStarted {
                 let homeTeam = game.strHomeTeam
@@ -136,6 +145,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 guard favoritesSet.contains(homeTeam) || favoritesSet.contains(awayTeam),
                       game.idEvent != nil else { continue }
 
+                Self.logger.info("Matching \(homeTeam) vs \(awayTeam) → token \(token.prefix(8))... (via favorites)")
                 try? await sendPushToStartNotification(
                     game: game, token: token, context: context, apnsClient: apnsClient, isDebug: isDebug
                 )
@@ -156,11 +166,13 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
                 let token = String(registrationKey.rawValue.dropFirst(eventsKeyPrefix.count))
                 let matchingIDs = Set(eventIDs).intersection(newlyStartedIDs)
+                Self.logger.info("Event registration \(token.prefix(8))... has \(eventIDs.count) event IDs, \(matchingIDs.count) matches")
 
                 for game in newlyStarted {
                     guard let eventID = game.idEvent,
                           matchingIDs.contains(eventID) else { continue }
 
+                    Self.logger.info("Matching \(game.strHomeTeam) vs \(game.strAwayTeam) → token \(token.prefix(8))... (via eventID \(eventID))")
                     try? await sendPushToStartNotification(
                         game: game, token: token, context: context, apnsClient: apnsClient, isDebug: isDebug
                     )
@@ -185,7 +197,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // Check if we already sent this notification
         let sentKey = RedisEndpoint.sentPushToStart(token, eventID).getValue(isDebug: isDebug)
         let alreadySentCount = try? await context.application.redis.exists(sentKey)
-        guard alreadySentCount == 0 || alreadySentCount == nil else { return }
+        guard alreadySentCount == 0 || alreadySentCount == nil else {
+            Self.logger.info("Already sent push-to-start for \(eventID) to \(token.prefix(8))... — skipping")
+            return
+        }
 
         // Mark as sent (TTL 8 hours)
         try? await context.application.redis.setex(sentKey, to: "1", expirationInSeconds: 60 * 60 * 8).get()
@@ -220,6 +235,15 @@ struct ESPNFetchJob: AsyncScheduledJob {
             Self.logger.info("Sent push-to-start for \(homeTeam) vs \(awayTeam) to token \(token.prefix(8))...")
         } catch {
             Self.logger.error("Failed to send push-to-start for event \(eventID): \(error)")
+            // Clean up stale tokens so they don't keep failing
+            if let apnsError = error as? APNSError,
+               apnsError.reason == .badDeviceToken || apnsError.reason == .unregistered {
+                Self.logger.warning("Removing stale push-to-start token \(token.prefix(8))...")
+                let keyPrefix = isDebug ? "debug-PushToStart-" : "PushToStart-"
+                let eventsKeyPrefix = isDebug ? "debug-PushToStartEvents-" : "PushToStartEvents-"
+                _ = try? await context.application.redis.delete([RedisKey(keyPrefix + token)]).get()
+                _ = try? await context.application.redis.delete([RedisKey(eventsKeyPrefix + token)]).get()
+            }
         }
     }
 

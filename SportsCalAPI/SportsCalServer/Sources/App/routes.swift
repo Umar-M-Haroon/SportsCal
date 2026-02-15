@@ -1,6 +1,8 @@
 import Vapor
 import SportsCalModel
 import VaporAPNS
+import APNSCore
+import RediStack
 
 
 func routes(_ app: Application) throws {
@@ -138,6 +140,132 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
             let jsonScore = try JSONDecoder().decode(LiveScore.self, from: Data(contentsOf: fileURL))
             let stringResult = encodeResult(res: jsonScore)
             return stringResult
+        }
+
+        //MARK: - Debug Push-to-Start Trigger
+        routes.post("debug", "trigger-push-to-start") { req async throws -> String in
+            struct DebugTriggerRequest: Content {
+                var eventID: String
+                var homeTeam: String
+                var awayTeam: String
+            }
+
+            let body = try req.content.decode(DebugTriggerRequest.self)
+            let isDebug = req.application.environment == .development
+            let keyPrefix = isDebug ? "debug-PushToStart-" : "PushToStart-"
+            let keyPattern = "\(keyPrefix)*"
+            let apnsConfigured = req.application.storage[APNSConfiguredKey.self] ?? false
+
+            // Build diagnostic trace
+            var trace: [String] = []
+            trace.append("env=\(req.application.environment.name)")
+            trace.append("keyPattern=\(keyPattern)")
+            trace.append("apnsConfigured=\(apnsConfigured)")
+            trace.append("triggerEventID=\(body.eventID)")
+            trace.append("triggerHome=\(body.homeTeam)")
+            trace.append("triggerAway=\(body.awayTeam)")
+
+            // Step 1: Find registration keys
+            let allKeys = (try? await req.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
+                .array?
+                .compactMap({ $0.string })) ?? []
+            trace.append("allKeysMatching=\(allKeys.count): \(allKeys)")
+
+            let registrationKeys = allKeys
+                .filter({ !$0.contains("Events-") && !$0.contains("SentPush") })
+                .map({ RedisKey($0) })
+            trace.append("registrationKeys=\(registrationKeys.count): \(registrationKeys.map(\.rawValue))")
+
+            guard !registrationKeys.isEmpty else {
+                let traceStr = trace.joined(separator: "\n")
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = .prettyPrinted
+                let result: [String: Any] = ["notified": 0, "tokens": [] as [String], "reason": "no_registrations", "trace": traceStr]
+                let data = try JSONSerialization.data(withJSONObject: result)
+                return String(data: data, encoding: .utf8)!
+            }
+
+            guard apnsConfigured else {
+                let traceStr = trace.joined(separator: "\n")
+                let result: [String: Any] = ["notified": 0, "tokens": [] as [String], "reason": "apns_not_configured", "trace": traceStr]
+                let data = try JSONSerialization.data(withJSONObject: result)
+                return String(data: data, encoding: .utf8)!
+            }
+
+            let apnsClient = req.application.environment == .development
+                ? await req.application.apns.client(.development)
+                : await req.application.apns.client(.production)
+            var notifiedTokens: [String] = []
+            var errors: [String] = []
+
+            for registrationKey in registrationKeys {
+                let token = String(registrationKey.rawValue.dropFirst(keyPrefix.count))
+
+                let favorites = (try? await req.application.redis.get(registrationKey, asJSON: [String].self)) ?? []
+                let favoritesMatch = favorites.contains(where: { $0 == body.homeTeam || $0 == body.awayTeam })
+
+                let eventsKey = RedisEndpoint.pushToStartEvents(token).getValue(isDebug: isDebug)
+                let eventIDs = (try? await req.application.redis.get(eventsKey, asJSON: [String].self)) ?? []
+                let eventMatch = eventIDs.contains(body.eventID)
+
+                trace.append("token=\(token.prefix(12))... favorites=\(favorites) eventIDs=\(eventIDs) favMatch=\(favoritesMatch) eventMatch=\(eventMatch)")
+
+                guard favoritesMatch || eventMatch else { continue }
+
+                let attributes = LiveSportAttributes(
+                    homeTeam: body.homeTeam,
+                    awayTeam: body.awayTeam,
+                    eventID: body.eventID
+                )
+                let contentState = ContentState(
+                    homeScore: 12,
+                    awayScore: 9,
+                    status: "in",
+                    progress: "4:20 - 1st"
+                )
+
+                do {
+                    let notification = APNSStartLiveActivityNotification(
+                        expiration: .immediately,
+                        priority: .immediately,
+                        appID: "com.KomodoLLC.SportsCal",
+                        contentState: contentState,
+                        timestamp: Int(Date().timeIntervalSince1970),
+                        attributes: attributes,
+                        attributesType: "LiveSportActivityAttributes",
+                        alert: APNSAlertNotificationContent(
+                            title: .raw("\(body.homeTeam) vs \(body.awayTeam)"),
+                            body: .raw("Debug game is starting now!")
+                        )
+                    )
+                    try await apnsClient.sendStartLiveActivityNotification(notification, deviceToken: token)
+                    notifiedTokens.append(String(token.prefix(12)) + "...")
+                    trace.append("SENT OK to \(token.prefix(12))...")
+                } catch {
+                    let errMsg = "\(error)"
+                    errors.append("\(token.prefix(12))...: \(errMsg)")
+                    trace.append("SEND FAILED \(token.prefix(12))...: \(errMsg)")
+                    if let apnsError = error as? APNSError,
+                       apnsError.reason == .badDeviceToken || apnsError.reason == .unregistered {
+                        _ = try? await req.application.redis.delete([registrationKey]).get()
+                        _ = try? await req.application.redis.delete([eventsKey]).get()
+                        trace.append("Removed stale token \(token.prefix(12))...")
+                    }
+                }
+            }
+
+            let traceStr = trace.joined(separator: "\n")
+            var result: [String: Any] = [
+                "notified": notifiedTokens.count,
+                "tokens": notifiedTokens,
+                "trace": traceStr
+            ]
+            if !errors.isEmpty { result["errors"] = errors }
+            if notifiedTokens.isEmpty && registrationKeys.count > 0 {
+                result["reason"] = "no_match"
+            }
+            let data = try JSONSerialization.data(withJSONObject: result)
+            return String(data: data, encoding: .utf8)!
         }
 
     }
