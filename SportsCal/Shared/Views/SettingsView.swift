@@ -243,7 +243,9 @@ struct LocalServerStatusView: View {
         }
         TextField("Manual host override", text: $manualHost)
             .font(.caption.monospaced())
+            #if os(iOS)
             .textInputAutocapitalization(.never)
+            #endif
             .autocorrectionDisabled()
             .onSubmit {
                 let trimmed = manualHost.trimmingCharacters(in: .whitespacesAndNewlines)

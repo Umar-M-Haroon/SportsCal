@@ -19,6 +19,7 @@ struct TournamentDetailView: View {
     @Environment(Favorites.self) private var favorites
     @State private var shouldShowSportsCalProAlert = false
     @State private var sheetType: SheetType?
+    @State private var expandedPlayers: Set<Int> = []
 
     private var league: Leagues? {
         guard let id = game.idLeague, let intID = Int(id) else { return nil }
@@ -39,6 +40,7 @@ struct TournamentDetailView: View {
         ScrollView {
             VStack(spacing: 24) {
                 tournamentHeader
+                roundProgressBar
                 gameInfo
                 actionsRow
                 leaderboardSection
@@ -74,9 +76,16 @@ struct TournamentDetailView: View {
                         .font(.title2)
                         .foregroundColor(sport.color)
                 }
-                Text(game.strHomeTeam)
-                    .font(.title2)
-                    .fontWeight(.bold)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(game.strHomeTeam)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    if let venue = game.venueName {
+                        Text(venue)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 Spacer()
                 if isLive {
                     Text("LIVE")
@@ -98,16 +107,19 @@ struct TournamentDetailView: View {
             }
 
             // Leader highlight
-            if let entries = game.leaderboard.first {
-                HStack {
-                    Text("Leader:")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Text(entries.name)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+            if let leader = game.resolvedLeaderboard.first {
+                HStack(spacing: 8) {
+                    HeadshotView(url: leader.headshot, size: 32)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Leader")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(leader.name)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
                     Spacer()
-                    Text(entries.score)
+                    Text(leader.score)
                         .font(.title3)
                         .fontWeight(.bold)
                 }
@@ -116,6 +128,54 @@ struct TournamentDetailView: View {
         .padding()
         .background(Color.secondaryGroupedBackground)
         .cornerRadius(12)
+    }
+
+    // MARK: - Round Progress Bar
+    @ViewBuilder
+    private var roundProgressBar: some View {
+        let entries = game.resolvedLeaderboard
+        let maxRounds = entries.map(\.rounds.count).max() ?? 0
+        if maxRounds > 0 {
+            let currentRound = detectCurrentRound(entries: entries, maxRounds: maxRounds)
+            VStack(spacing: 4) {
+                HStack(spacing: 0) {
+                    ForEach(0..<maxRounds, id: \.self) { i in
+                        if i > 0 {
+                            Rectangle()
+                                .fill(i <= currentRound ? Color.accentColor : Color.gray.opacity(0.3))
+                                .frame(height: 2)
+                        }
+                        ZStack {
+                            Circle()
+                                .fill(roundColor(index: i, current: currentRound))
+                                .frame(width: 24, height: 24)
+                            Text("R\(i + 1)")
+                                .font(.caption2)
+                                .fontWeight(i == currentRound ? .bold : .regular)
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    private func detectCurrentRound(entries: [LeaderboardEntry], maxRounds: Int) -> Int {
+        // Current round = the round most players are on (incomplete round)
+        // If all have same count, the last round is current/done
+        guard let leader = entries.first else { return 0 }
+        let leaderRounds = leader.rounds.count
+        if leader.thruHole != nil && leader.thruHole != "F" {
+            return max(0, leaderRounds - 1)
+        }
+        return max(0, leaderRounds - 1)
+    }
+
+    private func roundColor(index: Int, current: Int) -> Color {
+        if index < current { return .green }
+        if index == current { return .accentColor }
+        return Color.gray.opacity(0.4)
     }
 
     // MARK: - Game Info
@@ -217,7 +277,9 @@ struct TournamentDetailView: View {
                         viewModel.preCacheBadges(homeTeam: home, awayTeam: away)
                     }
                 }
+                #if os(iOS)
                 viewModel.sendAutoFollowRegistration()
+                #endif
             } label: {
                 VStack(spacing: 4) {
                     Image(systemName: isFollowing ? "clock.badge.fill" : "clock.badge")
@@ -239,7 +301,7 @@ struct TournamentDetailView: View {
             Text("Leaderboard")
                 .font(.headline)
 
-            let entries = game.leaderboard
+            let entries = game.resolvedLeaderboard
             if entries.isEmpty {
                 VStack(spacing: 8) {
                     if game.strAwayTeam != "TBD" {
@@ -262,21 +324,25 @@ struct TournamentDetailView: View {
                 }
             } else {
                 let hasRounds = entries.contains(where: { !$0.rounds.isEmpty })
-                let maxRounds = entries.map(\.rounds.count).max() ?? 0
+                let hasThru = entries.contains(where: { $0.thruHole != nil })
 
                 // Header row
                 HStack(spacing: 0) {
                     Text("Pos")
                         .frame(width: 32, alignment: .leading)
+                    // Headshot column spacer
+                    Color.clear.frame(width: 30)
                     Text("Player")
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    if hasThru {
+                        Text("Thru")
+                            .frame(width: 44, alignment: .trailing)
+                    }
                     Text("Score")
                         .frame(width: 50, alignment: .trailing)
                     if hasRounds {
-                        ForEach(0..<maxRounds, id: \.self) { i in
-                            Text("R\(i + 1)")
-                                .frame(width: 36, alignment: .trailing)
-                        }
+                        // Chevron spacer
+                        Color.clear.frame(width: 24)
                     }
                 }
                 .font(.caption2)
@@ -286,25 +352,73 @@ struct TournamentDetailView: View {
                 // Player rows
                 ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
                     let isLeader = index == 0
-                    HStack(spacing: 0) {
-                        Text("\(index + 1)")
-                            .frame(width: 32, alignment: .leading)
-                        Text(entry.name)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .lineLimit(1)
-                        Text(entry.score)
-                            .frame(width: 50, alignment: .trailing)
-                        if hasRounds {
-                            ForEach(0..<maxRounds, id: \.self) { i in
-                                Text(i < entry.rounds.count ? entry.rounds[i] : "-")
-                                    .frame(width: 36, alignment: .trailing)
+                    let isExpanded = expandedPlayers.contains(index)
+
+                    VStack(spacing: 0) {
+                        Button {
+                            if !entry.rounds.isEmpty {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if expandedPlayers.contains(index) {
+                                        expandedPlayers.remove(index)
+                                    } else {
+                                        expandedPlayers.insert(index)
+                                    }
+                                }
                             }
+                        } label: {
+                            HStack(spacing: 0) {
+                                Text("\(entry.position)")
+                                    .frame(width: 32, alignment: .leading)
+                                HeadshotView(url: entry.headshot, size: 28)
+                                    .padding(.trailing, 2)
+                                Text(entry.name)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .lineLimit(1)
+                                if hasThru {
+                                    Text(entry.thruHole ?? "-")
+                                        .frame(width: 44, alignment: .trailing)
+                                        .foregroundColor(.secondary)
+                                }
+                                Text(entry.score)
+                                    .frame(width: 50, alignment: .trailing)
+                                if hasRounds && !entry.rounds.isEmpty {
+                                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 24)
+                                } else if hasRounds {
+                                    Color.clear.frame(width: 24)
+                                }
+                            }
+                            .font(.caption)
+                            .fontWeight(isLeader ? .bold : .regular)
+                            .foregroundColor(isLeader ? .primary : .secondary)
+                            .padding(.vertical, 4)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        // Expanded round scores
+                        if isExpanded && !entry.rounds.isEmpty {
+                            HStack(spacing: 0) {
+                                Color.clear.frame(width: 62) // pos + headshot
+                                ForEach(Array(entry.rounds.enumerated()), id: \.offset) { rIndex, round in
+                                    VStack(spacing: 2) {
+                                        Text("R\(rIndex + 1)")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                        Text(round)
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                            .background(Color.gray.opacity(0.05))
+                            .cornerRadius(6)
                         }
                     }
-                    .font(.caption)
-                    .fontWeight(isLeader ? .bold : .regular)
-                    .foregroundColor(isLeader ? .primary : .secondary)
-                    .padding(.vertical, 2)
                 }
             }
         }

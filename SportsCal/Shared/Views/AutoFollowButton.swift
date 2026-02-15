@@ -54,11 +54,19 @@ struct AutoFollowButton: View {
                 guard let eventID else { return }
                 if isAutoFollowing {
                     viewModel.appStorage.removeAutoFollow(eventID)
+                    if viewModel.appStorage.debugMode {
+                        AutoFollowLogger.shared.log("Auto-follow removed: \(eventID)")
+                    }
                 } else {
                     viewModel.appStorage.addAutoFollow(eventID)
                     viewModel.preCacheBadges(homeTeam: homeTeam, awayTeam: awayTeam)
+                    if viewModel.appStorage.debugMode {
+                        AutoFollowLogger.shared.log("Auto-follow added: \(eventID)")
+                    }
                 }
+                #if os(iOS)
                 viewModel.sendAutoFollowRegistration()
+                #endif
             } label: {
                 if isAutoFollowing {
                     Label("Auto-Following", systemImage: "clock.badge.fill")

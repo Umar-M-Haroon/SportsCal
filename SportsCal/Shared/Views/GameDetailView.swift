@@ -296,7 +296,9 @@ struct GameDetailView: View {
                     viewModel.appStorage.addAutoFollow(game.idEvent!)
                     viewModel.preCacheBadges(homeTeam: homeTeam, awayTeam: awayTeam)
                 }
+                #if os(iOS)
                 viewModel.sendAutoFollowRegistration()
+                #endif
             } label: {
                 VStack(spacing: 4) {
                     Image(systemName: isFollowing ? "clock.badge.fill" : "clock.badge")
