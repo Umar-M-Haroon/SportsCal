@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SportsCal Admin Dashboard</title>
+</head>
+<body>
+    <div id="app">
+        <header class="header">
+            <h1>SportsCal Admin Dashboard</h1>
+            <div id="connection-status" class="status-indicator"></div>
+        </header>
+
+        <nav class="nav">
+            <button class="nav-btn active" data-view="health">Health Monitor</button>
+            <button class="nav-btn" data-view="live">Live Games</button>
+            <button class="nav-btn" data-view="leagues">League Explorer</button>
+            <button class="nav-btn" data-view="gaps">Data Gaps</button>
+            <button class="nav-btn" data-view="redis">Redis Viewer</button>
+            <button class="nav-btn" data-view="teams">Teams</button>
+            <button class="nav-btn" data-view="debug">Debug Tools</button>
+            <button class="nav-btn" data-view="server">Server</button>
+        </nav>
+
+        <main class="main-content" id="main-content">
+            <div class="loading">Loading...</div>
+        </main>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
