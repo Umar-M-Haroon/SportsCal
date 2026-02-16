@@ -85,6 +85,18 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
         try await context.application.redis.setex(RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: isDebug), toJSON: newResult, expirationInSeconds: 60 * 30)
         try await context.application.redis.set(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug), toJSON: newResult)
+
+        // Merge ESPN data into cached schedule so /schedules reflects live scores
+        if let newResult {
+            let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
+            if let schedule = try? await context.application.redis.get(scheduleKey, asJSON: LiveScore.self) {
+                let updated = mergeESPNIntoSchedule(schedule: schedule, espn: newResult)
+                if updated != schedule {
+                    try? await context.application.redis.set(scheduleKey, toJSON: updated)
+                    Self.logger.info("Schedule updated with ESPN live data")
+                }
+            }
+        }
     }
 
     /// Detects newly started games and sends push-to-start APNS notifications
@@ -285,6 +297,127 @@ struct ESPNFetchJob: AsyncScheduledJob {
         )
     }
     
+    // MARK: - Schedule Merge
+
+    /// Merges ESPN live data into the TheSportsDB-sourced schedule, updating scores/statuses
+    /// while preserving TheSportsDB identifiers and scheduled start times.
+    private func mergeESPNIntoSchedule(schedule: LiveScore, espn: LiveScore) -> LiveScore {
+        LiveScore(
+            nba: mergeSportEvents(schedule: schedule.nba, espn: espn.nba),
+            mlb: mergeSportEvents(schedule: schedule.mlb, espn: espn.mlb),
+            soccer: mergeSportEvents(schedule: schedule.soccer, espn: espn.soccer),
+            nfl: mergeSportEvents(schedule: schedule.nfl, espn: espn.nfl),
+            nhl: mergeSportEvents(schedule: schedule.nhl, espn: espn.nhl),
+            golf: mergeSportEvents(schedule: schedule.golf, espn: espn.golf),
+            tennis: mergeSportEvents(schedule: schedule.tennis, espn: espn.tennis),
+            racing: mergeSportEvents(schedule: schedule.racing, espn: espn.racing)
+        )
+    }
+
+    /// Merges ESPN events into a single sport's schedule events.
+    /// Matches by team IDs + day, falls back to team names + day, or event name for individual sports.
+    private func mergeSportEvents(schedule: LiveEvent?, espn: LiveEvent?) -> LiveEvent? {
+        guard let schedule else { return nil }
+        guard let espn, !espn.events.isEmpty else { return schedule }
+
+        // Build ESPN lookup dictionaries
+        // Key: (lowercased homeTeamID, lowercased awayTeamID, dayString)
+        var espnByTeamIDs: [String: Game] = [:]
+        // Key: (lowercased homeTeamName, lowercased awayTeamName, dayString)
+        var espnByTeamNames: [String: Game] = [:]
+        // Key: lowercased event/tournament name (for individual sports)
+        var espnByEventName: [String: Game] = [:]
+
+        for game in espn.events {
+            let day = dayString(from: game)
+
+            if let homeID = game.idHomeTeam, let awayID = game.idAwayTeam,
+               !homeID.isEmpty, !awayID.isEmpty {
+                let key = "\(homeID.lowercased())|\(awayID.lowercased())|\(day)"
+                espnByTeamIDs[key] = game
+            }
+
+            let nameKey = "\(game.strHomeTeam.lowercased())|\(game.strAwayTeam.lowercased())|\(day)"
+            espnByTeamNames[nameKey] = game
+
+            if game.isIndividualSport {
+                espnByEventName[game.strHomeTeam.lowercased()] = game
+            }
+        }
+
+        let merged = schedule.events.map { scheduleGame -> Game in
+            let day = dayString(from: scheduleGame)
+            var espnMatch: Game?
+
+            // Primary: match by team IDs + day
+            if let homeID = scheduleGame.idHomeTeam, let awayID = scheduleGame.idAwayTeam,
+               !homeID.isEmpty, !awayID.isEmpty {
+                let key = "\(homeID.lowercased())|\(awayID.lowercased())|\(day)"
+                espnMatch = espnByTeamIDs[key]
+            }
+
+            // Fallback: match by team names + day
+            if espnMatch == nil {
+                let nameKey = "\(scheduleGame.strHomeTeam.lowercased())|\(scheduleGame.strAwayTeam.lowercased())|\(day)"
+                espnMatch = espnByTeamNames[nameKey]
+            }
+
+            // Individual sports: match by event/tournament name
+            if espnMatch == nil && scheduleGame.isIndividualSport {
+                espnMatch = espnByEventName[scheduleGame.strHomeTeam.lowercased()]
+            }
+
+            guard let espnGame = espnMatch else { return scheduleGame }
+
+            // Merge: ESPN dynamic fields onto schedule identity fields
+            return Game(
+                idLiveScore: scheduleGame.idLiveScore,
+                idEvent: scheduleGame.idEvent,
+                strSport: nil,
+                idLeague: scheduleGame.idLeague,
+                strLeague: nil,
+                idHomeTeam: scheduleGame.idHomeTeam,
+                idAwayTeam: scheduleGame.idAwayTeam,
+                strHomeTeam: scheduleGame.strHomeTeam,
+                strAwayTeam: scheduleGame.strAwayTeam,
+                strHomeTeamBadge: espnGame.strHomeTeamBadge ?? scheduleGame.strHomeTeamBadge,
+                strAwayTeamBadge: espnGame.strAwayTeamBadge ?? scheduleGame.strAwayTeamBadge,
+                intHomeScore: espnGame.intHomeScore ?? scheduleGame.intHomeScore,
+                intAwayScore: espnGame.intAwayScore ?? scheduleGame.intAwayScore,
+                strStatus: espnGame.strStatus ?? scheduleGame.strStatus,
+                strProgress: espnGame.strProgress ?? scheduleGame.strProgress,
+                strTimestamp: scheduleGame.strTimestamp,
+                lastPlay: espnGame.lastPlay ?? scheduleGame.lastPlay,
+                homeLinescores: espnGame.homeLinescores ?? scheduleGame.homeLinescores,
+                awayLinescores: espnGame.awayLinescores ?? scheduleGame.awayLinescores,
+                homeLeaders: espnGame.homeLeaders ?? scheduleGame.homeLeaders,
+                awayLeaders: espnGame.awayLeaders ?? scheduleGame.awayLeaders,
+                isCompleted: espnGame.isCompleted ?? scheduleGame.isCompleted,
+                isoDate: scheduleGame.isoDate,
+                leaderboardEntries: espnGame.leaderboardEntries ?? scheduleGame.leaderboardEntries,
+                sessions: espnGame.sessions ?? scheduleGame.sessions,
+                venueName: scheduleGame.venueName ?? espnGame.venueName
+            )
+        }
+
+        return LiveEvent(events: merged)
+    }
+
+    /// Extracts a "YYYY-MM-DD" day string from a Game for same-day matching.
+    private func dayString(from game: Game) -> String {
+        if let date = game.isoDate {
+            let df = DateFormatter()
+            df.dateFormat = "yyyy-MM-dd"
+            df.timeZone = TimeZone(secondsFromGMT: 0)
+            return df.string(from: date)
+        }
+        // Fallback: extract from strTimestamp prefix
+        if let ts = game.strTimestamp, ts.count >= 10 {
+            return String(ts.prefix(10))
+        }
+        return ""
+    }
+
     func returnUpdatedEvents(events: [Game], espnEvents: [Game]) -> LiveEvent {
         let newEvents: [Game] = espnEvents.compactMap { event in
             if let foundEvent = events.first(where: {$0.strHomeTeam == event.strHomeTeam && $0.strAwayTeam == event.strAwayTeam}) {
