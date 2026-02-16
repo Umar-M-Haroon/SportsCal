@@ -59,13 +59,12 @@ struct ContentView: View {
 
     @Environment(GameViewModel.self) private var viewModel
 
-    @State var isListLayout: Bool = true
     @State var calendarShowFavoritesOnly: Bool = false
     @State private var selectedTab: Int = 0
     var body: some View {
         TabView(selection: $selectedTab) {
             NavigationStack {
-                TodayPage(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert)
+                DayPage(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert)
                     .environment(viewModel)
                     .environment(storage)
                     .environment(favorites)
@@ -73,22 +72,9 @@ struct ContentView: View {
                     .toolbar { settingsToolbarItem }
             }
             .tabItem {
-                Label("Today", systemImage: "clock.fill")
+                Label("Games", systemImage: "sportscourt")
             }
             .tag(0)
-
-            NavigationStack {
-                ListPage(shouldShowSportsCalProAlert: shouldShowSportsCalProAlert, shouldShowSettings: shouldShowSettings)
-                    .environment(viewModel)
-                    .environment(storage)
-                    .environment(favorites)
-                    .navigationTitle("SportsCal")
-                    .toolbar { settingsToolbarItem }
-            }
-            .tabItem {
-                Label("Upcoming", systemImage: "sportscourt")
-            }
-            .tag(1)
 
             #if os(iOS)
             NavigationStack {
@@ -112,7 +98,7 @@ struct ContentView: View {
             .tabItem {
                 Label("Calendar", systemImage: "calendar")
             }
-            .tag(2)
+            .tag(1)
             #endif
 
             NavigationStack {
@@ -126,7 +112,11 @@ struct ContentView: View {
             .tabItem {
                 Label("Browse", systemImage: "rectangle.grid.2x2")
             }
-            .tag(3)
+            #if os(iOS)
+            .tag(2)
+            #else
+            .tag(1)
+            #endif
         }
         .refreshable(action: {
             viewModel.getInfo()
@@ -169,6 +159,7 @@ struct ContentView: View {
         .onChange(of: scenePhase) { oldPhase, newPhase in
             if newPhase == .active {
                 viewModel.getInfo()
+                viewModel.ensureWebSocketConnected()
             }
         }
         .onChange(of: storage.hiddenCompetitions) { _, _ in

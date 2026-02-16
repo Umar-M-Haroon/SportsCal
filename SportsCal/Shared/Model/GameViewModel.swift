@@ -70,9 +70,12 @@ public class GameViewModel: NSObject {
     var gamesDict: [SportType: [Game]] = [:]
     
     private var webSocketTask: URLSessionWebSocketTask?
+    private var webSocketSession: URLSession?
     private var gameCache: Cache<String, LiveScore>?
     private var teamCache: Cache<String, [Team]>?
     private var liveCache: Cache<String, LiveScore>?
+    /// Whether a network fetch is currently in progress (visible to views for loading state).
+    var isFetching: Bool { networkFetchTask != nil }
     private var networkFetchTask: Task<Void, Never>?
     private var wsReconnectAttempts = 0
     private static let maxWSReconnectAttempts = 5
@@ -439,18 +442,23 @@ public class GameViewModel: NSObject {
 
         // Call super.init() after all stored properties are initialized
         super.init()
-        
+
+        self.webSocketSession = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+
+        var hasCachedData = false
         if let cacheGames = gameCache?.value(for: "games") {
             setGames(result: cacheGames)
+            hasCachedData = true
         }
         if let cacheTeams = teamCache?.value(for: "teams") {
             self.teams = cacheTeams
             buildTeamLookupCaches()
         }
-//        if let liveInfo = liveCache?.value(for: "live") {
-//            self.currentLiveInfo = liveInfo
-//        }
-        getInfo()
+        // If we loaded cached games, show them immediately instead of a loading spinner
+        if hasCachedData {
+            self.networkState = .loaded
+        }
+        getInfo(backgroundRefresh: hasCachedData)
         
         // Note: With @Observable, changes to appStorage properties are automatically tracked
         // No need for manual observation like the old objectWillChange.sink pattern
@@ -539,10 +547,16 @@ public class GameViewModel: NSObject {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         wsReconnectAttempts = 0
-        webSocketTask = NetworkHandler.connectWebSocketForLive(debug: appStorage.debugMode)
+        webSocketTask = NetworkHandler.connectWebSocketForLive(session: webSocketSession!, debug: appStorage.debugMode)
         webSocketTask?.resume()
-        Task {
-            try await receiveMessages()
+        Task { @MainActor [weak self] in
+            do {
+                try await self?.receiveMessages()
+            } catch {
+                AppLogger.networking.error("WebSocket receive error: \(error.localizedDescription)")
+                self?.webSocketTask = nil
+                self?.reconnectWebSocketOnly()
+            }
         }
     }
 
@@ -563,10 +577,16 @@ public class GameViewModel: NSObject {
             self?.restartTimer = nil
             self?.webSocketTask?.cancel(with: .goingAway, reason: nil)
             self?.webSocketTask = nil
-            self?.webSocketTask = NetworkHandler.connectWebSocketForLive(debug: self?.appStorage.debugMode ?? false)
+            self?.webSocketTask = NetworkHandler.connectWebSocketForLive(session: self?.webSocketSession, debug: self?.appStorage.debugMode ?? false)
             self?.webSocketTask?.resume()
             Task { @MainActor [weak self] in
-                try await self?.receiveMessages()
+                do {
+                    try await self?.receiveMessages()
+                } catch {
+                    AppLogger.networking.error("WebSocket receive error (reconnect): \(error.localizedDescription)")
+                    self?.webSocketTask = nil
+                    self?.reconnectWebSocketOnly()
+                }
             }
         }
     }
@@ -624,7 +644,8 @@ public class GameViewModel: NSObject {
     
     @objc
     private func getData() async {
-        // Each handler catches its own errors so a single failure doesn't trigger a full retry
+        // Phase 1: Fetch teams + live snapshot first (fast), then connect WebSocket immediately.
+        // This ensures live games appear without waiting for full schedule fetch.
         await withTaskGroup(of: Void.self) { group in
             group.addTask {
                 do { try await self.handleTeams() }
@@ -634,13 +655,16 @@ public class GameViewModel: NSObject {
                 do { try await self.handleLiveGames() }
                 catch { AppLogger.networking.error("handleLiveGames failed: \(error.localizedDescription)") }
             }
-            group.addTask {
-                do { try await self.handleGames() }
-                catch { AppLogger.networking.error("handleGames failed: \(error.localizedDescription)") }
-            }
             await group.waitForAll()
         }
+        // Re-run after both teams and live data are available so live events render with team badges
+        updateLiveData()
+        // Connect WebSocket now — don't wait for schedule fetch
         handleLiveWebsocket()
+
+        // Phase 2: Fetch full schedules (slower, per-sport)
+        do { try await self.handleGames() }
+        catch { AppLogger.networking.error("handleGames failed: \(error.localizedDescription)") }
         #if canImport(ActivityKit) && os(iOS)
         if #available(iOS 16.1, *) {
             registerPushToStartIfNeeded()
@@ -996,6 +1020,99 @@ public class GameViewModel: NSObject {
         return makeGameWithTeams(game)
     }
 
+    // MARK: - Per-Date Helpers (used by DayPage)
+
+    /// Returns all sport-preference-filtered games for a specific date.
+    /// Unlike sortedGamesWithTeams, this does NOT apply time-of-day filtering,
+    /// so morning games remain visible in the afternoon.
+    func gamesWithTeams(for date: Date) -> [GameWithTeams] {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: date)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return [] }
+
+        let userPrefGames = getGamesFromUserPreferences()
+        return userPrefGames
+            .filter { game in
+                guard let gameDate = game.standardDate else { return false }
+                return gameDate >= start && gameDate < end
+            }
+            .sorted { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
+            .compactMap { makeGameWithTeams($0) }
+    }
+
+    /// Returns favorite games with teams for a specific date.
+    func favoriteGamesWithTeams(for date: Date) -> [GameWithTeams] {
+        gamesWithTeams(for: date).filter { favorites.contains($0.game) }
+    }
+
+    /// Returns non-favorite games grouped by sport for a specific date.
+    func otherGamesBySport(for date: Date) -> [SportType: [GameWithTeams]] {
+        let nonFavorites = gamesWithTeams(for: date).filter { !favorites.contains($0.game) }
+        var grouped: [SportType: [GameWithTeams]] = [:]
+        for gwt in nonFavorites {
+            guard let leagueString = gwt.game.idLeague,
+                  let intLeague = Int(leagueString),
+                  let league = Leagues(rawValue: intLeague) else { continue }
+            let sport = SportType(league: league)
+            grouped[sport, default: []].append(gwt)
+        }
+        return grouped
+    }
+
+    /// Returns the total number of games for a date across ALL sports (ignoring sport filter preferences).
+    func totalGameCount(for date: Date) -> Int {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: date)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return 0 }
+        return (totalGames ?? []).filter { game in
+            guard let gameDate = game.standardDate else { return false }
+            return gameDate >= start && gameDate < end
+        }.count
+    }
+
+    /// Returns games for a date that exist in totalGames but NOT in filteredGames, grouped by sport.
+    /// These are the games hidden by sport filter preferences.
+    func hiddenGamesBySport(for date: Date) -> [SportType: [GameWithTeams]] {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: date)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return [:] }
+
+        let filteredIDs = Set((filteredGames ?? []).compactMap(\.idEvent))
+
+        let hiddenGames = (totalGames ?? []).filter { game in
+            guard let gameDate = game.standardDate else { return false }
+            guard gameDate >= start && gameDate < end else { return false }
+            // Exclude games already shown (in filteredGames)
+            if let eventID = game.idEvent, filteredIDs.contains(eventID) { return false }
+            return true
+        }
+
+        var grouped: [SportType: [GameWithTeams]] = [:]
+        for game in hiddenGames {
+            guard let leagueString = game.idLeague,
+                  let intLeague = Int(leagueString),
+                  let league = Leagues(rawValue: intLeague) else { continue }
+            let sport = SportType(league: league)
+            if let gwt = makeGameWithTeams(game) {
+                grouped[sport, default: []].append(gwt)
+            }
+        }
+        return grouped
+    }
+
+    /// Returns the set of dates that have sport-preference-filtered games.
+    /// Uses getGamesFromUserPreferences() so past games within a day are included.
+    func datesWithGames() -> Set<DateComponents> {
+        let calendar = Calendar.current
+        var dates = Set<DateComponents>()
+        for game in getGamesFromUserPreferences() {
+            guard let gameDate = game.standardDate else { continue }
+            let dc = calendar.dateComponents([.day, .month, .year], from: gameDate)
+            dates.insert(dc)
+        }
+        return dates
+    }
+
     /// Returns live events for a specific sport regardless of user preferences
     func liveEventsForSport(_ sport: SportType) -> [Game] {
         let events: [Game]?
@@ -1100,6 +1217,12 @@ public class GameViewModel: NSObject {
         networkFetchTask = nil
         getInfo()
     }
+
+    /// Ensures the WebSocket is connected. Call on foreground resume.
+    func ensureWebSocketConnected() {
+        guard webSocketTask == nil else { return }
+        handleLiveWebsocket()
+    }
     
     func handleSearch(searchString: String?) {
         if let searchString, isValidSearchString(searchString: searchString) {
@@ -1120,10 +1243,13 @@ public class GameViewModel: NSObject {
     func isValidSearchString(searchString: String) -> Bool {
         return !searchString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
-    func getInfo() {
+    func getInfo(backgroundRefresh: Bool = false) {
         // Guard against concurrent fetches — don't start a new one if already in progress
         guard networkFetchTask == nil else { return }
-        networkState = .loading
+        // Only show loading spinner if we have no cached data to display
+        if !backgroundRefresh {
+            networkState = .loading
+        }
         restartTimer?.invalidate()
         restartTimer = nil
         networkFetchTask = Task {
@@ -1142,7 +1268,7 @@ public class GameViewModel: NSObject {
     }
 }
 
-extension GameViewModel: URLSessionWebSocketDelegate {
+extension GameViewModel: @preconcurrency URLSessionWebSocketDelegate {
     public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
         self.webSocketTask = nil
         // Only reconnect WebSocket — don't refetch all data

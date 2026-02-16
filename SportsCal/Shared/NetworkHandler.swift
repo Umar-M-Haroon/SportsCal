@@ -150,7 +150,7 @@ struct NetworkHandler {
         )
     }
     
-    static func connectWebSocketForLive(debug: Bool = false) -> URLSessionWebSocketTask {
+    static func connectWebSocketForLive(session: URLSession? = nil, debug: Bool = false) -> URLSessionWebSocketTask {
         var urlString: String
         if let local = localServerHost {
             urlString = "ws://\(local)/v2025/"
@@ -164,7 +164,7 @@ struct NetworkHandler {
         let urlPath = ProcessInfo.processInfo.environment["mock-live"] != nil ? "livedebug" : "ws"
         urlString += urlPath
         let url = URL(string: urlString)!
-        let task = URLSession.shared.webSocketTask(with: url)
+        let task = (session ?? URLSession.shared).webSocketTask(with: url)
         return task
     }
 
@@ -205,9 +205,51 @@ struct NetworkHandler {
         }
     }
 
+    /// Base URL for admin API endpoints (bypasses /v2025 versioning)
+    private static func adminBaseURL(debug: Bool) -> String {
+        if let local = localServerHost {
+            return "http://\(local)"
+        }
+        if debug {
+            return "https://debug.sportscal.komodollc.com"
+        }
+        return "https://sportscal.komodollc.com"
+    }
+
+    struct DeviceRegistrationStatus: Decodable {
+        let registered: Bool
+        let favorites: [String]
+        let eventIDs: [String]
+        let sentNotifications: [String]
+        let apnsConfigured: Bool
+    }
+
+    static func getDeviceRegistrationStatus(tokenPrefix: String, debug: Bool = false) async throws -> DeviceRegistrationStatus {
+        let urlString = "\(adminBaseURL(debug: debug))/api/admin/push-to-start/device-status?tokenPrefix=\(tokenPrefix)"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+        let (data, _) = try await URLSession.shared.data(from: url)
+        return try JSONDecoder().decode(DeviceRegistrationStatus.self, from: data)
+    }
+
     static func getImageFor(url: String, size: ImageSize) async throws -> Data {
         let url = URL(string: url)!
         let (data, _) = try await URLSession.shared.data(from: url)
         return data
+    }
+
+    /// Triggers a debug push-to-start notification from the local dev server.
+    static func triggerDebugPushToStart(eventID: String, homeTeam: String, awayTeam: String, debug: Bool = true) async throws {
+        let urlString = "\(baseURL(debug: debug))/debug/trigger-push-to-start"
+        guard let url = URL(string: urlString) else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: String] = [
+            "eventID": eventID,
+            "homeTeam": homeTeam,
+            "awayTeam": awayTeam
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (_, _) = try await URLSession.shared.data(for: request)
     }
 }

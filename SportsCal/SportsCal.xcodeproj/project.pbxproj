@@ -1,0 +1,1493 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 55;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0BDE4C1B10FC635D0FB73FEE /* SportsCalModel in Frameworks */ = {isa = PBXBuildFile; productRef = 178724959E674913D3EAB4CD /* SportsCalModel */; };
+		1D1239A026D0D180001B503E /* LocalNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D12399F26D0D180001B503E /* LocalNotificationManager.swift */; };
+		1D15BD562A57C71800711F92 /* ListDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D15BD552A57C71800711F92 /* ListDetailView.swift */; };
+		1D15BD5A2F09A00000711F92 /* SportChipFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D15BD592F09A00000711F92 /* SportChipFilterView.swift */; };
+		1D1DAB8F29CDAA5A005434D6 /* LiveEventsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D1DAB8E29CDAA5A005434D6 /* LiveEventsView.swift */; };
+		1D1DAB9929CDB50D005434D6 /* SportsCalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D1DAB9829CDB50D005434D6 /* SportsCalTests.swift */; };
+		1D1DABC929D18D62005434D6 /* RectangularWidgetTeamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D1DABC729D18D46005434D6 /* RectangularWidgetTeamView.swift */; };
+		1D20B3362927739C00956B14 /* Date+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */; };
+		1D20B338292893DD00956B14 /* GameManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B337292893DD00956B14 /* GameManager.swift */; };
+		1D20B339292893DD00956B14 /* GameManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B337292893DD00956B14 /* GameManager.swift */; };
+		1D20B33B2928C45A00956B14 /* PickSportPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B33A2928C45A00956B14 /* PickSportPage.swift */; };
+		1D20B33D2929D8C900956B14 /* MiniSubscriptionPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B33C2929D8C900956B14 /* MiniSubscriptionPage.swift */; };
+		1D20B33F292A115200956B14 /* SubscriptionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20B33E292A115200956B14 /* SubscriptionSheet.swift */; };
+		1D3DD52E27FBEF310086DD9E /* CompetitionPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3DD52D27FBEF310086DD9E /* CompetitionPage.swift */; };
+		1D3DD53027FBEF400086DD9E /* CompetitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3DD52F27FBEF400086DD9E /* CompetitionView.swift */; };
+		1D40808429091A2000729FFE /* UpcomingGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D40808329091A2000729FFE /* UpcomingGameView.swift */; };
+		1D40808C290B7CED00729FFE /* IndividualTeamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D40808B290B7CED00729FFE /* IndividualTeamView.swift */; };
+		1D40808E290B856C00729FFE /* CalendarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D40808D290B856C00729FFE /* CalendarButton.swift */; };
+		1D408090290B862700729FFE /* NotifyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D40808F290B862700729FFE /* NotifyButton.swift */; };
+		1D408091290B9E3700729FFE /* Teams+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA4343329079D3D0010364F /* Teams+Extensions.swift */; };
+		1D408093290BA23100729FFE /* LiveActivityButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D408092290BA23100729FFE /* LiveActivityButton.swift */; };
+		1D408098290BAB8600729FFE /* LiveSportActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D408096290BAA6A00729FFE /* LiveSportActivityWidget.swift */; };
+		1D408099290BAB9000729FFE /* LiveSportActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D408094290BA96A00729FFE /* LiveSportActivityAttributes.swift */; };
+		1D40809A290BAC4F00729FFE /* LiveSportActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D408094290BA96A00729FFE /* LiveSportActivityAttributes.swift */; };
+		1D40809B290BAFE100729FFE /* IndividualTeamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D40808B290B7CED00729FFE /* IndividualTeamView.swift */; };
+		1D4080A0290C803400729FFE /* LiveAnimatedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DD35DB52907B6AE009A2113 /* LiveAnimatedView.swift */; };
+		1D486B0028A834470024BC32 /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D486AFF28A834470024BC32 /* GameViewModel.swift */; };
+		1D5C463126C9C5F900BA827B /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463026C9C5F900BA827B /* SubscriptionManager.swift */; };
+		1D5C463426C9F10400BA827B /* Confetti.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463326C9F10400BA827B /* Confetti.swift */; };
+		1D5C463726C9FB5000BA827B /* SettingsData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463626C9FB5000BA827B /* SettingsData.swift */; };
+		1D5C463A26C9FD0800BA827B /* OnboardingPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463926C9FD0800BA827B /* OnboardingPage.swift */; };
+		1D619F5B2A286A01006E889E /* ModelError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D619F5A2A286A01006E889E /* ModelError.swift */; };
+		1D619F5C2A286A01006E889E /* ModelError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D619F5A2A286A01006E889E /* ModelError.swift */; };
+		1D63E71926A9494800FC3DE6 /* Date+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */; };
+		1D77F64B297CFDCC0023E6DB /* SportsTint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D77F64A297CFDCC0023E6DB /* SportsTint.swift */; };
+		1D77F64C297CFDCC0023E6DB /* SportsTint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D77F64A297CFDCC0023E6DB /* SportsTint.swift */; };
+		1D79FFC026C9B3480041A673 /* SubscriptionPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D79FFBF26C9B3480041A673 /* SubscriptionPage.swift */; };
+		1D7D46AA29EA9F9A00179018 /* CalendarViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7D46A929EA9F9A00179018 /* CalendarViewRepresentable.swift */; };
+		1DDAYCHIP0002000000000002 /* DayChipStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DDAYCHIP0001000000000001 /* DayChipStrip.swift */; };
+		1D7D46AE29EAAE1700179018 /* DecorationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7D46AD29EAAE1700179018 /* DecorationView.swift */; };
+		1D7D46B029EBC3BF00179018 /* DetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7D46AF29EBC3BF00179018 /* DetailView.swift */; };
+		1D7DC236270192610086A6D5 /* NetworkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76E1268EFC0500D217A1 /* NetworkHandler.swift */; };
+		1D8324302F38101D00AED413 /* TournamentScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D83242F2F38101D00AED413 /* TournamentScoreView.swift */; };
+		1D8352D52905532D00E60D7F /* DateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8352D42905532D00E60D7F /* DateFormatters.swift */; };
+		1D8352D72905532D00E60D7F /* DateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8352D42905532D00E60D7F /* DateFormatters.swift */; };
+		1D8352DB29067CBB00E60D7F /* UserDefaultStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1FD932741EFA800783E62 /* UserDefaultStorage.swift */; };
+		1D90DA8827FEA9F6007C570A /* DummySubscriptionOptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */; };
+		1D981BDB2F37CA1E00401880 /* SportsCalModel in Frameworks */ = {isa = PBXBuildFile; productRef = 1D981BDA2F37CA1E00401880 /* SportsCalModel */; };
+		1D9D2CF027702FFB00735AF0 /* FavoriteButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9D2CEF27702FFB00735AF0 /* FavoriteButtonView.swift */; };
+		1DA4343429079D3D0010364F /* Teams+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA4343329079D3D0010364F /* Teams+Extensions.swift */; };
+		1DA434382907A48C0010364F /* GameScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA434372907A48C0010364F /* GameScoreView.swift */; };
+		1DB93DC42907659300311FAA /* Favorites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1FD912740AECB00783E62 /* Favorites.swift */; };
+		1DBEB4162F05F6340025B04C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBEB4152F05F6340025B04C /* Constants.swift */; };
+		1DBEB4172F05F6340025B04C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBEB4152F05F6340025B04C /* Constants.swift */; };
+		1DBEB41A2F05F8640025B04C /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 1DBEB4192F05F8640025B04C /* Sentry */; };
+		1DBEB41C2F05F86D0025B04C /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 1DBEB41B2F05F86D0025B04C /* Sentry */; };
+		1DDAYPAGE0002000000000002 /* DayPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DDAYPAGE0001000000000001 /* DayPage.swift */; };
+		1DC2651526F3CCF1005539C1 /* SettingsData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463626C9FB5000BA827B /* SettingsData.swift */; };
+		1DC8774029B8326100895C22 /* Collections in Frameworks */ = {isa = PBXBuildFile; productRef = 1DC8773F29B8326100895C22 /* Collections */; };
+		1DC8774229B8326100895C22 /* OrderedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 1DC8774129B8326100895C22 /* OrderedCollections */; };
+		1DC8774429B8332400895C22 /* OrderedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 1DC8774329B8332400895C22 /* OrderedCollections */; };
+		1DC8774629B834A900895C22 /* FavoriteGamesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC8774529B834A900895C22 /* FavoriteGamesView.swift */; };
+		1DCEBF0526C045B200913A94 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DCEBF0426C045B200913A94 /* SettingsView.swift */; };
+		1DD35DB62907B6AE009A2113 /* LiveAnimatedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DD35DB52907B6AE009A2113 /* LiveAnimatedView.swift */; };
+		1DE0402D292D713800073494 /* Cache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE0402C292D713800073494 /* Cache.swift */; };
+		1DE0402E292D713800073494 /* Cache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE0402C292D713800073494 /* Cache.swift */; };
+		1DE0404B2937470000073494 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE04049293746F500073494 /* Provider.swift */; };
+		1DE16FF726F29D4A007B1B57 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DE16FF626F29D4A007B1B57 /* WidgetKit.framework */; platformFilter = maccatalyst; };
+		1DE16FF926F29D4A007B1B57 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DE16FF826F29D4A007B1B57 /* SwiftUI.framework */; platformFilter = maccatalyst; };
+		1DE16FFC26F29D4A007B1B57 /* SportsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE16FFB26F29D4A007B1B57 /* SportsWidget.swift */; };
+		1DE16FFF26F29D4B007B1B57 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1DE16FFE26F29D4B007B1B57 /* Assets.xcassets */; };
+		1DE1700126F29D4B007B1B57 /* SportsWidget.intentdefinition in Sources */ = {isa = PBXBuildFile; fileRef = 1DE16FFD26F29D4A007B1B57 /* SportsWidget.intentdefinition */; };
+		1DE1700226F29D4B007B1B57 /* SportsWidget.intentdefinition in Sources */ = {isa = PBXBuildFile; fileRef = 1DE16FFD26F29D4A007B1B57 /* SportsWidget.intentdefinition */; };
+		1DE1F0BD2940590000741B19 /* LiveActivityStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0BC2940590000741B19 /* LiveActivityStatusView.swift */; };
+		1DE1F0BF2941B94F00741B19 /* SportsWidgetLargeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0BE2941B94F00741B19 /* SportsWidgetLargeView.swift */; };
+		1DE1F0C12941B96C00741B19 /* SportsWidgetCircularView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0C02941B96C00741B19 /* SportsWidgetCircularView.swift */; };
+		1DE1F0C32941B98100741B19 /* SportsWidgetRectangularView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0C22941B98100741B19 /* SportsWidgetRectangularView.swift */; };
+		1DE1F0C52941B99A00741B19 /* SportsWidgetInlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0C42941B99A00741B19 /* SportsWidgetInlineView.swift */; };
+		1DE1F0C72941B9B300741B19 /* SportsWidgetSmallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0C62941B9B300741B19 /* SportsWidgetSmallView.swift */; };
+		1DE1F0C92941B9D100741B19 /* SportsWidgetMediumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0C82941B9D100741B19 /* SportsWidgetMediumView.swift */; };
+		1DE1F0E02941D5BD00741B19 /* Intents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DE0401F292D633300073494 /* Intents.framework */; };
+		1DE1F0E32941D5BD00741B19 /* IntentHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0E22941D5BD00741B19 /* IntentHandler.swift */; };
+		1DE1F0E72941D5BD00741B19 /* SoccerLeaguesWidgetIntentExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DE1F0DF2941D5BD00741B19 /* SoccerLeaguesWidgetIntentExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1DE1F0EC2941D60000741B19 /* SportsWidget.intentdefinition in Sources */ = {isa = PBXBuildFile; fileRef = 1DE16FFD26F29D4A007B1B57 /* SportsWidget.intentdefinition */; };
+		1DE4EBB12F3AB02300CAC2E8 /* TennisMatchScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB02F3AB02300CAC2E8 /* TennisMatchScoreView.swift */; };
+		1DE4EBB32F3AB03300CAC2E8 /* TennisMatchDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB22F3AB03300CAC2E8 /* TennisMatchDetailView.swift */; };
+		1DE4EBB62F3ACECB00CAC2E8 /* RaceScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB52F3ACECB00CAC2E8 /* RaceScoreView.swift */; };
+		1DE4EBB72F3ACECB00CAC2E8 /* RaceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB42F3ACECB00CAC2E8 /* RaceDetailView.swift */; };
+		1DE4EBB92F3AE86000CAC2E8 /* CalendarPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB82F3AE86000CAC2E8 /* CalendarPage.swift */; };
+		1DE4EBBB2F3AF17800CAC2E8 /* SportPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBBA2F3AF17800CAC2E8 /* SportPickerSheet.swift */; };
+		1DE4EBBD2F3C7EBD00CAC2E8 /* BrowsePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBBC2F3C7EBD00CAC2E8 /* BrowsePage.swift */; };
+		1DE897CB2F3DB6FA006657FF /* LocalServerDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897CA2F3DB6FA006657FF /* LocalServerDiscovery.swift */; };
+		1DE897CC2F3DB6FA006657FF /* LocalServerDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897CA2F3DB6FA006657FF /* LocalServerDiscovery.swift */; };
+		1DE897CE2F3DBE55006657FF /* AutoFollowButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897CD2F3DBE55006657FF /* AutoFollowButton.swift */; };
+		1DE897D02F3DBE80006657FF /* SearchToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897CF2F3DBE80006657FF /* SearchToken.swift */; };
+		1DE897D12F3DBE80006657FF /* SearchToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897CF2F3DBE80006657FF /* SearchToken.swift */; };
+		1DE897D32F3DC6B9006657FF /* HeadshotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897D22F3DC6B9006657FF /* HeadshotView.swift */; };
+		1DE897D52F403951006657FF /* AutoFollowLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897D42F403951006657FF /* AutoFollowLogger.swift */; };
+		1DE897D62F403951006657FF /* AutoFollowLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897D42F403951006657FF /* AutoFollowLogger.swift */; };
+		1DE897D82F403960006657FF /* DebugGameFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897D72F403960006657FF /* DebugGameFactory.swift */; };
+		1DE897D92F403960006657FF /* DebugGameFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897D72F403960006657FF /* DebugGameFactory.swift */; };
+		1DE897DB2F403975006657FF /* DebugLiveActivityTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897DA2F403975006657FF /* DebugLiveActivityTestView.swift */; };
+		1DE897DD2F4196D3006657FF /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897DC2F4196D3006657FF /* AppLogger.swift */; };
+		1DE897DE2F4196D3006657FF /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897DC2F4196D3006657FF /* AppLogger.swift */; };
+		1DE94A7C29CD952200BE87D1 /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1DE94A7B29CD952200BE87D1 /* NukeUI */; };
+		1DE94A8029CD960100BE87D1 /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1DE94A7F29CD960100BE87D1 /* NukeUI */; };
+		1DEA4E0129053AB900CD1D8F /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D486AFF28A834470024BC32 /* GameViewModel.swift */; };
+		1DEC76CC268EFB6700D217A1 /* Tests_macOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76CB268EFB6700D217A1 /* Tests_macOS.swift */; };
+		1DEC76CD268EFB6700D217A1 /* SportsCalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76AB268EFB6600D217A1 /* SportsCalApp.swift */; };
+		1DEC76CF268EFB6700D217A1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76AC268EFB6600D217A1 /* ContentView.swift */; };
+		1DEC76D1268EFB6700D217A1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1DEC76AD268EFB6700D217A1 /* Assets.xcassets */; };
+		1DEC76E2268EFC0500D217A1 /* NetworkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76E1268EFC0500D217A1 /* NetworkHandler.swift */; };
+		1DEC7705268F0AF200D217A1 /* NetworkErrors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC7704268F0AF200D217A1 /* NetworkErrors.swift */; };
+		1DEDD0EC26D179F5005ABF93 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEDD0EB26D179F5005ABF93 /* AppDelegate.swift */; };
+		1DEDD0F126D353ED005ABF93 /* CalendarRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */; };
+		1DF1FD922740AECB00783E62 /* Favorites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1FD912740AECB00783E62 /* Favorites.swift */; };
+		1DF1FD942741EFA800783E62 /* UserDefaultStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1FD932741EFA800783E62 /* UserDefaultStorage.swift */; };
+		1DF5C5582713F48500842FDA /* SportsWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DE16FF526F29D4A007B1B57 /* SportsWidgetExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1DFA3D682A4E8B0A007BA22C /* TiledGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFA3D672A4E8B0A007BA22C /* TiledGridView.swift */; };
+		1DFBEE702AEB456100753DE1 /* SubscriptionRequiredView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFBEE6F2AEB456100753DE1 /* SubscriptionRequiredView.swift */; };
+		8A4FD23681DA590FA36AD974 /* GameDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD6F330B4DD18EE38269B549 /* GameDetailView.swift */; };
+		9B1E2F4A2F3810A100C1D2E3 /* TournamentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1E2F492F3810A100C1D2E3 /* TournamentDetailView.swift */; };
+		A0D1A7E54F257DF01B18F213 /* SportsCalModel in Frameworks */ = {isa = PBXBuildFile; productRef = 8EE43B18CA7FF338F5A48D2A /* SportsCalModel */; };
+		AB12CD012F3B000100AABB01 /* SportBrowseSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB12CD002F3B000100AABB01 /* SportBrowseSheet.swift */; };
+		AB12CD032F3B000200AABB02 /* SportBrowseViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB12CD022F3B000200AABB02 /* SportBrowseViewModel.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		1D1DAB9029CDB467005434D6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1DEC76A6268EFB6500D217A1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1DEC76B1268EFB6700D217A1;
+			remoteInfo = "SportsCal (iOS)";
+		};
+		1D1DAB9A29CDB50D005434D6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1DEC76A6268EFB6500D217A1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1DEC76B1268EFB6700D217A1;
+			remoteInfo = "SportsCal (iOS)";
+		};
+		1DE1F0E52941D5BD00741B19 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1DEC76A6268EFB6500D217A1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1DE1F0DE2941D5BD00741B19;
+			remoteInfo = SoccerLeaguesWidgetIntentExtension;
+		};
+		1DF5C5592713F48500842FDA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1DEC76A6268EFB6500D217A1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1DE16FF426F29D4A007B1B57;
+			remoteInfo = SportsWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		1DF5C55B2713F48500842FDA /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				1DE1F0E72941D5BD00741B19 /* SoccerLeaguesWidgetIntentExtension.appex in Embed Foundation Extensions */,
+				1DF5C5582713F48500842FDA /* SportsWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		1D12399F26D0D180001B503E /* LocalNotificationManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocalNotificationManager.swift; sourceTree = "<group>"; };
+		1D15BD552A57C71800711F92 /* ListDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListDetailView.swift; sourceTree = "<group>"; };
+		1D15BD592F09A00000711F92 /* SportChipFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportChipFilterView.swift; sourceTree = "<group>"; };
+		1D1DAB8E29CDAA5A005434D6 /* LiveEventsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveEventsView.swift; sourceTree = "<group>"; };
+		1D1DAB9629CDB50D005434D6 /* SportsCalTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SportsCalTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1D1DAB9829CDB50D005434D6 /* SportsCalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsCalTests.swift; sourceTree = "<group>"; };
+		1D1DABC729D18D46005434D6 /* RectangularWidgetTeamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RectangularWidgetTeamView.swift; sourceTree = "<group>"; };
+		1D20B337292893DD00956B14 /* GameManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameManager.swift; sourceTree = "<group>"; };
+		1D20B33A2928C45A00956B14 /* PickSportPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickSportPage.swift; sourceTree = "<group>"; };
+		1D20B33C2929D8C900956B14 /* MiniSubscriptionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniSubscriptionPage.swift; sourceTree = "<group>"; };
+		1D20B33E292A115200956B14 /* SubscriptionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionSheet.swift; sourceTree = "<group>"; };
+		1D3DD52D27FBEF310086DD9E /* CompetitionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompetitionPage.swift; sourceTree = "<group>"; };
+		1D3DD52F27FBEF400086DD9E /* CompetitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompetitionView.swift; sourceTree = "<group>"; };
+		1D40808329091A2000729FFE /* UpcomingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingGameView.swift; sourceTree = "<group>"; };
+		1D40808B290B7CED00729FFE /* IndividualTeamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndividualTeamView.swift; sourceTree = "<group>"; };
+		1D40808D290B856C00729FFE /* CalendarButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarButton.swift; sourceTree = "<group>"; };
+		1D40808F290B862700729FFE /* NotifyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifyButton.swift; sourceTree = "<group>"; };
+		1D408092290BA23100729FFE /* LiveActivityButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityButton.swift; sourceTree = "<group>"; };
+		1D408094290BA96A00729FFE /* LiveSportActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSportActivityAttributes.swift; sourceTree = "<group>"; };
+		1D408096290BAA6A00729FFE /* LiveSportActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSportActivityWidget.swift; sourceTree = "<group>"; };
+		1D486AFF28A834470024BC32 /* GameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModel.swift; sourceTree = "<group>"; };
+		1D5C463026C9C5F900BA827B /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
+		1D5C463326C9F10400BA827B /* Confetti.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Confetti.swift; sourceTree = "<group>"; };
+		1D5C463626C9FB5000BA827B /* SettingsData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsData.swift; sourceTree = "<group>"; };
+		1D5C463926C9FD0800BA827B /* OnboardingPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPage.swift; sourceTree = "<group>"; };
+		1D619F5A2A286A01006E889E /* ModelError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelError.swift; sourceTree = "<group>"; };
+		1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Extensions.swift"; sourceTree = "<group>"; };
+		1D77F64A297CFDCC0023E6DB /* SportsTint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsTint.swift; sourceTree = "<group>"; };
+		1D79FFBF26C9B3480041A673 /* SubscriptionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionPage.swift; sourceTree = "<group>"; };
+		1D7D46A929EA9F9A00179018 /* CalendarViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewRepresentable.swift; sourceTree = "<group>"; };
+		1DDAYCHIP0001000000000001 /* DayChipStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayChipStrip.swift; sourceTree = "<group>"; };
+		1D7D46AD29EAAE1700179018 /* DecorationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecorationView.swift; sourceTree = "<group>"; };
+		1D7D46AF29EBC3BF00179018 /* DetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailView.swift; sourceTree = "<group>"; };
+		1D83242F2F38101D00AED413 /* TournamentScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TournamentScoreView.swift; sourceTree = "<group>"; };
+		1D8352D42905532D00E60D7F /* DateFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormatters.swift; sourceTree = "<group>"; };
+		1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DummySubscriptionOptionView.swift; sourceTree = "<group>"; };
+		1D981BD92F37CA1E00401880 /* SportsCalModel */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = SportsCalModel; path = ../SportsCalModel; sourceTree = "<group>"; };
+		1D9D2CEF27702FFB00735AF0 /* FavoriteButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteButtonView.swift; sourceTree = "<group>"; };
+		1DA4343329079D3D0010364F /* Teams+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Teams+Extensions.swift"; sourceTree = "<group>"; };
+		1DA434372907A48C0010364F /* GameScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScoreView.swift; sourceTree = "<group>"; };
+		1DBEB4152F05F6340025B04C /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		1DDAYPAGE0001000000000001 /* DayPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPage.swift; sourceTree = "<group>"; };
+		1DC8774529B834A900895C22 /* FavoriteGamesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteGamesView.swift; sourceTree = "<group>"; };
+		1DCEBF0426C045B200913A94 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		1DD35DB52907B6AE009A2113 /* LiveAnimatedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveAnimatedView.swift; sourceTree = "<group>"; };
+		1DE0401F292D633300073494 /* Intents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Intents.framework; path = System/Library/Frameworks/Intents.framework; sourceTree = SDKROOT; };
+		1DE0402C292D713800073494 /* Cache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Cache.swift; sourceTree = "<group>"; };
+		1DE04049293746F500073494 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
+		1DE16FF526F29D4A007B1B57 /* SportsWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SportsWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		1DE16FF626F29D4A007B1B57 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		1DE16FF826F29D4A007B1B57 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		1DE16FFB26F29D4A007B1B57 /* SportsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsWidget.swift; sourceTree = "<group>"; };
+		1DE16FFD26F29D4A007B1B57 /* SportsWidget.intentdefinition */ = {isa = PBXFileReference; lastKnownFileType = file.intentdefinition; path = SportsWidget.intentdefinition; sourceTree = "<group>"; };
+		1DE16FFE26F29D4B007B1B57 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1DE1700026F29D4B007B1B57 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1DE1700626F29D4B007B1B57 /* SportsWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SportsWidgetExtension.entitlements; sourceTree = "<group>"; };
+		1DE1DD9E2761832E00740CD3 /* SportsCalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsCalUITests.swift; sourceTree = "<group>"; };
+		1DE1DDA02761832E00740CD3 /* SportsCalUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsCalUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		1DE1DDA7276185CE00740CD3 /* SnapshotHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = SnapshotHelper.swift; path = fastlane/SnapshotHelper.swift; sourceTree = SOURCE_ROOT; };
+		1DE1F0BC2940590000741B19 /* LiveActivityStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityStatusView.swift; sourceTree = "<group>"; };
+		1DE1F0BE2941B94F00741B19 /* SportsWidgetLargeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsWidgetLargeView.swift; sourceTree = "<group>"; };
+		1DE1F0C02941B96C00741B19 /* SportsWidgetCircularView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsWidgetCircularView.swift; sourceTree = "<group>"; };
+		1DE1F0C22941B98100741B19 /* SportsWidgetRectangularView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsWidgetRectangularView.swift; sourceTree = "<group>"; };
+		1DE1F0C42941B99A00741B19 /* SportsWidgetInlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsWidgetInlineView.swift; sourceTree = "<group>"; };
+		1DE1F0C62941B9B300741B19 /* SportsWidgetSmallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsWidgetSmallView.swift; sourceTree = "<group>"; };
+		1DE1F0C82941B9D100741B19 /* SportsWidgetMediumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsWidgetMediumView.swift; sourceTree = "<group>"; };
+		1DE1F0DF2941D5BD00741B19 /* SoccerLeaguesWidgetIntentExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SoccerLeaguesWidgetIntentExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		1DE1F0E22941D5BD00741B19 /* IntentHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentHandler.swift; sourceTree = "<group>"; };
+		1DE1F0E42941D5BD00741B19 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1DE1F0E82941D5BE00741B19 /* SoccerLeaguesWidgetIntentExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SoccerLeaguesWidgetIntentExtension.entitlements; sourceTree = "<group>"; };
+		1DE4EBB02F3AB02300CAC2E8 /* TennisMatchScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TennisMatchScoreView.swift; sourceTree = "<group>"; };
+		1DE4EBB22F3AB03300CAC2E8 /* TennisMatchDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TennisMatchDetailView.swift; sourceTree = "<group>"; };
+		1DE4EBB42F3ACECB00CAC2E8 /* RaceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceDetailView.swift; sourceTree = "<group>"; };
+		1DE4EBB52F3ACECB00CAC2E8 /* RaceScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceScoreView.swift; sourceTree = "<group>"; };
+		1DE4EBB82F3AE86000CAC2E8 /* CalendarPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarPage.swift; sourceTree = "<group>"; };
+		1DE4EBBA2F3AF17800CAC2E8 /* SportPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportPickerSheet.swift; sourceTree = "<group>"; };
+		1DE4EBBC2F3C7EBD00CAC2E8 /* BrowsePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowsePage.swift; sourceTree = "<group>"; };
+		1DE897CA2F3DB6FA006657FF /* LocalServerDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalServerDiscovery.swift; sourceTree = "<group>"; };
+		1DE897CD2F3DBE55006657FF /* AutoFollowButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFollowButton.swift; sourceTree = "<group>"; };
+		1DE897CF2F3DBE80006657FF /* SearchToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchToken.swift; sourceTree = "<group>"; };
+		1DE897D22F3DC6B9006657FF /* HeadshotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadshotView.swift; sourceTree = "<group>"; };
+		1DE897D42F403951006657FF /* AutoFollowLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFollowLogger.swift; sourceTree = "<group>"; };
+		1DE897D72F403960006657FF /* DebugGameFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugGameFactory.swift; sourceTree = "<group>"; };
+		1DE897DA2F403975006657FF /* DebugLiveActivityTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLiveActivityTestView.swift; sourceTree = "<group>"; };
+		1DE897DC2F4196D3006657FF /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
+		1DEC76AB268EFB6600D217A1 /* SportsCalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsCalApp.swift; sourceTree = "<group>"; };
+		1DEC76AC268EFB6600D217A1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		1DEC76AD268EFB6700D217A1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1DEC76B2268EFB6700D217A1 /* SportsCal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SportsCal.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1DEC76C7268EFB6700D217A1 /* Tests macOS.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Tests macOS.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		1DEC76CB268EFB6700D217A1 /* Tests_macOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests_macOS.swift; sourceTree = "<group>"; };
+		1DEC76E1268EFC0500D217A1 /* NetworkHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkHandler.swift; sourceTree = "<group>"; };
+		1DEC7704268F0AF200D217A1 /* NetworkErrors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkErrors.swift; sourceTree = "<group>"; };
+		1DEDD0EB26D179F5005ABF93 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		1DEDD0EE26D1809C005ABF93 /* SportsCal (iOS).entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SportsCal (iOS).entitlements"; sourceTree = "<group>"; };
+		1DEDD0EF26D180AC005ABF93 /* SportsCal (iOS)Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SportsCal (iOS)Release.entitlements"; sourceTree = "<group>"; };
+		1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarRepresentable.swift; sourceTree = "<group>"; };
+		1DF1FD912740AECB00783E62 /* Favorites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Favorites.swift; sourceTree = "<group>"; };
+		1DF1FD932741EFA800783E62 /* UserDefaultStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDefaultStorage.swift; sourceTree = "<group>"; };
+		1DF1FD96274326F100783E62 /* ci_post_clone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_post_clone.sh; sourceTree = "<group>"; };
+		1DF5C5572713D92200842FDA /* SportsCal--iOS--Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "SportsCal--iOS--Info.plist"; sourceTree = "<group>"; };
+		1DFA3D672A4E8B0A007BA22C /* TiledGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TiledGridView.swift; sourceTree = "<group>"; };
+		1DFBEE6F2AEB456100753DE1 /* SubscriptionRequiredView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRequiredView.swift; sourceTree = "<group>"; };
+		9B1E2F492F3810A100C1D2E3 /* TournamentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TournamentDetailView.swift; sourceTree = "<group>"; };
+		AB12CD002F3B000100AABB01 /* SportBrowseSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportBrowseSheet.swift; sourceTree = "<group>"; };
+		AB12CD022F3B000200AABB02 /* SportBrowseViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportBrowseViewModel.swift; sourceTree = "<group>"; };
+		CD6F330B4DD18EE38269B549 /* GameDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDetailView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1D1DAB9329CDB50C005434D6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DE16FF226F29D4A007B1B57 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0BDE4C1B10FC635D0FB73FEE /* SportsCalModel in Frameworks */,
+				1DE94A8029CD960100BE87D1 /* NukeUI in Frameworks */,
+				1DC8774429B8332400895C22 /* OrderedCollections in Frameworks */,
+				1DE16FF926F29D4A007B1B57 /* SwiftUI.framework in Frameworks */,
+				1DE16FF726F29D4A007B1B57 /* WidgetKit.framework in Frameworks */,
+				1DBEB41C2F05F86D0025B04C /* Sentry in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DE1F0DC2941D5BD00741B19 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0D1A7E54F257DF01B18F213 /* SportsCalModel in Frameworks */,
+				1DE1F0E02941D5BD00741B19 /* Intents.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DEC76AF268EFB6700D217A1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1DC8774229B8326100895C22 /* OrderedCollections in Frameworks */,
+				1D981BDB2F37CA1E00401880 /* SportsCalModel in Frameworks */,
+				1DBEB41A2F05F8640025B04C /* Sentry in Frameworks */,
+				1DE94A7C29CD952200BE87D1 /* NukeUI in Frameworks */,
+				1DC8774029B8326100895C22 /* Collections in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DEC76C4268EFB6700D217A1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1D1DAB9729CDB50D005434D6 /* SportsCalTests */ = {
+			isa = PBXGroup;
+			children = (
+				1D1DAB9829CDB50D005434D6 /* SportsCalTests.swift */,
+			);
+			path = SportsCalTests;
+			sourceTree = "<group>";
+		};
+		1D486AFE28A833280024BC32 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				1DE897CD2F3DBE55006657FF /* AutoFollowButton.swift */,
+				1DE4EBBC2F3C7EBD00CAC2E8 /* BrowsePage.swift */,
+				1DE4EBB42F3ACECB00CAC2E8 /* RaceDetailView.swift */,
+				1DE4EBB52F3ACECB00CAC2E8 /* RaceScoreView.swift */,
+				1D15BD552A57C71800711F92 /* ListDetailView.swift */,
+				1D77F64A297CFDCC0023E6DB /* SportsTint.swift */,
+				1DFA3D672A4E8B0A007BA22C /* TiledGridView.swift */,
+				1D15BD592F09A00000711F92 /* SportChipFilterView.swift */,
+				1D20B33A2928C45A00956B14 /* PickSportPage.swift */,
+				1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */,
+				1D3DD52D27FBEF310086DD9E /* CompetitionPage.swift */,
+				1D3DD52F27FBEF400086DD9E /* CompetitionView.swift */,
+				1DE4EBB82F3AE86000CAC2E8 /* CalendarPage.swift */,
+				1D9D2CEF27702FFB00735AF0 /* FavoriteButtonView.swift */,
+				1D5C463926C9FD0800BA827B /* OnboardingPage.swift */,
+				1D79FFBF26C9B3480041A673 /* SubscriptionPage.swift */,
+				1D20B33C2929D8C900956B14 /* MiniSubscriptionPage.swift */,
+				1DE4EBBA2F3AF17800CAC2E8 /* SportPickerSheet.swift */,
+				1D90DA8727FEA9F6007C570A /* DummySubscriptionOptionView.swift */,
+				1D5C463326C9F10400BA827B /* Confetti.swift */,
+				1DEC76AC268EFB6600D217A1 /* ContentView.swift */,
+				1DE4EBB02F3AB02300CAC2E8 /* TennisMatchScoreView.swift */,
+				1DFBEE6F2AEB456100753DE1 /* SubscriptionRequiredView.swift */,
+				1D7D46AF29EBC3BF00179018 /* DetailView.swift */,
+				1DE4EBB22F3AB03300CAC2E8 /* TennisMatchDetailView.swift */,
+				1DDAYCHIP0001000000000001 /* DayChipStrip.swift */,
+				1D7D46A929EA9F9A00179018 /* CalendarViewRepresentable.swift */,
+				1D7D46AD29EAAE1700179018 /* DecorationView.swift */,
+				1DC8774529B834A900895C22 /* FavoriteGamesView.swift */,
+				1DE897D22F3DC6B9006657FF /* HeadshotView.swift */,
+				1D1DAB8E29CDAA5A005434D6 /* LiveEventsView.swift */,
+				1DA434372907A48C0010364F /* GameScoreView.swift */,
+				CD6F330B4DD18EE38269B549 /* GameDetailView.swift */,
+				1D408092290BA23100729FFE /* LiveActivityButton.swift */,
+				1D40808B290B7CED00729FFE /* IndividualTeamView.swift */,
+				1D40808329091A2000729FFE /* UpcomingGameView.swift */,
+				1D40808F290B862700729FFE /* NotifyButton.swift */,
+				1D83242F2F38101D00AED413 /* TournamentScoreView.swift */,
+				9B1E2F492F3810A100C1D2E3 /* TournamentDetailView.swift */,
+				1D40808D290B856C00729FFE /* CalendarButton.swift */,
+				1DD35DB52907B6AE009A2113 /* LiveAnimatedView.swift */,
+				1DE897DA2F403975006657FF /* DebugLiveActivityTestView.swift */,
+				1DCEBF0426C045B200913A94 /* SettingsView.swift */,
+				1D20B33E292A115200956B14 /* SubscriptionSheet.swift */,
+				1DDAYPAGE0001000000000001 /* DayPage.swift */,
+				AB12CD002F3B000100AABB01 /* SportBrowseSheet.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		1DA4343229079D270010364F /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				1DE897D42F403951006657FF /* AutoFollowLogger.swift */,
+				1DE897CF2F3DBE80006657FF /* SearchToken.swift */,
+				1DE0402C292D713800073494 /* Cache.swift */,
+				1DE897D72F403960006657FF /* DebugGameFactory.swift */,
+				1D486AFF28A834470024BC32 /* GameViewModel.swift */,
+				1D20B337292893DD00956B14 /* GameManager.swift */,
+				1DA4343329079D3D0010364F /* Teams+Extensions.swift */,
+				AB12CD022F3B000200AABB02 /* SportBrowseViewModel.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
+		1DE16FFA26F29D4A007B1B57 /* SportsWidget */ = {
+			isa = PBXGroup;
+			children = (
+				1DE16FFB26F29D4A007B1B57 /* SportsWidget.swift */,
+				1DE1F0C82941B9D100741B19 /* SportsWidgetMediumView.swift */,
+				1DE1F0C62941B9B300741B19 /* SportsWidgetSmallView.swift */,
+				1DE1F0C42941B99A00741B19 /* SportsWidgetInlineView.swift */,
+				1DE1F0C22941B98100741B19 /* SportsWidgetRectangularView.swift */,
+				1D1DABC729D18D46005434D6 /* RectangularWidgetTeamView.swift */,
+				1DE1F0C02941B96C00741B19 /* SportsWidgetCircularView.swift */,
+				1DE1F0BE2941B94F00741B19 /* SportsWidgetLargeView.swift */,
+				1DE04049293746F500073494 /* Provider.swift */,
+				1D408096290BAA6A00729FFE /* LiveSportActivityWidget.swift */,
+				1DE16FFD26F29D4A007B1B57 /* SportsWidget.intentdefinition */,
+				1DE16FFE26F29D4B007B1B57 /* Assets.xcassets */,
+				1DE1700026F29D4B007B1B57 /* Info.plist */,
+			);
+			path = SportsWidget;
+			sourceTree = "<group>";
+		};
+		1DE1DD9D2761832E00740CD3 /* SportsCalUITests */ = {
+			isa = PBXGroup;
+			children = (
+				1DE1DDA7276185CE00740CD3 /* SnapshotHelper.swift */,
+				1DE1DD9E2761832E00740CD3 /* SportsCalUITests.swift */,
+				1DE1DDA02761832E00740CD3 /* SportsCalUITestsLaunchTests.swift */,
+			);
+			path = SportsCalUITests;
+			sourceTree = "<group>";
+		};
+		1DE1F0E12941D5BD00741B19 /* SoccerLeaguesWidgetIntentExtension */ = {
+			isa = PBXGroup;
+			children = (
+				1DE1F0E82941D5BE00741B19 /* SoccerLeaguesWidgetIntentExtension.entitlements */,
+				1DE1F0E22941D5BD00741B19 /* IntentHandler.swift */,
+				1DE1F0E42941D5BD00741B19 /* Info.plist */,
+			);
+			path = SoccerLeaguesWidgetIntentExtension;
+			sourceTree = "<group>";
+		};
+		1DEC76A5268EFB6500D217A1 = {
+			isa = PBXGroup;
+			children = (
+				1D981BD92F37CA1E00401880 /* SportsCalModel */,
+				1DF1FD95274326A400783E62 /* ci_scripts */,
+				1DF5C5572713D92200842FDA /* SportsCal--iOS--Info.plist */,
+				1DE1700626F29D4B007B1B57 /* SportsWidgetExtension.entitlements */,
+				1DEDD0EF26D180AC005ABF93 /* SportsCal (iOS)Release.entitlements */,
+				1DEDD0EE26D1809C005ABF93 /* SportsCal (iOS).entitlements */,
+				1DEC76AA268EFB6600D217A1 /* Shared */,
+				1DEC76CA268EFB6700D217A1 /* Tests macOS */,
+				1DE16FFA26F29D4A007B1B57 /* SportsWidget */,
+				1DE1DD9D2761832E00740CD3 /* SportsCalUITests */,
+				1DE1F0E12941D5BD00741B19 /* SoccerLeaguesWidgetIntentExtension */,
+				1D1DAB9729CDB50D005434D6 /* SportsCalTests */,
+				1DEC76B3268EFB6700D217A1 /* Products */,
+				1DEE12F626D0A1C8000EC870 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		1DEC76AA268EFB6600D217A1 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				1DE897CA2F3DB6FA006657FF /* LocalServerDiscovery.swift */,
+				1DE1F0BC2940590000741B19 /* LiveActivityStatusView.swift */,
+				1D408094290BA96A00729FFE /* LiveSportActivityAttributes.swift */,
+				1DE897DC2F4196D3006657FF /* AppLogger.swift */,
+				1DA4343229079D270010364F /* Model */,
+				1D486AFE28A833280024BC32 /* Views */,
+				1DF1FD932741EFA800783E62 /* UserDefaultStorage.swift */,
+				1DF1FD912740AECB00783E62 /* Favorites.swift */,
+				1DBEB4152F05F6340025B04C /* Constants.swift */,
+				1D12399F26D0D180001B503E /* LocalNotificationManager.swift */,
+				1D5C463026C9C5F900BA827B /* SubscriptionManager.swift */,
+				1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */,
+				1DEC76AB268EFB6600D217A1 /* SportsCalApp.swift */,
+				1DEDD0EB26D179F5005ABF93 /* AppDelegate.swift */,
+				1DEC76E1268EFC0500D217A1 /* NetworkHandler.swift */,
+				1DEC7704268F0AF200D217A1 /* NetworkErrors.swift */,
+				1D619F5A2A286A01006E889E /* ModelError.swift */,
+				1D5C463626C9FB5000BA827B /* SettingsData.swift */,
+				1DEC76AD268EFB6700D217A1 /* Assets.xcassets */,
+				1D8352D42905532D00E60D7F /* DateFormatters.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		1DEC76B3268EFB6700D217A1 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1DEC76B2268EFB6700D217A1 /* SportsCal.app */,
+				1DEC76C7268EFB6700D217A1 /* Tests macOS.xctest */,
+				1DE16FF526F29D4A007B1B57 /* SportsWidgetExtension.appex */,
+				1DE1F0DF2941D5BD00741B19 /* SoccerLeaguesWidgetIntentExtension.appex */,
+				1D1DAB9629CDB50D005434D6 /* SportsCalTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		1DEC76CA268EFB6700D217A1 /* Tests macOS */ = {
+			isa = PBXGroup;
+			children = (
+				1DEC76CB268EFB6700D217A1 /* Tests_macOS.swift */,
+			);
+			path = "Tests macOS";
+			sourceTree = "<group>";
+		};
+		1DEE12F626D0A1C8000EC870 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				1DE16FF626F29D4A007B1B57 /* WidgetKit.framework */,
+				1DE16FF826F29D4A007B1B57 /* SwiftUI.framework */,
+				1DE0401F292D633300073494 /* Intents.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		1DF1FD95274326A400783E62 /* ci_scripts */ = {
+			isa = PBXGroup;
+			children = (
+				1DF1FD96274326F100783E62 /* ci_post_clone.sh */,
+			);
+			path = ci_scripts;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1D1DAB9529CDB50C005434D6 /* SportsCalTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1D1DAB9C29CDB50D005434D6 /* Build configuration list for PBXNativeTarget "SportsCalTests" */;
+			buildPhases = (
+				1D1DAB9229CDB50C005434D6 /* Sources */,
+				1D1DAB9329CDB50C005434D6 /* Frameworks */,
+				1D1DAB9429CDB50C005434D6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1D1DAB9B29CDB50D005434D6 /* PBXTargetDependency */,
+			);
+			name = SportsCalTests;
+			packageProductDependencies = (
+			);
+			productName = SportsCalTests;
+			productReference = 1D1DAB9629CDB50D005434D6 /* SportsCalTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		1DE16FF426F29D4A007B1B57 /* SportsWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1DE1700A26F29D4B007B1B57 /* Build configuration list for PBXNativeTarget "SportsWidgetExtension" */;
+			buildPhases = (
+				1DE16FF126F29D4A007B1B57 /* Sources */,
+				1DE16FF226F29D4A007B1B57 /* Frameworks */,
+				1DE16FF326F29D4A007B1B57 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SportsWidgetExtension;
+			packageProductDependencies = (
+				178724959E674913D3EAB4CD /* SportsCalModel */,
+				1DC8774329B8332400895C22 /* OrderedCollections */,
+				1DE94A7F29CD960100BE87D1 /* NukeUI */,
+				1DBEB41B2F05F86D0025B04C /* Sentry */,
+			);
+			productName = SportsWidgetExtension;
+			productReference = 1DE16FF526F29D4A007B1B57 /* SportsWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		1DE1F0DE2941D5BD00741B19 /* SoccerLeaguesWidgetIntentExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1DE1F0E92941D5BF00741B19 /* Build configuration list for PBXNativeTarget "SoccerLeaguesWidgetIntentExtension" */;
+			buildPhases = (
+				1DE1F0DB2941D5BD00741B19 /* Sources */,
+				1DE1F0DC2941D5BD00741B19 /* Frameworks */,
+				1DE1F0DD2941D5BD00741B19 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SoccerLeaguesWidgetIntentExtension;
+			packageProductDependencies = (
+				8EE43B18CA7FF338F5A48D2A /* SportsCalModel */,
+			);
+			productName = SoccerLeaguesWidgetIntentExtension;
+			productReference = 1DE1F0DF2941D5BD00741B19 /* SoccerLeaguesWidgetIntentExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		1DEC76B1268EFB6700D217A1 /* SportsCal (iOS) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1DEC76D5268EFB6700D217A1 /* Build configuration list for PBXNativeTarget "SportsCal (iOS)" */;
+			buildPhases = (
+				1DEC76AE268EFB6700D217A1 /* Sources */,
+				1DEC76AF268EFB6700D217A1 /* Frameworks */,
+				1DEC76B0268EFB6700D217A1 /* Resources */,
+				1DF5C55B2713F48500842FDA /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1DF5C55A2713F48500842FDA /* PBXTargetDependency */,
+				1DE1F0E62941D5BD00741B19 /* PBXTargetDependency */,
+			);
+			name = "SportsCal (iOS)";
+			packageProductDependencies = (
+				1DC8773F29B8326100895C22 /* Collections */,
+				1DC8774129B8326100895C22 /* OrderedCollections */,
+				1DE94A7B29CD952200BE87D1 /* NukeUI */,
+				1DBEB4192F05F8640025B04C /* Sentry */,
+				1D981BDA2F37CA1E00401880 /* SportsCalModel */,
+			);
+			productName = "SportsCal (iOS)";
+			productReference = 1DEC76B2268EFB6700D217A1 /* SportsCal.app */;
+			productType = "com.apple.product-type.application";
+		};
+		1DEC76C6268EFB6700D217A1 /* Tests macOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1DEC76DE268EFB6700D217A1 /* Build configuration list for PBXNativeTarget "Tests macOS" */;
+			buildPhases = (
+				1DEC76C3268EFB6700D217A1 /* Sources */,
+				1DEC76C4268EFB6700D217A1 /* Frameworks */,
+				1DEC76C5268EFB6700D217A1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1D1DAB9129CDB467005434D6 /* PBXTargetDependency */,
+			);
+			name = "Tests macOS";
+			productName = "Tests macOS";
+			productReference = 1DEC76C7268EFB6700D217A1 /* Tests macOS.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1DEC76A6268EFB6500D217A1 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1430;
+				LastUpgradeCheck = 1410;
+				TargetAttributes = {
+					1D1DAB9529CDB50C005434D6 = {
+						CreatedOnToolsVersion = 14.3;
+						TestTargetID = 1DEC76B1268EFB6700D217A1;
+					};
+					1DE16FF426F29D4A007B1B57 = {
+						CreatedOnToolsVersion = 13.0;
+					};
+					1DE1F0DE2941D5BD00741B19 = {
+						CreatedOnToolsVersion = 14.1;
+					};
+					1DEC76B1268EFB6700D217A1 = {
+						CreatedOnToolsVersion = 13.0;
+					};
+					1DEC76C6268EFB6700D217A1 = {
+						CreatedOnToolsVersion = 13.0;
+						TestTargetID = 1DEC76B1268EFB6700D217A1;
+					};
+				};
+			};
+			buildConfigurationList = 1DEC76A9268EFB6500D217A1 /* Build configuration list for PBXProject "SportsCal" */;
+			compatibilityVersion = "Xcode 13.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 1DEC76A5268EFB6500D217A1;
+			packageReferences = (
+				1DC8773E29B8326100895C22 /* XCRemoteSwiftPackageReference "swift-collections" */,
+				1DE94A7829CD94B100BE87D1 /* XCRemoteSwiftPackageReference "Nuke" */,
+				1DBEB4182F05F8640025B04C /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
+			);
+			productRefGroup = 1DEC76B3268EFB6700D217A1 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1DEC76B1268EFB6700D217A1 /* SportsCal (iOS) */,
+				1DEC76C6268EFB6700D217A1 /* Tests macOS */,
+				1DE16FF426F29D4A007B1B57 /* SportsWidgetExtension */,
+				1DE1F0DE2941D5BD00741B19 /* SoccerLeaguesWidgetIntentExtension */,
+				1D1DAB9529CDB50C005434D6 /* SportsCalTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1D1DAB9429CDB50C005434D6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DE16FF326F29D4A007B1B57 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1DE16FFF26F29D4B007B1B57 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DE1F0DD2941D5BD00741B19 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DEC76B0268EFB6700D217A1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1DEC76D1268EFB6700D217A1 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DEC76C5268EFB6700D217A1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1D1DAB9229CDB50C005434D6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1D1DAB9929CDB50D005434D6 /* SportsCalTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DE16FF126F29D4A007B1B57 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1D20B339292893DD00956B14 /* GameManager.swift in Sources */,
+				1DE1F0C32941B98100741B19 /* SportsWidgetRectangularView.swift in Sources */,
+				1D77F64C297CFDCC0023E6DB /* SportsTint.swift in Sources */,
+				1D7DC236270192610086A6D5 /* NetworkHandler.swift in Sources */,
+				1DE16FFC26F29D4A007B1B57 /* SportsWidget.swift in Sources */,
+				1DE1700126F29D4B007B1B57 /* SportsWidget.intentdefinition in Sources */,
+				1DE1F0C92941B9D100741B19 /* SportsWidgetMediumView.swift in Sources */,
+				1D40809B290BAFE100729FFE /* IndividualTeamView.swift in Sources */,
+				1D1DABC929D18D62005434D6 /* RectangularWidgetTeamView.swift in Sources */,
+				1DB93DC42907659300311FAA /* Favorites.swift in Sources */,
+				1D408091290B9E3700729FFE /* Teams+Extensions.swift in Sources */,
+				1DE897DE2F4196D3006657FF /* AppLogger.swift in Sources */,
+				1DE1F0C72941B9B300741B19 /* SportsWidgetSmallView.swift in Sources */,
+				1DE897D82F403960006657FF /* DebugGameFactory.swift in Sources */,
+				1DE0404B2937470000073494 /* Provider.swift in Sources */,
+				1DE1F0C12941B96C00741B19 /* SportsWidgetCircularView.swift in Sources */,
+				1D408098290BAB8600729FFE /* LiveSportActivityWidget.swift in Sources */,
+				1D8352D72905532D00E60D7F /* DateFormatters.swift in Sources */,
+				1DE1F0C52941B99A00741B19 /* SportsWidgetInlineView.swift in Sources */,
+				1DE897D12F3DBE80006657FF /* SearchToken.swift in Sources */,
+				1DE0402E292D713800073494 /* Cache.swift in Sources */,
+				1D20B3362927739C00956B14 /* Date+Extensions.swift in Sources */,
+				1DE897CB2F3DB6FA006657FF /* LocalServerDiscovery.swift in Sources */,
+				1D8352DB29067CBB00E60D7F /* UserDefaultStorage.swift in Sources */,
+				1D408099290BAB9000729FFE /* LiveSportActivityAttributes.swift in Sources */,
+				1DEA4E0129053AB900CD1D8F /* GameViewModel.swift in Sources */,
+				1D4080A0290C803400729FFE /* LiveAnimatedView.swift in Sources */,
+				1D619F5C2A286A01006E889E /* ModelError.swift in Sources */,
+				1DC2651526F3CCF1005539C1 /* SettingsData.swift in Sources */,
+				1DE897D52F403951006657FF /* AutoFollowLogger.swift in Sources */,
+				1DE1F0BF2941B94F00741B19 /* SportsWidgetLargeView.swift in Sources */,
+				1DBEB4172F05F6340025B04C /* Constants.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DE1F0DB2941D5BD00741B19 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1DE1F0E32941D5BD00741B19 /* IntentHandler.swift in Sources */,
+				1DE1F0EC2941D60000741B19 /* SportsWidget.intentdefinition in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DEC76AE268EFB6700D217A1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1DE4EBB92F3AE86000CAC2E8 /* CalendarPage.swift in Sources */,
+				1D20B33F292A115200956B14 /* SubscriptionSheet.swift in Sources */,
+				1DE1700226F29D4B007B1B57 /* SportsWidget.intentdefinition in Sources */,
+				1D90DA8827FEA9F6007C570A /* DummySubscriptionOptionView.swift in Sources */,
+				1D40808C290B7CED00729FFE /* IndividualTeamView.swift in Sources */,
+				1DE4EBB32F3AB03300CAC2E8 /* TennisMatchDetailView.swift in Sources */,
+				1D9D2CF027702FFB00735AF0 /* FavoriteButtonView.swift in Sources */,
+				1D408093290BA23100729FFE /* LiveActivityButton.swift in Sources */,
+				1DEC76CF268EFB6700D217A1 /* ContentView.swift in Sources */,
+				1D15BD5A2F09A00000711F92 /* SportChipFilterView.swift in Sources */,
+				1DE897DB2F403975006657FF /* DebugLiveActivityTestView.swift in Sources */,
+				1D1DAB8F29CDAA5A005434D6 /* LiveEventsView.swift in Sources */,
+				1D5C463A26C9FD0800BA827B /* OnboardingPage.swift in Sources */,
+				1DDAYCHIP0002000000000002 /* DayChipStrip.swift in Sources */,
+				1D7D46AA29EA9F9A00179018 /* CalendarViewRepresentable.swift in Sources */,
+				1DE1F0BD2940590000741B19 /* LiveActivityStatusView.swift in Sources */,
+				1D20B33D2929D8C900956B14 /* MiniSubscriptionPage.swift in Sources */,
+				1DD35DB62907B6AE009A2113 /* LiveAnimatedView.swift in Sources */,
+				1D20B33B2928C45A00956B14 /* PickSportPage.swift in Sources */,
+				1DA4343429079D3D0010364F /* Teams+Extensions.swift in Sources */,
+				1D40808429091A2000729FFE /* UpcomingGameView.swift in Sources */,
+				1D40808E290B856C00729FFE /* CalendarButton.swift in Sources */,
+				1DEDD0F126D353ED005ABF93 /* CalendarRepresentable.swift in Sources */,
+				1D5C463126C9C5F900BA827B /* SubscriptionManager.swift in Sources */,
+				1D20B338292893DD00956B14 /* GameManager.swift in Sources */,
+				1DE897D92F403960006657FF /* DebugGameFactory.swift in Sources */,
+				1DE4EBBB2F3AF17800CAC2E8 /* SportPickerSheet.swift in Sources */,
+				1D486B0028A834470024BC32 /* GameViewModel.swift in Sources */,
+				1DE4EBBD2F3C7EBD00CAC2E8 /* BrowsePage.swift in Sources */,
+				1D8352D52905532D00E60D7F /* DateFormatters.swift in Sources */,
+				1D7D46B029EBC3BF00179018 /* DetailView.swift in Sources */,
+				1D5C463726C9FB5000BA827B /* SettingsData.swift in Sources */,
+				1D3DD52E27FBEF310086DD9E /* CompetitionPage.swift in Sources */,
+				1DFBEE702AEB456100753DE1 /* SubscriptionRequiredView.swift in Sources */,
+				1DEDD0EC26D179F5005ABF93 /* AppDelegate.swift in Sources */,
+				1DA434382907A48C0010364F /* GameScoreView.swift in Sources */,
+				8A4FD23681DA590FA36AD974 /* GameDetailView.swift in Sources */,
+				1DC8774629B834A900895C22 /* FavoriteGamesView.swift in Sources */,
+				1DE897D32F3DC6B9006657FF /* HeadshotView.swift in Sources */,
+				1D40809A290BAC4F00729FFE /* LiveSportActivityAttributes.swift in Sources */,
+				1D79FFC026C9B3480041A673 /* SubscriptionPage.swift in Sources */,
+				1DEC76CD268EFB6700D217A1 /* SportsCalApp.swift in Sources */,
+				1D408090290B862700729FFE /* NotifyButton.swift in Sources */,
+				1DE0402D292D713800073494 /* Cache.swift in Sources */,
+				1DE897CE2F3DBE55006657FF /* AutoFollowButton.swift in Sources */,
+				1DE897D02F3DBE80006657FF /* SearchToken.swift in Sources */,
+				1DEC7705268F0AF200D217A1 /* NetworkErrors.swift in Sources */,
+				1D63E71926A9494800FC3DE6 /* Date+Extensions.swift in Sources */,
+				1D3DD53027FBEF400086DD9E /* CompetitionView.swift in Sources */,
+				1D15BD562A57C71800711F92 /* ListDetailView.swift in Sources */,
+				1DE897D62F403951006657FF /* AutoFollowLogger.swift in Sources */,
+				1DE897DD2F4196D3006657FF /* AppLogger.swift in Sources */,
+				1D7D46AE29EAAE1700179018 /* DecorationView.swift in Sources */,
+				1D5C463426C9F10400BA827B /* Confetti.swift in Sources */,
+				1D619F5B2A286A01006E889E /* ModelError.swift in Sources */,
+				1DCEBF0526C045B200913A94 /* SettingsView.swift in Sources */,
+				1DE4EBB62F3ACECB00CAC2E8 /* RaceScoreView.swift in Sources */,
+				1DE4EBB72F3ACECB00CAC2E8 /* RaceDetailView.swift in Sources */,
+				1D77F64B297CFDCC0023E6DB /* SportsTint.swift in Sources */,
+				1DE897CC2F3DB6FA006657FF /* LocalServerDiscovery.swift in Sources */,
+				1D8324302F38101D00AED413 /* TournamentScoreView.swift in Sources */,
+				9B1E2F4A2F3810A100C1D2E3 /* TournamentDetailView.swift in Sources */,
+				1DF1FD942741EFA800783E62 /* UserDefaultStorage.swift in Sources */,
+				1D1239A026D0D180001B503E /* LocalNotificationManager.swift in Sources */,
+				1DF1FD922740AECB00783E62 /* Favorites.swift in Sources */,
+				1DBEB4162F05F6340025B04C /* Constants.swift in Sources */,
+				1DEC76E2268EFC0500D217A1 /* NetworkHandler.swift in Sources */,
+				1DFA3D682A4E8B0A007BA22C /* TiledGridView.swift in Sources */,
+				1DE4EBB12F3AB02300CAC2E8 /* TennisMatchScoreView.swift in Sources */,
+				1DDAYPAGE0002000000000002 /* DayPage.swift in Sources */,
+				AB12CD012F3B000100AABB01 /* SportBrowseSheet.swift in Sources */,
+				AB12CD032F3B000200AABB02 /* SportBrowseViewModel.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DEC76C3268EFB6700D217A1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1DEC76CC268EFB6700D217A1 /* Tests_macOS.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1D1DAB9129CDB467005434D6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1DEC76B1268EFB6700D217A1 /* SportsCal (iOS) */;
+			targetProxy = 1D1DAB9029CDB467005434D6 /* PBXContainerItemProxy */;
+		};
+		1D1DAB9B29CDB50D005434D6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1DEC76B1268EFB6700D217A1 /* SportsCal (iOS) */;
+			targetProxy = 1D1DAB9A29CDB50D005434D6 /* PBXContainerItemProxy */;
+		};
+		1DE1F0E62941D5BD00741B19 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = ios;
+			target = 1DE1F0DE2941D5BD00741B19 /* SoccerLeaguesWidgetIntentExtension */;
+			targetProxy = 1DE1F0E52941D5BD00741B19 /* PBXContainerItemProxy */;
+		};
+		1DF5C55A2713F48500842FDA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = ios;
+			target = 1DE16FF426F29D4A007B1B57 /* SportsWidgetExtension */;
+			targetProxy = 1DF5C5592713F48500842FDA /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1D1DAB9D29CDB50D005434D6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.Umar-Haroon.SportsCalTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SportsCal.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SportsCal";
+			};
+			name = Debug;
+		};
+		1D1DAB9E29CDB50D005434D6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.Umar-Haroon.SportsCalTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SportsCal.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SportsCal";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		1DE1700826F29D4B007B1B57 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
+				CODE_SIGN_ENTITLEMENTS = SportsWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SportsWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SportsWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.3.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.SportsWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		1DE1700926F29D4B007B1B57 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
+				CODE_SIGN_ENTITLEMENTS = SportsWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SportsWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SportsWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.3.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.SportsWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		1DE1F0EA2941D5BF00741B19 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_ENTITLEMENTS = SoccerLeaguesWidgetIntentExtension/SoccerLeaguesWidgetIntentExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SoccerLeaguesWidgetIntentExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SoccerLeaguesWidgetIntentExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.3.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.SoccerLeaguesWidgetIntentExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		1DE1F0EB2941D5BF00741B19 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_ENTITLEMENTS = SoccerLeaguesWidgetIntentExtension/SoccerLeaguesWidgetIntentExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SoccerLeaguesWidgetIntentExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SoccerLeaguesWidgetIntentExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.3.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.SoccerLeaguesWidgetIntentExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		1DEC76D3268EFB6700D217A1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		1DEC76D4268EFB6700D217A1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		1DEC76D6268EFB6700D217A1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "SportsCal (iOS).entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 114;
+				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "SportsCal--iOS--Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "SportsCal requests Calendar access to add sports events to your calendar";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 2.3.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal;
+				PRODUCT_NAME = SportsCal;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+		1DEC76D7268EFB6700D217A1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "SportsCal (iOS)Release.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 114;
+				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "SportsCal--iOS--Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "SportsCal requests Calendar access to add sports events to your calendar";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 2.3.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal;
+				PRODUCT_NAME = SportsCal;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				VALIDATE_PRODUCT = YES;
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
+		1DEC76DF268EFB6700D217A1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.KomodoLLC.Tests-macOS";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = "SportsCal (iOS)";
+			};
+			name = Debug;
+		};
+		1DEC76E0268EFB6700D217A1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.KomodoLLC.Tests-macOS";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = "SportsCal (iOS)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1D1DAB9C29CDB50D005434D6 /* Build configuration list for PBXNativeTarget "SportsCalTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1D1DAB9D29CDB50D005434D6 /* Debug */,
+				1D1DAB9E29CDB50D005434D6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1DE1700A26F29D4B007B1B57 /* Build configuration list for PBXNativeTarget "SportsWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1DE1700826F29D4B007B1B57 /* Debug */,
+				1DE1700926F29D4B007B1B57 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1DE1F0E92941D5BF00741B19 /* Build configuration list for PBXNativeTarget "SoccerLeaguesWidgetIntentExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1DE1F0EA2941D5BF00741B19 /* Debug */,
+				1DE1F0EB2941D5BF00741B19 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1DEC76A9268EFB6500D217A1 /* Build configuration list for PBXProject "SportsCal" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1DEC76D3268EFB6700D217A1 /* Debug */,
+				1DEC76D4268EFB6700D217A1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1DEC76D5268EFB6700D217A1 /* Build configuration list for PBXNativeTarget "SportsCal (iOS)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1DEC76D6268EFB6700D217A1 /* Debug */,
+				1DEC76D7268EFB6700D217A1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1DEC76DE268EFB6700D217A1 /* Build configuration list for PBXNativeTarget "Tests macOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1DEC76DF268EFB6700D217A1 /* Debug */,
+				1DEC76E0268EFB6700D217A1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		1DBEB4182F05F8640025B04C /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.1.0;
+			};
+		};
+		1DC8773E29B8326100895C22 /* XCRemoteSwiftPackageReference "swift-collections" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-collections.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+		1DE94A7829CD94B100BE87D1 /* XCRemoteSwiftPackageReference "Nuke" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kean/Nuke";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		178724959E674913D3EAB4CD /* SportsCalModel */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SportsCalModel;
+		};
+		1D981BDA2F37CA1E00401880 /* SportsCalModel */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SportsCalModel;
+		};
+		1DBEB4192F05F8640025B04C /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1DBEB4182F05F8640025B04C /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
+		};
+		1DBEB41B2F05F86D0025B04C /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1DBEB4182F05F8640025B04C /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
+		};
+		1DC8773F29B8326100895C22 /* Collections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1DC8773E29B8326100895C22 /* XCRemoteSwiftPackageReference "swift-collections" */;
+			productName = Collections;
+		};
+		1DC8774129B8326100895C22 /* OrderedCollections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1DC8773E29B8326100895C22 /* XCRemoteSwiftPackageReference "swift-collections" */;
+			productName = OrderedCollections;
+		};
+		1DC8774329B8332400895C22 /* OrderedCollections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1DC8773E29B8326100895C22 /* XCRemoteSwiftPackageReference "swift-collections" */;
+			productName = OrderedCollections;
+		};
+		1DE94A7B29CD952200BE87D1 /* NukeUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1DE94A7829CD94B100BE87D1 /* XCRemoteSwiftPackageReference "Nuke" */;
+			productName = NukeUI;
+		};
+		1DE94A7F29CD960100BE87D1 /* NukeUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1DE94A7829CD94B100BE87D1 /* XCRemoteSwiftPackageReference "Nuke" */;
+			productName = NukeUI;
+		};
+		8EE43B18CA7FF338F5A48D2A /* SportsCalModel */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SportsCalModel;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 1DEC76A6268EFB6500D217A1 /* Project object */;
+}
