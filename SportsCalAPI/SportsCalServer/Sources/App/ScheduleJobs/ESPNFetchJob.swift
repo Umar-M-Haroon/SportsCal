@@ -317,7 +317,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
     /// Merges ESPN events into a single sport's schedule events.
     /// Matches by team IDs + day, falls back to team names + day, or event name for individual sports.
     private func mergeSportEvents(schedule: LiveEvent?, espn: LiveEvent?) -> LiveEvent? {
-        guard let schedule else { return nil }
+        guard let schedule else { return espn }
         guard let espn, !espn.events.isEmpty else { return schedule }
 
         // Build ESPN lookup dictionaries
@@ -345,6 +345,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
             }
         }
 
+        var matchedESPNIDs = Set<String>()
+
         let merged = schedule.events.map { scheduleGame -> Game in
             let day = dayString(from: scheduleGame)
             var espnMatch: Game?
@@ -365,6 +367,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
             // Individual sports: match by event/tournament name
             if espnMatch == nil && scheduleGame.isIndividualSport {
                 espnMatch = espnByEventName[scheduleGame.strHomeTeam.lowercased()]
+            }
+
+            if let match = espnMatch {
+                matchedESPNIDs.insert(match.id)
             }
 
             guard let espnGame = espnMatch else { return scheduleGame }
@@ -400,7 +406,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
             )
         }
 
-        return LiveEvent(events: merged)
+        // Append ESPN-only games (no TheSportsDB match)
+        let unmatchedESPN = espn.events.filter { !matchedESPNIDs.contains($0.id) }
+
+        return LiveEvent(events: merged + unmatchedESPN)
     }
 
     /// Extracts a "YYYY-MM-DD" day string from a Game for same-day matching.
