@@ -62,10 +62,16 @@ class UserDefaultStorage {
         autoFollowEventIDs.contains(eventID)
     }
 
-    /// Remove auto-follow entries for games whose dates are in the past
+    /// Remove auto-follow entries for games whose dates are in the past,
+    /// and debug fake game IDs that no longer exist in the game list.
     func cleanupExpiredAutoFollows(games: [Game]) {
         let now = Date()
+        let gameIDs = Set(games.compactMap(\.idEvent))
         let expired = autoFollowEventIDs.filter { eventID in
+            // Remove debug fake IDs that are no longer in the game list
+            if eventID.hasPrefix("debug-fake-") && !gameIDs.contains(eventID) {
+                return true
+            }
             guard let game = games.first(where: { $0.idEvent == eventID }),
                   let date = game.standardDate else { return false }
             return date < now
@@ -80,21 +86,82 @@ class UserDefaultStorage {
     // Stored property tracked by @Observable so chip filters react to changes
     var enabledSports: [SportType] = []
 
+    // MARK: - Focus Filter
+
+    /// Whether a Focus Filter is currently overriding sport preferences.
+    var focusFilterActive: Bool {
+        UserDefaults(suiteName: Self.suiteName)?.bool(forKey: "focusFilterActive") ?? false
+    }
+
+    /// Returns the effective "should show" value for a sport, respecting Focus Filter overrides.
+    func effectiveShouldShow(_ sport: SportType) -> Bool {
+        if focusFilterActive {
+            let defaults = UserDefaults(suiteName: Self.suiteName)
+            switch sport {
+            case .basketball: return defaults?.bool(forKey: "focus_shouldShowNBA") ?? true
+            case .soccer:     return defaults?.bool(forKey: "focus_shouldShowSoccer") ?? true
+            case .hockey:     return defaults?.bool(forKey: "focus_shouldShowNHL") ?? true
+            case .mlb:        return defaults?.bool(forKey: "focus_shouldShowMLB") ?? true
+            case .nfl:        return defaults?.bool(forKey: "focus_shouldShowNFL") ?? true
+            case .golf:       return defaults?.bool(forKey: "focus_shouldShowGolf") ?? true
+            case .tennis:     return defaults?.bool(forKey: "focus_shouldShowTennis") ?? true
+            case .racing:     return defaults?.bool(forKey: "focus_shouldShowRacing") ?? true
+            }
+        }
+        switch sport {
+        case .basketball: return shouldShowNBA
+        case .soccer:     return shouldShowSoccer
+        case .hockey:     return shouldShowNHL
+        case .mlb:        return shouldShowMLB
+        case .nfl:        return shouldShowNFL
+        case .golf:       return shouldShowGolf
+        case .tennis:     return shouldShowTennis
+        case .racing:     return shouldShowRacing
+        }
+    }
+
+    /// Clears Focus Filter overrides (called when no Focus is active).
+    func clearFocusFilter() {
+        let defaults = UserDefaults(suiteName: Self.suiteName)
+        defaults?.set(false, forKey: "focusFilterActive")
+    }
+
     init() {
         recomputeEnabledSports()
     }
 
     func recomputeEnabledSports() {
         var sports: [SportType] = []
-        if shouldShowNBA    { sports.append(.basketball) }
-        if shouldShowSoccer { sports.append(.soccer) }
-        if shouldShowNHL    { sports.append(.hockey) }
-        if shouldShowMLB    { sports.append(.mlb) }
-        if shouldShowNFL    { sports.append(.nfl) }
-        if shouldShowGolf   { sports.append(.golf) }
-        if shouldShowTennis { sports.append(.tennis) }
-        if shouldShowRacing { sports.append(.racing) }
+        if effectiveShouldShow(.basketball) { sports.append(.basketball) }
+        if effectiveShouldShow(.soccer)     { sports.append(.soccer) }
+        if effectiveShouldShow(.hockey)     { sports.append(.hockey) }
+        if effectiveShouldShow(.mlb)        { sports.append(.mlb) }
+        if effectiveShouldShow(.nfl)        { sports.append(.nfl) }
+        if effectiveShouldShow(.golf)       { sports.append(.golf) }
+        if effectiveShouldShow(.tennis)     { sports.append(.tennis) }
+        if effectiveShouldShow(.racing)     { sports.append(.racing) }
         enabledSports = sports
+        syncSportPrefsToAppGroup()
+    }
+
+    /// Mirror sport preference flags to the shared app group so widgets can read them
+    private func syncSportPrefsToAppGroup() {
+        let defaults = UserDefaults(suiteName: Self.suiteName)
+        defaults?.set(shouldShowNBA, forKey: "shouldShowNBA")
+        defaults?.set(shouldShowNFL, forKey: "shouldShowNFL")
+        defaults?.set(shouldShowNHL, forKey: "shouldShowNHL")
+        defaults?.set(shouldShowSoccer, forKey: "shouldShowSoccer")
+        defaults?.set(shouldShowMLB, forKey: "shouldShowMLB")
+        defaults?.set(shouldShowGolf, forKey: "shouldShowGolf")
+        defaults?.set(shouldShowTennis, forKey: "shouldShowTennis")
+        defaults?.set(shouldShowRacing, forKey: "shouldShowRacing")
+        defaults?.set(hiddenCompetitions, forKey: "hiddenCompetitions")
+    }
+
+    /// Sync just hiddenCompetitions to the shared app group (called from CompetitionView)
+    func syncHiddenCompetitions() {
+        let defaults = UserDefaults(suiteName: Self.suiteName)
+        defaults?.set(hiddenCompetitions, forKey: "hiddenCompetitions")
     }
 
     func toggleSport(_ sport: SportType, enabled: Bool) {

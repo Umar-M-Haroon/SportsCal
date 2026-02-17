@@ -9,6 +9,7 @@ import SwiftUI
 import Combine
 #if os(iOS)
 import EventKit
+import CoreSpotlight
 #endif
 import WidgetKit
 import StoreKit
@@ -176,6 +177,41 @@ struct ContentView: View {
             if viewModel.appStorage.shouldShowOnboarding {
                 sheetType = .onboarding
             }
+            // Check if launched via OpenSportIntent
+            checkIntentOpenSport()
+        }
+        #if os(iOS)
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            handleSpotlightActivity(activity)
+        }
+        #endif
+    }
+
+    // MARK: - Deep Link Handling
+
+    /// Handles Spotlight search result taps.
+    private func handleSpotlightActivity(_ activity: NSUserActivity) {
+        guard let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String else { return }
+
+        if identifier.hasPrefix("game-") {
+            // Navigate to Games tab — the game will be visible in the list
+            selectedTab = 0
+        } else if identifier.hasPrefix("team-") {
+            // Navigate to Games tab with favorites context
+            selectedTab = 0
+        }
+    }
+
+    /// Checks if the app was opened via OpenSportIntent and switches to that sport.
+    private func checkIntentOpenSport() {
+        let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
+        guard let sportRaw = defaults?.string(forKey: "intentOpenSport") else { return }
+        defaults?.removeObject(forKey: "intentOpenSport")
+
+        if let sportType = SportType(rawValue: sportRaw) {
+            storage.switchTo(sportType: sportType)
+            viewModel.filterSports(force: true)
+            selectedTab = 0
         }
     }
 

@@ -659,17 +659,17 @@ public class GameViewModel: NSObject {
         }
         // Re-run after both teams and live data are available so live events render with team badges
         updateLiveData()
-        // Connect WebSocket now — don't wait for schedule fetch
-        handleLiveWebsocket()
+        // Connect WebSocket only if there are live/upcoming games
+        ensureWebSocketConnected()
 
         // Phase 2: Fetch full schedules (slower, per-sport)
         do { try await self.handleGames() }
         catch { AppLogger.networking.error("handleGames failed: \(error.localizedDescription)") }
+        // Re-evaluate WebSocket now that we have schedule data
+        ensureWebSocketConnected()
         #if canImport(ActivityKit) && os(iOS)
-        if #available(iOS 16.1, *) {
-            registerPushToStartIfNeeded()
-            preCacheFavoriteTeamBadges()
-        }
+        registerPushToStartIfNeeded()
+        preCacheFavoriteTeamBadges()
         #endif
         appStorage.cleanupExpiredAutoFollows(games: totalGames ?? [])
         networkState = .loaded
@@ -696,11 +696,9 @@ public class GameViewModel: NSObject {
                         updateLiveData()
                     }
                     #if canImport(ActivityKit) && os(iOS)
-                    if #available(iOS 16.1, *) {
-                        Task { @MainActor in
-                            try await updateLiveActivities()
-                            checkAutoFollowedGamesForLiveStart()
-                        }
+                    Task { @MainActor in
+                        try await updateLiveActivities()
+                        checkAutoFollowedGamesForLiveStart()
                     }
                     #endif
                 }
@@ -942,11 +940,20 @@ public class GameViewModel: NSObject {
         }
         calendarGames = allValidGames.sorted { ($0.standardDate ?? .now) < ($1.standardDate ?? .now) }
 
+        rebuildSportCountsCache()
         AppLogger.viewModel.info("Total games: \(self.totalGames?.count ?? 0), filtered: \(self.filteredGames?.count ?? 0)")
         handleSearch(searchString: searchString)
         sortByDate()
         setFavorites()
         updateLiveData()
+
+        // Write trimmed snapshot for widget extension (avoids widget needing network)
+        WidgetDataStore.writeSnapshot(games: filteredGames ?? [], teams: teams)
+
+        // Index games in Spotlight for system-wide search (main app only, not widget extension)
+        #if !WIDGET_EXTENSION
+        SpotlightIndexer.indexGames(filteredGames ?? [], favorites: favorites.teams)
+        #endif
     }
     func sortByDate() {
         let groupDic = Dictionary(grouping: filteredGames ?? []) { game -> DateComponents in
@@ -1100,12 +1107,44 @@ public class GameViewModel: NSObject {
         return grouped
     }
 
+    /// Pre-computed sport counts per date (avoids recomputing for every day chip).
+    /// Keyed by "yyyy-MM-dd" string for fast lookup.
+    var sportCountsByDate: [String: [SportType: Int]] = [:]
+
+    /// Rebuilds the sport-counts-per-date cache from filteredGames.
+    func rebuildSportCountsCache() {
+        let calendar = Calendar.current
+        var result: [String: [SportType: Int]] = [:]
+        for game in filteredGames ?? [] {
+            guard let gameDate = game.standardDate else { continue }
+            guard let leagueString = game.idLeague,
+                  let intLeague = Int(leagueString),
+                  let league = Leagues(rawValue: intLeague) else { continue }
+            let sport = SportType(league: league)
+            let key = Self.sportCountDateFormatter.string(from: calendar.startOfDay(for: gameDate))
+            result[key, default: [:]][sport, default: 0] += 1
+        }
+        sportCountsByDate = result
+    }
+
+    private static let sportCountDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    /// Returns game counts per sport for a specific date (used for density heatmap on day chips).
+    func gameCountsBySport(for date: Date) -> [SportType: Int] {
+        let key = Self.sportCountDateFormatter.string(from: Calendar.current.startOfDay(for: date))
+        return sportCountsByDate[key] ?? [:]
+    }
+
     /// Returns the set of dates that have sport-preference-filtered games.
     /// Uses getGamesFromUserPreferences() so past games within a day are included.
     func datesWithGames() -> Set<DateComponents> {
         let calendar = Calendar.current
         var dates = Set<DateComponents>()
-        for game in getGamesFromUserPreferences() {
+        for game in filteredGames ?? [] {
             guard let gameDate = game.standardDate else { continue }
             let dc = calendar.dateComponents([.day, .month, .year], from: gameDate)
             dates.insert(dc)
@@ -1218,10 +1257,43 @@ public class GameViewModel: NSObject {
         getInfo()
     }
 
-    /// Ensures the WebSocket is connected. Call on foreground resume.
+    /// Ensures the WebSocket is connected only when there are live or upcoming games.
+    /// Call on foreground resume and after schedule updates.
     func ensureWebSocketConnected() {
-        guard webSocketTask == nil else { return }
-        handleLiveWebsocket()
+        if shouldWebSocketBeActive() {
+            guard webSocketTask == nil else { return }
+            wsReconnectAttempts = 0
+            handleLiveWebsocket()
+        } else {
+            disconnectWebSocket()
+        }
+    }
+
+    /// Returns true if there are live games or games starting within 2 hours.
+    private func shouldWebSocketBeActive() -> Bool {
+        // Always connect if we already have live events
+        if !allLiveEvents.isEmpty { return true }
+
+        let now = Date()
+        let twoHoursFromNow = now.addingTimeInterval(2 * 60 * 60)
+        let fourHoursAgo = now.addingTimeInterval(-4 * 60 * 60)
+
+        // Check if any filtered game is live or starting soon
+        for game in filteredGames ?? [] {
+            if game.strStatus == "in" { return true }
+            if let date = game.standardDate, date >= fourHoursAgo && date <= twoHoursFromNow {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Cleanly disconnects the WebSocket and cancels any pending reconnect.
+    private func disconnectWebSocket() {
+        restartTimer?.invalidate()
+        restartTimer = nil
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
     }
     
     func handleSearch(searchString: String?) {
@@ -1276,7 +1348,6 @@ extension GameViewModel: @preconcurrency URLSessionWebSocketDelegate {
     }
 }
 #if canImport(ActivityKit) && os(iOS)
-@available(iOS 16.1, *)
 extension GameViewModel {
     func configureDataForLiveActivity(game: Game, homeTeam: Team, awayTeam: Team) async throws -> (attributes: LiveSportActivityAttributes, contentState: LiveSportActivityAttributes.ContentState) {
         guard let homeTeamName = homeTeam.strTeamShort ?? homeTeam.strTeam,
