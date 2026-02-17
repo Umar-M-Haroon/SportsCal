@@ -56,10 +56,8 @@ struct UpcomingGameView: View {
                     }
                     Menu {
                         #if canImport(ActivityKit) && os(iOS)
-                        if #available(iOS 16.1, *) {
-                            AutoFollowButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
-                                .environment(viewModel)
-                        }
+                        AutoFollowButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                            .environment(viewModel)
                         #endif
                         FavoriteMenu(game: game)
                             .environment(favorites)

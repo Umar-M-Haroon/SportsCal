@@ -1,0 +1,108 @@
+{
+    "nba" : {
+        "events" : [
+            {
+                "strStatus" : "in",
+                "strSport" : "basketball",
+                "strProgress" : "6:43 - 3rd",
+                "idLiveScore" : "401469290",
+                "strHomeTeam" : "Golden State Warriors",
+                "idHomeTeam" : "9",
+                "intAwayScore" : "73",
+                "idLeague" : "4387",
+                "dateEvent" : "2023-03-29T02:00Z",
+                "idEvent" : "401469290",
+                "strEventTime" : "2023-03-29T02:00Z",
+                "isCompleted" : false,
+                "strAwayTeamBadge" : "https:\/\/a.espncdn.com\/i\/teamlogos\/nba\/500\/scoreboard\/no.png",
+                "idAwayTeam" : "3",
+                "strAwayTeam" : "New Orleans Pelicans",
+                "lastPlay" : "CJ McCollum makes 11-foot driving floating jump shot (Jonas Valanciunas assists)",
+                "intHomeScore" : "60",
+                "strHomeTeamBadge" : "https:\/\/a.espncdn.com\/i\/teamlogos\/nba\/500\/scoreboard\/gs.png",
+                "strTimestamp" : "2023-03-29T02:00Z"
+            }
+        ]
+    },
+    "mlb" : {
+        "events" : [
+            {
+                "idLiveScore" : "401481035",
+                "strSport" : "mlb",
+                "intAwayScore" : "5",
+                "idLeague" : "4424",
+                "strAwayTeam" : "Los Angeles Dodgers",
+                "idEvent" : "401481035",
+                "idHomeTeam" : "3",
+                "strHomeTeam" : "Los Angeles Angels",
+                "dateEvent" : "2023-03-29T01:07Z",
+                "intHomeScore" : "10",
+                "lastPlay" : "Pitch 3 : Ball 2",
+                "strTimestamp" : "2023-03-29T01:07Z",
+                "strStatus" : "in",
+                "strHomeTeamBadge" : "https:\/\/a.espncdn.com\/i\/teamlogos\/mlb\/500\/scoreboard\/laa.png",
+                "strAwayTeamBadge" : "https:\/\/a.espncdn.com\/i\/teamlogos\/mlb\/500\/scoreboard\/lad.png",
+                "strProgress" : "Bot 7th",
+                "strEventTime" : "2023-03-29T01:07Z",
+                "idAwayTeam" : "19",
+                "isCompleted" : false
+            }
+        ]
+    },
+    "nfl" : {
+        "events" : [
+            
+        ]
+    },
+    "nhl" : {
+        "events" : [
+            {
+                "strHomeTeamBadge" : "https:\/\/a.espncdn.com\/i\/teamlogos\/nhl\/500\/scoreboard\/vgk.png",
+                "dateEvent" : "2023-03-29T02:00Z",
+                "strAwayTeamBadge" : "https:\/\/a.espncdn.com\/i\/teamlogos\/nhl\/500\/scoreboard\/edm.png",
+                "idLeague" : "4380",
+                "idLiveScore" : "401459774",
+                "strSport" : "hockey",
+                "strAwayTeam" : "Edmonton Oilers",
+                "strStatus" : "in",
+                "isCompleted" : false,
+                "idEvent" : "401459774",
+                "idAwayTeam" : "6",
+                "intHomeScore" : "3",
+                "idHomeTeam" : "37",
+                "strHomeTeam" : "Vegas Golden Knights",
+                "strEventTime" : "2023-03-29T02:00Z",
+                "strTimestamp" : "2023-03-29T02:00Z",
+                "strProgress" : "2:14 - 2nd",
+                "intAwayScore" : "6",
+                "lastPlay" : "TV timeout"
+            },
+            {
+                "idLiveScore" : "401459772",
+                "strSport" : "hockey",
+                "idHomeTeam" : "18",
+                "idLeague" : "4380",
+                "strEventTime" : "2023-03-29T02:30Z",
+                "strAwayTeam" : "Winnipeg Jets",
+                "strProgress" : "14:02 - 2nd",
+                "strHomeTeam" : "San Jose Sharks",
+                "strAwayTeamBadge" : "https:\/\/a.espncdn.com\/i\/teamlogos\/nhl\/500\/scoreboard\/wpg.png",
+                "dateEvent" : "2023-03-29T02:30Z",
+                "idAwayTeam" : "28",
+                "strTimestamp" : "2023-03-29T02:30Z",
+                "isCompleted" : false,
+                "idEvent" : "401459772",
+                "strHomeTeamBadge" : "https:\/\/a.espncdn.com\/i\/teamlogos\/nhl\/500\/scoreboard\/sj.png",
+                "lastPlay" : "Tomas Hertl faceoff won against Adam Lowry",
+                "strStatus" : "in",
+                "intHomeScore" : "1",
+                "intAwayScore" : "0"
+            }
+        ]
+    },
+    "soccer" : {
+        "events" : [
+            
+        ]
+    }
+}

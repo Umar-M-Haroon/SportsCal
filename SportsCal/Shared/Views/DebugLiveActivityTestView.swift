@@ -94,18 +94,16 @@ struct DebugLiveActivityTestView: View {
 
             // MARK: - Live Activities
             #if canImport(ActivityKit) && os(iOS)
-            if #available(iOS 16.1, *) {
-                Section("Live Activities") {
-                    let activities = Activity<LiveSportActivityAttributes>.activities
-                    Text("Active: \(activities.count)")
-                    ForEach(Array(activities), id: \.id) { activity in
-                        VStack(alignment: .leading) {
-                            Text("\(activity.attributes.homeTeam) vs \(activity.attributes.awayTeam)")
-                                .font(.subheadline)
-                            Text("Event: \(activity.attributes.eventID)")
-                                .font(.caption.monospaced())
-                                .foregroundColor(.secondary)
-                        }
+            Section("Live Activities") {
+                let activities = Activity<LiveSportActivityAttributes>.activities
+                Text("Active: \(activities.count)")
+                ForEach(Array(activities), id: \.id) { activity in
+                    VStack(alignment: .leading) {
+                        Text("\(activity.attributes.homeTeam) vs \(activity.attributes.awayTeam)")
+                            .font(.subheadline)
+                        Text("Event: \(activity.attributes.eventID)")
+                            .font(.caption.monospaced())
+                            .foregroundColor(.secondary)
                     }
                 }
             }

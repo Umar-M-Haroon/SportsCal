@@ -7,9 +7,11 @@
 
 import SwiftUI
 import os
+import TipKit
 //import Purchases
 #if os(iOS)
 import BackgroundTasks
+import WatchConnectivity
 #endif
 #if canImport(ActivityKit) && os(iOS)
 import ActivityKit
@@ -36,6 +38,10 @@ struct SportsCalApp: App {
         _appStorage = State(initialValue: storage)
         _favorites = State(initialValue: favs)
         _viewModel = State(initialValue: GameViewModel(appStorage: storage, favorites: favs))
+        try? Tips.configure()
+        #if os(iOS)
+        PhoneWatchSyncService.shared.activate()
+        #endif
     }
 
     var isTestFlight: Bool {
@@ -72,6 +78,16 @@ struct SportsCalApp: App {
                     NetworkHandler.localServerHost = newHost
                 }
                 .environment(serverDiscovery)
+                .onReceive(NotificationCenter.default.publisher(for: .favoritesDidChange)) { _ in
+                    #if os(iOS)
+                    PhoneWatchSyncService.shared.syncAllPreferences()
+                    #endif
+                }
+                .onChange(of: appStorage.enabledSports) { _, _ in
+                    #if os(iOS)
+                    PhoneWatchSyncService.shared.syncAllPreferences()
+                    #endif
+                }
                 .alert("Update Required", isPresented: $versionChecker.updateRequired) {
                     Button("Update Now") {
                         if let url = URL(string: "https://apps.apple.com/app/id1565214492") {
@@ -113,27 +129,21 @@ struct SportsCalApp: App {
 #if os(iOS)
 extension Scene {
     func backgroundTaskIfAvailable() -> some Scene {
-        if #available(iOS 16.0, *) {
-            return self.backgroundTask(.appRefresh("com.KomodoLLC.SportsCal.updateGamesAndActivities")) {
-                AppLogger.general.info("Running background task")
-                if #available(iOS 16.1, *) {
+        self.backgroundTask(.appRefresh("com.KomodoLLC.SportsCal.updateGamesAndActivities")) {
+            AppLogger.general.info("Running background task")
 #if canImport(ActivityKit) && os(iOS)
-                    for activity in Activity<LiveSportActivityAttributes>.activities {
-                        for await data in activity.pushTokenUpdates {
-                            let myToken = data.map { String(format: "%02x", $0)}.joined()
-                            AppLogger.liveActivity.info("Live activity token updated: \(myToken)")
-                            do {
-                                try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID)
-                            } catch {
-                                AppLogger.liveActivity.error("Error updating on background: \(error.localizedDescription)")
-                            }
-                        }
+            for activity in Activity<LiveSportActivityAttributes>.activities {
+                for await data in activity.pushTokenUpdates {
+                    let myToken = data.map { String(format: "%02x", $0)}.joined()
+                    AppLogger.liveActivity.info("Live activity token updated: \(myToken)")
+                    do {
+                        try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID)
+                    } catch {
+                        AppLogger.liveActivity.error("Error updating on background: \(error.localizedDescription)")
                     }
-#endif
                 }
             }
-        } else {
-            return self
+#endif
         }
     }
 }

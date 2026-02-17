@@ -1,0 +1,1970 @@
+{
+    "leagues": [
+        {
+            "id": "775",
+            "uid": "s:600~l:775",
+            "name": "UEFA Champions League",
+            "abbreviation": "UCL",
+            "midsizeName": "UEFA.CHAMPIONS",
+            "slug": "uefa.champions",
+            "season": {
+                "year": 2022,
+                "startDate": "2022-08-24T04:00Z",
+                "endDate": "2023-07-01T03:59Z",
+                "type": {
+                    "id": "2",
+                    "type": 11304,
+                    "name": "Round of 16",
+                    "abbreviation": "Round of 16"
+                }
+            },
+            "logos": [
+                {
+                    "href": "https://a.espncdn.com/i/leaguelogos/soccer/500/2.png",
+                    "width": 500,
+                    "height": 500,
+                    "alt": "",
+                    "rel": [
+                        "full",
+                        "default"
+                    ],
+                    "lastUpdated": "2019-05-08T16:07Z"
+                },
+                {
+                    "href": "https://a.espncdn.com/i/leaguelogos/soccer/500-dark/2.png",
+                    "width": 500,
+                    "height": 500,
+                    "alt": "",
+                    "rel": [
+                        "full",
+                        "dark"
+                    ],
+                    "lastUpdated": "2019-05-08T16:07Z"
+                }
+            ],
+            "calendarType": "list",
+            "calendarIsWhitelist": true,
+            "calendarStartDate": "2022-08-24T04:00Z",
+            "calendarEndDate": "2023-07-01T03:59Z",
+            "calendar": [
+                {
+                    "label": "UEFA Champions League",
+                    "startDate": "2022-08-24T04:00Z",
+                    "endDate": "2023-07-01T03:59Z",
+                    "entries": [
+                        {
+                            "label": "Group",
+                            "detail": "Sep 6-Nov 2",
+                            "value": "1",
+                            "startDate": "2022-08-25T07:00Z",
+                            "endDate": "2022-11-03T06:59Z"
+                        },
+                        {
+                            "label": "Rd of 16",
+                            "detail": "Feb 14-Mar 15",
+                            "value": "2",
+                            "startDate": "2022-11-03T07:00Z",
+                            "endDate": "2023-03-16T06:59Z"
+                        },
+                        {
+                            "label": "Quarterfinals",
+                            "detail": "Mar 16-Apr 19",
+                            "value": "3",
+                            "startDate": "2023-03-16T07:00Z",
+                            "endDate": "2023-04-20T06:59Z"
+                        },
+                        {
+                            "label": "Semifinals",
+                            "detail": "Apr 20-May 17",
+                            "value": "4",
+                            "startDate": "2023-04-20T07:00Z",
+                            "endDate": "2023-05-18T06:59Z"
+                        },
+                        {
+                            "label": "Final",
+                            "detail": "May 18-Jun 30",
+                            "value": "5",
+                            "startDate": "2023-05-18T07:00Z",
+                            "endDate": "2023-07-01T06:59Z"
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "season": {
+        "type": 11304,
+        "year": 2022
+    },
+    "day": {
+        "date": "2023-02-14"
+    },
+    "events": [
+        {
+            "id": "656857",
+            "uid": "s:600~l:775~e:656857",
+            "date": "2023-02-14T20:00Z",
+            "name": "Tottenham Hotspur at AC Milan",
+            "shortName": "TOT @ MIL",
+            "season": {
+                "year": 2022,
+                "type": 11304,
+                "slug": "round-of-16"
+            },
+            "competitions": [
+                {
+                    "id": "656857",
+                    "uid": "s:600~l:775~e:656857~c:656857",
+                    "date": "2023-02-14T20:00Z",
+                    "startDate": "2023-02-14T20:00Z",
+                    "attendance": 0,
+                    "timeValid": true,
+                    "recent": false,
+                    "status": {
+                        "clock": 0.0,
+                        "displayClock": "0'",
+                        "type": {
+                            "id": "1",
+                            "name": "STATUS_SCHEDULED",
+                            "state": "pre",
+                            "completed": false,
+                            "description": "Scheduled",
+                            "detail": "Tue, February 14th at 3:00 PM EST",
+                            "shortDetail": "Scheduled"
+                        }
+                    },
+                    "venue": {
+                        "id": "1642",
+                        "fullName": "Giuseppe Meazza",
+                        "address": {
+                            "city": "Milano",
+                            "country": "Italy"
+                        }
+                    },
+                    "format": {
+                        "regulation": {
+                            "periods": 2
+                        }
+                    },
+                    "leg": {
+                        "value": 1,
+                        "displayValue": "1st Leg"
+                    },
+                    "series": {
+                        "competitors": [
+                            {
+                                "id": "103",
+                                "uid": "s:600~t:103",
+                                "winner": false
+                            },
+                            {
+                                "id": "367",
+                                "uid": "s:600~t:367",
+                                "winner": false
+                            }
+                        ],
+                        "completed": false,
+                        "title": "Round of 16",
+                        "totalCompetitions": 2
+                    },
+                    "notes": [
+                        {
+                            "text": "1st Leg",
+                            "headline": "1st Leg",
+                            "type": "event"
+                        }
+                    ],
+                    "geoBroadcasts": [],
+                    "broadcasts": [],
+                    "competitors": [
+                        {
+                            "id": "103",
+                            "uid": "s:600~t:103",
+                            "type": "team",
+                            "order": 0,
+                            "homeAway": "home",
+                            "winner": false,
+                            "form": "LLLLD",
+                            "score": "0",
+                            "team": {
+                                "id": "103",
+                                "uid": "s:600~t:103",
+                                "abbreviation": "MIL",
+                                "displayName": "AC Milan",
+                                "shortDisplayName": "Milan",
+                                "name": "AC Milan",
+                                "location": "AC Milan",
+                                "color": "C8142F",
+                                "alternateColor": "ffffff",
+                                "isActive": true,
+                                "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/103.png",
+                                "links": [
+                                    {
+                                        "rel": [
+                                            "clubhouse",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/club/_/id/103/ac-milan",
+                                        "text": "Clubhouse",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "stats",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/stats/_/id/103/ac-milan",
+                                        "text": "Stats",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "schedule",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/fixtures/_/id/103/ac-milan",
+                                        "text": "Fixtures",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "scores",
+                                            "sportscenter",
+                                            "app",
+                                            "team"
+                                        ],
+                                        "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:103&section=scores",
+                                        "text": "Scores",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "results",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/results/_/id/103/ac-milan",
+                                        "text": "Results",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "standings",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/standings/_/league/uefa.champions",
+                                        "text": "Standings",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "squad",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/squad/_/id/103/ac-milan",
+                                        "text": "Squad",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    }
+                                ],
+                                "venue": {
+                                    "id": "1642"
+                                }
+                            },
+                            "statistics": [],
+                            "leaders": [
+                                {
+                                    "name": "goals",
+                                    "displayName": "Goals",
+                                    "shortDisplayName": "Goals",
+                                    "abbreviation": "G",
+                                    "leaders": [
+                                        {
+                                            "displayValue": "4",
+                                            "shortDisplayValue": "4",
+                                            "value": 4.0,
+                                            "athlete": {
+                                                "id": "88965",
+                                                "displayName": "Olivier Giroud",
+                                                "shortName": "O Giroud",
+                                                "fullName": "Olivier Giroud",
+                                                "jersey": "9",
+                                                "active": true,
+                                                "team": {
+                                                    "id": "103"
+                                                },
+                                                "links": [
+                                                    {
+                                                        "rel": [
+                                                            "playercard",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "stats",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/stats/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "splits",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/splits/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "gamelog",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/matches/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "news",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/news/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "bio",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/bio/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "overview",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "transfers",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/transfers/_/id/88965/olivier-giroud"
+                                                    }
+                                                ],
+                                                "position": {
+                                                    "abbreviation": "F"
+                                                }
+                                            },
+                                            "team": {
+                                                "id": "103"
+                                            }
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "goalsLeaders",
+                                    "displayName": "Goals",
+                                    "shortDisplayName": "Goals",
+                                    "abbreviation": "G",
+                                    "leaders": [
+                                        {
+                                            "displayValue": "4",
+                                            "shortDisplayValue": "4",
+                                            "value": 4.0,
+                                            "athlete": {
+                                                "id": "88965",
+                                                "displayName": "Olivier Giroud",
+                                                "shortName": "O Giroud",
+                                                "fullName": "Olivier Giroud",
+                                                "jersey": "9",
+                                                "active": true,
+                                                "team": {
+                                                    "id": "103"
+                                                },
+                                                "links": [
+                                                    {
+                                                        "rel": [
+                                                            "playercard",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "stats",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/stats/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "splits",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/splits/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "gamelog",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/matches/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "news",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/news/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "bio",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/bio/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "overview",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/_/id/88965/olivier-giroud"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "transfers",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/transfers/_/id/88965/olivier-giroud"
+                                                    }
+                                                ],
+                                                "position": {
+                                                    "abbreviation": "F"
+                                                }
+                                            },
+                                            "team": {
+                                                "id": "103"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "id": "367",
+                            "uid": "s:600~t:367",
+                            "type": "team",
+                            "order": 1,
+                            "homeAway": "away",
+                            "winner": false,
+                            "form": "WWWLL",
+                            "score": "0",
+                            "team": {
+                                "id": "367",
+                                "uid": "s:600~t:367",
+                                "abbreviation": "TOT",
+                                "displayName": "Tottenham Hotspur",
+                                "shortDisplayName": "Tottenham",
+                                "name": "Tottenham Hotspur",
+                                "location": "Tottenham Hotspur",
+                                "color": "D1D3D4",
+                                "alternateColor": "132257",
+                                "isActive": true,
+                                "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+                                "links": [
+                                    {
+                                        "rel": [
+                                            "clubhouse",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/club/_/id/367/tottenham-hotspur",
+                                        "text": "Clubhouse",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "stats",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/stats/_/id/367/tottenham-hotspur",
+                                        "text": "Stats",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "schedule",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/fixtures/_/id/367/tottenham-hotspur",
+                                        "text": "Fixtures",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "scores",
+                                            "sportscenter",
+                                            "app",
+                                            "team"
+                                        ],
+                                        "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:367&section=scores",
+                                        "text": "Scores",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "results",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/results/_/id/367/tottenham-hotspur",
+                                        "text": "Results",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "standings",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/standings/_/league/uefa.champions",
+                                        "text": "Standings",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "squad",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/squad/_/id/367/tottenham-hotspur",
+                                        "text": "Squad",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    }
+                                ],
+                                "venue": {
+                                    "id": "7827"
+                                }
+                            },
+                            "statistics": [],
+                            "leaders": [
+                                {
+                                    "name": "goals",
+                                    "displayName": "Goals",
+                                    "shortDisplayName": "Goals",
+                                    "abbreviation": "G",
+                                    "leaders": [
+                                        {
+                                            "displayValue": "2",
+                                            "shortDisplayValue": "2",
+                                            "value": 2.0,
+                                            "athlete": {
+                                                "id": "149945",
+                                                "displayName": "Son Heung-Min",
+                                                "shortName": "S Heung-Min",
+                                                "fullName": "Son Heung-Min",
+                                                "jersey": "7",
+                                                "active": true,
+                                                "team": {
+                                                    "id": "367"
+                                                },
+                                                "links": [
+                                                    {
+                                                        "rel": [
+                                                            "playercard",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "stats",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/stats/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "splits",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/splits/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "gamelog",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/matches/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "news",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/news/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "bio",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/bio/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "overview",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "transfers",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/transfers/_/id/149945/son-heung-min"
+                                                    }
+                                                ],
+                                                "position": {
+                                                    "abbreviation": "F"
+                                                }
+                                            },
+                                            "team": {
+                                                "id": "367"
+                                            }
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "goalsLeaders",
+                                    "displayName": "Goals",
+                                    "shortDisplayName": "Goals",
+                                    "abbreviation": "G",
+                                    "leaders": [
+                                        {
+                                            "displayValue": "2",
+                                            "shortDisplayValue": "2",
+                                            "value": 2.0,
+                                            "athlete": {
+                                                "id": "149945",
+                                                "displayName": "Son Heung-Min",
+                                                "shortName": "S Heung-Min",
+                                                "fullName": "Son Heung-Min",
+                                                "jersey": "7",
+                                                "active": true,
+                                                "team": {
+                                                    "id": "367"
+                                                },
+                                                "links": [
+                                                    {
+                                                        "rel": [
+                                                            "playercard",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "stats",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/stats/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "splits",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/splits/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "gamelog",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/matches/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "news",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/news/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "bio",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/bio/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "overview",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/_/id/149945/son-heung-min"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "transfers",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/transfers/_/id/149945/son-heung-min"
+                                                    }
+                                                ],
+                                                "position": {
+                                                    "abbreviation": "F"
+                                                }
+                                            },
+                                            "team": {
+                                                "id": "367"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "details": [],
+                    "odds": [
+                        {
+                            "provider": {
+                                "id": "2000",
+                                "name": "Bet 365",
+                                "priority": 0
+                            },
+                            "awayTeamOdds": {
+                                "summary": "15/8",
+                                "value": 2.875,
+                                "handicap": 0.0,
+                                "team": {
+                                    "id": "367",
+                                    "uid": "s:600~t:367",
+                                    "abbreviation": "TOT",
+                                    "displayName": "Tottenham Hotspur",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png"
+                                },
+                                "link": {
+                                    "language": "en-US",
+                                    "rel": [
+                                        "away",
+                                        "desktop",
+                                        "bets",
+                                        "bet-365"
+                                    ],
+                                    "href": "https://www.bet365.com/dl/sportsbookredirect?affiliate=365_307577&bet=1&bs=127916113-1825723870~15/8",
+                                    "text": "Away Bet",
+                                    "shortText": "Away Bet",
+                                    "isExternal": true,
+                                    "isPremium": false
+                                }
+                            },
+                            "homeTeamOdds": {
+                                "summary": "29/20",
+                                "value": 2.45,
+                                "handicap": 0.0,
+                                "team": {
+                                    "id": "103",
+                                    "uid": "s:600~t:103",
+                                    "abbreviation": "MIL",
+                                    "displayName": "AC Milan",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/103.png"
+                                },
+                                "link": {
+                                    "language": "en-US",
+                                    "rel": [
+                                        "home",
+                                        "desktop",
+                                        "bets",
+                                        "bet-365"
+                                    ],
+                                    "href": "https://www.bet365.com/dl/sportsbookredirect?affiliate=365_307577&bet=1&bs=127916113-1825723868~29/20",
+                                    "text": "Home Bet",
+                                    "shortText": "Home Bet",
+                                    "isExternal": true,
+                                    "isPremium": false
+                                }
+                            },
+                            "drawOdds": {
+                                "summary": "9/4",
+                                "value": 3.25,
+                                "handicap": 0.0,
+                                "link": {
+                                    "language": "en-US",
+                                    "rel": [
+                                        "draw",
+                                        "desktop",
+                                        "bets",
+                                        "bet-365"
+                                    ],
+                                    "href": "https://www.bet365.com/dl/sportsbookredirect?affiliate=365_307577&bet=1&bs=127916113-1825723869~9/4",
+                                    "text": "Draw Bet",
+                                    "shortText": "Draw Bet",
+                                    "isExternal": true,
+                                    "isPremium": false
+                                }
+                            }
+                        },
+                        {
+                            "overUnder": 2.5,
+                            "provider": {
+                                "id": "45",
+                                "name": "Caesars Sportsbook (NJ)",
+                                "priority": 1
+                            },
+                            "drawOdds": {
+                                "moneyLine": 220
+                            },
+                            "details": "MIL +155"
+                        },
+                        {
+                            "overUnder": 2.5,
+                            "provider": {
+                                "id": "55",
+                                "name": "Holland Casino",
+                                "priority": 0
+                            },
+                            "awayTeamOdds": {
+                                "favorite": false,
+                                "underdog": true,
+                                "moneyLine": 185,
+                                "team": {
+                                    "id": "367",
+                                    "uid": "s:600~t:367",
+                                    "abbreviation": "TOT",
+                                    "displayName": "Tottenham Hotspur",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png"
+                                },
+                                "link": {
+                                    "language": "en-US",
+                                    "rel": [
+                                        "away",
+                                        "desktop",
+                                        "bets",
+                                        "holland-casino"
+                                    ],
+                                    "href": "https://adserver.hollandcasino.nl/page?key=ej0xMzUyNjA5NCZsPTEzNTI2MDkwJnA9MzcyMQ==&bet_ref=MzE2ODU4NTgwOjIxLzEwOjow",
+                                    "text": "Away Bet",
+                                    "shortText": "Away Bet",
+                                    "isExternal": true,
+                                    "isPremium": false
+                                }
+                            },
+                            "homeTeamOdds": {
+                                "favorite": true,
+                                "underdog": false,
+                                "moneyLine": 145,
+                                "team": {
+                                    "id": "103",
+                                    "uid": "s:600~t:103",
+                                    "abbreviation": "MIL",
+                                    "displayName": "AC Milan",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/103.png"
+                                },
+                                "link": {
+                                    "language": "en-US",
+                                    "rel": [
+                                        "home",
+                                        "desktop",
+                                        "bets",
+                                        "holland-casino"
+                                    ],
+                                    "href": "https://adserver.hollandcasino.nl/page?key=ej0xMzUyNjA5NCZsPTEzNTI2MDkwJnA9MzcyMQ==&bet_ref=MzE2ODU4NTgyOjEzLzEwOjow",
+                                    "text": "Home Bet",
+                                    "shortText": "Home Bet",
+                                    "isExternal": true,
+                                    "isPremium": false
+                                }
+                            },
+                            "drawOdds": {
+                                "moneyLine": 230,
+                                "link": {
+                                    "language": "en-US",
+                                    "rel": [
+                                        "draw",
+                                        "desktop",
+                                        "bets",
+                                        "holland-casino"
+                                    ],
+                                    "href": "https://adserver.hollandcasino.nl/page?key=ej0xMzUyNjA5NCZsPTEzNTI2MDkwJnA9MzcyMQ==&bet_ref=MzE2ODU4NTgxOjkvNDo6MA",
+                                    "text": "Draw Bet",
+                                    "shortText": "Draw Bet",
+                                    "isExternal": true,
+                                    "isPremium": false
+                                }
+                            },
+                            "details": "MIL +145"
+                        },
+                        {
+                            "overUnder": 2.5,
+                            "provider": {
+                                "id": "1001",
+                                "name": "accuscore",
+                                "priority": 0
+                            },
+                            "awayTeamOdds": {
+                                "favorite": false,
+                                "underdog": true,
+                                "moneyLine": 188,
+                                "spreadOdds": 106.0,
+                                "team": {
+                                    "id": "367",
+                                    "uid": "s:600~t:367",
+                                    "abbreviation": "TOT",
+                                    "displayName": "Tottenham Hotspur",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png"
+                                }
+                            },
+                            "homeTeamOdds": {
+                                "favorite": true,
+                                "underdog": false,
+                                "moneyLine": 145,
+                                "spreadOdds": -119.0,
+                                "team": {
+                                    "id": "103",
+                                    "uid": "s:600~t:103",
+                                    "abbreviation": "MIL",
+                                    "displayName": "AC Milan",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/103.png"
+                                }
+                            },
+                            "drawOdds": {
+                                "moneyLine": 225
+                            },
+                            "details": "MIL +145"
+                        }
+                    ]
+                }
+            ],
+            "status": {
+                "clock": 0.0,
+                "displayClock": "0'",
+                "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Tue, February 14th at 3:00 PM EST",
+                    "shortDetail": "Scheduled"
+                }
+            },
+            "links": [
+                {
+                    "language": "en-US",
+                    "rel": [
+                        "summary",
+                        "desktop",
+                        "event"
+                    ],
+                    "href": "https://www.espn.com/soccer/match/_/gameId/656857",
+                    "text": "Summary",
+                    "shortText": "Summary",
+                    "isExternal": false,
+                    "isPremium": false
+                },
+                {
+                    "language": "en-US",
+                    "rel": [
+                        "stats",
+                        "desktop",
+                        "event"
+                    ],
+                    "href": "https://www.espn.com/soccer/matchstats/_/gameId/656857",
+                    "text": "Statistics",
+                    "shortText": "Statistics",
+                    "isExternal": false,
+                    "isPremium": false
+                }
+            ]
+        },
+        {
+            "id": "656858",
+            "uid": "s:600~l:775~e:656858",
+            "date": "2023-02-14T20:00Z",
+            "name": "Bayern Munich at Paris Saint-Germain ",
+            "shortName": "MUN @ PSG",
+            "season": {
+                "year": 2022,
+                "type": 11304,
+                "slug": "round-of-16"
+            },
+            "competitions": [
+                {
+                    "id": "656858",
+                    "uid": "s:600~l:775~e:656858~c:656858",
+                    "date": "2023-02-14T20:00Z",
+                    "startDate": "2023-02-14T20:00Z",
+                    "attendance": 0,
+                    "timeValid": true,
+                    "recent": false,
+                    "status": {
+                        "clock": 0.0,
+                        "displayClock": "0'",
+                        "type": {
+                            "id": "1",
+                            "name": "STATUS_SCHEDULED",
+                            "state": "pre",
+                            "completed": false,
+                            "description": "Scheduled",
+                            "detail": "Tue, February 14th at 3:00 PM EST",
+                            "shortDetail": "Scheduled"
+                        }
+                    },
+                    "venue": {
+                        "id": "2271",
+                        "fullName": "Parc des Princes",
+                        "address": {
+                            "city": "Paris",
+                            "country": "France"
+                        }
+                    },
+                    "format": {
+                        "regulation": {
+                            "periods": 2
+                        }
+                    },
+                    "leg": {
+                        "value": 1,
+                        "displayValue": "1st Leg"
+                    },
+                    "series": {
+                        "competitors": [
+                            {
+                                "id": "160",
+                                "uid": "s:600~t:160",
+                                "winner": false
+                            },
+                            {
+                                "id": "132",
+                                "uid": "s:600~t:132",
+                                "winner": false
+                            }
+                        ],
+                        "completed": false,
+                        "title": "Round of 16",
+                        "totalCompetitions": 2
+                    },
+                    "notes": [
+                        {
+                            "text": "1st Leg",
+                            "headline": "1st Leg",
+                            "type": "event"
+                        }
+                    ],
+                    "geoBroadcasts": [],
+                    "broadcasts": [],
+                    "competitors": [
+                        {
+                            "id": "160",
+                            "uid": "s:600~t:160",
+                            "type": "team",
+                            "order": 0,
+                            "homeAway": "home",
+                            "winner": false,
+                            "form": "LWWDW",
+                            "score": "0",
+                            "team": {
+                                "id": "160",
+                                "uid": "s:600~t:160",
+                                "abbreviation": "PSG",
+                                "displayName": "Paris Saint-Germain ",
+                                "shortDisplayName": "PSG",
+                                "name": "Paris Saint-Germain ",
+                                "location": "Paris Saint-Germain ",
+                                "color": "011F68",
+                                "alternateColor": "b0b0b0",
+                                "isActive": true,
+                                "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/160.png",
+                                "links": [
+                                    {
+                                        "rel": [
+                                            "clubhouse",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/club/_/id/160/paris-saint-germain",
+                                        "text": "Clubhouse",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "stats",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/stats/_/id/160/paris-saint-germain",
+                                        "text": "Stats",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "schedule",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/fixtures/_/id/160/paris-saint-germain",
+                                        "text": "Fixtures",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "scores",
+                                            "sportscenter",
+                                            "app",
+                                            "team"
+                                        ],
+                                        "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:160&section=scores",
+                                        "text": "Scores",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "results",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/results/_/id/160/paris-saint-germain",
+                                        "text": "Results",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "standings",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/standings/_/league/uefa.champions",
+                                        "text": "Standings",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "squad",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/squad/_/id/160/paris-saint-germain",
+                                        "text": "Squad",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    }
+                                ],
+                                "venue": {
+                                    "id": "2271"
+                                }
+                            },
+                            "statistics": [],
+                            "leaders": [
+                                {
+                                    "name": "goals",
+                                    "displayName": "Goals",
+                                    "shortDisplayName": "Goals",
+                                    "abbreviation": "G",
+                                    "leaders": [
+                                        {
+                                            "displayValue": "7",
+                                            "shortDisplayValue": "7",
+                                            "value": 7.0,
+                                            "athlete": {
+                                                "id": "231388",
+                                                "displayName": "Kylian Mbappé",
+                                                "shortName": "K Mbappé",
+                                                "fullName": "Kylian Mbappé",
+                                                "jersey": "7",
+                                                "active": true,
+                                                "team": {
+                                                    "id": "160"
+                                                },
+                                                "links": [
+                                                    {
+                                                        "rel": [
+                                                            "playercard",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "stats",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/stats/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "splits",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/splits/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "gamelog",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/matches/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "news",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/news/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "bio",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/bio/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "overview",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "transfers",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/transfers/_/id/231388/kylian-mbappe"
+                                                    }
+                                                ],
+                                                "position": {
+                                                    "abbreviation": "F"
+                                                }
+                                            },
+                                            "team": {
+                                                "id": "160"
+                                            }
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "goalsLeaders",
+                                    "displayName": "Goals",
+                                    "shortDisplayName": "Goals",
+                                    "abbreviation": "G",
+                                    "leaders": [
+                                        {
+                                            "displayValue": "7",
+                                            "shortDisplayValue": "7",
+                                            "value": 7.0,
+                                            "athlete": {
+                                                "id": "231388",
+                                                "displayName": "Kylian Mbappé",
+                                                "shortName": "K Mbappé",
+                                                "fullName": "Kylian Mbappé",
+                                                "jersey": "7",
+                                                "active": true,
+                                                "team": {
+                                                    "id": "160"
+                                                },
+                                                "links": [
+                                                    {
+                                                        "rel": [
+                                                            "playercard",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "stats",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/stats/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "splits",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/splits/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "gamelog",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/matches/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "news",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/news/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "bio",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/bio/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "overview",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/_/id/231388/kylian-mbappe"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "transfers",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/transfers/_/id/231388/kylian-mbappe"
+                                                    }
+                                                ],
+                                                "position": {
+                                                    "abbreviation": "F"
+                                                }
+                                            },
+                                            "team": {
+                                                "id": "160"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "id": "132",
+                            "uid": "s:600~t:132",
+                            "type": "team",
+                            "order": 1,
+                            "homeAway": "away",
+                            "winner": false,
+                            "form": "WWDDD",
+                            "score": "0",
+                            "team": {
+                                "id": "132",
+                                "uid": "s:600~t:132",
+                                "abbreviation": "MUN",
+                                "displayName": "Bayern Munich",
+                                "shortDisplayName": "Bayern",
+                                "name": "Bayern Munich",
+                                "location": "Bayern Munich",
+                                "color": "C8142F",
+                                "alternateColor": "ffffff",
+                                "isActive": true,
+                                "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/132.png",
+                                "links": [
+                                    {
+                                        "rel": [
+                                            "clubhouse",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/club/_/id/132/bayern-munich",
+                                        "text": "Clubhouse",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "stats",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/stats/_/id/132/bayern-munich",
+                                        "text": "Stats",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "schedule",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/fixtures/_/id/132/bayern-munich",
+                                        "text": "Fixtures",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "scores",
+                                            "sportscenter",
+                                            "app",
+                                            "team"
+                                        ],
+                                        "href": "sportscenter://x-callback-url/showClubhouse?uid=s:600~t:132&section=scores",
+                                        "text": "Scores",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "results",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/results/_/id/132/bayern-munich",
+                                        "text": "Results",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "standings",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/standings/_/league/uefa.champions",
+                                        "text": "Standings",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    },
+                                    {
+                                        "rel": [
+                                            "squad",
+                                            "desktop",
+                                            "team"
+                                        ],
+                                        "href": "https://www.espn.com/soccer/team/squad/_/id/132/bayern-munich",
+                                        "text": "Squad",
+                                        "isExternal": false,
+                                        "isPremium": false
+                                    }
+                                ],
+                                "venue": {
+                                    "id": "1935"
+                                }
+                            },
+                            "statistics": [],
+                            "leaders": [
+                                {
+                                    "name": "goals",
+                                    "displayName": "Goals",
+                                    "shortDisplayName": "Goals",
+                                    "abbreviation": "G",
+                                    "leaders": [
+                                        {
+                                            "displayValue": "4",
+                                            "shortDisplayValue": "4",
+                                            "value": 4.0,
+                                            "athlete": {
+                                                "id": "202641",
+                                                "displayName": "Leroy Sané",
+                                                "shortName": "L Sané",
+                                                "fullName": "Leroy Sané",
+                                                "jersey": "10",
+                                                "active": true,
+                                                "team": {
+                                                    "id": "132"
+                                                },
+                                                "links": [
+                                                    {
+                                                        "rel": [
+                                                            "playercard",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "stats",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/stats/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "splits",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/splits/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "gamelog",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/matches/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "news",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/news/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "bio",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/bio/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "overview",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "transfers",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/transfers/_/id/202641/leroy-sane"
+                                                    }
+                                                ],
+                                                "position": {
+                                                    "abbreviation": "F"
+                                                }
+                                            },
+                                            "team": {
+                                                "id": "132"
+                                            }
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "goalsLeaders",
+                                    "displayName": "Goals",
+                                    "shortDisplayName": "Goals",
+                                    "abbreviation": "G",
+                                    "leaders": [
+                                        {
+                                            "displayValue": "4",
+                                            "shortDisplayValue": "4",
+                                            "value": 4.0,
+                                            "athlete": {
+                                                "id": "202641",
+                                                "displayName": "Leroy Sané",
+                                                "shortName": "L Sané",
+                                                "fullName": "Leroy Sané",
+                                                "jersey": "10",
+                                                "active": true,
+                                                "team": {
+                                                    "id": "132"
+                                                },
+                                                "links": [
+                                                    {
+                                                        "rel": [
+                                                            "playercard",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "stats",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/stats/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "splits",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "http://www.espn.com/soccer/player/splits/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "gamelog",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/matches/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "news",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/news/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "bio",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/bio/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "overview",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/_/id/202641/leroy-sane"
+                                                    },
+                                                    {
+                                                        "rel": [
+                                                            "transfers",
+                                                            "desktop",
+                                                            "athlete"
+                                                        ],
+                                                        "href": "https://www.espn.com/soccer/player/transfers/_/id/202641/leroy-sane"
+                                                    }
+                                                ],
+                                                "position": {
+                                                    "abbreviation": "F"
+                                                }
+                                            },
+                                            "team": {
+                                                "id": "132"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "details": [],
+                    "odds": [
+                        {
+                            "provider": {
+                                "id": "2000",
+                                "name": "Bet 365",
+                                "priority": 0
+                            },
+                            "awayTeamOdds": {
+                                "summary": "6/4",
+                                "value": 2.5,
+                                "handicap": 0.0,
+                                "team": {
+                                    "id": "132",
+                                    "uid": "s:600~t:132",
+                                    "abbreviation": "MUN",
+                                    "displayName": "Bayern Munich",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/132.png"
+                                },
+                                "link": {
+                                    "language": "en-US",
+                                    "rel": [
+                                        "away",
+                                        "desktop",
+                                        "bets",
+                                        "bet-365"
+                                    ],
+                                    "href": "https://www.bet365.com/dl/sportsbookredirect?affiliate=365_307577&bet=1&bs=127916135-1825725327~6/4",
+                                    "text": "Away Bet",
+                                    "shortText": "Away Bet",
+                                    "isExternal": true,
+                                    "isPremium": false
+                                }
+                            },
+                            "homeTeamOdds": {
+                                "summary": "6/4",
+                                "value": 2.5,
+                                "handicap": 0.0,
+                                "team": {
+                                    "id": "160",
+                                    "uid": "s:600~t:160",
+                                    "abbreviation": "PSG",
+                                    "displayName": "Paris Saint-Germain ",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/160.png"
+                                },
+                                "link": {
+                                    "language": "en-US",
+                                    "rel": [
+                                        "home",
+                                        "desktop",
+                                        "bets",
+                                        "bet-365"
+                                    ],
+                                    "href": "https://www.bet365.com/dl/sportsbookredirect?affiliate=365_307577&bet=1&bs=127916135-1825725325~6/4",
+                                    "text": "Home Bet",
+                                    "shortText": "Home Bet",
+                                    "isExternal": true,
+                                    "isPremium": false
+                                }
+                            },
+                            "drawOdds": {
+                                "summary": "11/4",
+                                "value": 3.75,
+                                "handicap": 0.0,
+                                "link": {
+                                    "language": "en-US",
+                                    "rel": [
+                                        "draw",
+                                        "desktop",
+                                        "bets",
+                                        "bet-365"
+                                    ],
+                                    "href": "https://www.bet365.com/dl/sportsbookredirect?affiliate=365_307577&bet=1&bs=127916135-1825725326~11/4",
+                                    "text": "Draw Bet",
+                                    "shortText": "Draw Bet",
+                                    "isExternal": true,
+                                    "isPremium": false
+                                }
+                            }
+                        },
+                        {
+                            "overUnder": 3.5,
+                            "provider": {
+                                "id": "45",
+                                "name": "Caesars Sportsbook (NJ)",
+                                "priority": 1
+                            },
+                            "drawOdds": {
+                                "moneyLine": 260
+                            },
+                            "details": "PSG +145"
+                        },
+                        {
+                            "overUnder": 2.5,
+                            "provider": {
+                                "id": "55",
+                                "name": "Holland Casino",
+                                "priority": 0
+                            },
+                            "awayTeamOdds": {
+                                "favorite": false,
+                                "underdog": true,
+                                "moneyLine": 155,
+                                "team": {
+                                    "id": "132",
+                                    "uid": "s:600~t:132",
+                                    "abbreviation": "MUN",
+                                    "displayName": "Bayern Munich",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/132.png"
+                                },
+                                "link": {
+                                    "language": "en-US",
+                                    "rel": [
+                                        "away",
+                                        "desktop",
+                                        "bets",
+                                        "holland-casino"
+                                    ],
+                                    "href": "https://adserver.hollandcasino.nl/page?key=ej0xMzUyNjA5NCZsPTEzNTI2MDkwJnA9MzcyMQ==&bet_ref=MzE2ODY4MTM3OjE3LzEwOjow",
+                                    "text": "Away Bet",
+                                    "shortText": "Away Bet",
+                                    "isExternal": true,
+                                    "isPremium": false
+                                }
+                            },
+                            "homeTeamOdds": {
+                                "favorite": true,
+                                "underdog": false,
+                                "moneyLine": 150,
+                                "team": {
+                                    "id": "160",
+                                    "uid": "s:600~t:160",
+                                    "abbreviation": "PSG",
+                                    "displayName": "Paris Saint-Germain ",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/160.png"
+                                },
+                                "link": {
+                                    "language": "en-US",
+                                    "rel": [
+                                        "home",
+                                        "desktop",
+                                        "bets",
+                                        "holland-casino"
+                                    ],
+                                    "href": "https://adserver.hollandcasino.nl/page?key=ej0xMzUyNjA5NCZsPTEzNTI2MDkwJnA9MzcyMQ==&bet_ref=MzE2ODY4MTM5OjcvNTo6MA",
+                                    "text": "Home Bet",
+                                    "shortText": "Home Bet",
+                                    "isExternal": true,
+                                    "isPremium": false
+                                }
+                            },
+                            "drawOdds": {
+                                "moneyLine": 275,
+                                "link": {
+                                    "language": "en-US",
+                                    "rel": [
+                                        "draw",
+                                        "desktop",
+                                        "bets",
+                                        "holland-casino"
+                                    ],
+                                    "href": "https://adserver.hollandcasino.nl/page?key=ej0xMzUyNjA5NCZsPTEzNTI2MDkwJnA9MzcyMQ==&bet_ref=MzE2ODY4MTM4OjUzLzIwOjow",
+                                    "text": "Draw Bet",
+                                    "shortText": "Draw Bet",
+                                    "isExternal": true,
+                                    "isPremium": false
+                                }
+                            },
+                            "details": "PSG +150"
+                        },
+                        {
+                            "overUnder": 2.5,
+                            "provider": {
+                                "id": "1001",
+                                "name": "accuscore",
+                                "priority": 0
+                            },
+                            "awayTeamOdds": {
+                                "favorite": false,
+                                "underdog": true,
+                                "moneyLine": 150,
+                                "spreadOdds": -105.0,
+                                "team": {
+                                    "id": "132",
+                                    "uid": "s:600~t:132",
+                                    "abbreviation": "MUN",
+                                    "displayName": "Bayern Munich",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/132.png"
+                                }
+                            },
+                            "homeTeamOdds": {
+                                "favorite": false,
+                                "underdog": true,
+                                "moneyLine": 150,
+                                "spreadOdds": -105.0,
+                                "team": {
+                                    "id": "160",
+                                    "uid": "s:600~t:160",
+                                    "abbreviation": "PSG",
+                                    "displayName": "Paris Saint-Germain ",
+                                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/160.png"
+                                }
+                            },
+                            "drawOdds": {
+                                "moneyLine": 275
+                            },
+                            "details": "PSG +150"
+                        }
+                    ]
+                }
+            ],
+            "status": {
+                "clock": 0.0,
+                "displayClock": "0'",
+                "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Tue, February 14th at 3:00 PM EST",
+                    "shortDetail": "Scheduled"
+                }
+            },
+            "links": [
+                {
+                    "language": "en-US",
+                    "rel": [
+                        "summary",
+                        "desktop",
+                        "event"
+                    ],
+                    "href": "https://www.espn.com/soccer/match/_/gameId/656858",
+                    "text": "Summary",
+                    "shortText": "Summary",
+                    "isExternal": false,
+                    "isPremium": false
+                },
+                {
+                    "language": "en-US",
+                    "rel": [
+                        "stats",
+                        "desktop",
+                        "event"
+                    ],
+                    "href": "https://www.espn.com/soccer/matchstats/_/gameId/656858",
+                    "text": "Statistics",
+                    "shortText": "Statistics",
+                    "isExternal": false,
+                    "isPremium": false
+                }
+            ]
+        }
+    ]
+}

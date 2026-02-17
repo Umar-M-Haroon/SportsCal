@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Combine
 #if os(iOS)
 import EventKit
 import CoreSpotlight
@@ -14,6 +13,7 @@ import CoreSpotlight
 import WidgetKit
 import StoreKit
 import SportsCalModel
+import TipKit
 import os
 #if canImport(ActivityKit) && os(iOS)
 import ActivityKit
@@ -93,6 +93,7 @@ struct ContentView: View {
                                 Image(systemName: calendarShowFavoritesOnly ? "star.fill" : "star")
                                     .foregroundColor(calendarShowFavoritesOnly ? .yellow : .gray)
                             }
+                            .popoverTip(CalendarFavoritesTip())
                         }
                     }
             }
@@ -122,9 +123,11 @@ struct ContentView: View {
         .refreshable(action: {
             viewModel.getInfo()
         })
-        .alert(isPresented: $shouldShowSportsCalProAlert, content: {
-            Alert(title: Text("SportsCal Pro"), message: Text("This feature requires SportsCal Pro"))
-        })
+        .alert("SportsCal Pro", isPresented: $shouldShowSportsCalProAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("This feature requires SportsCal Pro")
+        }
         .sheet(item: $sheetType) { sheetType in
             switch sheetType {
             case .settings:
@@ -152,7 +155,7 @@ struct ContentView: View {
                     .environment(favorites)
                     .presentationDetents([.medium, .large])
             case .paywall:
-                NavigationView {
+                NavigationStack {
                                 Text("Cancel")
                 }
             }
@@ -242,14 +245,11 @@ struct ContentView: View {
     #endif
 }
 
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-            .environment(UserDefaultStorage())
-            .environment(Favorites())
-            .environment(GameViewModel(appStorage: UserDefaultStorage(), favorites: Favorites()))
-        //            .environment(\.sizeCategory, .accessibilityLarge)
-    }
+#Preview {
+    ContentView()
+        .environment(UserDefaultStorage())
+        .environment(Favorites())
+        .environment(GameViewModel(appStorage: UserDefaultStorage(), favorites: Favorites()))
 }
 extension View {
     typealias ContentTransform<Content: View> = (Self) -> Content

@@ -1,0 +1,27 @@
+{
+  "name": "sportscal-admin",
+  "version": "1.0.0",
+  "description": "Admin dashboard for SportsCal API",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "sportscal",
+    "admin",
+    "dashboard"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.11.16",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.12"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.1",
+    "date-fns": "^3.3.1"
+  }
+}

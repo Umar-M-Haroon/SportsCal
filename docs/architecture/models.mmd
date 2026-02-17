@@ -1,0 +1,85 @@
+%% SportsCal Data Models
+%% Core model relationships
+
+classDiagram
+    class LiveScore {
+        +LiveEvent? nba
+        +LiveEvent? mlb
+        +LiveEvent? soccer
+        +LiveEvent? nfl
+        +LiveEvent? nhl
+        +removeNonStarting()
+        +removeOtherInfo()
+    }
+
+    class LiveEvent {
+        +[Game] events
+        +init(events: [Game])
+        +init?(events: Scoreboard, league: Leagues)
+    }
+
+    class Game {
+        +String? idLiveScore
+        +String? idEvent
+        +String? idLeague
+        +String? idHomeTeam
+        +String? idAwayTeam
+        +String strHomeTeam
+        +String strAwayTeam
+        +String? strHomeTeamBadge
+        +String? strAwayTeamBadge
+        +String? intHomeScore
+        +String? intAwayScore
+        +String? strStatus
+        +String? strProgress
+        +String? strTimestamp
+        +String? lastPlay
+        +Bool? isCompleted
+        +Date? isoDate
+        --
+        +strSport: String? [computed]
+        +strLeague: String? [computed]
+        +hasDoneStatus: Bool [computed]
+        +getDate(): Date?
+    }
+
+    class Leagues {
+        <<enumeration>>
+        English_Premier_League = 4328
+        German_Bundesliga = 4331
+        Serie_A = 4332
+        La_Liga = 4335
+        MLS = 4346
+        UEFA_Champions_League = 4480
+        nfl = 4391
+        nba = 4387
+        nhl = 4380
+        mlb = 4424
+        --
+        +leagueName: String
+        +sport: String
+        +isSoccer: Bool
+        +espnSlug: String?
+    }
+
+    class Team {
+        +String? idTeam
+        +String? strTeam
+        +String? strTeamShort
+        +String? strAlternate
+        +String? strTeamBadge
+    }
+
+    class SportType {
+        <<enumeration>>
+        basketball
+        soccer
+        hockey
+        mlb
+        nfl
+    }
+
+    LiveScore --> LiveEvent : contains
+    LiveEvent --> Game : contains many
+    Game ..> Leagues : derives strSport/strLeague from
+    Leagues --> SportType : maps to

@@ -1,0 +1,142 @@
+{
+    "sports": [{
+        "sport": "English Premier League",
+        "league": 4328,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "English Championship",
+        "league": 4329,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "Bundesliga",
+        "league": 4331,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "Serie A",
+        "league": 4332,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "Ligue 1",
+        "league": 4334,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "La Liga",
+        "league": 4335,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "Eredivisie",
+        "league": 4337,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "MLS",
+        "league": 4346,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "Liga MX",
+        "league": 4350,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "FIFA World Cup",
+        "league": 4429,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "UEFA Champions League",
+        "league": 4480,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "UEFA Europa League",
+        "league": 4481,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "FA Cup",
+        "league": 4482,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "Copa Del Rey",
+        "league": 4483,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "Coupe De France",
+        "league": 4484,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "DFB Pokal",
+        "league": 4485,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "UEFA Nations League",
+        "league": 4490,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "Copa America",
+        "league": 4499,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "UEFA Conference League",
+        "league": 5071,
+        "systemImage": "soccerball"
+        
+    },
+               {
+        "sport": "NFL",
+        "league": 4391,
+        "systemImage": "football.fill"
+        
+    },
+               {
+        "sport": "MLB",
+        "league": 4424,
+        "systemImage": "baseball.fill"
+        
+    },
+               {
+        "sport": "NHL",
+        "league": 4380,
+        "systemImage": "hockey.puck.fill"
+        
+    },
+    {
+        "sport": "NBA",
+        "league": 4387,
+        "systemImage": "basketball.fill"
+        
+    }
+               
+    ]
+}

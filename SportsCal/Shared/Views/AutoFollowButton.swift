@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SportsCalModel
+import TipKit
 #if canImport(ActivityKit) && os(iOS)
 import ActivityKit
 
@@ -22,7 +23,6 @@ func isGameCompleted(_ game: Game) -> Bool {
     return false
 }
 
-@available(iOS 16.1, *)
 struct AutoFollowButton: View {
     var game: Game
     var homeTeam: Team
@@ -74,6 +74,7 @@ struct AutoFollowButton: View {
                     Label("Auto-Follow", systemImage: "clock.badge")
                 }
             }
+            .popoverTip(LiveActivityTip())
         }
     }
 }

@@ -1,0 +1,54 @@
+%% SportsCal Data Flow Diagram
+%% Shows how data moves through the system
+
+sequenceDiagram
+    participant ESPN as ESPN API
+    participant TSDB as TheSportsDB
+    participant Jobs as Scheduled Jobs
+    participant Redis as Redis Cache
+    participant API as REST API (v2025)
+    participant iOS as iOS App
+
+    Note over Jobs: Runs every minute
+
+    rect rgb(240, 248, 255)
+        Note over ESPN,Redis: Live Score Updates (Every Minute)
+        Jobs->>ESPN: GET scoreboard (NBA, NFL, NHL, MLB)
+        ESPN-->>Jobs: Scoreboard JSON
+        Jobs->>TSDB: GET soccer scores
+        TSDB-->>Jobs: Soccer scoreboard
+        Jobs->>Jobs: Transform to LiveScore model
+        Jobs->>Redis: SET "latestLiveInfo"
+        Jobs->>Redis: SET "latestFullLiveInfo"
+    end
+
+    rect rgb(255, 248, 240)
+        Note over ESPN,Redis: Schedule Updates (Every 6 Hours)
+        Jobs->>TSDB: GET schedules per league
+        TSDB-->>Jobs: Schedule data
+        Jobs->>Jobs: Transform to LiveEvent/Game
+        Jobs->>Redis: SET "latestSchedule"
+        Jobs->>Redis: SET teams data
+    end
+
+    rect rgb(240, 255, 240)
+        Note over API,iOS: Client Request Flow
+        iOS->>API: GET /v2025/schedules
+        Note over API: APIVersionMiddleware adds headers
+        API->>Redis: GET "latestSchedule"
+        Redis-->>API: LiveScore
+        API-->>iOS: JSON + X-API-Version + X-Min-App-Version
+        iOS->>iOS: Check version, update cache
+        iOS->>iOS: Render in GameViewModel
+    end
+
+    rect rgb(255, 240, 255)
+        Note over API,iOS: WebSocket Live Updates
+        iOS->>API: Connect /v2025/ws
+        loop Every 5 seconds
+            API->>Redis: GET "latestLiveInfo"
+            Redis-->>API: LiveScore
+            API-->>iOS: WebSocket message
+            iOS->>iOS: Update UI with live scores
+        end
+    end

@@ -1,0 +1,42 @@
+%% SportsCal API Endpoints
+%% REST and WebSocket API structure
+
+flowchart LR
+    subgraph Version["API Versioning"]
+        V2025["/v2025/*"]
+        Legacy["/* (legacy)"]
+    end
+
+    subgraph Headers["Response Headers"]
+        H1["X-API-Version: 2025"]
+        H2["X-Min-App-Version: 1.5.0"]
+    end
+
+    subgraph REST["REST Endpoints"]
+        direction TB
+        Schedules["GET /schedules<br/>Returns: LiveScore<br/>All sports schedules"]
+        Sport["GET /sport/:sport<br/>Returns: LiveEvent<br/>Single sport schedule"]
+        Teams["GET /teams<br/>Returns: [Team]<br/>All teams list"]
+        Live["GET /live<br/>Returns: LiveScore<br/>Currently live games only"]
+        AllLive["GET /all-live-games<br/>Returns: LiveScore<br/>All live game data"]
+        TeamsByLeague["GET /teams-by-league<br/>Returns: [Leagues: TeamResponse]<br/>Teams grouped by league"]
+        LiveActivity["GET /liveActivity/:token/:eventID<br/>Register for live activity updates"]
+    end
+
+    subgraph WebSocket["WebSocket Endpoints"]
+        direction TB
+        WS["WS /ws<br/>Live score updates<br/>Every 5 seconds"]
+        LiveSport["WS /livescore/:sport<br/>Sport-specific live scores"]
+    end
+
+    subgraph Debug["Debug Only (Development)"]
+        LiveDebug["GET /live-debug<br/>Mock live data"]
+        WSDebug["WS /livedebug<br/>Mock WebSocket"]
+    end
+
+    V2025 --> REST
+    V2025 --> WebSocket
+    Legacy --> REST
+    Legacy --> WebSocket
+    REST --> Headers
+    WebSocket --> Headers

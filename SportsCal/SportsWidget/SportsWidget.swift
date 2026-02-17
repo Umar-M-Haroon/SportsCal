@@ -135,15 +135,23 @@ struct SportsWidgetEntryView: View {
     var body: some View {
         Group {
             switch family {
+            #if !os(watchOS)
             case .systemSmall: SportsWidgetSmallView(entry: entry)
             case .systemMedium: SportsWidgetMediumView(entry: entry)
             case .systemLarge: SportsWidgetLargeView(entry: entry)
-            #if os(iOS)
+            #endif
+            #if os(iOS) || os(watchOS)
             case .accessoryCircular: SportsWidgetCircularView(entry: entry)
             case .accessoryRectangular: SportsWidgetRectangularView(entry: entry)
             case .accessoryInline: SportsWidgetInlineView(entry: entry)
             #endif
+            #if os(watchOS)
+            case .accessoryCorner: SportsWidgetCornerView(entry: entry)
+            case .accessoryExtraLarge: SportsWidgetExtraLargeView(entry: entry)
+            @unknown default: SportsWidgetCircularView(entry: entry)
+            #else
             default: SportsWidgetSmallView(entry: entry)
+            #endif
             }
         }
         .containerBackground(.fill.tertiary, for: .widget)
@@ -163,6 +171,7 @@ struct SportsWidgetBundle: WidgetBundle {
     }
 }
 
+
 // MARK: - Main Widget
 
 struct SportsWidget: Widget {
@@ -174,7 +183,10 @@ struct SportsWidget: Widget {
         }
         .configurationDisplayName("Sports Widget")
         .description("Show upcoming games for a sport")
-        #if os(iOS)
+        #if os(watchOS)
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline,
+                            .accessoryCorner, .accessoryExtraLarge])
+        #elseif os(iOS)
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge,
                             .accessoryCircular, .accessoryRectangular, .accessoryInline])
         #else
@@ -252,28 +264,17 @@ struct TinyWidgetTeamView: View {
 
 // MARK: - Previews
 
-struct SportsWidget_Previews: PreviewProvider {
-    static var sampleGames: [Game] = [
-        Game(idLiveScore: nil, idEvent: "1001", strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00", isoDate: nil),
-        Game(idLiveScore: nil, idEvent: "1002", strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00", isoDate: nil),
-        Game(idLiveScore: nil, idEvent: "1003", strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00", isoDate: nil),
-        Game(idLiveScore: nil, idEvent: "1004", strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00", isoDate: nil),
-        Game(idLiveScore: nil, idEvent: "1005", strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00", isoDate: nil),
-        Game(idLiveScore: nil, idEvent: "1006", strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00", isoDate: nil)
-    ]
-
-    static var teams: [Team] = [
-        Team.init(idTeam: "134875", strTeam: "Dallas Mavericks", strTeamShort: "DAL", strAlternate: nil, strTeamBadge: nil),
-        Team.init(idTeam: "134880", strTeam: "Utah Jazz", strTeamShort: "UTA", strAlternate: nil, strTeamBadge: nil),
-    ]
-    static var previews: some View {
-        Group {
-            SportsWidgetEntryView(entry: SimpleEntry(date: .now,
-                                                     configuration: SportsWidgetIntent(),
-                                                     game: sampleGames,
-                                                     images: nil,
-                                                     teams: teams))
-            .previewContext(WidgetPreviewContext(family: .systemLarge))
-        }
-    }
+#Preview(as: .systemLarge) {
+    SportsWidget()
+} timeline: {
+    SimpleEntry(date: .now,
+                configuration: SportsWidgetIntent(),
+                game: [
+                    Game(idLiveScore: nil, idEvent: "1001", strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00", isoDate: nil),
+                ],
+                images: nil,
+                teams: [
+                    Team(idTeam: "134875", strTeam: "Dallas Mavericks", strTeamShort: "DAL", strAlternate: nil, strTeamBadge: nil),
+                    Team(idTeam: "134880", strTeam: "Utah Jazz", strTeamShort: "UTA", strAlternate: nil, strTeamBadge: nil),
+                ])
 }

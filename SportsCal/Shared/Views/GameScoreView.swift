@@ -26,13 +26,20 @@ struct GameScoreView: View {
     var body: some View {
         @Bindable var bindableFavorites = favorites
         @Bindable var bindableViewModel = viewModel
-        
+
         NavigationLink {
             GameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
                 .environment(viewModel)
                 .environment(favorites)
         } label: {
             HStack {
+                if viewModel.appStorage.debugMode, game.idEvent?.hasPrefix(DebugGameFactory.isFakeEventPrefix) == true {
+                    Text("DEBUG")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .background(.orange, in: RoundedRectangle(cornerRadius: 4))
+                }
                 IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: awayScore, isWinning: awayScore > homeScore, isAway: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 VStack(spacing: 8) {
@@ -45,15 +52,13 @@ struct GameScoreView: View {
                     }
                     Menu {
 #if canImport(ActivityKit) && os(iOS)
-                        if #available(iOS 16.1, *) {
-                            if isLive && ActivityAuthorizationInfo().areActivitiesEnabled  {
-                                LiveActivityButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
-                                    .environment(viewModel)
-                            }
-                            if !isLive {
-                                AutoFollowButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
-                                    .environment(viewModel)
-                            }
+                        if isLive && ActivityAuthorizationInfo().areActivitiesEnabled  {
+                            LiveActivityButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                                .environment(viewModel)
+                        }
+                        if !isLive {
+                            AutoFollowButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                                .environment(viewModel)
                         }
 #endif
                         FavoriteMenu(game: game)

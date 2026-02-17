@@ -1,0 +1,38 @@
+%% SportsCal System Architecture Overview
+%% High-level view of system components and data flow
+
+flowchart TB
+    subgraph External["External APIs"]
+        ESPN["ESPN API"]
+        TSDB["TheSportsDB v2"]
+    end
+
+    subgraph Server["SportsCalAPI (Vapor)"]
+        Jobs["Scheduled Jobs<br/>ESPNFetchJob, ESPNSoccerJob<br/>ScheduleUpdateJob, ESPNTeamFetchJob"]
+        Redis[("Redis Cache<br/>Schedules, Live Scores, Teams")]
+        Routes["REST Endpoints (v2025)<br/>/schedules, /sport/:sport<br/>/teams, /live, /all-live-games"]
+        WS["WebSocket<br/>/ws, /livescore/:sport"]
+        Middleware["APIVersionMiddleware<br/>X-API-Version: 2025<br/>X-Min-App-Version"]
+    end
+
+    subgraph iOS["SportsCal iOS"]
+        Network["NetworkHandler<br/>APIVersionChecker"]
+        VM["GameViewModel"]
+        Views["SwiftUI Views<br/>ContentView, DetailView<br/>FavoriteGamesView"]
+        Cache["Local Cache<br/>12hr schedules, 15min live"]
+        LiveActivity["Live Activities<br/>Widgets"]
+    end
+
+    ESPN --> Jobs
+    TSDB --> Jobs
+    Jobs --> Redis
+    Redis --> Routes
+    Redis --> WS
+    Middleware --> Routes
+    Routes --> Network
+    WS --> Network
+    Network --> VM
+    Network --> Cache
+    VM --> Views
+    Cache --> VM
+    VM --> LiveActivity

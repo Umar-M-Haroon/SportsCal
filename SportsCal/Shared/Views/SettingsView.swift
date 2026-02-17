@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Combine
 import SportsCalModel
 import os
 
@@ -30,7 +29,7 @@ struct SettingsView: View {
     var body: some View {
         @Bindable var bindableAppStorage = appStorage
         
-        NavigationView {
+        NavigationStack {
             Form {
                 if isTestFlight {
                     Text("You're on a TestFlight build, debug mode is recommended for new features")

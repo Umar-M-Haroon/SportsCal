@@ -1,0 +1,6 @@
+0000000000000000000000000000000000000000 5162aea2de90894f8c9220ecf3f6cfd03a750b47 Umar Haroon <iforgottonamethis@gmail.com> 1767207277 -0700	clone: from https://github.com/Umar-M-Haroon/SportsCalModel.git
+5162aea2de90894f8c9220ecf3f6cfd03a750b47 5162aea2de90894f8c9220ecf3f6cfd03a750b47 Umar Haroon <umar.m.haroon@gmail.com> 1770850603 -0700	checkout: moving from main to feature/new-sports-and-api-flexibility
+5162aea2de90894f8c9220ecf3f6cfd03a750b47 3c456540ae67030281a1ba8057a5a36d7f2ecc1e Umar Haroon <umar.m.haroon@gmail.com> 1770850611 -0700	commit: Add golf, tennis, and racing to SportType and Leagues enums
+3c456540ae67030281a1ba8057a5a36d7f2ecc1e cce37506e927c1c4e6f317f191f6718cfe68d9ac Umar Haroon <umar.m.haroon@gmail.com> 1770850615 -0700	commit: Make API2 Scoreboard models optional-friendly for individual sports
+cce37506e927c1c4e6f317f191f6718cfe68d9ac 902bd39ee3f51a1c35c35430b85422c453bda9eb Umar Haroon <umar.m.haroon@gmail.com> 1770850618 -0700	commit: Expand LiveEvent for individual sports and add V2 API wrappers
+902bd39ee3f51a1c35c35430b85422c453bda9eb 215ca05e584b41e4274c79ba6bb874e5df948ef2 Umar Haroon <umar.m.haroon@gmail.com> 1770850620 -0700	commit: Add GameCountTests for data parsing validation

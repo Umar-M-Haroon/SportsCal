@@ -1,0 +1,4333 @@
+{
+  "leagues": [
+    {
+      "id": "90",
+      "uid": "s:70~l:90",
+      "name": "National Hockey League",
+      "abbreviation": "NHL",
+      "slug": "nhl",
+      "season": {
+        "year": 2023,
+        "startDate": "2022-07-23T07:00Z",
+        "endDate": "2023-07-01T06:59Z",
+        "type": {
+          "id": "2",
+          "type": 2,
+          "name": "Regular Season",
+          "abbreviation": "reg"
+        }
+      },
+      "logos": [
+        {
+          "href": "https://a.espncdn.com/i/teamlogos/leagues/500/nhl.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+            "full",
+            "default"
+          ],
+          "lastUpdated": "2018-06-05T12:07Z"
+        },
+        {
+          "href": "https://a.espncdn.com/i/teamlogos/leagues/500-dark/nhl.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+            "full",
+            "dark"
+          ],
+          "lastUpdated": "2021-08-10T20:37Z"
+        }
+      ],
+      "calendarType": "day",
+      "calendarIsWhitelist": true,
+      "calendarStartDate": "2022-07-23T07:00Z",
+      "calendarEndDate": "2023-07-01T06:59Z",
+      "calendar": [
+        "2022-09-24T07:00Z",
+        "2022-09-25T07:00Z",
+        "2022-09-26T07:00Z",
+        "2022-09-27T07:00Z",
+        "2022-09-28T07:00Z",
+        "2022-09-29T07:00Z",
+        "2022-09-30T07:00Z",
+        "2022-10-01T07:00Z",
+        "2022-10-02T07:00Z",
+        "2022-10-03T07:00Z",
+        "2022-10-04T07:00Z",
+        "2022-10-05T07:00Z",
+        "2022-10-06T07:00Z",
+        "2022-10-07T07:00Z",
+        "2022-10-08T07:00Z",
+        "2022-10-11T07:00Z",
+        "2022-10-12T07:00Z",
+        "2022-10-13T07:00Z",
+        "2022-10-14T07:00Z",
+        "2022-10-15T07:00Z",
+        "2022-10-17T07:00Z",
+        "2022-10-18T07:00Z",
+        "2022-10-19T07:00Z",
+        "2022-10-20T07:00Z",
+        "2022-10-21T07:00Z",
+        "2022-10-22T07:00Z",
+        "2022-10-23T07:00Z",
+        "2022-10-24T07:00Z",
+        "2022-10-25T07:00Z",
+        "2022-10-26T07:00Z",
+        "2022-10-27T07:00Z",
+        "2022-10-28T07:00Z",
+        "2022-10-29T07:00Z",
+        "2022-10-30T07:00Z",
+        "2022-10-31T07:00Z",
+        "2022-11-01T07:00Z",
+        "2022-11-02T07:00Z",
+        "2022-11-03T07:00Z",
+        "2022-11-04T07:00Z",
+        "2022-11-05T07:00Z",
+        "2022-11-06T07:00Z",
+        "2022-11-07T08:00Z",
+        "2022-11-08T08:00Z",
+        "2022-11-09T08:00Z",
+        "2022-11-10T08:00Z",
+        "2022-11-11T08:00Z",
+        "2022-11-12T08:00Z",
+        "2022-11-13T08:00Z",
+        "2022-11-14T08:00Z",
+        "2022-11-15T08:00Z",
+        "2022-11-16T08:00Z",
+        "2022-11-17T08:00Z",
+        "2022-11-18T08:00Z",
+        "2022-11-19T08:00Z",
+        "2022-11-20T08:00Z",
+        "2022-11-21T08:00Z",
+        "2022-11-22T08:00Z",
+        "2022-11-23T08:00Z",
+        "2022-11-25T08:00Z",
+        "2022-11-26T08:00Z",
+        "2022-11-27T08:00Z",
+        "2022-11-28T08:00Z",
+        "2022-11-29T08:00Z",
+        "2022-11-30T08:00Z",
+        "2022-12-01T08:00Z",
+        "2022-12-02T08:00Z",
+        "2022-12-03T08:00Z",
+        "2022-12-04T08:00Z",
+        "2022-12-05T08:00Z",
+        "2022-12-06T08:00Z",
+        "2022-12-07T08:00Z",
+        "2022-12-08T08:00Z",
+        "2022-12-09T08:00Z",
+        "2022-12-10T08:00Z",
+        "2022-12-11T08:00Z",
+        "2022-12-12T08:00Z",
+        "2022-12-13T08:00Z",
+        "2022-12-14T08:00Z",
+        "2022-12-15T08:00Z",
+        "2022-12-16T08:00Z",
+        "2022-12-17T08:00Z",
+        "2022-12-18T08:00Z",
+        "2022-12-19T08:00Z",
+        "2022-12-20T08:00Z",
+        "2022-12-21T08:00Z",
+        "2022-12-22T08:00Z",
+        "2022-12-23T08:00Z",
+        "2022-12-27T08:00Z",
+        "2022-12-28T08:00Z",
+        "2022-12-29T08:00Z",
+        "2022-12-30T08:00Z",
+        "2022-12-31T08:00Z",
+        "2023-01-01T08:00Z",
+        "2023-01-02T08:00Z",
+        "2023-01-03T08:00Z",
+        "2023-01-04T08:00Z",
+        "2023-01-05T08:00Z",
+        "2023-01-06T08:00Z",
+        "2023-01-07T08:00Z",
+        "2023-01-08T08:00Z",
+        "2023-01-09T08:00Z",
+        "2023-01-10T08:00Z",
+        "2023-01-11T08:00Z",
+        "2023-01-12T08:00Z",
+        "2023-01-13T08:00Z",
+        "2023-01-14T08:00Z",
+        "2023-01-15T08:00Z",
+        "2023-01-16T08:00Z",
+        "2023-01-17T08:00Z",
+        "2023-01-18T08:00Z",
+        "2023-01-19T08:00Z",
+        "2023-01-20T08:00Z",
+        "2023-01-21T08:00Z",
+        "2023-01-22T08:00Z",
+        "2023-01-23T08:00Z",
+        "2023-01-24T08:00Z",
+        "2023-01-25T08:00Z",
+        "2023-01-26T08:00Z",
+        "2023-01-27T08:00Z",
+        "2023-01-28T08:00Z",
+        "2023-01-29T08:00Z",
+        "2023-01-30T08:00Z",
+        "2023-01-31T08:00Z",
+        "2023-02-01T08:00Z",
+        "2023-02-04T08:00Z",
+        "2023-02-06T08:00Z",
+        "2023-02-07T08:00Z",
+        "2023-02-08T08:00Z",
+        "2023-02-09T08:00Z",
+        "2023-02-10T08:00Z",
+        "2023-02-11T08:00Z",
+        "2023-02-12T08:00Z",
+        "2023-02-13T08:00Z",
+        "2023-02-14T08:00Z",
+        "2023-02-15T08:00Z",
+        "2023-02-16T08:00Z",
+        "2023-02-17T08:00Z",
+        "2023-02-18T08:00Z",
+        "2023-02-19T08:00Z",
+        "2023-02-20T08:00Z",
+        "2023-02-21T08:00Z",
+        "2023-02-22T08:00Z",
+        "2023-02-23T08:00Z",
+        "2023-02-24T08:00Z",
+        "2023-02-25T08:00Z",
+        "2023-02-26T08:00Z",
+        "2023-02-27T08:00Z",
+        "2023-02-28T08:00Z",
+        "2023-03-01T08:00Z",
+        "2023-03-02T08:00Z",
+        "2023-03-03T08:00Z",
+        "2023-03-04T08:00Z",
+        "2023-03-05T08:00Z",
+        "2023-03-06T08:00Z",
+        "2023-03-07T08:00Z",
+        "2023-03-08T08:00Z",
+        "2023-03-09T08:00Z",
+        "2023-03-10T08:00Z",
+        "2023-03-11T08:00Z",
+        "2023-03-12T08:00Z",
+        "2023-03-13T07:00Z",
+        "2023-03-14T07:00Z",
+        "2023-03-15T07:00Z",
+        "2023-03-16T07:00Z",
+        "2023-03-17T07:00Z",
+        "2023-03-18T07:00Z",
+        "2023-03-19T07:00Z",
+        "2023-03-20T07:00Z",
+        "2023-03-21T07:00Z",
+        "2023-03-22T07:00Z",
+        "2023-03-23T07:00Z",
+        "2023-03-24T07:00Z",
+        "2023-03-25T07:00Z",
+        "2023-03-26T07:00Z",
+        "2023-03-27T07:00Z",
+        "2023-03-28T07:00Z",
+        "2023-03-29T07:00Z",
+        "2023-03-30T07:00Z",
+        "2023-03-31T07:00Z",
+        "2023-04-01T07:00Z",
+        "2023-04-02T07:00Z",
+        "2023-04-03T07:00Z",
+        "2023-04-04T07:00Z",
+        "2023-04-05T07:00Z",
+        "2023-04-06T07:00Z",
+        "2023-04-08T07:00Z",
+        "2023-04-09T07:00Z",
+        "2023-04-10T07:00Z",
+        "2023-04-11T07:00Z",
+        "2023-04-12T07:00Z",
+        "2023-04-13T07:00Z",
+        "2023-04-14T07:00Z"
+      ]
+    }
+  ],
+  "season": {
+    "type": 2,
+    "year": 2023
+  },
+  "day": {
+    "date": "2023-02-08"
+  },
+  "events": [
+    {
+      "id": "401459409",
+      "uid": "s:70~l:90~e:401459409",
+      "date": "2023-02-09T01:00Z",
+      "name": "Vancouver Canucks at New York Rangers",
+      "shortName": "VAN @ NYR",
+      "season": {
+        "year": 2023,
+        "type": 2,
+        "slug": "regular-season"
+      },
+      "competitions": [
+        {
+          "id": "401459409",
+          "uid": "s:70~l:90~e:401459409~c:401459409",
+          "date": "2023-02-09T01:00Z",
+          "attendance": 18006,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "timeValid": true,
+          "neutralSite": false,
+          "recent": true,
+          "venue": {
+            "id": "1830",
+            "fullName": "Madison Square Garden",
+            "address": {
+              "city": "New York",
+              "state": "NY",
+              "country": "USA"
+            },
+            "capacity": 18006,
+            "indoor": true
+          },
+          "competitors": [
+            {
+              "id": "13",
+              "uid": "s:70~l:90~t:13",
+              "type": "team",
+              "order": 0,
+              "homeAway": "home",
+              "winner": true,
+              "team": {
+                "id": "13",
+                "uid": "s:70~l:90~t:13",
+                "location": "New York",
+                "name": "Rangers",
+                "abbreviation": "NYR",
+                "displayName": "New York Rangers",
+                "shortDisplayName": "Rangers",
+                "color": "0056ae",
+                "alternateColor": "e51937",
+                "isActive": true,
+                "venue": {
+                  "id": "1830"
+                },
+                "links": [
+                  {
+                    "rel": [
+                      "clubhouse",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/_/name/nyr/new-york-rangers",
+                    "text": "Clubhouse",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "clubhouse",
+                      "mobile",
+                      "team"
+                    ],
+                    "href": "http://m.espn.com/nhl/clubhouse?teamId=13",
+                    "text": "Clubhouse",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "roster",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/roster/_/name/nyr/new-york-rangers",
+                    "text": "Roster",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "stats",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/stats/_/name/nyr/new-york-rangers",
+                    "text": "Statistics",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "schedule",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "https://www.espn.com/nhl/team/schedule/_/name/nyr",
+                    "text": "Schedule",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "photos",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "https://www.espn.com/nhl/team/photos/_/name/nyr",
+                    "text": "photos",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "scores",
+                      "sportscenter",
+                      "app",
+                      "team"
+                    ],
+                    "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:13&section=scores",
+                    "text": "Scores",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "transactions",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/transactions/_/name/nyr",
+                    "text": "Transactions",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "injuries",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/injuries/_/name/nyr",
+                    "text": "Injuries",
+                    "isExternal": false,
+                    "isPremium": false
+                  }
+                ],
+                "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/nyr.png"
+              },
+              "score": "4",
+              "linescores": [
+                {
+                  "value": 2.0
+                },
+                {
+                  "value": 1.0
+                },
+                {
+                  "value": 1.0
+                }
+              ],
+              "statistics": [
+                {
+                  "name": "saves",
+                  "abbreviation": "SV",
+                  "displayValue": "22"
+                },
+                {
+                  "name": "savePct",
+                  "abbreviation": "SV%",
+                  "displayValue": ".880"
+                },
+                {
+                  "name": "goals",
+                  "abbreviation": "G",
+                  "displayValue": "4"
+                },
+                {
+                  "name": "ytdGoals",
+                  "abbreviation": "YTDG",
+                  "displayValue": "322"
+                },
+                {
+                  "name": "assists",
+                  "abbreviation": "A",
+                  "displayValue": "8"
+                },
+                {
+                  "name": "points",
+                  "abbreviation": "PTS",
+                  "displayValue": "12"
+                }
+              ],
+              "leaders": [
+                {
+                  "name": "goals",
+                  "displayName": "Goals",
+                  "shortDisplayName": "Goals",
+                  "abbreviation": "G",
+                  "leaders": [
+                    {
+                      "displayValue": "1",
+                      "value": 1.0,
+                      "athlete": {
+                        "id": "5833",
+                        "fullName": "Chris Kreider",
+                        "displayName": "Chris Kreider",
+                        "shortName": "C. Kreider",
+                        "links": [
+                          {
+                            "rel": [
+                              "playercard",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "https://www.espn.com/nhl/player/_/id/5833"
+                          },
+                          {
+                            "rel": [
+                              "stats",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/stats/_/id/5833/chris-kreider"
+                          },
+                          {
+                            "rel": [
+                              "splits",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/splits/_/id/5833/chris-kreider"
+                          },
+                          {
+                            "rel": [
+                              "gamelog",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/gamelog/_/id/5833/chris-kreider"
+                          },
+                          {
+                            "rel": [
+                              "news",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/news/_/id/5833/chris-kreider"
+                          },
+                          {
+                            "rel": [
+                              "bio",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/bio/_/id/5833/chris-kreider"
+                          },
+                          {
+                            "rel": [
+                              "overview",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/_/id/5833/chris-kreider"
+                          }
+                        ],
+                        "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/5833.png",
+                        "jersey": "20",
+                        "position": {
+                          "abbreviation": "LW"
+                        },
+                        "team": {
+                          "id": "13"
+                        },
+                        "active": true
+                      },
+                      "team": {
+                        "id": "13"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "assists",
+                  "displayName": "Assists",
+                  "shortDisplayName": "Assists",
+                  "abbreviation": "A",
+                  "leaders": [
+                    {
+                      "displayValue": "3",
+                      "value": 3.0,
+                      "athlete": {
+                        "id": "4352770",
+                        "fullName": "K'Andre Miller",
+                        "displayName": "K'Andre Miller",
+                        "shortName": "K. Miller",
+                        "links": [
+                          {
+                            "rel": [
+                              "playercard",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "https://www.espn.com/nhl/player/_/id/4352770"
+                          },
+                          {
+                            "rel": [
+                              "stats",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/stats/_/id/4352770/kandre-miller"
+                          },
+                          {
+                            "rel": [
+                              "splits",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/splits/_/id/4352770/kandre-miller"
+                          },
+                          {
+                            "rel": [
+                              "gamelog",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/gamelog/_/id/4352770/kandre-miller"
+                          },
+                          {
+                            "rel": [
+                              "news",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/news/_/id/4352770/kandre-miller"
+                          },
+                          {
+                            "rel": [
+                              "bio",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/bio/_/id/4352770/kandre-miller"
+                          },
+                          {
+                            "rel": [
+                              "overview",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/_/id/4352770/kandre-miller"
+                          }
+                        ],
+                        "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4352770.png",
+                        "jersey": "79",
+                        "position": {
+                          "abbreviation": "D"
+                        },
+                        "team": {
+                          "id": "13"
+                        },
+                        "active": true
+                      },
+                      "team": {
+                        "id": "13"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "points",
+                  "displayName": "Points",
+                  "shortDisplayName": "Points",
+                  "abbreviation": "PTS",
+                  "leaders": [
+                    {
+                      "displayValue": "3",
+                      "value": 3.0,
+                      "athlete": {
+                        "id": "4352770",
+                        "fullName": "K'Andre Miller",
+                        "displayName": "K'Andre Miller",
+                        "shortName": "K. Miller",
+                        "links": [
+                          {
+                            "rel": [
+                              "playercard",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "https://www.espn.com/nhl/player/_/id/4352770"
+                          },
+                          {
+                            "rel": [
+                              "stats",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/stats/_/id/4352770/kandre-miller"
+                          },
+                          {
+                            "rel": [
+                              "splits",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/splits/_/id/4352770/kandre-miller"
+                          },
+                          {
+                            "rel": [
+                              "gamelog",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/gamelog/_/id/4352770/kandre-miller"
+                          },
+                          {
+                            "rel": [
+                              "news",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/news/_/id/4352770/kandre-miller"
+                          },
+                          {
+                            "rel": [
+                              "bio",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/bio/_/id/4352770/kandre-miller"
+                          },
+                          {
+                            "rel": [
+                              "overview",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/_/id/4352770/kandre-miller"
+                          }
+                        ],
+                        "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4352770.png",
+                        "jersey": "79",
+                        "position": {
+                          "abbreviation": "D"
+                        },
+                        "team": {
+                          "id": "13"
+                        },
+                        "active": true
+                      },
+                      "team": {
+                        "id": "13"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "probables": [
+                {
+                  "name": "probableStartingGoalie",
+                  "displayName": "Probable Starting Goalie",
+                  "shortDisplayName": "Starter",
+                  "abbreviation": "SG",
+                  "playerId": 3151297,
+                  "athlete": {
+                    "id": "3151297",
+                    "fullName": "Igor Shesterkin",
+                    "displayName": "Igor Shesterkin",
+                    "shortName": "I. Shesterkin",
+                    "links": [
+                      {
+                        "rel": [
+                          "playercard",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "https://www.espn.com/nhl/player/_/id/3151297"
+                      },
+                      {
+                        "rel": [
+                          "stats",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/stats/_/id/3151297/igor-shesterkin"
+                      },
+                      {
+                        "rel": [
+                          "splits",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/splits/_/id/3151297/igor-shesterkin"
+                      },
+                      {
+                        "rel": [
+                          "gamelog",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/gamelog/_/id/3151297/igor-shesterkin"
+                      },
+                      {
+                        "rel": [
+                          "news",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/news/_/id/3151297/igor-shesterkin"
+                      },
+                      {
+                        "rel": [
+                          "bio",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/bio/_/id/3151297/igor-shesterkin"
+                      },
+                      {
+                        "rel": [
+                          "overview",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/_/id/3151297/igor-shesterkin"
+                      }
+                    ],
+                    "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3151297.png",
+                    "jersey": "31",
+                    "position": "G",
+                    "team": {
+                      "id": "13"
+                    }
+                  },
+                  "status": {
+                    "id": "102",
+                    "name": "Confirmed",
+                    "type": "confirmed",
+                    "abbreviation": "Confirmed"
+                  },
+                  "statistics": []
+                }
+              ],
+              "records": [
+                {
+                  "name": "ytd",
+                  "abbreviation": "Game",
+                  "type": "ytd",
+                  "summary": "29-14-8"
+                },
+                {
+                  "name": "Home",
+                  "abbreviation": "HOME",
+                  "type": "home",
+                  "summary": "15-9-4"
+                },
+                {
+                  "name": "Road",
+                  "abbreviation": "AWAY",
+                  "type": "road",
+                  "summary": "14-5-4"
+                }
+              ]
+            },
+            {
+              "id": "22",
+              "uid": "s:70~l:90~t:22",
+              "type": "team",
+              "order": 1,
+              "homeAway": "away",
+              "winner": false,
+              "team": {
+                "id": "22",
+                "uid": "s:70~l:90~t:22",
+                "location": "Vancouver",
+                "name": "Canucks",
+                "abbreviation": "VAN",
+                "displayName": "Vancouver Canucks",
+                "shortDisplayName": "Canucks",
+                "color": "103f7e",
+                "alternateColor": "008752",
+                "isActive": true,
+                "venue": {
+                  "id": "1833"
+                },
+                "links": [
+                  {
+                    "rel": [
+                      "clubhouse",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/_/name/van/vancouver-canucks",
+                    "text": "Clubhouse",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "clubhouse",
+                      "mobile",
+                      "team"
+                    ],
+                    "href": "http://m.espn.com/nhl/clubhouse?teamId=22",
+                    "text": "Clubhouse",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "roster",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/roster/_/name/van/vancouver-canucks",
+                    "text": "Roster",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "stats",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/stats/_/name/van/vancouver-canucks",
+                    "text": "Statistics",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "schedule",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "https://www.espn.com/nhl/team/schedule/_/name/van",
+                    "text": "Schedule",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "photos",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "https://www.espn.com/nhl/team/photos/_/name/van",
+                    "text": "photos",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "scores",
+                      "sportscenter",
+                      "app",
+                      "team"
+                    ],
+                    "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:22&section=scores",
+                    "text": "Scores",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "transactions",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/transactions/_/name/van",
+                    "text": "Transactions",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "injuries",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/injuries/_/name/van",
+                    "text": "Injuries",
+                    "isExternal": false,
+                    "isPremium": false
+                  }
+                ],
+                "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/van.png"
+              },
+              "score": "3",
+              "linescores": [
+                {
+                  "value": 1.0
+                },
+                {
+                  "value": 1.0
+                },
+                {
+                  "value": 1.0
+                }
+              ],
+              "statistics": [
+                {
+                  "name": "saves",
+                  "abbreviation": "SV",
+                  "displayValue": "17"
+                },
+                {
+                  "name": "savePct",
+                  "abbreviation": "SV%",
+                  "displayValue": ".810"
+                },
+                {
+                  "name": "goals",
+                  "abbreviation": "G",
+                  "displayValue": "3"
+                },
+                {
+                  "name": "ytdGoals",
+                  "abbreviation": "YTDG",
+                  "displayValue": "335"
+                },
+                {
+                  "name": "assists",
+                  "abbreviation": "A",
+                  "displayValue": "4"
+                },
+                {
+                  "name": "points",
+                  "abbreviation": "PTS",
+                  "displayValue": "7"
+                }
+              ],
+              "leaders": [
+                {
+                  "name": "goals",
+                  "displayName": "Goals",
+                  "shortDisplayName": "Goals",
+                  "abbreviation": "G",
+                  "leaders": [
+                    {
+                      "displayValue": "1",
+                      "value": 1.0,
+                      "athlete": {
+                        "id": "3939718",
+                        "fullName": "Conor Garland",
+                        "displayName": "Conor Garland",
+                        "shortName": "C. Garland",
+                        "links": [
+                          {
+                            "rel": [
+                              "playercard",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "https://www.espn.com/nhl/player/_/id/3939718"
+                          },
+                          {
+                            "rel": [
+                              "stats",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/stats/_/id/3939718/conor-garland"
+                          },
+                          {
+                            "rel": [
+                              "splits",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/splits/_/id/3939718/conor-garland"
+                          },
+                          {
+                            "rel": [
+                              "gamelog",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/gamelog/_/id/3939718/conor-garland"
+                          },
+                          {
+                            "rel": [
+                              "news",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/news/_/id/3939718/conor-garland"
+                          },
+                          {
+                            "rel": [
+                              "bio",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/bio/_/id/3939718/conor-garland"
+                          },
+                          {
+                            "rel": [
+                              "overview",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/_/id/3939718/conor-garland"
+                          }
+                        ],
+                        "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3939718.png",
+                        "jersey": "8",
+                        "position": {
+                          "abbreviation": "RW"
+                        },
+                        "team": {
+                          "id": "22"
+                        },
+                        "active": true
+                      },
+                      "team": {
+                        "id": "22"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "assists",
+                  "displayName": "Assists",
+                  "shortDisplayName": "Assists",
+                  "abbreviation": "A",
+                  "leaders": [
+                    {
+                      "displayValue": "2",
+                      "value": 2.0,
+                      "athlete": {
+                        "id": "4320548",
+                        "fullName": "Quinn Hughes",
+                        "displayName": "Quinn Hughes",
+                        "shortName": "Q. Hughes",
+                        "links": [
+                          {
+                            "rel": [
+                              "playercard",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "https://www.espn.com/nhl/player/_/id/4320548"
+                          },
+                          {
+                            "rel": [
+                              "stats",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/stats/_/id/4320548/quinn-hughes"
+                          },
+                          {
+                            "rel": [
+                              "splits",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/splits/_/id/4320548/quinn-hughes"
+                          },
+                          {
+                            "rel": [
+                              "gamelog",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/gamelog/_/id/4320548/quinn-hughes"
+                          },
+                          {
+                            "rel": [
+                              "news",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/news/_/id/4320548/quinn-hughes"
+                          },
+                          {
+                            "rel": [
+                              "bio",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/bio/_/id/4320548/quinn-hughes"
+                          },
+                          {
+                            "rel": [
+                              "overview",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/_/id/4320548/quinn-hughes"
+                          }
+                        ],
+                        "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4320548.png",
+                        "jersey": "43",
+                        "position": {
+                          "abbreviation": "D"
+                        },
+                        "team": {
+                          "id": "22"
+                        },
+                        "active": true
+                      },
+                      "team": {
+                        "id": "22"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "points",
+                  "displayName": "Points",
+                  "shortDisplayName": "Points",
+                  "abbreviation": "PTS",
+                  "leaders": [
+                    {
+                      "displayValue": "2",
+                      "value": 2.0,
+                      "athlete": {
+                        "id": "4320548",
+                        "fullName": "Quinn Hughes",
+                        "displayName": "Quinn Hughes",
+                        "shortName": "Q. Hughes",
+                        "links": [
+                          {
+                            "rel": [
+                              "playercard",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "https://www.espn.com/nhl/player/_/id/4320548"
+                          },
+                          {
+                            "rel": [
+                              "stats",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/stats/_/id/4320548/quinn-hughes"
+                          },
+                          {
+                            "rel": [
+                              "splits",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/splits/_/id/4320548/quinn-hughes"
+                          },
+                          {
+                            "rel": [
+                              "gamelog",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/gamelog/_/id/4320548/quinn-hughes"
+                          },
+                          {
+                            "rel": [
+                              "news",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/news/_/id/4320548/quinn-hughes"
+                          },
+                          {
+                            "rel": [
+                              "bio",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/bio/_/id/4320548/quinn-hughes"
+                          },
+                          {
+                            "rel": [
+                              "overview",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/_/id/4320548/quinn-hughes"
+                          }
+                        ],
+                        "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4320548.png",
+                        "jersey": "43",
+                        "position": {
+                          "abbreviation": "D"
+                        },
+                        "team": {
+                          "id": "22"
+                        },
+                        "active": true
+                      },
+                      "team": {
+                        "id": "22"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "probables": [
+                {
+                  "name": "probableStartingGoalie",
+                  "displayName": "Probable Starting Goalie",
+                  "shortDisplayName": "Starter",
+                  "abbreviation": "SG",
+                  "playerId": 3042069,
+                  "athlete": {
+                    "id": "3042069",
+                    "fullName": "Spencer Martin",
+                    "displayName": "Spencer Martin",
+                    "shortName": "S. Martin",
+                    "links": [
+                      {
+                        "rel": [
+                          "playercard",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "https://www.espn.com/nhl/player/_/id/3042069"
+                      },
+                      {
+                        "rel": [
+                          "stats",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/stats/_/id/3042069/spencer-martin"
+                      },
+                      {
+                        "rel": [
+                          "splits",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/splits/_/id/3042069/spencer-martin"
+                      },
+                      {
+                        "rel": [
+                          "gamelog",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/gamelog/_/id/3042069/spencer-martin"
+                      },
+                      {
+                        "rel": [
+                          "news",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/news/_/id/3042069/spencer-martin"
+                      },
+                      {
+                        "rel": [
+                          "bio",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/bio/_/id/3042069/spencer-martin"
+                      },
+                      {
+                        "rel": [
+                          "overview",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/_/id/3042069/spencer-martin"
+                      }
+                    ],
+                    "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3042069.png",
+                    "jersey": "30",
+                    "position": "G",
+                    "team": {
+                      "id": "22"
+                    }
+                  },
+                  "status": {
+                    "id": "102",
+                    "name": "Confirmed",
+                    "type": "confirmed",
+                    "abbreviation": "Confirmed"
+                  },
+                  "statistics": []
+                }
+              ],
+              "records": [
+                {
+                  "name": "YTD",
+                  "abbreviation": "Game",
+                  "type": "ytd",
+                  "summary": "20-27-4"
+                },
+                {
+                  "name": "Home",
+                  "abbreviation": "HOME",
+                  "type": "home",
+                  "summary": "10-13-1"
+                },
+                {
+                  "name": "Road",
+                  "abbreviation": "AWAY",
+                  "type": "road",
+                  "summary": "10-14-3"
+                }
+              ]
+            }
+          ],
+          "notes": [],
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 3,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            },
+            "featuredAthletes": [
+              {
+                "name": "winningGoalie",
+                "displayName": "Winning Goalie",
+                "shortDisplayName": "Winning Goalie",
+                "abbreviation": "W",
+                "playerId": 3151297,
+                "athlete": {
+                  "id": "3151297",
+                  "fullName": "Igor Shesterkin",
+                  "displayName": "Igor Shesterkin",
+                  "shortName": "I. Shesterkin",
+                  "links": [
+                    {
+                      "rel": [
+                        "playercard",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "https://www.espn.com/nhl/player/_/id/3151297"
+                    },
+                    {
+                      "rel": [
+                        "stats",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/stats/_/id/3151297/igor-shesterkin"
+                    },
+                    {
+                      "rel": [
+                        "splits",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/splits/_/id/3151297/igor-shesterkin"
+                    },
+                    {
+                      "rel": [
+                        "gamelog",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/gamelog/_/id/3151297/igor-shesterkin"
+                    },
+                    {
+                      "rel": [
+                        "news",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/news/_/id/3151297/igor-shesterkin"
+                    },
+                    {
+                      "rel": [
+                        "bio",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/bio/_/id/3151297/igor-shesterkin"
+                    },
+                    {
+                      "rel": [
+                        "overview",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/_/id/3151297/igor-shesterkin"
+                    }
+                  ],
+                  "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3151297.png",
+                  "jersey": "31",
+                  "position": "G",
+                  "team": {
+                    "id": "13"
+                  }
+                },
+                "team": {
+                  "id": "13"
+                },
+                "statistics": [
+                  {
+                    "name": "saves",
+                    "abbreviation": "SV",
+                    "displayValue": "22"
+                  },
+                  {
+                    "name": "savePct",
+                    "abbreviation": "SV%",
+                    "displayValue": ".880"
+                  },
+                  {
+                    "name": "plusMinus",
+                    "abbreviation": "+/-",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "goals",
+                    "abbreviation": "G",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "ytdGoals",
+                    "abbreviation": "YTDG",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "assists",
+                    "abbreviation": "A",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "points",
+                    "abbreviation": "PTS",
+                    "displayValue": "0"
+                  }
+                ]
+              },
+              {
+                "name": "losingGoalie",
+                "displayName": "Losing Goalie",
+                "shortDisplayName": "Losing Goalie",
+                "abbreviation": "L",
+                "playerId": 3042069,
+                "athlete": {
+                  "id": "3042069",
+                  "fullName": "Spencer Martin",
+                  "displayName": "Spencer Martin",
+                  "shortName": "S. Martin",
+                  "links": [
+                    {
+                      "rel": [
+                        "playercard",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "https://www.espn.com/nhl/player/_/id/3042069"
+                    },
+                    {
+                      "rel": [
+                        "stats",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/stats/_/id/3042069/spencer-martin"
+                    },
+                    {
+                      "rel": [
+                        "splits",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/splits/_/id/3042069/spencer-martin"
+                    },
+                    {
+                      "rel": [
+                        "gamelog",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/gamelog/_/id/3042069/spencer-martin"
+                    },
+                    {
+                      "rel": [
+                        "news",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/news/_/id/3042069/spencer-martin"
+                    },
+                    {
+                      "rel": [
+                        "bio",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/bio/_/id/3042069/spencer-martin"
+                    },
+                    {
+                      "rel": [
+                        "overview",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/_/id/3042069/spencer-martin"
+                    }
+                  ],
+                  "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3042069.png",
+                  "jersey": "30",
+                  "position": "G",
+                  "team": {
+                    "id": "22"
+                  }
+                },
+                "team": {
+                  "id": "22"
+                },
+                "statistics": [
+                  {
+                    "name": "saves",
+                    "abbreviation": "SV",
+                    "displayValue": "17"
+                  },
+                  {
+                    "name": "savePct",
+                    "abbreviation": "SV%",
+                    "displayValue": ".810"
+                  },
+                  {
+                    "name": "plusMinus",
+                    "abbreviation": "+/-",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "goals",
+                    "abbreviation": "G",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "ytdGoals",
+                    "abbreviation": "YTDG",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "assists",
+                    "abbreviation": "A",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "points",
+                    "abbreviation": "PTS",
+                    "displayValue": "0"
+                  }
+                ]
+              },
+              {
+                "name": "firstStar",
+                "displayName": "First Star",
+                "shortDisplayName": "First Star",
+                "abbreviation": "FS",
+                "playerId": 4352770,
+                "athlete": {
+                  "id": "4352770",
+                  "fullName": "K'Andre Miller",
+                  "displayName": "K'Andre Miller",
+                  "shortName": "K. Miller",
+                  "links": [
+                    {
+                      "rel": [
+                        "playercard",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "https://www.espn.com/nhl/player/_/id/4352770"
+                    },
+                    {
+                      "rel": [
+                        "stats",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/stats/_/id/4352770/kandre-miller"
+                    },
+                    {
+                      "rel": [
+                        "splits",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/splits/_/id/4352770/kandre-miller"
+                    },
+                    {
+                      "rel": [
+                        "gamelog",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/gamelog/_/id/4352770/kandre-miller"
+                    },
+                    {
+                      "rel": [
+                        "news",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/news/_/id/4352770/kandre-miller"
+                    },
+                    {
+                      "rel": [
+                        "bio",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/bio/_/id/4352770/kandre-miller"
+                    },
+                    {
+                      "rel": [
+                        "overview",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/_/id/4352770/kandre-miller"
+                    }
+                  ],
+                  "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4352770.png",
+                  "jersey": "79",
+                  "position": "D",
+                  "team": {
+                    "id": "13"
+                  }
+                },
+                "team": {
+                  "id": "13"
+                },
+                "statistics": [
+                  {
+                    "name": "saves",
+                    "abbreviation": "SV",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "savePct",
+                    "abbreviation": "SV%",
+                    "displayValue": ".000"
+                  },
+                  {
+                    "name": "plusMinus",
+                    "abbreviation": "+/-",
+                    "displayValue": "3"
+                  },
+                  {
+                    "name": "goals",
+                    "abbreviation": "G",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "ytdGoals",
+                    "abbreviation": "YTDG",
+                    "displayValue": "5"
+                  },
+                  {
+                    "name": "assists",
+                    "abbreviation": "A",
+                    "displayValue": "3"
+                  },
+                  {
+                    "name": "points",
+                    "abbreviation": "PTS",
+                    "displayValue": "3"
+                  }
+                ]
+              },
+              {
+                "name": "secondStar",
+                "displayName": "Second Star",
+                "shortDisplayName": "Second Star",
+                "abbreviation": "SS",
+                "playerId": 2976839,
+                "athlete": {
+                  "id": "2976839",
+                  "fullName": "Jacob Trouba",
+                  "displayName": "Jacob Trouba",
+                  "shortName": "J. Trouba",
+                  "links": [
+                    {
+                      "rel": [
+                        "playercard",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "https://www.espn.com/nhl/player/_/id/2976839"
+                    },
+                    {
+                      "rel": [
+                        "stats",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/stats/_/id/2976839/jacob-trouba"
+                    },
+                    {
+                      "rel": [
+                        "splits",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/splits/_/id/2976839/jacob-trouba"
+                    },
+                    {
+                      "rel": [
+                        "gamelog",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/gamelog/_/id/2976839/jacob-trouba"
+                    },
+                    {
+                      "rel": [
+                        "news",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/news/_/id/2976839/jacob-trouba"
+                    },
+                    {
+                      "rel": [
+                        "bio",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/bio/_/id/2976839/jacob-trouba"
+                    },
+                    {
+                      "rel": [
+                        "overview",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/_/id/2976839/jacob-trouba"
+                    }
+                  ],
+                  "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/2976839.png",
+                  "jersey": "8",
+                  "position": "D",
+                  "team": {
+                    "id": "13"
+                  }
+                },
+                "team": {
+                  "id": "13"
+                },
+                "statistics": [
+                  {
+                    "name": "saves",
+                    "abbreviation": "SV",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "savePct",
+                    "abbreviation": "SV%",
+                    "displayValue": ".000"
+                  },
+                  {
+                    "name": "plusMinus",
+                    "abbreviation": "+/-",
+                    "displayValue": "3"
+                  },
+                  {
+                    "name": "goals",
+                    "abbreviation": "G",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "ytdGoals",
+                    "abbreviation": "YTDG",
+                    "displayValue": "3"
+                  },
+                  {
+                    "name": "assists",
+                    "abbreviation": "A",
+                    "displayValue": "2"
+                  },
+                  {
+                    "name": "points",
+                    "abbreviation": "PTS",
+                    "displayValue": "2"
+                  }
+                ]
+              },
+              {
+                "name": "thirdStar",
+                "displayName": "Third Star",
+                "shortDisplayName": "Third Star",
+                "abbreviation": "TS",
+                "playerId": 4320548,
+                "athlete": {
+                  "id": "4320548",
+                  "fullName": "Quinn Hughes",
+                  "displayName": "Quinn Hughes",
+                  "shortName": "Q. Hughes",
+                  "links": [
+                    {
+                      "rel": [
+                        "playercard",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "https://www.espn.com/nhl/player/_/id/4320548"
+                    },
+                    {
+                      "rel": [
+                        "stats",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/stats/_/id/4320548/quinn-hughes"
+                    },
+                    {
+                      "rel": [
+                        "splits",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/splits/_/id/4320548/quinn-hughes"
+                    },
+                    {
+                      "rel": [
+                        "gamelog",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/gamelog/_/id/4320548/quinn-hughes"
+                    },
+                    {
+                      "rel": [
+                        "news",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/news/_/id/4320548/quinn-hughes"
+                    },
+                    {
+                      "rel": [
+                        "bio",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/bio/_/id/4320548/quinn-hughes"
+                    },
+                    {
+                      "rel": [
+                        "overview",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/_/id/4320548/quinn-hughes"
+                    }
+                  ],
+                  "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4320548.png",
+                  "jersey": "43",
+                  "position": "D",
+                  "team": {
+                    "id": "22"
+                  }
+                },
+                "team": {
+                  "id": "22"
+                },
+                "statistics": [
+                  {
+                    "name": "saves",
+                    "abbreviation": "SV",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "savePct",
+                    "abbreviation": "SV%",
+                    "displayValue": ".000"
+                  },
+                  {
+                    "name": "plusMinus",
+                    "abbreviation": "+/-",
+                    "displayValue": "2"
+                  },
+                  {
+                    "name": "goals",
+                    "abbreviation": "G",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "ytdGoals",
+                    "abbreviation": "YTDG",
+                    "displayValue": "5"
+                  },
+                  {
+                    "name": "assists",
+                    "abbreviation": "A",
+                    "displayValue": "2"
+                  },
+                  {
+                    "name": "points",
+                    "abbreviation": "PTS",
+                    "displayValue": "2"
+                  }
+                ]
+              }
+            ]
+          },
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "NHLPP|ESPN+"
+              ]
+            }
+          ],
+          "format": {
+            "regulation": {
+              "periods": 3
+            }
+          },
+          "startDate": "2023-02-09T01:00Z",
+          "geoBroadcasts": [
+            {
+              "type": {
+                "id": "4",
+                "shortName": "Web"
+              },
+              "market": {
+                "id": "1",
+                "type": "National"
+              },
+              "media": {
+                "shortName": "NHLPP|ESPN+"
+              },
+              "lang": "en",
+              "region": "us"
+            }
+          ],
+          "headlines": [
+            {
+              "description": "— Chris Kreider and Filip Chytil got New York off to a strong start in the first period and the Rangers held on to beat the Vancouver Canucks 4-3 on Wednesday night for their third straight win.",
+              "type": "Recap",
+              "shortLinkText": "Kreider, Chytil lead Rangers to 4-3 win over Canucks",
+              "video": [
+                {
+                  "id": 35619790,
+                  "source": "espn",
+                  "headline": "Mika Zibanejad's late goal key in Rangers' win over the Canucks",
+                  "thumbnail": "https://a.espncdn.com/media/motion/2023/0208/ss_20230208_225455344_2184087/ss_20230208_225455344_2184087.jpg",
+                  "duration": 109,
+                  "tracking": {
+                    "sportName": "nhl",
+                    "leagueName": "No League",
+                    "coverageType": "Final Game Highlight",
+                    "trackingName": "COM_NHL Highlight (Vancouver Canucks vs. New York Rangers: Full Highlights) 2023/02/09 ESHEET",
+                    "trackingId": "dm_20230209_NHL_vancouver_canucks_vs_new_york_rangers_full_highlights"
+                  },
+                  "deviceRestrictions": {
+                    "type": "whitelist",
+                    "devices": [
+                      "desktop",
+                      "settop",
+                      "handset",
+                      "tablet"
+                    ]
+                  },
+                  "geoRestrictions": {
+                    "type": "whitelist",
+                    "countries": [
+                      "RW",
+                      "MZ",
+                      "IT",
+                      "BW",
+                      "PY",
+                      "CG",
+                      "MQ",
+                      "SR",
+                      "CF",
+                      "CM",
+                      "MP",
+                      "ZA",
+                      "GD",
+                      "VC",
+                      "SN",
+                      "UG",
+                      "NG",
+                      "BI",
+                      "KY",
+                      "LS",
+                      "NL",
+                      "CL",
+                      "SC",
+                      "ZM",
+                      "GP",
+                      "AS",
+                      "BE",
+                      "BR",
+                      "SD",
+                      "CY",
+                      "ST",
+                      "PE",
+                      "CU",
+                      "GW",
+                      "GU",
+                      "RE",
+                      "GR",
+                      "MU",
+                      "CO",
+                      "LC",
+                      "BB",
+                      "ER",
+                      "CV",
+                      "MT",
+                      "SO",
+                      "TT",
+                      "ZW",
+                      "TZ",
+                      "DJ",
+                      "AU",
+                      "UY",
+                      "AW",
+                      "GA",
+                      "NE",
+                      "EC",
+                      "FJ",
+                      "AI",
+                      "TC",
+                      "ET",
+                      "GM",
+                      "CI",
+                      "MS",
+                      "AO",
+                      "TR",
+                      "BM",
+                      "SM",
+                      "SL",
+                      "AG",
+                      "BS",
+                      "PR",
+                      "BQ",
+                      "MW",
+                      "GY",
+                      "SZ",
+                      "MR",
+                      "BJ",
+                      "FM",
+                      "BF",
+                      "KM",
+                      "KE",
+                      "SS",
+                      "MG",
+                      "PW",
+                      "KN",
+                      "BO",
+                      "LR",
+                      "NZ",
+                      "SX",
+                      "JM",
+                      "TG",
+                      "VI",
+                      "GQ",
+                      "VE",
+                      "VA",
+                      "HU",
+                      "ES",
+                      "GN",
+                      "ML",
+                      "CD",
+                      "US",
+                      "UM",
+                      "MH",
+                      "RO",
+                      "AR",
+                      "TD",
+                      "GF",
+                      "NA",
+                      "GH"
+                    ]
+                  },
+                  "links": {
+                    "api": {
+                      "self": {
+                        "href": "http://api.espn.com/v1/video/clips/35619790"
+                      },
+                      "artwork": {
+                        "href": "https://artwork.api.espn.com/artwork/collections/media/cfafcaf3-c195-41f4-ada7-2d91c3a9c5b5"
+                      }
+                    },
+                    "web": {
+                      "href": "https://www.espn.com/video/clip?id=35619790&ex_cid=espnapi_internal",
+                      "short": {
+                        "href": "https://www.espn.com/video/clip?id=35619790"
+                      },
+                      "self": {
+                        "href": "https://www.espn.com/video/clip?id=35619790&ex_cid=espnapi_internal"
+                      }
+                    },
+                    "source": {
+                      "mezzanine": {
+                        "href": "https://media.video-origin.espn.com/espnvideo/2023/0208/ss_20230208_225455344_2184087/ss_20230208_225455344_2184087.mp4"
+                      },
+                      "flash": {
+                        "href": "https://media.video-cdn.espn.com/motion/2023/0208/ss_20230208_225455344_2184087/ss_20230208_225455344_2184087.smil"
+                      },
+                      "hds": {
+                        "href": "https://hds.video-cdn.espn.com/z/motion/2023/0208/ss_20230208_225455344_2184087/ss_20230208_225455344_2184087_rel.smil/manifest.f4m"
+                      },
+                      "HLS": {
+                        "href": "https://service-pkgespn.akamaized.net/opp/hls/espn/2023/0208/ss_20230208_225455344_2184087/ss_20230208_225455344_2184087/playlist.m3u8",
+                        "HD": {
+                          "href": "https://service-pkgespn.akamaized.net/opp/hls/espn/2023/0208/ss_20230208_225455344_2184087/ss_20230208_225455344_2184087/playlist.m3u8"
+                        }
+                      },
+                      "HD": {
+                        "href": "https://media.video-cdn.espn.com/motion/2023/0208/ss_20230208_225455344_2184087/ss_20230208_225455344_2184087_720p30_2896k.mp4"
+                      },
+                      "full": {
+                        "href": "https://media.video-cdn.espn.com/motion/2023/0208/ss_20230208_225455344_2184087/ss_20230208_225455344_2184087_360p30_1464k.mp4"
+                      },
+                      "href": "https://media.video-cdn.espn.com/motion/2023/0208/ss_20230208_225455344_2184087/ss_20230208_225455344_2184087_360p30_1464k.mp4"
+                    },
+                    "mobile": {
+                      "alert": {
+                        "href": "http://m.espn.go.com/general/video/videoAlert?vid=35619790&ex_cid=espnapi_internal"
+                      },
+                      "source": {
+                        "href": "https://media.video-cdn.espn.com/motion/2023/0208/ss_20230208_225455344_2184087/ss_20230208_225455344_2184087.mp4"
+                      },
+                      "href": "https://watch.auth.api.espn.com/video/auth/brightcove/cfafcaf3-c195-41f4-ada7-2d91c3a9c5b5/asset?UMADPARAMreferer=http://www.espn.com/video/clip?id=35619790",
+                      "streaming": {
+                        "href": "https://watch.auth.api.espn.com/video/auth/brightcove/cfafcaf3-c195-41f4-ada7-2d91c3a9c5b5/asset?UMADPARAMreferer=http://www.espn.com/video/clip?id=35619790"
+                      },
+                      "progressiveDownload": {
+                        "href": "https://watch.auth.api.espn.com/video/auth/brightcove/cfafcaf3-c195-41f4-ada7-2d91c3a9c5b5/asset?UMADPARAMreferer=http://www.espn.com/video/clip?id=35619790"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "links": [
+        {
+          "language": "en-US",
+          "rel": [
+            "summary",
+            "desktop",
+            "event"
+          ],
+          "href": "https://www.espn.com/nhl/game/_/gameId/401459409",
+          "text": "Gamecast",
+          "shortText": "Gamecast",
+          "isExternal": false,
+          "isPremium": false
+        },
+        {
+          "language": "en-US",
+          "rel": [
+            "boxscore",
+            "desktop",
+            "event"
+          ],
+          "href": "https://www.espn.com/nhl/boxscore/_/gameId/401459409",
+          "text": "Box Score",
+          "shortText": "Box Score",
+          "isExternal": false,
+          "isPremium": false
+        },
+        {
+          "language": "en-US",
+          "rel": [
+            "highlights",
+            "desktop"
+          ],
+          "href": "https://www.espn.com/nhl/video?gameId=401459409",
+          "text": "Highlights",
+          "shortText": "Highlights",
+          "isExternal": false,
+          "isPremium": false
+        },
+        {
+          "language": "en-US",
+          "rel": [
+            "pbp",
+            "desktop",
+            "event"
+          ],
+          "href": "https://www.espn.com/nhl/playbyplay/_/gameId/401459409",
+          "text": "Play-by-Play",
+          "shortText": "Play-by-Play",
+          "isExternal": false,
+          "isPremium": false
+        },
+        {
+          "language": "en-US",
+          "rel": [
+            "recap",
+            "desktop",
+            "event"
+          ],
+          "href": "https://www.espn.com/nhl/recap?gameId=401459409",
+          "text": "Recap",
+          "shortText": "Recap",
+          "isExternal": false,
+          "isPremium": false
+        }
+      ],
+      "status": {
+        "clock": 0.0,
+        "displayClock": "0:00",
+        "period": 3,
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      }
+    },
+    {
+      "id": "401459408",
+      "uid": "s:70~l:90~e:401459408",
+      "date": "2023-02-09T01:30Z",
+      "name": "Minnesota Wild at Dallas Stars",
+      "shortName": "MIN @ DAL",
+      "season": {
+        "year": 2023,
+        "type": 2,
+        "slug": "regular-season"
+      },
+      "competitions": [
+        {
+          "id": "401459408",
+          "uid": "s:70~l:90~e:401459408~c:401459408",
+          "date": "2023-02-09T01:30Z",
+          "attendance": 18274,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "timeValid": true,
+          "neutralSite": false,
+          "recent": true,
+          "venue": {
+            "id": "516",
+            "fullName": "American Airlines Center",
+            "address": {
+              "city": "Dallas",
+              "state": "TX",
+              "country": "USA"
+            },
+            "capacity": 18532,
+            "indoor": true
+          },
+          "competitors": [
+            {
+              "id": "9",
+              "uid": "s:70~l:90~t:9",
+              "type": "team",
+              "order": 0,
+              "homeAway": "home",
+              "winner": true,
+              "team": {
+                "id": "9",
+                "uid": "s:70~l:90~t:9",
+                "location": "Dallas",
+                "name": "Stars",
+                "abbreviation": "DAL",
+                "displayName": "Dallas Stars",
+                "shortDisplayName": "Stars",
+                "color": "00704a",
+                "alternateColor": "8c9192",
+                "isActive": true,
+                "venue": {
+                  "id": "516"
+                },
+                "links": [
+                  {
+                    "rel": [
+                      "clubhouse",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/_/name/dal/dallas-stars",
+                    "text": "Clubhouse",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "clubhouse",
+                      "mobile",
+                      "team"
+                    ],
+                    "href": "http://m.espn.com/nhl/clubhouse?teamId=9",
+                    "text": "Clubhouse",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "roster",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/roster/_/name/dal/dallas-stars",
+                    "text": "Roster",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "stats",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/stats/_/name/dal/dallas-stars",
+                    "text": "Statistics",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "schedule",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "https://www.espn.com/nhl/team/schedule/_/name/dal",
+                    "text": "Schedule",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "photos",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "https://www.espn.com/nhl/team/photos/_/name/dal",
+                    "text": "photos",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "scores",
+                      "sportscenter",
+                      "app",
+                      "team"
+                    ],
+                    "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:9&section=scores",
+                    "text": "Scores",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "transactions",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/transactions/_/name/dal",
+                    "text": "Transactions",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "injuries",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/injuries/_/name/dal",
+                    "text": "Injuries",
+                    "isExternal": false,
+                    "isPremium": false
+                  }
+                ],
+                "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/dal.png"
+              },
+              "score": "4",
+              "linescores": [
+                {
+                  "value": 0.0
+                },
+                {
+                  "value": 3.0
+                },
+                {
+                  "value": 1.0
+                }
+              ],
+              "statistics": [
+                {
+                  "name": "saves",
+                  "abbreviation": "SV",
+                  "displayValue": "38"
+                },
+                {
+                  "name": "savePct",
+                  "abbreviation": "SV%",
+                  "displayValue": ".974"
+                },
+                {
+                  "name": "goals",
+                  "abbreviation": "G",
+                  "displayValue": "4"
+                },
+                {
+                  "name": "ytdGoals",
+                  "abbreviation": "YTDG",
+                  "displayValue": "349"
+                },
+                {
+                  "name": "assists",
+                  "abbreviation": "A",
+                  "displayValue": "7"
+                },
+                {
+                  "name": "points",
+                  "abbreviation": "PTS",
+                  "displayValue": "11"
+                }
+              ],
+              "leaders": [
+                {
+                  "name": "goals",
+                  "displayName": "Goals",
+                  "shortDisplayName": "Goals",
+                  "abbreviation": "G",
+                  "leaders": [
+                    {
+                      "displayValue": "1",
+                      "value": 1.0,
+                      "athlete": {
+                        "id": "3904183",
+                        "fullName": "Roope Hintz",
+                        "displayName": "Roope Hintz",
+                        "shortName": "R. Hintz",
+                        "links": [
+                          {
+                            "rel": [
+                              "playercard",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "https://www.espn.com/nhl/player/_/id/3904183"
+                          },
+                          {
+                            "rel": [
+                              "stats",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/stats/_/id/3904183/roope-hintz"
+                          },
+                          {
+                            "rel": [
+                              "splits",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/splits/_/id/3904183/roope-hintz"
+                          },
+                          {
+                            "rel": [
+                              "gamelog",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/gamelog/_/id/3904183/roope-hintz"
+                          },
+                          {
+                            "rel": [
+                              "news",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/news/_/id/3904183/roope-hintz"
+                          },
+                          {
+                            "rel": [
+                              "bio",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/bio/_/id/3904183/roope-hintz"
+                          },
+                          {
+                            "rel": [
+                              "overview",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/_/id/3904183/roope-hintz"
+                          }
+                        ],
+                        "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3904183.png",
+                        "jersey": "24",
+                        "position": {
+                          "abbreviation": "C"
+                        },
+                        "team": {
+                          "id": "9"
+                        },
+                        "active": true
+                      },
+                      "team": {
+                        "id": "9"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "assists",
+                  "displayName": "Assists",
+                  "shortDisplayName": "Assists",
+                  "abbreviation": "A",
+                  "leaders": [
+                    {
+                      "displayValue": "2",
+                      "value": 2.0,
+                      "athlete": {
+                        "id": "4233875",
+                        "fullName": "Jason Robertson",
+                        "displayName": "Jason Robertson",
+                        "shortName": "J. Robertson",
+                        "links": [
+                          {
+                            "rel": [
+                              "playercard",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "https://www.espn.com/nhl/player/_/id/4233875"
+                          },
+                          {
+                            "rel": [
+                              "stats",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/stats/_/id/4233875/jason-robertson"
+                          },
+                          {
+                            "rel": [
+                              "splits",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/splits/_/id/4233875/jason-robertson"
+                          },
+                          {
+                            "rel": [
+                              "gamelog",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/gamelog/_/id/4233875/jason-robertson"
+                          },
+                          {
+                            "rel": [
+                              "news",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/news/_/id/4233875/jason-robertson"
+                          },
+                          {
+                            "rel": [
+                              "bio",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/bio/_/id/4233875/jason-robertson"
+                          },
+                          {
+                            "rel": [
+                              "overview",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/_/id/4233875/jason-robertson"
+                          }
+                        ],
+                        "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4233875.png",
+                        "jersey": "21",
+                        "position": {
+                          "abbreviation": "LW"
+                        },
+                        "team": {
+                          "id": "9"
+                        },
+                        "active": true
+                      },
+                      "team": {
+                        "id": "9"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "points",
+                  "displayName": "Points",
+                  "shortDisplayName": "Points",
+                  "abbreviation": "PTS",
+                  "leaders": [
+                    {
+                      "displayValue": "2",
+                      "value": 2.0,
+                      "athlete": {
+                        "id": "3904183",
+                        "fullName": "Roope Hintz",
+                        "displayName": "Roope Hintz",
+                        "shortName": "R. Hintz",
+                        "links": [
+                          {
+                            "rel": [
+                              "playercard",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "https://www.espn.com/nhl/player/_/id/3904183"
+                          },
+                          {
+                            "rel": [
+                              "stats",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/stats/_/id/3904183/roope-hintz"
+                          },
+                          {
+                            "rel": [
+                              "splits",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/splits/_/id/3904183/roope-hintz"
+                          },
+                          {
+                            "rel": [
+                              "gamelog",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/gamelog/_/id/3904183/roope-hintz"
+                          },
+                          {
+                            "rel": [
+                              "news",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/news/_/id/3904183/roope-hintz"
+                          },
+                          {
+                            "rel": [
+                              "bio",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/bio/_/id/3904183/roope-hintz"
+                          },
+                          {
+                            "rel": [
+                              "overview",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/_/id/3904183/roope-hintz"
+                          }
+                        ],
+                        "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3904183.png",
+                        "jersey": "24",
+                        "position": {
+                          "abbreviation": "C"
+                        },
+                        "team": {
+                          "id": "9"
+                        },
+                        "active": true
+                      },
+                      "team": {
+                        "id": "9"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "probables": [
+                {
+                  "name": "probableStartingGoalie",
+                  "displayName": "Probable Starting Goalie",
+                  "shortDisplayName": "Starter",
+                  "abbreviation": "SG",
+                  "playerId": 4196914,
+                  "athlete": {
+                    "id": "4196914",
+                    "fullName": "Jake Oettinger",
+                    "displayName": "Jake Oettinger",
+                    "shortName": "J. Oettinger",
+                    "links": [
+                      {
+                        "rel": [
+                          "playercard",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "https://www.espn.com/nhl/player/_/id/4196914"
+                      },
+                      {
+                        "rel": [
+                          "stats",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/stats/_/id/4196914/jake-oettinger"
+                      },
+                      {
+                        "rel": [
+                          "splits",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/splits/_/id/4196914/jake-oettinger"
+                      },
+                      {
+                        "rel": [
+                          "gamelog",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/gamelog/_/id/4196914/jake-oettinger"
+                      },
+                      {
+                        "rel": [
+                          "news",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/news/_/id/4196914/jake-oettinger"
+                      },
+                      {
+                        "rel": [
+                          "bio",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/bio/_/id/4196914/jake-oettinger"
+                      },
+                      {
+                        "rel": [
+                          "overview",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/_/id/4196914/jake-oettinger"
+                      }
+                    ],
+                    "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4196914.png",
+                    "jersey": "29",
+                    "position": "G",
+                    "team": {
+                      "id": "9"
+                    }
+                  },
+                  "status": {
+                    "id": "102",
+                    "name": "Confirmed",
+                    "type": "confirmed",
+                    "abbreviation": "Confirmed"
+                  },
+                  "statistics": []
+                }
+              ],
+              "records": [
+                {
+                  "name": "YTD",
+                  "abbreviation": "Game",
+                  "type": "ytd",
+                  "summary": "30-13-10"
+                },
+                {
+                  "name": "Home",
+                  "abbreviation": "HOME",
+                  "type": "home",
+                  "summary": "15-5-6"
+                },
+                {
+                  "name": "Road",
+                  "abbreviation": "AWAY",
+                  "type": "road",
+                  "summary": "15-8-4"
+                }
+              ]
+            },
+            {
+              "id": "30",
+              "uid": "s:70~l:90~t:30",
+              "type": "team",
+              "order": 1,
+              "homeAway": "away",
+              "winner": false,
+              "team": {
+                "id": "30",
+                "uid": "s:70~l:90~t:30",
+                "location": "Minnesota",
+                "name": "Wild",
+                "abbreviation": "MIN",
+                "displayName": "Minnesota Wild",
+                "shortDisplayName": "Wild",
+                "color": "004725",
+                "alternateColor": "c41230",
+                "isActive": true,
+                "venue": {
+                  "id": "1835"
+                },
+                "links": [
+                  {
+                    "rel": [
+                      "clubhouse",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/_/name/min/minnesota-wild",
+                    "text": "Clubhouse",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "clubhouse",
+                      "mobile",
+                      "team"
+                    ],
+                    "href": "http://m.espn.com/nhl/clubhouse?teamId=30",
+                    "text": "Clubhouse",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "roster",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/roster/_/name/min/minnesota-wild",
+                    "text": "Roster",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "stats",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/stats/_/name/min/minnesota-wild",
+                    "text": "Statistics",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "schedule",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "https://www.espn.com/nhl/team/schedule/_/name/min",
+                    "text": "Schedule",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "photos",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "https://www.espn.com/nhl/team/photos/_/name/min",
+                    "text": "photos",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "scores",
+                      "sportscenter",
+                      "app",
+                      "team"
+                    ],
+                    "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:30&section=scores",
+                    "text": "Scores",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "transactions",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/transactions/_/name/min",
+                    "text": "Transactions",
+                    "isExternal": false,
+                    "isPremium": false
+                  },
+                  {
+                    "rel": [
+                      "injuries",
+                      "desktop",
+                      "team"
+                    ],
+                    "href": "http://www.espn.com/nhl/team/injuries/_/name/min",
+                    "text": "Injuries",
+                    "isExternal": false,
+                    "isPremium": false
+                  }
+                ],
+                "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/min.png"
+              },
+              "score": "1",
+              "linescores": [
+                {
+                  "value": 0.0
+                },
+                {
+                  "value": 1.0
+                },
+                {
+                  "value": 0.0
+                }
+              ],
+              "statistics": [
+                {
+                  "name": "saves",
+                  "abbreviation": "SV",
+                  "displayValue": "33"
+                },
+                {
+                  "name": "savePct",
+                  "abbreviation": "SV%",
+                  "displayValue": ".917"
+                },
+                {
+                  "name": "goals",
+                  "abbreviation": "G",
+                  "displayValue": "1"
+                },
+                {
+                  "name": "ytdGoals",
+                  "abbreviation": "YTDG",
+                  "displayValue": "298"
+                },
+                {
+                  "name": "assists",
+                  "abbreviation": "A",
+                  "displayValue": "2"
+                },
+                {
+                  "name": "points",
+                  "abbreviation": "PTS",
+                  "displayValue": "3"
+                }
+              ],
+              "leaders": [
+                {
+                  "name": "goals",
+                  "displayName": "Goals",
+                  "shortDisplayName": "Goals",
+                  "abbreviation": "G",
+                  "leaders": [
+                    {
+                      "displayValue": "1",
+                      "value": 1.0,
+                      "athlete": {
+                        "id": "3904091",
+                        "fullName": "Joel Eriksson Ek",
+                        "displayName": "Joel Eriksson Ek",
+                        "shortName": "J. Eriksson Ek",
+                        "links": [
+                          {
+                            "rel": [
+                              "playercard",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "https://www.espn.com/nhl/player/_/id/3904091"
+                          },
+                          {
+                            "rel": [
+                              "stats",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/stats/_/id/3904091/joel-eriksson-ek"
+                          },
+                          {
+                            "rel": [
+                              "splits",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/splits/_/id/3904091/joel-eriksson-ek"
+                          },
+                          {
+                            "rel": [
+                              "gamelog",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/gamelog/_/id/3904091/joel-eriksson-ek"
+                          },
+                          {
+                            "rel": [
+                              "news",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/news/_/id/3904091/joel-eriksson-ek"
+                          },
+                          {
+                            "rel": [
+                              "bio",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/bio/_/id/3904091/joel-eriksson-ek"
+                          },
+                          {
+                            "rel": [
+                              "overview",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/_/id/3904091/joel-eriksson-ek"
+                          }
+                        ],
+                        "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3904091.png",
+                        "jersey": "14",
+                        "position": {
+                          "abbreviation": "C"
+                        },
+                        "team": {
+                          "id": "30"
+                        },
+                        "active": true
+                      },
+                      "team": {
+                        "id": "30"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "assists",
+                  "displayName": "Assists",
+                  "shortDisplayName": "Assists",
+                  "abbreviation": "A",
+                  "leaders": [
+                    {
+                      "displayValue": "1",
+                      "value": 1.0,
+                      "athlete": {
+                        "id": "5560",
+                        "fullName": "Mats Zuccarello",
+                        "displayName": "Mats Zuccarello",
+                        "shortName": "M. Zuccarello",
+                        "links": [
+                          {
+                            "rel": [
+                              "playercard",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "https://www.espn.com/nhl/player/_/id/5560"
+                          },
+                          {
+                            "rel": [
+                              "stats",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/stats/_/id/5560/mats-zuccarello"
+                          },
+                          {
+                            "rel": [
+                              "splits",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/splits/_/id/5560/mats-zuccarello"
+                          },
+                          {
+                            "rel": [
+                              "gamelog",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/gamelog/_/id/5560/mats-zuccarello"
+                          },
+                          {
+                            "rel": [
+                              "news",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/news/_/id/5560/mats-zuccarello"
+                          },
+                          {
+                            "rel": [
+                              "bio",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/bio/_/id/5560/mats-zuccarello"
+                          },
+                          {
+                            "rel": [
+                              "overview",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/_/id/5560/mats-zuccarello"
+                          }
+                        ],
+                        "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/5560.png",
+                        "jersey": "36",
+                        "position": {
+                          "abbreviation": "RW"
+                        },
+                        "team": {
+                          "id": "30"
+                        },
+                        "active": true
+                      },
+                      "team": {
+                        "id": "30"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "points",
+                  "displayName": "Points",
+                  "shortDisplayName": "Points",
+                  "abbreviation": "PTS",
+                  "leaders": [
+                    {
+                      "displayValue": "1",
+                      "value": 1.0,
+                      "athlete": {
+                        "id": "3904091",
+                        "fullName": "Joel Eriksson Ek",
+                        "displayName": "Joel Eriksson Ek",
+                        "shortName": "J. Eriksson Ek",
+                        "links": [
+                          {
+                            "rel": [
+                              "playercard",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "https://www.espn.com/nhl/player/_/id/3904091"
+                          },
+                          {
+                            "rel": [
+                              "stats",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/stats/_/id/3904091/joel-eriksson-ek"
+                          },
+                          {
+                            "rel": [
+                              "splits",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/splits/_/id/3904091/joel-eriksson-ek"
+                          },
+                          {
+                            "rel": [
+                              "gamelog",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/gamelog/_/id/3904091/joel-eriksson-ek"
+                          },
+                          {
+                            "rel": [
+                              "news",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/news/_/id/3904091/joel-eriksson-ek"
+                          },
+                          {
+                            "rel": [
+                              "bio",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/bio/_/id/3904091/joel-eriksson-ek"
+                          },
+                          {
+                            "rel": [
+                              "overview",
+                              "desktop",
+                              "athlete"
+                            ],
+                            "href": "http://www.espn.com/nhl/player/_/id/3904091/joel-eriksson-ek"
+                          }
+                        ],
+                        "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3904091.png",
+                        "jersey": "14",
+                        "position": {
+                          "abbreviation": "C"
+                        },
+                        "team": {
+                          "id": "30"
+                        },
+                        "active": true
+                      },
+                      "team": {
+                        "id": "30"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "probables": [
+                {
+                  "name": "probableStartingGoalie",
+                  "displayName": "Probable Starting Goalie",
+                  "shortDisplayName": "Starter",
+                  "abbreviation": "SG",
+                  "playerId": 4272674,
+                  "athlete": {
+                    "id": "4272674",
+                    "fullName": "Filip Gustavsson",
+                    "displayName": "Filip Gustavsson",
+                    "shortName": "F. Gustavsson",
+                    "links": [
+                      {
+                        "rel": [
+                          "playercard",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "https://www.espn.com/nhl/player/_/id/4272674"
+                      },
+                      {
+                        "rel": [
+                          "stats",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/stats/_/id/4272674/filip-gustavsson"
+                      },
+                      {
+                        "rel": [
+                          "splits",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/splits/_/id/4272674/filip-gustavsson"
+                      },
+                      {
+                        "rel": [
+                          "gamelog",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/gamelog/_/id/4272674/filip-gustavsson"
+                      },
+                      {
+                        "rel": [
+                          "news",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/news/_/id/4272674/filip-gustavsson"
+                      },
+                      {
+                        "rel": [
+                          "bio",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/bio/_/id/4272674/filip-gustavsson"
+                      },
+                      {
+                        "rel": [
+                          "overview",
+                          "desktop",
+                          "athlete"
+                        ],
+                        "href": "http://www.espn.com/nhl/player/_/id/4272674/filip-gustavsson"
+                      }
+                    ],
+                    "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4272674.png",
+                    "jersey": "32",
+                    "position": "G",
+                    "team": {
+                      "id": "30"
+                    }
+                  },
+                  "status": {
+                    "id": "102",
+                    "name": "Confirmed",
+                    "type": "confirmed",
+                    "abbreviation": "Confirmed"
+                  },
+                  "statistics": []
+                }
+              ],
+              "records": [
+                {
+                  "name": "YTD",
+                  "abbreviation": "Game",
+                  "type": "ytd",
+                  "summary": "27-19-4"
+                },
+                {
+                  "name": "Home",
+                  "abbreviation": "HOME",
+                  "type": "home",
+                  "summary": "15-8-1"
+                },
+                {
+                  "name": "Road",
+                  "abbreviation": "AWAY",
+                  "type": "road",
+                  "summary": "12-11-3"
+                }
+              ]
+            }
+          ],
+          "notes": [],
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 3,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            },
+            "featuredAthletes": [
+              {
+                "name": "winningGoalie",
+                "displayName": "Winning Goalie",
+                "shortDisplayName": "Winning Goalie",
+                "abbreviation": "W",
+                "playerId": 4196914,
+                "athlete": {
+                  "id": "4196914",
+                  "fullName": "Jake Oettinger",
+                  "displayName": "Jake Oettinger",
+                  "shortName": "J. Oettinger",
+                  "links": [
+                    {
+                      "rel": [
+                        "playercard",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "https://www.espn.com/nhl/player/_/id/4196914"
+                    },
+                    {
+                      "rel": [
+                        "stats",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/stats/_/id/4196914/jake-oettinger"
+                    },
+                    {
+                      "rel": [
+                        "splits",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/splits/_/id/4196914/jake-oettinger"
+                    },
+                    {
+                      "rel": [
+                        "gamelog",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/gamelog/_/id/4196914/jake-oettinger"
+                    },
+                    {
+                      "rel": [
+                        "news",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/news/_/id/4196914/jake-oettinger"
+                    },
+                    {
+                      "rel": [
+                        "bio",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/bio/_/id/4196914/jake-oettinger"
+                    },
+                    {
+                      "rel": [
+                        "overview",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/_/id/4196914/jake-oettinger"
+                    }
+                  ],
+                  "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4196914.png",
+                  "jersey": "29",
+                  "position": "G",
+                  "team": {
+                    "id": "9"
+                  }
+                },
+                "team": {
+                  "id": "9"
+                },
+                "statistics": [
+                  {
+                    "name": "saves",
+                    "abbreviation": "SV",
+                    "displayValue": "38"
+                  },
+                  {
+                    "name": "savePct",
+                    "abbreviation": "SV%",
+                    "displayValue": ".974"
+                  },
+                  {
+                    "name": "plusMinus",
+                    "abbreviation": "+/-",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "goals",
+                    "abbreviation": "G",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "ytdGoals",
+                    "abbreviation": "YTDG",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "assists",
+                    "abbreviation": "A",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "points",
+                    "abbreviation": "PTS",
+                    "displayValue": "0"
+                  }
+                ]
+              },
+              {
+                "name": "losingGoalie",
+                "displayName": "Losing Goalie",
+                "shortDisplayName": "Losing Goalie",
+                "abbreviation": "L",
+                "playerId": 4272674,
+                "athlete": {
+                  "id": "4272674",
+                  "fullName": "Filip Gustavsson",
+                  "displayName": "Filip Gustavsson",
+                  "shortName": "F. Gustavsson",
+                  "links": [
+                    {
+                      "rel": [
+                        "playercard",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "https://www.espn.com/nhl/player/_/id/4272674"
+                    },
+                    {
+                      "rel": [
+                        "stats",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/stats/_/id/4272674/filip-gustavsson"
+                    },
+                    {
+                      "rel": [
+                        "splits",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/splits/_/id/4272674/filip-gustavsson"
+                    },
+                    {
+                      "rel": [
+                        "gamelog",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/gamelog/_/id/4272674/filip-gustavsson"
+                    },
+                    {
+                      "rel": [
+                        "news",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/news/_/id/4272674/filip-gustavsson"
+                    },
+                    {
+                      "rel": [
+                        "bio",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/bio/_/id/4272674/filip-gustavsson"
+                    },
+                    {
+                      "rel": [
+                        "overview",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/_/id/4272674/filip-gustavsson"
+                    }
+                  ],
+                  "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4272674.png",
+                  "jersey": "32",
+                  "position": "G",
+                  "team": {
+                    "id": "30"
+                  }
+                },
+                "team": {
+                  "id": "30"
+                },
+                "statistics": [
+                  {
+                    "name": "saves",
+                    "abbreviation": "SV",
+                    "displayValue": "33"
+                  },
+                  {
+                    "name": "savePct",
+                    "abbreviation": "SV%",
+                    "displayValue": ".917"
+                  },
+                  {
+                    "name": "plusMinus",
+                    "abbreviation": "+/-",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "goals",
+                    "abbreviation": "G",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "ytdGoals",
+                    "abbreviation": "YTDG",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "assists",
+                    "abbreviation": "A",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "points",
+                    "abbreviation": "PTS",
+                    "displayValue": "0"
+                  }
+                ]
+              },
+              {
+                "name": "firstStar",
+                "displayName": "First Star",
+                "shortDisplayName": "First Star",
+                "abbreviation": "FS",
+                "playerId": 2960288,
+                "athlete": {
+                  "id": "2960288",
+                  "fullName": "Jani Hakanpaa",
+                  "displayName": "Jani Hakanpaa",
+                  "shortName": "J. Hakanpaa",
+                  "links": [
+                    {
+                      "rel": [
+                        "playercard",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "https://www.espn.com/nhl/player/_/id/2960288"
+                    },
+                    {
+                      "rel": [
+                        "stats",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/stats/_/id/2960288/jani-hakanpaa"
+                    },
+                    {
+                      "rel": [
+                        "splits",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/splits/_/id/2960288/jani-hakanpaa"
+                    },
+                    {
+                      "rel": [
+                        "gamelog",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/gamelog/_/id/2960288/jani-hakanpaa"
+                    },
+                    {
+                      "rel": [
+                        "news",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/news/_/id/2960288/jani-hakanpaa"
+                    },
+                    {
+                      "rel": [
+                        "bio",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/bio/_/id/2960288/jani-hakanpaa"
+                    },
+                    {
+                      "rel": [
+                        "overview",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/_/id/2960288/jani-hakanpaa"
+                    }
+                  ],
+                  "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/2960288.png",
+                  "jersey": "2",
+                  "position": "D",
+                  "team": {
+                    "id": "9"
+                  }
+                },
+                "team": {
+                  "id": "9"
+                },
+                "statistics": [
+                  {
+                    "name": "saves",
+                    "abbreviation": "SV",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "savePct",
+                    "abbreviation": "SV%",
+                    "displayValue": ".000"
+                  },
+                  {
+                    "name": "plusMinus",
+                    "abbreviation": "+/-",
+                    "displayValue": "4"
+                  },
+                  {
+                    "name": "goals",
+                    "abbreviation": "G",
+                    "displayValue": "1"
+                  },
+                  {
+                    "name": "ytdGoals",
+                    "abbreviation": "YTDG",
+                    "displayValue": "5"
+                  },
+                  {
+                    "name": "assists",
+                    "abbreviation": "A",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "points",
+                    "abbreviation": "PTS",
+                    "displayValue": "1"
+                  }
+                ]
+              },
+              {
+                "name": "secondStar",
+                "displayName": "Second Star",
+                "shortDisplayName": "Second Star",
+                "abbreviation": "SS",
+                "playerId": 4196914,
+                "athlete": {
+                  "id": "4196914",
+                  "fullName": "Jake Oettinger",
+                  "displayName": "Jake Oettinger",
+                  "shortName": "J. Oettinger",
+                  "links": [
+                    {
+                      "rel": [
+                        "playercard",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "https://www.espn.com/nhl/player/_/id/4196914"
+                    },
+                    {
+                      "rel": [
+                        "stats",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/stats/_/id/4196914/jake-oettinger"
+                    },
+                    {
+                      "rel": [
+                        "splits",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/splits/_/id/4196914/jake-oettinger"
+                    },
+                    {
+                      "rel": [
+                        "gamelog",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/gamelog/_/id/4196914/jake-oettinger"
+                    },
+                    {
+                      "rel": [
+                        "news",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/news/_/id/4196914/jake-oettinger"
+                    },
+                    {
+                      "rel": [
+                        "bio",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/bio/_/id/4196914/jake-oettinger"
+                    },
+                    {
+                      "rel": [
+                        "overview",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/_/id/4196914/jake-oettinger"
+                    }
+                  ],
+                  "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4196914.png",
+                  "jersey": "29",
+                  "position": "G",
+                  "team": {
+                    "id": "9"
+                  }
+                },
+                "team": {
+                  "id": "9"
+                },
+                "statistics": [
+                  {
+                    "name": "saves",
+                    "abbreviation": "SV",
+                    "displayValue": "38"
+                  },
+                  {
+                    "name": "savePct",
+                    "abbreviation": "SV%",
+                    "displayValue": ".974"
+                  },
+                  {
+                    "name": "plusMinus",
+                    "abbreviation": "+/-",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "goals",
+                    "abbreviation": "G",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "ytdGoals",
+                    "abbreviation": "YTDG",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "assists",
+                    "abbreviation": "A",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "points",
+                    "abbreviation": "PTS",
+                    "displayValue": "0"
+                  }
+                ]
+              },
+              {
+                "name": "thirdStar",
+                "displayName": "Third Star",
+                "shortDisplayName": "Third Star",
+                "abbreviation": "TS",
+                "playerId": 3998,
+                "athlete": {
+                  "id": "3998",
+                  "fullName": "Jamie Benn",
+                  "displayName": "Jamie Benn",
+                  "shortName": "J. Benn",
+                  "links": [
+                    {
+                      "rel": [
+                        "playercard",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "https://www.espn.com/nhl/player/_/id/3998"
+                    },
+                    {
+                      "rel": [
+                        "stats",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/stats/_/id/3998/jamie-benn"
+                    },
+                    {
+                      "rel": [
+                        "splits",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/splits/_/id/3998/jamie-benn"
+                    },
+                    {
+                      "rel": [
+                        "gamelog",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/gamelog/_/id/3998/jamie-benn"
+                    },
+                    {
+                      "rel": [
+                        "news",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/news/_/id/3998/jamie-benn"
+                    },
+                    {
+                      "rel": [
+                        "bio",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/bio/_/id/3998/jamie-benn"
+                    },
+                    {
+                      "rel": [
+                        "overview",
+                        "desktop",
+                        "athlete"
+                      ],
+                      "href": "http://www.espn.com/nhl/player/_/id/3998/jamie-benn"
+                    }
+                  ],
+                  "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3998.png",
+                  "jersey": "14",
+                  "position": "LW",
+                  "team": {
+                    "id": "9"
+                  }
+                },
+                "team": {
+                  "id": "9"
+                },
+                "statistics": [
+                  {
+                    "name": "saves",
+                    "abbreviation": "SV",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "savePct",
+                    "abbreviation": "SV%",
+                    "displayValue": ".000"
+                  },
+                  {
+                    "name": "plusMinus",
+                    "abbreviation": "+/-",
+                    "displayValue": "1"
+                  },
+                  {
+                    "name": "goals",
+                    "abbreviation": "G",
+                    "displayValue": "1"
+                  },
+                  {
+                    "name": "ytdGoals",
+                    "abbreviation": "YTDG",
+                    "displayValue": "20"
+                  },
+                  {
+                    "name": "assists",
+                    "abbreviation": "A",
+                    "displayValue": "0"
+                  },
+                  {
+                    "name": "points",
+                    "abbreviation": "PTS",
+                    "displayValue": "1"
+                  }
+                ]
+              }
+            ]
+          },
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "TNT"
+              ]
+            }
+          ],
+          "format": {
+            "regulation": {
+              "periods": 3
+            }
+          },
+          "startDate": "2023-02-09T01:30Z",
+          "geoBroadcasts": [
+            {
+              "type": {
+                "id": "1",
+                "shortName": "TV"
+              },
+              "market": {
+                "id": "1",
+                "type": "National"
+              },
+              "media": {
+                "shortName": "TNT"
+              },
+              "lang": "en",
+              "region": "us"
+            }
+          ],
+          "headlines": [
+            {
+              "description": "— Captain Jamie Benn broke a scoreless tie 23 seconds into the second period of his 1,001st career game, and the Dallas Stars beat the Minnesota Wild 4-1 on Wednesday night.",
+              "type": "Recap",
+              "shortLinkText": "Benn breaks scoreless tie early in 2nd, Stars top Wild 4-1",
+              "video": [
+                {
+                  "id": 35619122,
+                  "source": "espn",
+                  "headline": "Jamie Benn scores goal vs. Wild",
+                  "thumbnail": "https://a.espncdn.com/media/motion/2023/0208/ss_20230208_213757218_2183902/ss_20230208_213757218_2183902.jpg",
+                  "duration": 49,
+                  "tracking": {
+                    "sportName": "nhl",
+                    "leagueName": "No League",
+                    "coverageType": "Final Game Highlight",
+                    "trackingName": "NHL_One-Play (Jamie Benn scores goal vs. Wild) 2023/02/09 ESHEET",
+                    "trackingId": "dm_20230209_NHL_jamie_benn_scores_goal_vs_wild"
+                  },
+                  "deviceRestrictions": {
+                    "type": "whitelist",
+                    "devices": [
+                      "desktop",
+                      "settop",
+                      "handset",
+                      "tablet"
+                    ]
+                  },
+                  "geoRestrictions": {
+                    "type": "whitelist",
+                    "countries": [
+                      "RW",
+                      "MZ",
+                      "IT",
+                      "BW",
+                      "PY",
+                      "CG",
+                      "MQ",
+                      "SR",
+                      "CF",
+                      "CM",
+                      "MP",
+                      "ZA",
+                      "GD",
+                      "VC",
+                      "SN",
+                      "UG",
+                      "NG",
+                      "BI",
+                      "KY",
+                      "LS",
+                      "NL",
+                      "CL",
+                      "SC",
+                      "ZM",
+                      "GP",
+                      "AS",
+                      "BE",
+                      "BR",
+                      "SD",
+                      "CY",
+                      "ST",
+                      "PE",
+                      "CU",
+                      "GW",
+                      "GU",
+                      "RE",
+                      "GR",
+                      "MU",
+                      "CO",
+                      "LC",
+                      "BB",
+                      "ER",
+                      "CV",
+                      "MT",
+                      "SO",
+                      "TT",
+                      "ZW",
+                      "TZ",
+                      "DJ",
+                      "AU",
+                      "UY",
+                      "AW",
+                      "GA",
+                      "NE",
+                      "EC",
+                      "FJ",
+                      "AI",
+                      "TC",
+                      "ET",
+                      "GM",
+                      "CI",
+                      "MS",
+                      "AO",
+                      "TR",
+                      "BM",
+                      "SM",
+                      "SL",
+                      "AG",
+                      "BS",
+                      "PR",
+                      "BQ",
+                      "MW",
+                      "GY",
+                      "SZ",
+                      "MR",
+                      "BJ",
+                      "FM",
+                      "BF",
+                      "KM",
+                      "KE",
+                      "SS",
+                      "MG",
+                      "PW",
+                      "KN",
+                      "BO",
+                      "LR",
+                      "NZ",
+                      "SX",
+                      "JM",
+                      "TG",
+                      "VI",
+                      "GQ",
+                      "VE",
+                      "VA",
+                      "HU",
+                      "ES",
+                      "GN",
+                      "ML",
+                      "CD",
+                      "US",
+                      "UM",
+                      "MH",
+                      "RO",
+                      "AR",
+                      "TD",
+                      "GF",
+                      "NA",
+                      "GH"
+                    ]
+                  },
+                  "links": {
+                    "api": {
+                      "self": {
+                        "href": "http://api.espn.com/v1/video/clips/35619122"
+                      },
+                      "artwork": {
+                        "href": "https://artwork.api.espn.com/artwork/collections/media/3e810081-5ada-4ae0-90a3-79b353ffd8c4"
+                      }
+                    },
+                    "web": {
+                      "href": "https://www.espn.com/video/clip?id=35619122&ex_cid=espnapi_internal",
+                      "short": {
+                        "href": "https://www.espn.com/video/clip?id=35619122"
+                      },
+                      "self": {
+                        "href": "https://www.espn.com/video/clip?id=35619122&ex_cid=espnapi_internal"
+                      }
+                    },
+                    "source": {
+                      "mezzanine": {
+                        "href": "https://media.video-origin.espn.com/espnvideo/2023/0208/ss_20230208_213757218_2183902/ss_20230208_213757218_2183902.mp4"
+                      },
+                      "flash": {
+                        "href": "https://media.video-cdn.espn.com/motion/2023/0208/ss_20230208_213757218_2183902/ss_20230208_213757218_2183902.smil"
+                      },
+                      "hds": {
+                        "href": "https://hds.video-cdn.espn.com/z/motion/2023/0208/ss_20230208_213757218_2183902/ss_20230208_213757218_2183902_rel.smil/manifest.f4m"
+                      },
+                      "HLS": {
+                        "href": "https://service-pkgespn.akamaized.net/opp/hls/espn/2023/0208/ss_20230208_213757218_2183902/ss_20230208_213757218_2183902/playlist.m3u8",
+                        "HD": {
+                          "href": "https://service-pkgespn.akamaized.net/opp/hls/espn/2023/0208/ss_20230208_213757218_2183902/ss_20230208_213757218_2183902/playlist.m3u8"
+                        }
+                      },
+                      "HD": {
+                        "href": "https://media.video-cdn.espn.com/motion/2023/0208/ss_20230208_213757218_2183902/ss_20230208_213757218_2183902_720p30_2896k.mp4"
+                      },
+                      "full": {
+                        "href": "https://media.video-cdn.espn.com/motion/2023/0208/ss_20230208_213757218_2183902/ss_20230208_213757218_2183902_360p30_1464k.mp4"
+                      },
+                      "href": "https://media.video-cdn.espn.com/motion/2023/0208/ss_20230208_213757218_2183902/ss_20230208_213757218_2183902_360p30_1464k.mp4"
+                    },
+                    "mobile": {
+                      "alert": {
+                        "href": "http://m.espn.go.com/general/video/videoAlert?vid=35619122&ex_cid=espnapi_internal"
+                      },
+                      "source": {
+                        "href": "https://media.video-cdn.espn.com/motion/2023/0208/ss_20230208_213757218_2183902/ss_20230208_213757218_2183902.mp4"
+                      },
+                      "href": "https://watch.auth.api.espn.com/video/auth/brightcove/3e810081-5ada-4ae0-90a3-79b353ffd8c4/asset?UMADPARAMreferer=http://www.espn.com/video/clip?id=35619122",
+                      "streaming": {
+                        "href": "https://watch.auth.api.espn.com/video/auth/brightcove/3e810081-5ada-4ae0-90a3-79b353ffd8c4/asset?UMADPARAMreferer=http://www.espn.com/video/clip?id=35619122"
+                      },
+                      "progressiveDownload": {
+                        "href": "https://watch.auth.api.espn.com/video/auth/brightcove/3e810081-5ada-4ae0-90a3-79b353ffd8c4/asset?UMADPARAMreferer=http://www.espn.com/video/clip?id=35619122"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "links": [
+        {
+          "language": "en-US",
+          "rel": [
+            "summary",
+            "desktop",
+            "event"
+          ],
+          "href": "https://www.espn.com/nhl/game/_/gameId/401459408",
+          "text": "Gamecast",
+          "shortText": "Gamecast",
+          "isExternal": false,
+          "isPremium": false
+        },
+        {
+          "language": "en-US",
+          "rel": [
+            "boxscore",
+            "desktop",
+            "event"
+          ],
+          "href": "https://www.espn.com/nhl/boxscore/_/gameId/401459408",
+          "text": "Box Score",
+          "shortText": "Box Score",
+          "isExternal": false,
+          "isPremium": false
+        },
+        {
+          "language": "en-US",
+          "rel": [
+            "highlights",
+            "desktop"
+          ],
+          "href": "https://www.espn.com/nhl/video?gameId=401459408",
+          "text": "Highlights",
+          "shortText": "Highlights",
+          "isExternal": false,
+          "isPremium": false
+        },
+        {
+          "language": "en-US",
+          "rel": [
+            "pbp",
+            "desktop",
+            "event"
+          ],
+          "href": "https://www.espn.com/nhl/playbyplay/_/gameId/401459408",
+          "text": "Play-by-Play",
+          "shortText": "Play-by-Play",
+          "isExternal": false,
+          "isPremium": false
+        },
+        {
+          "language": "en-US",
+          "rel": [
+            "recap",
+            "desktop",
+            "event"
+          ],
+          "href": "https://www.espn.com/nhl/recap?gameId=401459408",
+          "text": "Recap",
+          "shortText": "Recap",
+          "isExternal": false,
+          "isPremium": false
+        }
+      ],
+      "status": {
+        "clock": 0.0,
+        "displayClock": "0:00",
+        "period": 3,
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      }
+    }
+  ]
+}

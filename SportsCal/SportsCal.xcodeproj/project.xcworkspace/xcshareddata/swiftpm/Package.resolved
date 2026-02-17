@@ -1,0 +1,33 @@
+{
+  "originHash" : "f26bd22ff81cbe19562e89b35014a630d45b1ee2a51c9c9dbfbb59cd956b7227",
+  "pins" : [
+    {
+      "identity" : "nuke",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kean/Nuke",
+      "state" : {
+        "revision" : "f4d9b95788679d0654c032961f73e7e9c16ca6b4",
+        "version" : "12.1.0"
+      }
+    },
+    {
+      "identity" : "sentry-cocoa",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/getsentry/sentry-cocoa.git",
+      "state" : {
+        "revision" : "0041fe6374a0557747d3c7f19888510a30684dfa",
+        "version" : "9.1.0"
+      }
+    },
+    {
+      "identity" : "swift-collections",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-collections.git",
+      "state" : {
+        "revision" : "937e904258d22af6e447a0b72c0bc67583ef64a2",
+        "version" : "1.0.4"
+      }
+    }
+  ],
+  "version" : 3
+}
