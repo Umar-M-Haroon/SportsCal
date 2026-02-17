@@ -20,17 +20,18 @@ enum ImageSize: String {
 }
 
 /// Tracks API version requirements from server responses
-final class APIVersionChecker: ObservableObject {
+@Observable
+final class APIVersionChecker {
     static let shared = APIVersionChecker()
 
     /// Whether the current app version is below the minimum required version
-    @Published var updateRequired: Bool = false
+    var updateRequired: Bool = false
 
     /// The minimum app version required by the server
-    @Published private(set) var minAppVersion: String?
+    private(set) var minAppVersion: String?
 
     /// Current API version from the server
-    @Published private(set) var apiVersion: String?
+    private(set) var apiVersion: String?
 
     private init() {}
 
@@ -60,10 +61,15 @@ struct NetworkHandler {
     /// Host discovered via Bonjour (e.g. "192.168.1.42:8080")
     static var localServerHost: String?
 
-    /// Base URL for v2025 API endpoints
-    private static func baseURL(debug: Bool) -> String {
+    /// Base URL for v2025 API endpoints.
+    /// Priority: Bonjour local server > SERVER_URL env var > legacy "host" env var > debug/prod
+    static func baseURL(debug: Bool) -> String {
         if let local = localServerHost {
             return "http://\(local)/v2025"
+        }
+        if let serverURL = ProcessInfo.processInfo.environment["SERVER_URL"] {
+            let base = serverURL.hasSuffix("/") ? String(serverURL.dropLast()) : serverURL
+            return base.hasSuffix("/v2025") ? base : "\(base)/v2025"
         }
         if let host = ProcessInfo.processInfo.environment["host"] {
             return host
@@ -72,6 +78,27 @@ struct NetworkHandler {
             return "https://debug.sportscal.komodollc.com/v2025"
         }
         return "https://sportscal.komodollc.com/v2025"
+    }
+
+    /// Root server URL without version path (for WebSocket and admin).
+    /// Priority: Bonjour > SERVER_URL env var > debug/prod
+    private static func rootURL(debug: Bool) -> (http: String, ws: String) {
+        if let local = localServerHost {
+            return ("http://\(local)", "ws://\(local)")
+        }
+        if let serverURL = ProcessInfo.processInfo.environment["SERVER_URL"] {
+            let base = serverURL.hasSuffix("/") ? String(serverURL.dropLast()) : serverURL
+            // Strip /v2025 suffix if present
+            let root = base.hasSuffix("/v2025") ? String(base.dropLast(6)) : base
+            let wsRoot = root
+                .replacingOccurrences(of: "https://", with: "wss://")
+                .replacingOccurrences(of: "http://", with: "ws://")
+            return (root, wsRoot)
+        }
+        if debug {
+            return ("https://debug.sportscal.komodollc.com", "wss://debug.sportscal.komodollc.com")
+        }
+        return ("https://sportscal.komodollc.com", "wss://sportscal.komodollc.com")
     }
 
     static func handleCall(debug: Bool = false) async throws -> LiveScore {
@@ -94,6 +121,45 @@ struct NetworkHandler {
         }
         let decoder = JSONDecoder()
         return try decoder.decode(LiveEvent.self, from: data)
+    }
+
+    /// Lightweight combined schedule + teams fetch for widget extensions (30MB memory limit).
+    /// Fetches pre-filtered, field-stripped games from the widget endpoint in a single request.
+    static func getWidgetScheduleFor(sports: [SportType], limit: Int = 6, favorites: [String] = [], debug: Bool = false) async throws -> (games: [Game], teams: [Team]) {
+        var components = URLComponents(string: "\(baseURL(debug: debug))/widget/schedule")!
+        components.queryItems = [
+            URLQueryItem(name: "sports", value: sports.map(\.rawValue).joined(separator: ",")),
+            URLQueryItem(name: "limit", value: "\(limit)"),
+        ]
+        if !favorites.isEmpty {
+            components.queryItems?.append(URLQueryItem(name: "favorites", value: favorites.joined(separator: ",")))
+        }
+        let url = components.url!
+        let config = URLSessionConfiguration.ephemeral
+        config.urlCache = nil
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
+        AppLogger.widget.info("[widgetFetch] requesting \(url.absoluteString)")
+        let (data, response) = try await session.data(from: url)
+        if let httpResponse = response as? HTTPURLResponse {
+            AppLogger.widget.info("[widgetFetch] response \(httpResponse.statusCode), \(data.count) bytes")
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+        }
+        let decoded = try JSONDecoder().decode(WidgetResponse.self, from: data)
+        AppLogger.widget.info("[widgetFetch] decoded \(decoded.games.count) games, \(decoded.teams.count) teams")
+        return (decoded.games, decoded.teams)
+    }
+
+    /// Convenience wrapper for single-sport widget fetch.
+    static func getWidgetScheduleFor(sport: SportType, limit: Int = 6, debug: Bool = false) async throws -> [Game] {
+        let result = try await getWidgetScheduleFor(sports: [sport], limit: limit, debug: debug)
+        return result.games
+    }
+
+    /// Response type for the widget/schedule endpoint
+    private struct WidgetResponse: Decodable {
+        let games: [Game]
+        let teams: [Team]
     }
     
     static func getTeams(debug: Bool = false) async throws -> [Team] {
@@ -151,20 +217,12 @@ struct NetworkHandler {
     }
     
     static func connectWebSocketForLive(session: URLSession? = nil, debug: Bool = false) -> URLSessionWebSocketTask {
-        var urlString: String
-        if let local = localServerHost {
-            urlString = "ws://\(local)/v2025/"
-        } else if let host = ProcessInfo.processInfo.environment["websockethost"] {
-            urlString = "\(host)/v2025/"
-        } else if debug {
-            urlString = "wss://debug.sportscal.komodollc.com/v2025/"
-        } else {
-            urlString = "wss://sportscal.komodollc.com/v2025/"
-        }
+        let (_, wsBase) = rootURL(debug: debug)
         let urlPath = ProcessInfo.processInfo.environment["mock-live"] != nil ? "livedebug" : "ws"
-        urlString += urlPath
+        let urlString = "\(wsBase)/v2025/\(urlPath)"
         let url = URL(string: urlString)!
         let task = (session ?? URLSession.shared).webSocketTask(with: url)
+        task.maximumMessageSize = 4 * 1024 * 1024 // 4 MB
         return task
     }
 
@@ -207,13 +265,7 @@ struct NetworkHandler {
 
     /// Base URL for admin API endpoints (bypasses /v2025 versioning)
     private static func adminBaseURL(debug: Bool) -> String {
-        if let local = localServerHost {
-            return "http://\(local)"
-        }
-        if debug {
-            return "https://debug.sportscal.komodollc.com"
-        }
-        return "https://sportscal.komodollc.com"
+        rootURL(debug: debug).http
     }
 
     struct DeviceRegistrationStatus: Decodable {

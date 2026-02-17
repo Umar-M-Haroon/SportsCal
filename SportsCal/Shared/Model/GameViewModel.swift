@@ -1423,39 +1423,37 @@ extension GameViewModel {
             AutoFollowLogger.shared.log("Registering push-to-start (favorites: \(favorites.teams.count), events: \(appStorage.autoFollowEventIDs.count))")
         }
 
-        if #available(iOS 17.2, *) {
-            guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
-            Task { @MainActor in
-                for await token in Activity<LiveSportActivityAttributes>.pushToStartTokenUpdates {
-                    let tokenString = token.map { String(format: "%02x", $0) }.joined()
-                    self.currentPushToStartToken = tokenString
+        Task { @MainActor in
+            for await token in Activity<LiveSportActivityAttributes>.pushToStartTokenUpdates {
+                let tokenString = token.map { String(format: "%02x", $0) }.joined()
+                self.currentPushToStartToken = tokenString
+                if appStorage.debugMode {
+                    AutoFollowLogger.shared.log("Got push-to-start token: \(tokenString.prefix(12))...", level: .success)
+                }
+                let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
+                let eventIDs = Array(appStorage.autoFollowEventIDs)
+                do {
+                    try await NetworkHandler.registerPushToStart(token: tokenString, favorites: favoritesList, eventIDs: eventIDs, debug: self.appStorage.debugMode)
                     if appStorage.debugMode {
-                        AutoFollowLogger.shared.log("Got push-to-start token: \(tokenString.prefix(12))...", level: .success)
+                        AutoFollowLogger.shared.log("Server registered push-to-start OK", level: .success)
                     }
-                    let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
-                    let eventIDs = Array(appStorage.autoFollowEventIDs)
-                    do {
-                        try await NetworkHandler.registerPushToStart(token: tokenString, favorites: favoritesList, eventIDs: eventIDs, debug: self.appStorage.debugMode)
-                        if appStorage.debugMode {
-                            AutoFollowLogger.shared.log("Server registered push-to-start OK", level: .success)
-                        }
-                        AppLogger.liveActivity.info("Registered push-to-start token with \(favoritesList.count) favorites, \(eventIDs.count) auto-follow events")
-                    } catch {
-                        if appStorage.debugMode {
-                            AutoFollowLogger.shared.log("Server registration failed: \(error.localizedDescription)", level: .error)
-                        }
-                        AppLogger.liveActivity.error("Failed to register push-to-start: \(error.localizedDescription)")
+                    AppLogger.liveActivity.info("Registered push-to-start token with \(favoritesList.count) favorites, \(eventIDs.count) auto-follow events")
+                } catch {
+                    if appStorage.debugMode {
+                        AutoFollowLogger.shared.log("Server registration failed: \(error.localizedDescription)", level: .error)
                     }
+                    AppLogger.liveActivity.error("Failed to register push-to-start: \(error.localizedDescription)")
                 }
             }
+        }
 
-            // Re-register when favorites change
-            NotificationCenter.default.addObserver(forName: .favoritesDidChange, object: nil, queue: .main) { [weak self] _ in
-                guard let self else { return }
-                Task { @MainActor in
-                    self.sendPushToStartRegistration()
-                }
+        // Re-register when favorites change
+        NotificationCenter.default.addObserver(forName: .favoritesDidChange, object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.sendPushToStartRegistration()
             }
         }
     }
@@ -1466,32 +1464,30 @@ extension GameViewModel {
         let hasAutoFollows = !appStorage.autoFollowEventIDs.isEmpty
         guard hasFavorites || hasAutoFollows else { return }
 
-        if #available(iOS 17.2, *) {
-            guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
-            // Use cached token for immediate re-registration (don't wait for token update)
-            if let cachedToken = currentPushToStartToken {
-                Task { @MainActor in
+        // Use cached token for immediate re-registration (don't wait for token update)
+        if let cachedToken = currentPushToStartToken {
+            Task { @MainActor in
+                let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
+                let eventIDs = Array(appStorage.autoFollowEventIDs)
+                try? await NetworkHandler.registerPushToStart(token: cachedToken, favorites: favoritesList, eventIDs: eventIDs, debug: self.appStorage.debugMode)
+                if appStorage.debugMode {
+                    AutoFollowLogger.shared.log("Re-registered push-to-start with \(favoritesList.count) favorites, \(eventIDs.count) events", level: .success)
+                }
+                AppLogger.liveActivity.info("Re-registered push-to-start with \(favoritesList.count) favorites, \(eventIDs.count) auto-follow events")
+            }
+        } else {
+            // Fallback: wait for next token update
+            Task { @MainActor in
+                for await token in Activity<LiveSportActivityAttributes>.pushToStartTokenUpdates {
+                    let tokenString = token.map { String(format: "%02x", $0) }.joined()
+                    self.currentPushToStartToken = tokenString
                     let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
                     let eventIDs = Array(appStorage.autoFollowEventIDs)
-                    try? await NetworkHandler.registerPushToStart(token: cachedToken, favorites: favoritesList, eventIDs: eventIDs, debug: self.appStorage.debugMode)
-                    if appStorage.debugMode {
-                        AutoFollowLogger.shared.log("Re-registered push-to-start with \(favoritesList.count) favorites, \(eventIDs.count) events", level: .success)
-                    }
+                    try? await NetworkHandler.registerPushToStart(token: tokenString, favorites: favoritesList, eventIDs: eventIDs, debug: self.appStorage.debugMode)
                     AppLogger.liveActivity.info("Re-registered push-to-start with \(favoritesList.count) favorites, \(eventIDs.count) auto-follow events")
-                }
-            } else {
-                // Fallback: wait for next token update
-                Task { @MainActor in
-                    for await token in Activity<LiveSportActivityAttributes>.pushToStartTokenUpdates {
-                        let tokenString = token.map { String(format: "%02x", $0) }.joined()
-                        self.currentPushToStartToken = tokenString
-                        let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
-                        let eventIDs = Array(appStorage.autoFollowEventIDs)
-                        try? await NetworkHandler.registerPushToStart(token: tokenString, favorites: favoritesList, eventIDs: eventIDs, debug: self.appStorage.debugMode)
-                        AppLogger.liveActivity.info("Re-registered push-to-start with \(favoritesList.count) favorites, \(eventIDs.count) auto-follow events")
-                        break
-                    }
+                    break
                 }
             }
         }
@@ -1660,9 +1656,7 @@ extension GameViewModel {
 
         // Trigger auto-follow check
         #if canImport(ActivityKit) && os(iOS)
-        if #available(iOS 16.1, *) {
-            checkAutoFollowedGamesForLiveStart()
-        }
+        checkAutoFollowedGamesForLiveStart()
         #endif
     }
 

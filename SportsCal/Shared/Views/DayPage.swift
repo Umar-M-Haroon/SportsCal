@@ -18,7 +18,7 @@ struct DayPage: View {
     @Binding var shouldShowSportsCalProAlert: Bool
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var sheetType: SheetType?
-    @State private var collapsedSportSections: Set<SportType> = Set(SportType.allCases)
+    @State private var collapsedSportSections: Set<SportType> = []
     @State private var sportFilter: SportChipFilter = .all
     @State private var showSportPicker: Bool = false
     @State private var browseSport: SportType?
@@ -128,13 +128,21 @@ struct DayPage: View {
                     selectedDate: $selectedDate,
                     datesWithGames: viewModel.datesWithGames(),
                     pastDays: daysForDuration(storage.hidePastEvents ? .oneDay : storage.hidePastGamesDuration),
-                    futureDays: daysForDuration(storage.durations)
+                    futureDays: daysForDuration(storage.durations),
+                    sportCountsForDate: { viewModel.gameCountsBySport(for: $0) }
                 )
             }
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
 
-            // (Sport filter moved to toolbar)
+            // Week timeline
+            Section {
+                WeekTimelineView(selectedDate: selectedDate)
+                    .environment(viewModel)
+                    .environment(favorites)
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
 
             if !viewModel.sortedGamesWithTeams.isEmpty || !viewModel.liveEventsWithTeams.isEmpty {
                 if isSearchActive {

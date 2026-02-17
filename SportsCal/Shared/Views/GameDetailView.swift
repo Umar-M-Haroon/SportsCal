@@ -45,6 +45,7 @@ struct GameDetailView: View {
                 gameInfo
                 actionsRow
                 boxScoreSection
+                momentumChartSection
                 keyPlayersSection
                 headToHeadSection
                 standingsSection
@@ -240,9 +241,7 @@ struct GameDetailView: View {
             }
 
             #if canImport(ActivityKit) && os(iOS)
-            if #available(iOS 16.1, *) {
-                autoFollowAction
-            }
+            autoFollowAction
             #endif
 
             #if os(iOS)
@@ -284,7 +283,6 @@ struct GameDetailView: View {
 
     // MARK: - Auto-Follow Action
     #if canImport(ActivityKit) && os(iOS)
-    @available(iOS 16.1, *)
     @ViewBuilder
     private var autoFollowAction: some View {
         if game.idEvent != nil, !isGameCompleted(game), game.strStatus != "in" {
@@ -397,6 +395,20 @@ struct GameDetailView: View {
 
     private func formatLinescoreValue(_ value: Double) -> String {
         value.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(value))" : "\(value)"
+    }
+
+    // MARK: - Momentum Chart
+    @ViewBuilder
+    private var momentumChartSection: some View {
+        if let homeLs = game.homeLinescores, let awayLs = game.awayLinescores,
+           !homeLs.isEmpty, !awayLs.isEmpty,
+           game.intHomeScore != nil {
+            MomentumChartView(
+                game: game,
+                homeTeamName: homeTeam.strTeamShort ?? homeTeam.strTeam ?? game.strHomeTeam,
+                awayTeamName: awayTeam.strTeamShort ?? awayTeam.strTeam ?? game.strAwayTeam
+            )
+        }
     }
 
     // MARK: - Key Players

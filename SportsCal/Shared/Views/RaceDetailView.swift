@@ -41,9 +41,11 @@ struct RaceDetailView: View {
                 gameInfo
                 actionsRow
                 if hasSessions {
+                    gapRibbonSection
                     sessionLeaderboard
                     weekendSchedule
                 } else {
+                    gapRibbonSection
                     legacyLeaderboard
                 }
             }
@@ -244,9 +246,7 @@ struct RaceDetailView: View {
             }
 
             #if canImport(ActivityKit) && os(iOS)
-            if #available(iOS 16.1, *) {
-                autoFollowAction
-            }
+            autoFollowAction
             #endif
 
             #if os(iOS)
@@ -288,7 +288,6 @@ struct RaceDetailView: View {
 
     // MARK: - Auto-Follow Action
     #if canImport(ActivityKit) && os(iOS)
-    @available(iOS 16.1, *)
     @ViewBuilder
     private var autoFollowAction: some View {
         if let eventID = game.idEvent, !isGameCompleted(game), !isLive {
@@ -319,6 +318,25 @@ struct RaceDetailView: View {
         }
     }
     #endif
+
+    // MARK: - Gap Ribbon Chart
+
+    private var gapRibbonEntries: [LeaderboardEntry] {
+        if hasSessions, let sessions = game.sessions {
+            let session = selectedSessionIndex < sessions.count ? sessions[selectedSessionIndex] : nil
+            return session?.leaderboard ?? []
+        } else {
+            return game.resolvedLeaderboard
+        }
+    }
+
+    @ViewBuilder
+    private var gapRibbonSection: some View {
+        let entries = gapRibbonEntries
+        if entries.contains(where: { $0.gap != nil }), entries.count >= 3 {
+            F1GapRibbonView(entries: entries)
+        }
+    }
 
     // MARK: - Session Leaderboard (new: per-session)
     private var sessionLeaderboard: some View {

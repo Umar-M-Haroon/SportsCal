@@ -44,6 +44,7 @@ struct TournamentDetailView: View {
                 gameInfo
                 actionsRow
                 leaderboardSection
+                roundHeatmapSection
             }
             .padding()
         }
@@ -219,9 +220,7 @@ struct TournamentDetailView: View {
             }
 
             #if canImport(ActivityKit) && os(iOS)
-            if #available(iOS 16.1, *) {
-                autoFollowAction
-            }
+            autoFollowAction
             #endif
 
             #if os(iOS)
@@ -263,7 +262,6 @@ struct TournamentDetailView: View {
 
     // MARK: - Auto-Follow Action
     #if canImport(ActivityKit) && os(iOS)
-    @available(iOS 16.1, *)
     @ViewBuilder
     private var autoFollowAction: some View {
         if let eventID = game.idEvent, !isGameCompleted(game), !isLive {
@@ -425,6 +423,16 @@ struct TournamentDetailView: View {
         .padding()
         .background(Color.secondaryGroupedBackground)
         .cornerRadius(12)
+    }
+
+    // MARK: - Round Heatmap
+    @ViewBuilder
+    private var roundHeatmapSection: some View {
+        let entries = game.resolvedLeaderboard
+        let hasRounds = entries.contains(where: { !$0.rounds.isEmpty })
+        if hasRounds {
+            RoundHeatmapView(entries: entries)
+        }
     }
 
     #if os(iOS)

@@ -58,6 +58,8 @@
 		1DA4343429079D3D0010364F /* Teams+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA4343329079D3D0010364F /* Teams+Extensions.swift */; };
 		1DA434382907A48C0010364F /* GameScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA434372907A48C0010364F /* GameScoreView.swift */; };
 		1DB93DC42907659300311FAA /* Favorites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1FD912740AECB00783E62 /* Favorites.swift */; };
+		AA000001TIPS000000000001 /* Tips.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001TIPS000000000000 /* Tips.swift */; };
+		AA000001TIPS000000000002 /* Tips.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001TIPS000000000000 /* Tips.swift */; };
 		1DBEB4162F05F6340025B04C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBEB4152F05F6340025B04C /* Constants.swift */; };
 		1DBEB4172F05F6340025B04C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBEB4152F05F6340025B04C /* Constants.swift */; };
 		1DBEB41A2F05F8640025B04C /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 1DBEB4192F05F8640025B04C /* Sentry */; };
@@ -290,6 +292,7 @@
 		1DEDD0EF26D180AC005ABF93 /* SportsCal (iOS)Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SportsCal (iOS)Release.entitlements"; sourceTree = "<group>"; };
 		1DEDD0F026D353ED005ABF93 /* CalendarRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarRepresentable.swift; sourceTree = "<group>"; };
 		1DF1FD912740AECB00783E62 /* Favorites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Favorites.swift; sourceTree = "<group>"; };
+		AA000001TIPS000000000000 /* Tips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tips.swift; sourceTree = "<group>"; };
 		1DF1FD932741EFA800783E62 /* UserDefaultStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDefaultStorage.swift; sourceTree = "<group>"; };
 		1DF1FD96274326F100783E62 /* ci_post_clone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_post_clone.sh; sourceTree = "<group>"; };
 		1DF5C5572713D92200842FDA /* SportsCal--iOS--Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "SportsCal--iOS--Info.plist"; sourceTree = "<group>"; };
@@ -541,6 +544,7 @@
 				1D5C463626C9FB5000BA827B /* SettingsData.swift */,
 				1DEC76AD268EFB6700D217A1 /* Assets.xcassets */,
 				1D8352D42905532D00E60D7F /* DateFormatters.swift */,
+				AA000001TIPS000000000000 /* Tips.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -807,6 +811,7 @@
 				1DE897D52F403951006657FF /* AutoFollowLogger.swift in Sources */,
 				1DE1F0BF2941B94F00741B19 /* SportsWidgetLargeView.swift in Sources */,
 				1DBEB4172F05F6340025B04C /* Constants.swift in Sources */,
+				AA000001TIPS000000000001 /* Tips.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -880,6 +885,7 @@
 				1D1239A026D0D180001B503E /* LocalNotificationManager.swift in Sources */,
 				1DF1FD922740AECB00783E62 /* Favorites.swift in Sources */,
 				1DBEB4162F05F6340025B04C /* Constants.swift in Sources */,
+				AA000001TIPS000000000002 /* Tips.swift in Sources */,
 				1DEC76E2268EFC0500D217A1 /* NetworkHandler.swift in Sources */,
 				1DFA3D682A4E8B0A007BA22C /* TiledGridView.swift in Sources */,
 				1DE4EBB12F3AB02300CAC2E8 /* TennisMatchScoreView.swift in Sources */,

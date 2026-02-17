@@ -81,17 +81,41 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 
     //MARK: - Live Websocket
     routes.webSocket("ws") { req, ws async in
+        let isDebug = req.application.environment == .development
+        var lastSentHash: Int? = nil
+
         while !ws.isClosed {
             do {
-                let result = try await req.application.redis.get(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: req.application.environment == .development), asJSON: LiveScore.self)
-//                result?.removeNonStarting()
-//                result?.removeOtherInfo()
-                
-                let stringResult = encodeResult(res: result)
-                try await Task.sleep(nanoseconds: 5_000_000_000)
-                try await ws.send(stringResult)
+                // Check if there are live or upcoming games before pushing data
+                let hasGames = await Integrator.hasLiveOrUpcomingGames(
+                    redis: req.application.redis,
+                    isDebug: isDebug
+                )
+
+                if hasGames {
+                    let result = try await req.application.redis.get(
+                        RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug),
+                        asJSON: LiveScore.self
+                    )
+                    let stringResult = encodeResult(res: result)
+
+                    // Only send if data actually changed (avoids redundant 1MB+ pushes)
+                    let currentHash = stringResult.hashValue
+                    if currentHash != lastSentHash {
+                        try await ws.send(stringResult)
+                        lastSentHash = currentHash
+                    }
+
+                    try await Task.sleep(nanoseconds: 5_000_000_000) // 5s when live
+                } else {
+                    // No live games — sleep longer and send lightweight heartbeat
+                    lastSentHash = nil
+                    try await ws.send("{}")
+                    try await Task.sleep(nanoseconds: 60_000_000_000) // 60s when idle
+                }
             } catch {
                 req.logger.error("WebSocket live score push failed", metadata: ["error": "\(error)"])
+                break
             }
         }
     }
@@ -365,6 +389,146 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return encodeResult(res: standing)
     }
 
+    //MARK: - Standings History
+    routes.get("standings", ":leagueID", "history") { req async throws -> String in
+        guard let leagueIDString = req.parameters.get("leagueID"),
+              let leagueID = Int(leagueIDString),
+              let _ = Leagues(rawValue: leagueID) else {
+            throw Abort(.badRequest)
+        }
+        let days = (try? req.query.get(Int.self, at: "days")) ?? 30
+        let isDebug = req.application.environment == .development
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+
+        var snapshots: [StandingsSnapshot] = []
+        let today = Date()
+
+        for dayOffset in 0..<min(days, 90) {
+            guard let date = Calendar.current.date(byAdding: .day, value: -dayOffset, to: today) else { continue }
+            let dateStr = formatter.string(from: date)
+            let key: RedisKey = isDebug
+                ? "debug-Standings-\(leagueID)-\(dateStr)"
+                : "Standings-\(leagueID)-\(dateStr)"
+
+            if let json = try await req.application.redis.get(key, as: String.self).get(),
+               let data = json.data(using: .utf8),
+               let snapshot = try? JSONDecoder().decode(StandingsSnapshot.self, from: data) {
+                snapshots.append(snapshot)
+            }
+        }
+
+        snapshots.sort { $0.date < $1.date }
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(snapshots)
+        return String(data: data, encoding: .utf8) ?? "[]"
+    }
+
+    //MARK: - Team Stats
+    routes.get("stats", ":leagueID", "teams") { req async throws -> String in
+        guard let leagueIDString = req.parameters.get("leagueID"),
+              let leagueID = Int(leagueIDString),
+              let league = Leagues(rawValue: leagueID) else {
+            throw Abort(.badRequest)
+        }
+        let standingsResponse = try await ESPNNetworking.getStandings(
+            req: req.client,
+            DecodeType: StandingsResponse.self,
+            league: league
+        )
+
+        // Reshape standings entries into team stat objects
+        var teamStats: [[String: Any]] = []
+        if let children = standingsResponse.children {
+            for child in children {
+                guard let entries = child.standings?.entries else { continue }
+                for entry in entries {
+                    var statDict: [String: String] = [:]
+                    for stat in entry.stats ?? [] {
+                        if let name = stat.name, let value = stat.displayValue {
+                            statDict[name] = value
+                        }
+                    }
+                    let teamObj: [String: Any] = [
+                        "teamName": entry.team?.displayName ?? "Unknown",
+                        "teamAbbreviation": entry.team?.abbreviation ?? "",
+                        "teamColor": entry.team?.color ?? "",
+                        "teamLogo": entry.team?.logos?.first?.href ?? "",
+                        "division": child.name ?? "",
+                        "stats": statDict
+                    ]
+                    teamStats.append(teamObj)
+                }
+            }
+        }
+
+        let data = try JSONSerialization.data(withJSONObject: teamStats)
+        return String(data: data, encoding: .utf8) ?? "[]"
+    }
+
+    //MARK: - Player Stats (Stat Leaders)
+    routes.get("stats", ":leagueID", "players") { req async throws -> String in
+        guard let leagueIDString = req.parameters.get("leagueID"),
+              let leagueID = Int(leagueIDString),
+              let league = Leagues(rawValue: leagueID) else {
+            throw Abort(.badRequest)
+        }
+
+        let isDebug = req.application.environment == .development
+        let cacheKey = "PlayerStats-\(leagueID)"
+
+        // Check Redis cache first (24h TTL)
+        if let cached = try? await req.application.redis.get(RedisKey(cacheKey), as: String.self).get(),
+           let cachedStr = cached.string {
+            return cachedStr
+        }
+
+        let leadersResponse = try await ESPNNetworking.getLeaders(
+            req: req.client,
+            DecodeType: LeadersResponse.self,
+            league: league
+        )
+
+        var categories: [[String: Any]] = []
+        for category in leadersResponse.leaders ?? [] {
+            var entries: [[String: Any]] = []
+            for leader in category.leaders ?? [] {
+                var entry: [String: Any] = [
+                    "value": leader.displayValue ?? ""
+                ]
+                if let athlete = leader.athlete {
+                    entry["playerName"] = athlete.displayName ?? ""
+                    entry["shortName"] = athlete.shortName ?? ""
+                    entry["headshot"] = athlete.headshot?.href ?? ""
+                    entry["position"] = athlete.position?.abbreviation ?? ""
+                }
+                if let team = leader.team {
+                    entry["teamName"] = team.displayName ?? ""
+                    entry["teamAbbreviation"] = team.abbreviation ?? ""
+                    entry["teamColor"] = team.color ?? ""
+                    entry["teamLogo"] = team.logos?.first?.href ?? ""
+                }
+                entries.append(entry)
+            }
+            categories.append([
+                "name": category.name ?? "",
+                "displayName": category.displayName ?? "",
+                "abbreviation": category.abbreviation ?? "",
+                "leaders": entries
+            ])
+        }
+
+        let data = try JSONSerialization.data(withJSONObject: categories)
+        let result = String(data: data, encoding: .utf8) ?? "[]"
+
+        // Cache for 24 hours
+        try? await req.application.redis.setex(RedisKey(cacheKey), to: result, expirationInSeconds: 60 * 60 * 24)
+
+        return result
+    }
+
     //MARK: - Push-to-Start Registration
     routes.post("pushToStart", "register") { req async throws -> HTTPStatus in
         let registration = try req.content.decode(PushToStartRegistration.self)
@@ -391,11 +555,122 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         let result = try await req.application.redis.get(RedisEndpoint.ESPN.teams.getValue(isDebug: req.application.environment == .development), asJSON: [Leagues: TeamResponse].self)
         return encodeResult(res: result)
     }
+
+    //MARK: - Widget Schedule (lightweight combined endpoint)
+    routes.get("widget", "schedule") { req async throws -> String in
+        let sportsParam = (try? req.query.get(String.self, at: "sports")) ?? ""
+        let limit = (try? req.query.get(Int.self, at: "limit")) ?? 6
+        let favoritesParam = (try? req.query.get(String.self, at: "favorites")) ?? ""
+
+        let requestedSports = Set(sportsParam.split(separator: ",").map(String.init))
+        let favoriteTeams = Set(favoritesParam.split(separator: ",").map(String.init))
+
+        // Load full schedule from Redis
+        guard let schedule = try await req.application.redis.get(
+            RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development),
+            asJSON: LiveScore.self
+        ) else {
+            throw NetworkError.invalidData
+        }
+
+        // Collect events from requested sports
+        let sportEvents: [(String, LiveEvent?)] = [
+            ("basketball", schedule.nba),
+            ("soccer", schedule.soccer),
+            ("hockey", schedule.nhl),
+            ("mlb", schedule.mlb),
+            ("nfl", schedule.nfl),
+            ("golf", schedule.golf),
+            ("tennis", schedule.tennis),
+            ("racing", schedule.racing),
+        ]
+
+        var allGames: [Game] = []
+        for (sportName, liveEvent) in sportEvents {
+            guard requestedSports.isEmpty || requestedSports.contains(sportName) else { continue }
+            if let events = liveEvent?.events {
+                allGames.append(contentsOf: events)
+            }
+        }
+
+        // Filter to upcoming games only
+        let now = Calendar.current.startOfDay(for: Date())
+        allGames = allGames.filter { ($0.isoDate ?? .distantPast) >= now }
+
+        // Sort: favorites first, then by date
+        allGames.sort { g1, g2 in
+            let g1Fav = favoriteTeams.contains(g1.strHomeTeam) || favoriteTeams.contains(g1.strAwayTeam)
+            let g2Fav = favoriteTeams.contains(g2.strHomeTeam) || favoriteTeams.contains(g2.strAwayTeam)
+            if g1Fav && !g2Fav { return true }
+            if !g1Fav && g2Fav { return false }
+            return (g1.isoDate ?? .distantFuture) < (g2.isoDate ?? .distantFuture)
+        }
+
+        // Trim to limit
+        let trimmed = Array(allGames.prefix(limit))
+
+        // Strip heavy fields — keep only what the widget needs
+        let strippedGames = trimmed.map { game -> Game in
+            // Trim leaderboard to top 3, drop headshots
+            let strippedLeaderboard = game.leaderboardEntries?.prefix(3).map { entry in
+                LeaderboardEntry(
+                    name: entry.name,
+                    score: entry.score,
+                    position: entry.position,
+                    headshot: nil,
+                    thruHole: entry.thruHole,
+                    rounds: [],
+                    constructor: entry.constructor,
+                    gap: entry.gap
+                )
+            }
+
+            // Trim lastPlay to top 3 lines (for legacy leaderboard parsing)
+            let trimmedLastPlay: String? = game.lastPlay.flatMap { lp in
+                let lines = lp.split(separator: "\n", omittingEmptySubsequences: false)
+                return lines.isEmpty ? nil : lines.prefix(3).joined(separator: "\n")
+            }
+
+            return Game(
+                idEvent: game.idEvent,
+                idLeague: game.idLeague,
+                idHomeTeam: game.idHomeTeam,
+                idAwayTeam: game.idAwayTeam,
+                strHomeTeam: game.strHomeTeam,
+                strAwayTeam: game.strAwayTeam,
+                intHomeScore: game.intHomeScore,
+                intAwayScore: game.intAwayScore,
+                strStatus: game.strStatus,
+                strProgress: game.strProgress,
+                strTimestamp: game.strTimestamp,
+                lastPlay: trimmedLastPlay,
+                isCompleted: game.isCompleted,
+                isoDate: game.isoDate,
+                leaderboardEntries: strippedLeaderboard.map(Array.init)
+            )
+        }
+
+        // Only include teams referenced by returned games
+        let teamIDs = Set(strippedGames.flatMap { [$0.idHomeTeam, $0.idAwayTeam].compactMap { $0 } })
+        let allTeams = try await req.application.redis.get(
+            RedisEndpoint.teams.getValue(isDebug: req.application.environment == .development),
+            asJSON: [Team].self
+        ) ?? []
+        let relevantTeams = allTeams.filter { teamIDs.contains($0.idTeam ?? "") }
+
+        let response = WidgetScheduleResponse(games: strippedGames, teams: relevantTeams)
+        return encodeResult(res: response)
+    }
+}
+
+/// Lightweight response for the widget schedule endpoint
+struct WidgetScheduleResponse: Codable {
+    let games: [Game]
+    let teams: [Team]
 }
 
 func encodeResult(res: some Codable) -> String {
     let encoder = JSONEncoder()
-    encoder.outputFormatting = .prettyPrinted
     guard let resultString = try? encoder.encode(res) else { return "" }
     return String(data: resultString, encoding: .utf8) ?? ""
 }
