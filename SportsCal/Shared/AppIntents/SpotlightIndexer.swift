@@ -15,7 +15,6 @@ enum SpotlightIndexer {
 
     /// Indexes upcoming games in CoreSpotlight.
     /// Call after schedule data refreshes or sport filters change.
-    @MainActor
     static func indexGames(_ games: [Game], favorites: Set<String> = []) {
         let items: [CSSearchableItem] = games.compactMap { game in
             guard let eventID = game.idEvent else { return nil }

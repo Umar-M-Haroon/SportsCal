@@ -27,9 +27,13 @@ struct ListDetailView: View {
         allGames.filter { favorites.contains($0) }
     }
 
-    private var nonFavoriteGamesBySport: [SportType: [Game]] {
+    private var nonFavoriteGamesBySport: [(sport: SportType, games: [Game])] {
         let nonFavorites = allGames.filter { !favorites.contains($0) }
-        return Dictionary(grouping: nonFavorites, by: { sportForGame($0) ?? .soccer })
+        let grouped = Dictionary(grouping: nonFavorites, by: { sportForGame($0) ?? .soccer })
+        return SportType.allCases.compactMap { sport in
+            guard let games = grouped[sport], !games.isEmpty else { return nil }
+            return (sport: sport, games: games)
+        }
     }
 
     var body: some View {
@@ -103,41 +107,39 @@ struct ListDetailView: View {
                         }
 
                         // Games grouped by sport
-                        ForEach(SportType.allCases, id: \.self) { sport in
-                            if let games = nonFavoriteGamesBySport[sport], !games.isEmpty {
-                                let isCollapsed = collapsedSportSections.contains(sport)
-                                Section {
-                                    if !isCollapsed {
-                                        ForEach(games, id: \.id) { game in
-                                            gameRow(game: game)
-                                        }
+                        ForEach(nonFavoriteGamesBySport, id: \.sport) { section in
+                            let isCollapsed = collapsedSportSections.contains(section.sport)
+                            Section {
+                                if !isCollapsed {
+                                    ForEach(section.games, id: \.id) { game in
+                                        gameRow(game: game)
                                     }
-                                } header: {
-                                    Button {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                            if collapsedSportSections.contains(sport) {
-                                                collapsedSportSections.remove(sport)
-                                            } else {
-                                                collapsedSportSections.insert(sport)
-                                            }
-                                        }
-                                    } label: {
-                                        HStack {
-                                            Image(systemName: sport.systemImage)
-                                                .foregroundColor(sport.color)
-                                            Text(sport.displayName)
-                                                .font(.headline)
-                                            Text("(\(games.count))")
-                                                .font(.subheadline)
-                                                .foregroundColor(.secondary)
-                                            Spacer()
-                                            Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-                                    }
-                                    .buttonStyle(.plain)
                                 }
+                            } header: {
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        if collapsedSportSections.contains(section.sport) {
+                                            collapsedSportSections.remove(section.sport)
+                                        } else {
+                                            collapsedSportSections.insert(section.sport)
+                                        }
+                                    }
+                                } label: {
+                                    HStack {
+                                        Image(systemName: section.sport.systemImage)
+                                            .foregroundColor(section.sport.color)
+                                        Text(section.sport.displayName)
+                                            .font(.headline)
+                                        Text("(\(section.games.count))")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                        Spacer()
+                                        Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                     }

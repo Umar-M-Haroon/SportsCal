@@ -15,6 +15,18 @@ struct DayChipStrip: View {
     var futureDays: Int = 14
     private let calendar = Calendar.current
 
+    private static let dayAbbreviationFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEE"
+        return f
+    }()
+
+    private static let monthFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM"
+        return f
+    }()
+
     private var today: Date {
         calendar.startOfDay(for: Date())
     }
@@ -35,7 +47,7 @@ struct DayChipStrip: View {
 
     private func hasGames(_ date: Date) -> Bool {
         let dc = calendar.dateComponents([.day, .month, .year], from: date)
-        return datesWithGames.contains { $0.day == dc.day && $0.month == dc.month && $0.year == dc.year }
+        return datesWithGames.contains(dc)
     }
 
     private func isNewMonth(_ date: Date, previousDate: Date?) -> Bool {
@@ -72,9 +84,7 @@ struct DayChipStrip: View {
     }
 
     private func monthDivider(for date: Date) -> some View {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM"
-        return Text(formatter.string(from: date).uppercased())
+        return Text(Self.monthFormatter.string(from: date).uppercased())
             .font(.caption2)
             .fontWeight(.bold)
             .foregroundColor(.secondary)
@@ -122,8 +132,6 @@ struct DayChipStrip: View {
     }
 
     private func dayAbbreviation(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE"
-        return formatter.string(from: date).prefix(3).uppercased()
+        Self.dayAbbreviationFormatter.string(from: date).prefix(3).uppercased()
     }
 }

@@ -74,6 +74,10 @@ public class GameViewModel: NSObject {
     private var gameCache: Cache<String, LiveScore>?
     private var teamCache: Cache<String, [Team]>?
     private var liveCache: Cache<String, LiveScore>?
+    /// Cache for makeGameWithTeams() results, keyed by game ID
+    private var gameWithTeamsCache: [String: GameWithTeams] = [:]
+    /// Cache for gamesWithTeams(for:) results, keyed by start-of-day Date
+    private var gamesWithTeamsDateCache: [Date: [GameWithTeams]] = [:]
     /// Whether a network fetch is currently in progress (visible to views for loading state).
     var isFetching: Bool { networkFetchTask != nil }
     private var networkFetchTask: Task<Void, Never>?
@@ -496,6 +500,10 @@ public class GameViewModel: NSObject {
     /// Builds optimized O(1) lookup caches for teams
     /// This replaces multiple dictionary lookups with single hash table access
     private func buildTeamLookupCaches() {
+        // Invalidate GameWithTeams cache since team data changed
+        gameWithTeamsCache.removeAll()
+        gamesWithTeamsDateCache.removeAll()
+
         // Build legacy dictionaries for backwards compatibility
         var teamsDict = Dictionary(grouping: self.teams, by: \.idTeam)
         teamsDict = teamsDict.mapValues { teams in
@@ -639,7 +647,7 @@ public class GameViewModel: NSObject {
         
         gameCache?.insert(groupResult, for: "games")
         try gameCache?.saveToDisk(with: "games")
-        setGames(result: groupResult)
+        setGames(result: groupResult, skipLiveUpdate: true)
     }
     
     @objc
@@ -710,11 +718,15 @@ public class GameViewModel: NSObject {
         }
     }
     
-    func setGames(result: LiveScore) {
+    func setGames(result: LiveScore, skipLiveUpdate: Bool = false) {
+        // Invalidate caches since games changed
+        gameWithTeamsCache.removeAll()
+        gamesWithTeamsDateCache.removeAll()
+
         totalGames = [result.nhl?.events, result.nfl?.events, result.soccer?.events, result.mlb?.events, result.nba?.events, result.golf?.events, result.tennis?.events, result.racing?.events]
             .compactMap({$0})
             .flatMap({$0})
-        filterSports(force: true)
+        filterSports(force: true, skipLiveUpdate: skipLiveUpdate)
     }
     
     func handleSports(force: Bool = false) {
@@ -911,7 +923,10 @@ public class GameViewModel: NSObject {
         }
     }
     
-    func filterSports(searchString: String? = nil, force: Bool = false) {
+    func filterSports(searchString: String? = nil, force: Bool = false, skipLiveUpdate: Bool = false) {
+        // Invalidate date-keyed cache since filtered games are changing
+        gamesWithTeamsDateCache.removeAll()
+
         if appStorage.debugMode {
             AppLogger.viewModel.debug("Sports filter changed — NFL:\(self.appStorage.shouldShowNFL) NBA:\(self.appStorage.shouldShowNBA) NHL:\(self.appStorage.shouldShowNHL) Soccer:\(self.appStorage.shouldShowSoccer) MLB:\(self.appStorage.shouldShowMLB) Golf:\(self.appStorage.shouldShowGolf) Tennis:\(self.appStorage.shouldShowTennis) Racing:\(self.appStorage.shouldShowRacing)")
         }
@@ -945,14 +960,24 @@ public class GameViewModel: NSObject {
         handleSearch(searchString: searchString)
         sortByDate()
         setFavorites()
-        updateLiveData()
+        if !skipLiveUpdate {
+            updateLiveData()
+        }
 
-        // Write trimmed snapshot for widget extension (avoids widget needing network)
-        WidgetDataStore.writeSnapshot(games: filteredGames ?? [], teams: teams)
+        // Write trimmed snapshot for widget extension off main actor
+        let snapshotGames = filteredGames ?? []
+        let snapshotTeams = teams
+        Task.detached(priority: .utility) {
+            WidgetDataStore.writeSnapshot(games: snapshotGames, teams: snapshotTeams)
+        }
 
-        // Index games in Spotlight for system-wide search (main app only, not widget extension)
+        // Index games in Spotlight off main actor
         #if !WIDGET_EXTENSION
-        SpotlightIndexer.indexGames(filteredGames ?? [], favorites: favorites.teams)
+        let spotlightGames = snapshotGames
+        let spotlightFavorites = favorites.teams
+        Task.detached(priority: .utility) {
+            SpotlightIndexer.indexGames(spotlightGames, favorites: spotlightFavorites)
+        }
         #endif
     }
     func sortByDate() {
@@ -1011,6 +1036,24 @@ public class GameViewModel: NSObject {
         AppLogger.viewModel.info("Display stats: \(sortedWithTeams.count) sections, total games with teams: \(sortedWithTeams.reduce(0) { $0 + $1.games.count })")
         AppLogger.viewModel.info("Teams loaded: \(self.teams.count), teamsDict entries: \(self.teamsDict.count)")
 
+        // Populate gamesWithTeams date cache as a byproduct of sortByDate
+        // This uses ALL user-pref games (not limited), keyed by start-of-day
+        var dateCache: [Date: [GameWithTeams]] = [:]
+        let calendar = Calendar.current
+        let userPrefGames = getGamesFromUserPreferences()
+        for game in userPrefGames {
+            guard let gameDate = game.standardDate else { continue }
+            let dayStart = calendar.startOfDay(for: gameDate)
+            if let gwt = makeGameWithTeams(game) {
+                dateCache[dayStart, default: []].append(gwt)
+            }
+        }
+        // Sort each day's games by date
+        for (key, games) in dateCache {
+            dateCache[key] = games.sorted { ($0.game.standardDate ?? .distantPast) < ($1.game.standardDate ?? .distantPast) }
+        }
+        gamesWithTeamsDateCache = dateCache
+
         withAnimation {
             sortedGames = limitedSorted
             sortedGamesWithTeams = sortedWithTeams
@@ -1035,16 +1078,24 @@ public class GameViewModel: NSObject {
     func gamesWithTeams(for date: Date) -> [GameWithTeams] {
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: date)
-        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return [] }
 
+        // Check date cache first (populated by sortByDate)
+        if let cached = gamesWithTeamsDateCache[start] {
+            return cached
+        }
+
+        // Cache miss — compute and store
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return [] }
         let userPrefGames = getGamesFromUserPreferences()
-        return userPrefGames
+        let result = userPrefGames
             .filter { game in
                 guard let gameDate = game.standardDate else { return false }
                 return gameDate >= start && gameDate < end
             }
             .sorted { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
             .compactMap { makeGameWithTeams($0) }
+        gamesWithTeamsDateCache[start] = result
+        return result
     }
 
     /// Returns favorite games with teams for a specific date.
@@ -1174,11 +1225,21 @@ public class GameViewModel: NSObject {
     }
 
     private func makeGameWithTeams(_ game: Game) -> GameWithTeams? {
-        if game.isIndividualSport {
-            return GameWithTeams(game: game, homeTeam: nil, awayTeam: nil)
+        // Check cache first
+        if let cached = gameWithTeamsCache[game.id] {
+            return cached
         }
-        guard let (homeTeam, awayTeam) = getTeams(for: game) else { return nil }
-        return GameWithTeams(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+        let result: GameWithTeams?
+        if game.isIndividualSport {
+            result = GameWithTeams(game: game, homeTeam: nil, awayTeam: nil)
+        } else {
+            guard let (homeTeam, awayTeam) = getTeams(for: game) else { return nil }
+            result = GameWithTeams(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+        }
+        if let result {
+            gameWithTeamsCache[result.id] = result
+        }
+        return result
     }
 
     func getTeams(for game: Game) -> (home: Team, away: Team)? {

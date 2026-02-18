@@ -50,10 +50,50 @@ struct DayPage: View {
         )
     }
 
-    // MARK: - Filtered data for selected date
+    // MARK: - Consolidated day data (computed once, derived multiple times)
+
+    /// All data derived from `dayGames` in a single pass to avoid recomputing per access.
+    private struct DayData {
+        let allGames: [GameWithTeams]
+        let filteredFavorites: [GameWithTeams]
+        let filteredOtherBySport: [(sport: SportType, games: [GameWithTeams])]
+        let isEmpty: Bool
+    }
 
     private var dayGames: [GameWithTeams] {
         viewModel.gamesWithTeams(for: selectedDate)
+    }
+
+    private var dayData: DayData {
+        let games = dayGames
+        let liveFilt = filteredLiveEvents
+
+        var favs: [GameWithTeams] = []
+        var grouped: [SportType: [GameWithTeams]] = [:]
+
+        for gwt in games {
+            if favorites.contains(gwt.game) {
+                if sportFilter.matches(gwt.game) {
+                    favs.append(gwt)
+                }
+            } else {
+                guard let leagueString = gwt.game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let league = Leagues(rawValue: intLeague) else { continue }
+                let sport = SportType(league: league)
+                if case .sport(let filterSport) = sportFilter, filterSport != sport { continue }
+                grouped[sport, default: []].append(gwt)
+            }
+        }
+
+        let otherBySport = SportType.allCases.compactMap { sport -> (sport: SportType, games: [GameWithTeams])? in
+            guard let sportGames = grouped[sport], !sportGames.isEmpty else { return nil }
+            return (sport: sport, games: sportGames)
+        }
+
+        let empty = liveFilt.isEmpty && favs.isEmpty && otherBySport.isEmpty
+
+        return DayData(allGames: games, filteredFavorites: favs, filteredOtherBySport: otherBySport, isEmpty: empty)
     }
 
     private var filteredLiveEvents: [GameWithTeams] {
@@ -62,25 +102,11 @@ struct DayPage: View {
     }
 
     private var filteredFavorites: [GameWithTeams] {
-        dayGames.filter { favorites.contains($0.game) && sportFilter.matches($0.game) }
+        dayData.filteredFavorites
     }
 
     private var filteredOtherBySport: [(sport: SportType, games: [GameWithTeams])] {
-        let nonFavorites = dayGames.filter { !favorites.contains($0.game) }
-        var grouped: [SportType: [GameWithTeams]] = [:]
-        for gwt in nonFavorites {
-            guard let leagueString = gwt.game.idLeague,
-                  let intLeague = Int(leagueString),
-                  let league = Leagues(rawValue: intLeague) else { continue }
-            let sport = SportType(league: league)
-            if case .sport(let filterSport) = sportFilter, filterSport != sport { continue }
-            grouped[sport, default: []].append(gwt)
-        }
-        // Return only sports that have games, in stable order
-        return SportType.allCases.compactMap { sport in
-            guard let games = grouped[sport], !games.isEmpty else { return nil }
-            return (sport: sport, games: games)
-        }
+        dayData.filteredOtherBySport
     }
 
     private var allDayGamesWithTeams: [GameWithTeams] {
@@ -94,7 +120,7 @@ struct DayPage: View {
                 }
             }
         }
-        for gwt in dayGames {
+        for gwt in dayData.allGames {
             if seenIDs.insert(gwt.id).inserted {
                 combined.append(gwt)
             }
@@ -114,7 +140,7 @@ struct DayPage: View {
     }
 
     private var isEmpty: Bool {
-        filteredLiveEvents.isEmpty && filteredFavorites.isEmpty && filteredOtherBySport.isEmpty
+        dayData.isEmpty
     }
 
     private var totalCountForDay: Int {
@@ -122,7 +148,7 @@ struct DayPage: View {
     }
 
     private var visibleCountForDay: Int {
-        dayGames.count
+        dayData.allGames.count
     }
 
     var body: some View {
