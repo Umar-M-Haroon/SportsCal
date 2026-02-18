@@ -1,1 +1,27 @@
+# Secrets
 Constants.swift
+.env
+*.p8
+
+# macOS
+.DS_Store
+
+# Swift / Xcode
+.build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+Packages/
+.swiftpm/config/registries.json
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+
+# Databases
+db.sqlite
+dump.rdb
+
+# Node
+node_modules/
+
+# Other
+Instruments/
+.netrc
