@@ -1582,20 +1582,15 @@ extension GameViewModel {
 
     func updateLiveActivities() async throws {
         var states: [String: LiveSportActivityAttributes.ContentState] = [:]
-        for liveEvent in liveEvents {
+        for liveEvent in allLiveEvents {
             if let eventID = liveEvent.idEvent {
                 let contentState = LiveSportActivityAttributes.ContentState(homeScore: Int(liveEvent.intHomeScore ?? "") ?? 0, awayScore: Int(liveEvent.intAwayScore ?? "") ?? 0, status: liveEvent.strStatus, progress: liveEvent.strProgress, lastPlay: nil)
                 states[eventID] = contentState
             }
         }
         for activity in Activity<LiveSportActivityAttributes>.activities {
-            for await data in activity.pushTokenUpdates {
-                let myToken = data.map { String(format: "%02x", $0)}.joined()
-                try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID, debug: appStorage.debugMode)
-            }
             let currentState = activity.contentState
-            let currentAttributes = activity.attributes
-            let eventID = currentAttributes.eventID
+            let eventID = activity.attributes.eventID
             if let savedContentState = states[eventID], savedContentState != currentState {
                 await activity.update(using: savedContentState)
             }

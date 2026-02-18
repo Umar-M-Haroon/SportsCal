@@ -135,23 +135,15 @@ struct SportsWidgetEntryView: View {
     var body: some View {
         Group {
             switch family {
-            #if !os(watchOS)
             case .systemSmall: SportsWidgetSmallView(entry: entry)
             case .systemMedium: SportsWidgetMediumView(entry: entry)
             case .systemLarge: SportsWidgetLargeView(entry: entry)
-            #endif
-            #if os(iOS) || os(watchOS)
+            #if os(iOS)
             case .accessoryCircular: SportsWidgetCircularView(entry: entry)
             case .accessoryRectangular: SportsWidgetRectangularView(entry: entry)
             case .accessoryInline: SportsWidgetInlineView(entry: entry)
             #endif
-            #if os(watchOS)
-            case .accessoryCorner: SportsWidgetCornerView(entry: entry)
-            case .accessoryExtraLarge: SportsWidgetExtraLargeView(entry: entry)
-            @unknown default: SportsWidgetCircularView(entry: entry)
-            #else
             default: SportsWidgetSmallView(entry: entry)
-            #endif
             }
         }
         .containerBackground(.fill.tertiary, for: .widget)
@@ -183,10 +175,7 @@ struct SportsWidget: Widget {
         }
         .configurationDisplayName("Sports Widget")
         .description("Show upcoming games for a sport")
-        #if os(watchOS)
-        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline,
-                            .accessoryCorner, .accessoryExtraLarge])
-        #elseif os(iOS)
+        #if os(iOS)
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge,
                             .accessoryCircular, .accessoryRectangular, .accessoryInline])
         #else

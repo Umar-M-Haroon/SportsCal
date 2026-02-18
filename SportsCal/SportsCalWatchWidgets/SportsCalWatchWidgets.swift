@@ -17,24 +17,25 @@ struct WatchWidgetEntryView: View {
     var entry: Provider.Entry
     @Environment(\.widgetFamily) var family
 
+    @ViewBuilder
     var body: some View {
-        Group {
-            switch family {
-            case .accessoryCircular:
-                SportsWidgetCircularView(entry: entry)
-            case .accessoryRectangular:
-                SportsWidgetRectangularView(entry: entry)
-            case .accessoryInline:
-                SportsWidgetInlineView(entry: entry)
-            case .accessoryCorner:
-                SportsWidgetCornerView(entry: entry)
-            case .accessoryExtraLarge:
-                SportsWidgetExtraLargeView(entry: entry)
-            @unknown default:
-                SportsWidgetCircularView(entry: entry)
-            }
+        switch family {
+        case .accessoryCircular:
+            SportsWidgetCircularView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        case .accessoryRectangular:
+            SportsWidgetRectangularView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        case .accessoryInline:
+            SportsWidgetInlineView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        case .accessoryCorner:
+            SportsWidgetCornerView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        default:
+            SportsWidgetCircularView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
         }
-        .containerBackground(.fill.tertiary, for: .widget)
     }
 }
 
@@ -57,8 +58,7 @@ struct SportsCalWatchWidget: Widget {
             .accessoryCircular,
             .accessoryRectangular,
             .accessoryInline,
-            .accessoryCorner,
-            .accessoryExtraLarge
+            .accessoryCorner
         ])
         .contentMarginsDisabled()
     }

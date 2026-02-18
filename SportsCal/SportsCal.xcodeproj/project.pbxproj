@@ -52,6 +52,26 @@
 		1D7F46492F45004C00F44569 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DE16FF826F29D4A007B1B57 /* SwiftUI.framework */; };
 		1D7F465E2F4500BD00F44569 /* SportsCalModel in Frameworks */ = {isa = PBXBuildFile; productRef = 1D7F465D2F4500BD00F44569 /* SportsCalModel */; };
 		1D7F465F2F4500E200F44569 /* Teams+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA4343329079D3D0010364F /* Teams+Extensions.swift */; };
+		1D7F46602F4502AD00F44569 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE04049293746F500073494 /* Provider.swift */; };
+		1D7F46612F4502B700F44569 /* WidgetAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897DF2F42D203006657FF /* WidgetAppIntents.swift */; };
+		1D7F46622F4502BE00F44569 /* WidgetInteractiveIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897E12F42D220006657FF /* WidgetInteractiveIntents.swift */; };
+		1D7F46632F4502EC00F44569 /* WidgetRaceCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897E42F42D232006657FF /* WidgetRaceCell.swift */; };
+		1D7F46642F4502EC00F44569 /* RectangularWidgetTeamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D1DABC729D18D46005434D6 /* RectangularWidgetTeamView.swift */; };
+		1D7F46652F4502EC00F44569 /* WidgetTournamentCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897E52F42D232006657FF /* WidgetTournamentCell.swift */; };
+		1D7F46662F4502EC00F44569 /* SportsWidgetCircularView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0C02941B96C00741B19 /* SportsWidgetCircularView.swift */; };
+		1D7F46672F4502EC00F44569 /* SportsWidgetRectangularView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0C22941B98100741B19 /* SportsWidgetRectangularView.swift */; };
+		1D7F46682F4502EC00F44569 /* SportsWidgetInlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0C42941B99A00741B19 /* SportsWidgetInlineView.swift */; };
+		AA00010000000001 /* Teams+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA4343329079D3D0010364F /* Teams+Extensions.swift */; };
+		AA00010000000002 /* DateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8352D42905532D00E60D7F /* DateFormatters.swift */; };
+		AA00010000000003 /* NetworkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76E1268EFC0500D217A1 /* NetworkHandler.swift */; };
+		AA00010000000004 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897DC2F4196D3006657FF /* AppLogger.swift */; };
+		AA00010000000005 /* Favorites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1FD912740AECB00783E62 /* Favorites.swift */; };
+		AA00010000000006 /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897E92F42DAEA006657FF /* WidgetDataStore.swift */; };
+		AA00010000000007 /* Date+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */; };
+		1D7F46692F45030500F44569 /* DateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8352D42905532D00E60D7F /* DateFormatters.swift */; };
+		1D7F466A2F45031100F44569 /* NetworkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76E1268EFC0500D217A1 /* NetworkHandler.swift */; };
+		1D7F466B2F45031B00F44569 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897DC2F4196D3006657FF /* AppLogger.swift */; };
+		1D7F466D2F45408B00F44569 /* SportsCalModel in Frameworks */ = {isa = PBXBuildFile; productRef = 1D7F466C2F45408B00F44569 /* SportsCalModel */; };
 		1D8324302F38101D00AED413 /* TournamentScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D83242F2F38101D00AED413 /* TournamentScoreView.swift */; };
 		1D8352D52905532D00E60D7F /* DateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8352D42905532D00E60D7F /* DateFormatters.swift */; };
 		1D8352D72905532D00E60D7F /* DateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8352D42905532D00E60D7F /* DateFormatters.swift */; };
@@ -415,6 +435,7 @@
 			files = (
 				1D7F46492F45004C00F44569 /* SwiftUI.framework in Frameworks */,
 				1D7F46482F45004C00F44569 /* WidgetKit.framework in Frameworks */,
+				1D7F466D2F45408B00F44569 /* SportsCalModel in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -791,6 +812,7 @@
 			);
 			name = SportsCalWatchWidgetsExtension;
 			packageProductDependencies = (
+				1D7F466C2F45408B00F44569 /* SportsCalModel */,
 			);
 			productName = SportsCalWatchWidgetsExtension;
 			productReference = 1D7F46472F45004C00F44569 /* SportsCalWatchWidgetsExtension.appex */;
@@ -1009,7 +1031,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1D7F466B2F45031B00F44569 /* AppLogger.swift in Sources */,
+				1D7F46692F45030500F44569 /* DateFormatters.swift in Sources */,
 				1D7F465F2F4500E200F44569 /* Teams+Extensions.swift in Sources */,
+				1D7F466A2F45031100F44569 /* NetworkHandler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1031,6 +1056,22 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1D7F46622F4502BE00F44569 /* WidgetInteractiveIntents.swift in Sources */,
+				1D7F46612F4502B700F44569 /* WidgetAppIntents.swift in Sources */,
+				1D7F46602F4502AD00F44569 /* Provider.swift in Sources */,
+				1D7F46632F4502EC00F44569 /* WidgetRaceCell.swift in Sources */,
+				1D7F46642F4502EC00F44569 /* RectangularWidgetTeamView.swift in Sources */,
+				1D7F46652F4502EC00F44569 /* WidgetTournamentCell.swift in Sources */,
+				1D7F46662F4502EC00F44569 /* SportsWidgetCircularView.swift in Sources */,
+				1D7F46672F4502EC00F44569 /* SportsWidgetRectangularView.swift in Sources */,
+				1D7F46682F4502EC00F44569 /* SportsWidgetInlineView.swift in Sources */,
+				AA00010000000001 /* Teams+Extensions.swift in Sources */,
+				AA00010000000002 /* DateFormatters.swift in Sources */,
+				AA00010000000003 /* NetworkHandler.swift in Sources */,
+				AA00010000000004 /* AppLogger.swift in Sources */,
+				AA00010000000005 /* Favorites.swift in Sources */,
+				AA00010000000006 /* WidgetDataStore.swift in Sources */,
+				AA00010000000007 /* Date+Extensions.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1980,6 +2021,10 @@
 			productName = SportsCalModel;
 		};
 		1D7F465D2F4500BD00F44569 /* SportsCalModel */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SportsCalModel;
+		};
+		1D7F466C2F45408B00F44569 /* SportsCalModel */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SportsCalModel;
 		};

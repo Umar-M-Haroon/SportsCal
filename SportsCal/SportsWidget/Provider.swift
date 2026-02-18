@@ -197,6 +197,30 @@ class Provider: AppIntentTimelineProvider {
         await timelineHandler(configuration: configuration)
     }
 
+    #if os(watchOS)
+    func recommendations() -> [AppIntentRecommendation<SportsWidgetIntent>] {
+        let allSports = SportsWidgetIntent()
+        allSports.sport = .allSports
+
+        let basketball = SportsWidgetIntent()
+        basketball.sport = .basketball
+
+        let soccer = SportsWidgetIntent()
+        soccer.sport = .soccer
+
+        let favorites = SportsWidgetIntent()
+        favorites.sport = .allSports
+        favorites.favoritesOnly = true
+
+        return [
+            AppIntentRecommendation(intent: allSports, description: "All Sports"),
+            AppIntentRecommendation(intent: favorites, description: "Favorites"),
+            AppIntentRecommendation(intent: basketball, description: "Basketball"),
+            AppIntentRecommendation(intent: soccer, description: "Soccer"),
+        ]
+    }
+    #endif
+
     /// Max games to keep in a timeline entry (large widget shows 6)
     private static let maxDisplayGames = 6
     /// Max games to fetch images for (keep memory under widget 30MB limit)

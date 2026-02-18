@@ -7,6 +7,7 @@
 
 import Foundation
 import SportsCalModel
+import os
 
 enum NetworkState: String {
     case loading = "Loading"

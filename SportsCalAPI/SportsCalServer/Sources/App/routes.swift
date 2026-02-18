@@ -480,9 +480,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         let cacheKey = "PlayerStats-\(leagueID)"
 
         // Check Redis cache first (24h TTL)
-        if let cached = try? await req.application.redis.get(RedisKey(cacheKey), as: String.self).get(),
-           let cachedStr = cached.string {
-            return cachedStr
+        if let cached = try? await req.application.redis.get(RedisKey(cacheKey), as: String.self).get() {
+            return cached
         }
 
         let leadersResponse = try await ESPNNetworking.getLeaders(
