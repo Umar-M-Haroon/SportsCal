@@ -65,7 +65,7 @@ struct DayPage: View {
         dayGames.filter { favorites.contains($0.game) && sportFilter.matches($0.game) }
     }
 
-    private var filteredOtherBySport: [SportType: [GameWithTeams]] {
+    private var filteredOtherBySport: [(sport: SportType, games: [GameWithTeams])] {
         let nonFavorites = dayGames.filter { !favorites.contains($0.game) }
         var grouped: [SportType: [GameWithTeams]] = [:]
         for gwt in nonFavorites {
@@ -76,7 +76,11 @@ struct DayPage: View {
             if case .sport(let filterSport) = sportFilter, filterSport != sport { continue }
             grouped[sport, default: []].append(gwt)
         }
-        return grouped
+        // Return only sports that have games, in stable order
+        return SportType.allCases.compactMap { sport in
+            guard let games = grouped[sport], !games.isEmpty else { return nil }
+            return (sport: sport, games: games)
+        }
     }
 
     private var allDayGamesWithTeams: [GameWithTeams] {
@@ -265,41 +269,39 @@ struct DayPage: View {
         }
 
         // Other games grouped by sport (collapsed by default)
-        ForEach(SportType.allCases, id: \.self) { sport in
-            if let games = filteredOtherBySport[sport], !games.isEmpty {
-                let isCollapsed = collapsedSportSections.contains(sport)
-                Section {
-                    if !isCollapsed {
-                        ForEach(games) { gameWithTeams in
-                            gameRow(for: gameWithTeams, isLive: false)
-                        }
+        ForEach(filteredOtherBySport, id: \.sport) { section in
+            let isCollapsed = collapsedSportSections.contains(section.sport)
+            Section {
+                if !isCollapsed {
+                    ForEach(section.games) { gameWithTeams in
+                        gameRow(for: gameWithTeams, isLive: false)
                     }
-                } header: {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            if collapsedSportSections.contains(sport) {
-                                collapsedSportSections.remove(sport)
-                            } else {
-                                collapsedSportSections.insert(sport)
-                            }
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: sport.systemImage)
-                                .foregroundColor(sport.color)
-                            Text(sport.displayName)
-                                .font(.headline)
-                            Text("(\(games.count))")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
                 }
+            } header: {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if collapsedSportSections.contains(section.sport) {
+                            collapsedSportSections.remove(section.sport)
+                        } else {
+                            collapsedSportSections.insert(section.sport)
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: section.sport.systemImage)
+                            .foregroundColor(section.sport.color)
+                        Text(section.sport.displayName)
+                            .font(.headline)
+                        Text("(\(section.games.count))")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
             }
         }
 
@@ -371,31 +373,31 @@ struct DayPage: View {
         // Hidden games peek
         if showHiddenGames {
             let hiddenBySport = viewModel.hiddenGamesBySport(for: selectedDate)
-            if !hiddenBySport.isEmpty {
-                ForEach(SportType.allCases, id: \.self) { sport in
-                    if let games = hiddenBySport[sport], !games.isEmpty {
-                        Section {
-                            ForEach(games) { gameWithTeams in
-                                gameRow(for: gameWithTeams, isLive: false)
-                                    .opacity(0.5)
-                            }
-                        } header: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "eye.slash")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                Image(systemName: sport.systemImage)
-                                    .foregroundColor(sport.color)
-                                Text(sport.displayName)
-                                    .font(.headline)
-                                Text("(\(games.count))")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                Text("- filtered out")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
+            let hiddenSections = SportType.allCases.compactMap { sport -> (sport: SportType, games: [GameWithTeams])? in
+                guard let games = hiddenBySport[sport], !games.isEmpty else { return nil }
+                return (sport: sport, games: games)
+            }
+            ForEach(hiddenSections, id: \.sport) { section in
+                Section {
+                    ForEach(section.games) { gameWithTeams in
+                        gameRow(for: gameWithTeams, isLive: false)
+                            .opacity(0.5)
+                    }
+                } header: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "eye.slash")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Image(systemName: section.sport.systemImage)
+                            .foregroundColor(section.sport.color)
+                        Text(section.sport.displayName)
+                            .font(.headline)
+                        Text("(\(section.games.count))")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Text("- filtered out")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
                 }
             }
