@@ -9,10 +9,14 @@
 
 import SwiftUI
 import SportsCalModel
+import WatchKit
 
 struct WatchGameDetailView: View {
     let game: Game
     let teams: [Team]
+
+    @State private var isTracking = false
+    @State private var crownOffset: Double = 0
 
     var body: some View {
         ScrollView {
@@ -20,10 +24,29 @@ struct WatchGameDetailView: View {
                 // Score Header
                 scoreHeader
 
-                // Linescore
+                // Double-tap hint (Series 9 / Ultra 2)
+                if isLive {
+                    HStack(spacing: 4) {
+                        Image(systemName: isTracking ? "checkmark.circle.fill" : "hand.tap")
+                            .font(.system(size: 10))
+                        Text(isTracking ? "Tracking" : "Double-tap to track")
+                            .font(.system(size: 10))
+                    }
+                    .foregroundStyle(isTracking ? .green : .secondary)
+                }
+
+                // Linescore with Digital Crown scrubbing
                 if let homeLine = game.homeLinescores, let awayLine = game.awayLinescores,
                    !homeLine.isEmpty {
                     linescoreView(homeLine: homeLine, awayLine: awayLine)
+                        .focusable()
+                        .digitalCrownRotation(
+                            $crownOffset,
+                            from: 0,
+                            through: Double(max(homeLine.count, awayLine.count) - 1),
+                            by: 1,
+                            sensitivity: .low
+                        )
                 }
 
                 // Last Play
@@ -47,6 +70,18 @@ struct WatchGameDetailView: View {
             .padding(.horizontal, 4)
         }
         .navigationTitle(statusTitle)
+        .toolbar {
+            if isLive {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        toggleTracking()
+                    } label: {
+                        Image(systemName: isTracking ? "bell.slash" : "bell")
+                    }
+                    .handGestureShortcut(.primaryAction)
+                }
+            }
+        }
         .userActivity("com.komodo.SportsCal.gameDetail") { activity in
             activity.title = "\(game.strAwayTeam) vs \(game.strHomeTeam)"
             activity.isEligibleForHandoff = true
@@ -55,6 +90,26 @@ struct WatchGameDetailView: View {
                 activity.webpageURL = URL(string: "sportscal://game/\(eventID)")
             }
         }
+        .onAppear {
+            // Check if already tracking
+            if let eventID = game.idEvent {
+                let ids = UserDefaults.standard.stringArray(forKey: "autoFollowEventIDs") ?? []
+                isTracking = ids.contains(eventID)
+            }
+        }
+    }
+
+    private func toggleTracking() {
+        guard let eventID = game.idEvent else { return }
+        var ids = UserDefaults.standard.stringArray(forKey: "autoFollowEventIDs") ?? []
+        if isTracking {
+            ids.removeAll { $0 == eventID }
+        } else {
+            ids.append(eventID)
+        }
+        UserDefaults.standard.set(ids, forKey: "autoFollowEventIDs")
+        isTracking.toggle()
+        WKInterfaceDevice.current().play(isTracking ? .success : .stop)
     }
 
     // MARK: - Score Header
@@ -99,50 +154,63 @@ struct WatchGameDetailView: View {
     // MARK: - Linescore
 
     private func linescoreView(homeLine: [Double], awayLine: [Double]) -> some View {
-        VStack(spacing: 2) {
-            let periodCount = max(homeLine.count, awayLine.count)
-            ScrollView(.horizontal, showsIndicators: false) {
-                VStack(spacing: 1) {
-                    // Header
-                    HStack(spacing: 0) {
-                        Text("")
-                            .frame(width: 30)
-                        ForEach(0..<periodCount, id: \.self) { i in
-                            Text(periodLabel(i, total: periodCount))
+        let periodCount = max(homeLine.count, awayLine.count)
+        let highlightedPeriod = Int(crownOffset.rounded())
+
+        return VStack(spacing: 2) {
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    VStack(spacing: 1) {
+                        // Header
+                        HStack(spacing: 0) {
+                            Text("")
+                                .frame(width: 30)
+                            ForEach(0..<periodCount, id: \.self) { i in
+                                Text(periodLabel(i, total: periodCount))
+                                    .font(.system(size: 8, weight: highlightedPeriod == i ? .bold : .semibold))
+                                    .foregroundStyle(highlightedPeriod == i ? .primary : .secondary)
+                                    .frame(width: 20)
+                                    .id("period-\(i)")
+                            }
+                            Text("T")
                                 .font(.system(size: 8, weight: .semibold))
-                                .frame(width: 20)
+                                .frame(width: 24)
                         }
-                        Text("T")
-                            .font(.system(size: 8, weight: .semibold))
-                            .frame(width: 24)
+                        // Away row
+                        HStack(spacing: 0) {
+                            Text(awayAbbr)
+                                .font(.system(size: 9, weight: .medium))
+                                .frame(width: 30, alignment: .leading)
+                            ForEach(0..<periodCount, id: \.self) { i in
+                                Text(i < awayLine.count ? "\(Int(awayLine[i]))" : "-")
+                                    .font(.system(size: 9, weight: highlightedPeriod == i ? .bold : .regular, design: .monospaced))
+                                    .foregroundStyle(highlightedPeriod == i ? .primary : .secondary)
+                                    .frame(width: 20)
+                            }
+                            Text(game.intAwayScore ?? "0")
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .frame(width: 24)
+                        }
+                        // Home row
+                        HStack(spacing: 0) {
+                            Text(homeAbbr)
+                                .font(.system(size: 9, weight: .medium))
+                                .frame(width: 30, alignment: .leading)
+                            ForEach(0..<periodCount, id: \.self) { i in
+                                Text(i < homeLine.count ? "\(Int(homeLine[i]))" : "-")
+                                    .font(.system(size: 9, weight: highlightedPeriod == i ? .bold : .regular, design: .monospaced))
+                                    .foregroundStyle(highlightedPeriod == i ? .primary : .secondary)
+                                    .frame(width: 20)
+                            }
+                            Text(game.intHomeScore ?? "0")
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .frame(width: 24)
+                        }
                     }
-                    // Away row
-                    HStack(spacing: 0) {
-                        Text(awayAbbr)
-                            .font(.system(size: 9, weight: .medium))
-                            .frame(width: 30, alignment: .leading)
-                        ForEach(0..<periodCount, id: \.self) { i in
-                            Text(i < awayLine.count ? "\(Int(awayLine[i]))" : "-")
-                                .font(.system(size: 9, design: .monospaced))
-                                .frame(width: 20)
-                        }
-                        Text(game.intAwayScore ?? "0")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .frame(width: 24)
-                    }
-                    // Home row
-                    HStack(spacing: 0) {
-                        Text(homeAbbr)
-                            .font(.system(size: 9, weight: .medium))
-                            .frame(width: 30, alignment: .leading)
-                        ForEach(0..<periodCount, id: \.self) { i in
-                            Text(i < homeLine.count ? "\(Int(homeLine[i]))" : "-")
-                                .font(.system(size: 9, design: .monospaced))
-                                .frame(width: 20)
-                        }
-                        Text(game.intHomeScore ?? "0")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .frame(width: 24)
+                }
+                .onChange(of: highlightedPeriod) { _, newPeriod in
+                    withAnimation {
+                        proxy.scrollTo("period-\(newPeriod)", anchor: .center)
                     }
                 }
             }

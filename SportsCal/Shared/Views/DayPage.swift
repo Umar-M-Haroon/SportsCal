@@ -62,18 +62,21 @@ struct DayPage: View {
     }
 
     private var filteredFavorites: [GameWithTeams] {
-        viewModel.favoriteGamesWithTeams(for: selectedDate).filter { sportFilter.matches($0.game) }
+        dayGames.filter { favorites.contains($0.game) && sportFilter.matches($0.game) }
     }
 
     private var filteredOtherBySport: [SportType: [GameWithTeams]] {
-        let all = viewModel.otherGamesBySport(for: selectedDate)
-        switch sportFilter {
-        case .all:
-            return all
-        case .sport(let sportType):
-            guard let games = all[sportType] else { return [:] }
-            return [sportType: games]
+        let nonFavorites = dayGames.filter { !favorites.contains($0.game) }
+        var grouped: [SportType: [GameWithTeams]] = [:]
+        for gwt in nonFavorites {
+            guard let leagueString = gwt.game.idLeague,
+                  let intLeague = Int(leagueString),
+                  let league = Leagues(rawValue: intLeague) else { continue }
+            let sport = SportType(league: league)
+            if case .sport(let filterSport) = sportFilter, filterSport != sport { continue }
+            grouped[sport, default: []].append(gwt)
         }
+        return grouped
     }
 
     private var allDayGamesWithTeams: [GameWithTeams] {
@@ -128,18 +131,8 @@ struct DayPage: View {
                     selectedDate: $selectedDate,
                     datesWithGames: viewModel.datesWithGames(),
                     pastDays: daysForDuration(storage.hidePastEvents ? .oneDay : storage.hidePastGamesDuration),
-                    futureDays: daysForDuration(storage.durations),
-                    sportCountsForDate: { viewModel.gameCountsBySport(for: $0) }
+                    futureDays: daysForDuration(storage.durations)
                 )
-            }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-
-            // Week timeline
-            Section {
-                WeekTimelineView(selectedDate: selectedDate)
-                    .environment(viewModel)
-                    .environment(favorites)
             }
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
@@ -154,7 +147,6 @@ struct DayPage: View {
                 loadingOrEmptyContent
             }
         }
-        .id(selectedDate)
         #if os(iOS)
         .searchable(text: $searchString, tokens: $searchTokens, suggestedTokens: .constant(suggestedSearchTokens), placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search games...") { token in
             token.label
@@ -498,8 +490,10 @@ struct DayPage: View {
             .buttonStyle(.plain)
         } else if let homeTeam = gameWithTeams.homeTeam,
                   let awayTeam = gameWithTeams.awayTeam {
+            let isPreGame = game.strStatus == "pre" || game.strStatus == "NS"
             if let homeScore = Int(game.intHomeScore ?? ""),
-               let awayScore = Int(game.intAwayScore ?? "") {
+               let awayScore = Int(game.intAwayScore ?? ""),
+               !isPreGame {
                 GameScoreView(
                     homeTeam: homeTeam,
                     awayTeam: awayTeam,
@@ -637,12 +631,6 @@ struct DayPage: View {
         }
     }
 
-    private var formattedSelectedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d"
-        return formatter.string(from: selectedDate)
-    }
-
     private func daysForDuration(_ duration: Durations) -> Int {
         let today = calendar.startOfDay(for: Date())
         let target: Date?
@@ -658,6 +646,12 @@ struct DayPage: View {
         }
         guard let target else { return 14 }
         return max(1, calendar.dateComponents([.day], from: today, to: target).day ?? 14)
+    }
+
+    private var formattedSelectedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMM d"
+        return formatter.string(from: selectedDate)
     }
 
     #if os(iOS)

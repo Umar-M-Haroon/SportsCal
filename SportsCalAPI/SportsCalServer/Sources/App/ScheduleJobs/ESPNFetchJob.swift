@@ -376,6 +376,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
             guard let espnGame = espnMatch else { return scheduleGame }
 
             // Merge: ESPN dynamic fields onto schedule identity fields
+            // Don't take ESPN scores for pre-game events (ESPN returns "0" which
+            // causes the client to show a score view instead of the game time)
+            let isPreGame = espnGame.strStatus == "pre"
             return Game(
                 idLiveScore: scheduleGame.idLiveScore,
                 idEvent: scheduleGame.idEvent,
@@ -388,8 +391,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 strAwayTeam: scheduleGame.strAwayTeam,
                 strHomeTeamBadge: espnGame.strHomeTeamBadge ?? scheduleGame.strHomeTeamBadge,
                 strAwayTeamBadge: espnGame.strAwayTeamBadge ?? scheduleGame.strAwayTeamBadge,
-                intHomeScore: espnGame.intHomeScore ?? scheduleGame.intHomeScore,
-                intAwayScore: espnGame.intAwayScore ?? scheduleGame.intAwayScore,
+                intHomeScore: isPreGame ? scheduleGame.intHomeScore : (espnGame.intHomeScore ?? scheduleGame.intHomeScore),
+                intAwayScore: isPreGame ? scheduleGame.intAwayScore : (espnGame.intAwayScore ?? scheduleGame.intAwayScore),
                 strStatus: espnGame.strStatus ?? scheduleGame.strStatus,
                 strProgress: espnGame.strProgress ?? scheduleGame.strProgress,
                 strTimestamp: scheduleGame.strTimestamp,

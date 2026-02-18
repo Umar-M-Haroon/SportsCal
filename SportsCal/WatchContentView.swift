@@ -11,6 +11,7 @@ import SportsCalModel
 struct WatchContentView: View {
     @Environment(WatchViewModel.self) private var viewModel
     @Environment(\.scenePhase) private var scenePhase
+    @State private var showOnboarding = !UserDefaults.standard.bool(forKey: "watchOnboardingComplete")
 
     var body: some View {
         TabView {
@@ -37,6 +38,10 @@ struct WatchContentView: View {
         .onReceive(viewModel.pollTimer) { _ in
             guard scenePhase == .active else { return }
             Task { await viewModel.poll() }
+        }
+        .sheet(isPresented: $showOnboarding) {
+            WatchOnboardingView(isPresented: $showOnboarding)
+                .environment(viewModel)
         }
     }
 }

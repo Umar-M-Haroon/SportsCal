@@ -49,7 +49,7 @@ struct ListDetailView: View {
                         // Live games
                         if !liveGames.isEmpty {
                             Section {
-                                ForEach(liveGames, id: \.self) { event in
+                                ForEach(liveGames, id: \.id) { event in
                                     if event.isRace {
                                         NavigationLink {
                                             RaceDetailView(game: event)
@@ -86,7 +86,7 @@ struct ListDetailView: View {
                         // Favorites section
                         if !favoriteGames.isEmpty {
                             Section {
-                                ForEach(favoriteGames, id: \.self) { game in
+                                ForEach(favoriteGames, id: \.id) { game in
                                     gameRow(game: game)
                                 }
                             } header: {
@@ -108,7 +108,7 @@ struct ListDetailView: View {
                                 let isCollapsed = collapsedSportSections.contains(sport)
                                 Section {
                                     if !isCollapsed {
-                                        ForEach(games, id: \.self) { game in
+                                        ForEach(games, id: \.id) { game in
                                             gameRow(game: game)
                                         }
                                     }

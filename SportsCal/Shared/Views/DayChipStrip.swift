@@ -13,8 +13,6 @@ struct DayChipStrip: View {
     var datesWithGames: Set<DateComponents>
     var pastDays: Int = 7
     var futureDays: Int = 14
-    var sportCountsForDate: ((Date) -> [SportType: Int])? = nil
-
     private let calendar = Calendar.current
 
     private var today: Date {
@@ -87,7 +85,6 @@ struct DayChipStrip: View {
         let selected = isSelected(date)
         let today = isToday(date)
         let hasGames = hasGames(date)
-        let sportCounts = sportCountsForDate?(date) ?? [:]
 
         return Button {
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -101,12 +98,7 @@ struct DayChipStrip: View {
                 Text("\(calendar.component(.day, from: date))")
                     .font(.subheadline)
                     .fontWeight(selected ? .bold : .regular)
-                if !sportCounts.isEmpty {
-                    SportDensityBar(
-                        sportCounts: sportCounts,
-                        isSelected: selected
-                    )
-                } else if today {
+                if today {
                     Circle()
                         .fill(selected ? Color.white : Color.accentColor)
                         .frame(width: 4, height: 4)
@@ -133,38 +125,5 @@ struct DayChipStrip: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEE"
         return formatter.string(from: date).prefix(3).uppercased()
-    }
-}
-
-// MARK: - Sport Density Bar
-
-/// Tiny stacked color bar showing proportional game counts per sport
-struct SportDensityBar: View {
-    let sportCounts: [SportType: Int]
-    var isSelected: Bool = false
-
-    private var sortedSports: [(sport: SportType, count: Int)] {
-        SportType.allCases.compactMap { sport in
-            guard let count = sportCounts[sport], count > 0 else { return nil }
-            return (sport: sport, count: count)
-        }
-    }
-
-    private var totalCount: Int {
-        sportCounts.values.reduce(0, +)
-    }
-
-    var body: some View {
-        if !sortedSports.isEmpty {
-            HStack(spacing: 1) {
-                ForEach(sortedSports, id: \.sport) { item in
-                    let fraction = CGFloat(item.count) / CGFloat(max(totalCount, 1))
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(isSelected ? Color.white.opacity(0.7) : item.sport.color)
-                        .frame(width: max(3, fraction * 28), height: 3)
-                }
-            }
-            .frame(height: 4)
-        }
     }
 }

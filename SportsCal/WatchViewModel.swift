@@ -121,7 +121,7 @@ final class WatchViewModel {
     func fetchLiveScores() async {
         do {
             let liveScore = try await NetworkHandler.getLiveSnapshot()
-            let allLive = liveScore.allGames
+            let allLive = collectAllGames(from: liveScore)
 
             await MainActor.run {
                 // Detect score changes for haptics
@@ -136,6 +136,19 @@ final class WatchViewModel {
         } catch {
             // Silently fail — keep existing data
         }
+    }
+
+    private func collectAllGames(from liveScore: LiveScore) -> [Game] {
+        var all: [Game] = []
+        if let nba = liveScore.nba { all.append(contentsOf: nba.events) }
+        if let mlb = liveScore.mlb { all.append(contentsOf: mlb.events) }
+        if let soccer = liveScore.soccer { all.append(contentsOf: soccer.events) }
+        if let nfl = liveScore.nfl { all.append(contentsOf: nfl.events) }
+        if let nhl = liveScore.nhl { all.append(contentsOf: nhl.events) }
+        if let golf = liveScore.golf { all.append(contentsOf: golf.events) }
+        if let tennis = liveScore.tennis { all.append(contentsOf: tennis.events) }
+        if let racing = liveScore.racing { all.append(contentsOf: racing.events) }
+        return all
     }
 
     // MARK: - Haptic Score Alerts

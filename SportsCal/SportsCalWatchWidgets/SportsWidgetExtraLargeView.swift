@@ -1,12 +1,11 @@
 //
 //  SportsWidgetExtraLargeView.swift
-//  SportsWidget
+//  SportsCalWatchWidgets
 //
 //  watchOS Ultra-only accessoryExtraLarge complication.
 //  Room for 3 game rows: scores for live/completed, "@ time" for upcoming.
 //
 
-#if os(watchOS)
 import SwiftUI
 import WidgetKit
 import SportsCalModel
@@ -138,4 +137,3 @@ struct SportsWidgetExtraLargeView: View {
         return String(name.prefix(3)).uppercased()
     }
 }
-#endif

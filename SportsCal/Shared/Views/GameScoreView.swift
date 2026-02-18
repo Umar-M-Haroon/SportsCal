@@ -23,6 +23,9 @@ struct GameScoreView: View {
     @Binding var sheetType: SheetType?
     
     var isLive: Bool
+    #if canImport(ActivityKit) && os(iOS)
+    private let activitiesEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
+    #endif
     var body: some View {
         @Bindable var bindableFavorites = favorites
         @Bindable var bindableViewModel = viewModel
@@ -52,7 +55,7 @@ struct GameScoreView: View {
                     }
                     Menu {
 #if canImport(ActivityKit) && os(iOS)
-                        if isLive && ActivityAuthorizationInfo().areActivitiesEnabled  {
+                        if isLive && activitiesEnabled  {
                             LiveActivityButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
                                 .environment(viewModel)
                         }

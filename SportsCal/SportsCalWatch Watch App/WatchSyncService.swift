@@ -8,9 +8,11 @@
 //
 
 import Foundation
+import Observation
 import WatchConnectivity
 
-final class WatchSyncService: NSObject, WCSessionDelegate, ObservableObject {
+@Observable
+final class WatchSyncService: NSObject, WCSessionDelegate {
     static let shared = WatchSyncService()
 
     /// Called when preferences are updated from iPhone

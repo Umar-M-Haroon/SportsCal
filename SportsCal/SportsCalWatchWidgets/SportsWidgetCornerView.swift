@@ -1,6 +1,6 @@
 //
 //  SportsWidgetCornerView.swift
-//  SportsWidget
+//  SportsCalWatchWidgets
 //
 //  watchOS-only accessoryCorner complication.
 //  Live game: Gauge arc showing relative score balance.
@@ -8,7 +8,6 @@
 //  Tournament: Gauge showing leader score relative to par/field.
 //
 
-#if os(watchOS)
 import SwiftUI
 import WidgetKit
 import SportsCalModel
@@ -94,4 +93,3 @@ struct SportsWidgetCornerView: View {
         return String(name.prefix(3)).uppercased()
     }
 }
-#endif
