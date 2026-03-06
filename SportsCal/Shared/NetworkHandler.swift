@@ -62,50 +62,55 @@ struct NetworkHandler {
     /// Host discovered via Bonjour (e.g. "192.168.1.42:8080")
     static var localServerHost: String?
 
+    /// When true, prefer local Bonjour server over tunnel. Controlled by Settings toggle.
+    static var useLocalServer: Bool = true
+
+    /// Build a URLRequest with the API key header attached.
+    private static func authenticatedRequest(url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.setValue(Constants.apiKey, forHTTPHeaderField: "X-API-Key")
+        return request
+    }
+
+    /// Tailscale IP of the dev server (reachable only from your Tailscale network)
+    private static let tailscaleHost = "100.68.255.93:8080"
+
     /// Base URL for v2025 API endpoints.
-    /// Priority: Bonjour local server > SERVER_URL env var > legacy "host" env var > debug/prod
+    /// Local ON:  Bonjour > Tailscale (stable local fallback)
+    /// Local OFF + debug: Tailscale
+    /// Local OFF + prod:  Cloudflare tunnel
     static func baseURL(debug: Bool) -> String {
-        if let local = localServerHost {
-            return "http://\(local)/v2025"
-        }
-        if let serverURL = ProcessInfo.processInfo.environment["SERVER_URL"] {
-            let base = serverURL.hasSuffix("/") ? String(serverURL.dropLast()) : serverURL
-            return base.hasSuffix("/v2025") ? base : "\(base)/v2025"
-        }
-        if let host = ProcessInfo.processInfo.environment["host"] {
-            return host
+        if useLocalServer {
+            if let local = localServerHost {
+                return "http://\(local)/v2025"
+            }
+            return "http://\(tailscaleHost)/v2025"
         }
         if debug {
-            return "https://debug.sportscal.komodollc.com/v2025"
+            return "http://\(tailscaleHost)/v2025"
         }
-        return "https://sportscal.komodollc.com/v2025"
+        return "https://api.sportscal.app/v2025"
     }
 
     /// Root server URL without version path (for WebSocket and admin).
-    /// Priority: Bonjour > SERVER_URL env var > debug/prod
+    /// Same priority as baseURL.
     private static func rootURL(debug: Bool) -> (http: String, ws: String) {
-        if let local = localServerHost {
-            return ("http://\(local)", "ws://\(local)")
-        }
-        if let serverURL = ProcessInfo.processInfo.environment["SERVER_URL"] {
-            let base = serverURL.hasSuffix("/") ? String(serverURL.dropLast()) : serverURL
-            // Strip /v2025 suffix if present
-            let root = base.hasSuffix("/v2025") ? String(base.dropLast(6)) : base
-            let wsRoot = root
-                .replacingOccurrences(of: "https://", with: "wss://")
-                .replacingOccurrences(of: "http://", with: "ws://")
-            return (root, wsRoot)
+        if useLocalServer {
+            if let local = localServerHost {
+                return ("http://\(local)", "ws://\(local)")
+            }
+            return ("http://\(tailscaleHost)", "ws://\(tailscaleHost)")
         }
         if debug {
-            return ("https://debug.sportscal.komodollc.com", "wss://debug.sportscal.komodollc.com")
+            return ("http://\(tailscaleHost)", "ws://\(tailscaleHost)")
         }
-        return ("https://sportscal.komodollc.com", "wss://sportscal.komodollc.com")
+        return ("https://api.sportscal.app", "wss://api.sportscal.app")
     }
 
     static func handleCall(debug: Bool = false) async throws -> LiveScore {
         let urlString = "\(baseURL(debug: debug))/schedules"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -116,7 +121,7 @@ struct NetworkHandler {
     static func getScheduleFor(sport: SportType, debug: Bool = false) async throws -> LiveEvent {
         let urlString = "\(baseURL(debug: debug))/sport/\(sport.rawValue)"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -141,7 +146,7 @@ struct NetworkHandler {
         let session = URLSession(configuration: config)
         defer { session.invalidateAndCancel() }
         AppLogger.widget.info("[widgetFetch] requesting \(url.absoluteString)")
-        let (data, response) = try await session.data(from: url)
+        let (data, response) = try await session.data(for: authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             AppLogger.widget.info("[widgetFetch] response \(httpResponse.statusCode), \(data.count) bytes")
             APIVersionChecker.shared.checkVersion(from: httpResponse)
@@ -166,7 +171,7 @@ struct NetworkHandler {
     static func getTeams(debug: Bool = false) async throws -> [Team] {
         let urlString = "\(baseURL(debug: debug))/teams"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -182,7 +187,7 @@ struct NetworkHandler {
         let url = URL(string: urlString)!
         var realLiveScore: LiveScore?
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
             if let httpResponse = response as? HTTPURLResponse {
                 APIVersionChecker.shared.checkVersion(from: httpResponse)
             }
@@ -222,7 +227,8 @@ struct NetworkHandler {
         let urlPath = ProcessInfo.processInfo.environment["mock-live"] != nil ? "livedebug" : "ws"
         let urlString = "\(wsBase)/v2025/\(urlPath)"
         let url = URL(string: urlString)!
-        let task = (session ?? URLSession.shared).webSocketTask(with: url)
+        let request = authenticatedRequest(url: url)
+        let task = (session ?? URLSession.shared).webSocketTask(with: request)
         task.maximumMessageSize = 4 * 1024 * 1024 // 4 MB
         return task
     }
@@ -230,7 +236,7 @@ struct NetworkHandler {
     static func subscribeToLiveActivityUpdate(token: String, eventID: String, debug: Bool = false) async throws {
         let urlString = "\(baseURL(debug: debug))/liveActivity/\(token)/\(eventID)"
         let url = URL(string: urlString)!
-        let (_, response) = try await URLSession.shared.data(from: url)
+        let (_, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -239,7 +245,7 @@ struct NetworkHandler {
     static func getStandings(for leagueID: String, debug: Bool = false) async throws -> Standing {
         let urlString = "\(baseURL(debug: debug))/standings/\(leagueID)"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -250,7 +256,7 @@ struct NetworkHandler {
     static func registerPushToStart(token: String, favorites: [String], eventIDs: [String] = [], debug: Bool = false) async throws {
         let urlString = "\(baseURL(debug: debug))/pushToStart/register"
         let url = URL(string: urlString)!
-        var request = URLRequest(url: url)
+        var request = authenticatedRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         var body: [String: Any] = ["token": token, "favorites": favorites]
@@ -294,7 +300,7 @@ struct NetworkHandler {
     static func triggerDebugPushToStart(eventID: String, homeTeam: String, awayTeam: String, debug: Bool = true) async throws {
         let urlString = "\(baseURL(debug: debug))/debug/trigger-push-to-start"
         guard let url = URL(string: urlString) else { return }
-        var request = URLRequest(url: url)
+        var request = authenticatedRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let body: [String: String] = [

@@ -15,12 +15,13 @@ func routes(_ app: Application) throws {
 
     // MARK: - Versioned Routes (v2025)
     // Use versioned routes for new clients. Legacy routes remain for backward compatibility.
-    let v2025 = app.grouped("v2025")
+    let v2025 = app.grouped("v2025").grouped(APIKeyMiddleware())
     registerAPIRoutes(on: v2025, app: app)
 
     // MARK: - Legacy Routes (unversioned)
     // Keep for backward compatibility with older app versions
-    registerAPIRoutes(on: app, app: app)
+    let legacy = app.grouped(APIKeyMiddleware())
+    registerAPIRoutes(on: legacy, app: app)
 }
 
 /// Registers all API routes on a given route builder.

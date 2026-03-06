@@ -72,7 +72,7 @@ export class HealthMonitor {
             <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
             <div style="font-weight: 600; font-size: 1.125rem;">Failed to connect to API</div>
             <div style="color: var(--text-secondary); margin-top: 0.5rem; margin-bottom: 1rem;">
-              Make sure the Vapor server is running on port 8081<br/>
+              Make sure the Vapor server is running on port 8080<br/>
               Error: ${errorMsg}
             </div>
             <button class="btn btn-primary" id="retry-health">🔄 Retry</button>

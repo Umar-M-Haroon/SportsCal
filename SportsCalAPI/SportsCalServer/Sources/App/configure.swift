@@ -56,10 +56,6 @@ public func configure(_ app: Application) async throws {
         app.queues.schedule(scheduleUpdateJob)
             .minutely()
             .at(30)
-        let ESPNJob = ESPNFetchJob()
-        app.queues.schedule(ESPNJob)
-            .minutely()
-            .at(2)
         let espnSoccerJob = ESPNSoccerJob()
         app.queues.schedule(espnSoccerJob)
             .minutely()
@@ -68,6 +64,10 @@ public func configure(_ app: Application) async throws {
         app.queues.schedule(espnTennisJob)
             .minutely()
             .at(2)
+        let ESPNJob = ESPNFetchJob()
+        app.queues.schedule(ESPNJob)
+            .minutely()
+            .at(15)
         let teamJob = ESPNTeamFetchJob()
         app.queues.schedule(teamJob)
             .hourly()
@@ -83,6 +83,9 @@ public func configure(_ app: Application) async throws {
 
         try app.queues.startScheduledJobs()
     }
+    // Bind to all interfaces so Tailscale and LAN clients can reach the server
+    app.http.server.configuration.hostname = "0.0.0.0"
+
     try routes(app)
 
     // Advertise via Bonjour so the iOS app can discover the local dev server

@@ -13,6 +13,19 @@
 		<string>ConfigurationIntent</string>
 		<string>com.KomodoLLC.SportsCal.staterestore.games</string>
 	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>100.68.255.93</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>SportsCal uses local network access to connect to development servers for testing.</string>
 	<key>NSBonjourServices</key>

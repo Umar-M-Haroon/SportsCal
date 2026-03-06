@@ -31,6 +31,7 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("hiddenCompetitions") var hiddenCompetitions: [String] = []
     @ObservationIgnored @AppStorage("useRelativeValue") var useRelativeValue: Bool = false
     @ObservationIgnored @AppStorage("autoFollowFavorites") var autoFollowFavorites: Bool = true
+    @ObservationIgnored @AppStorage("useLocalServer") var useLocalServer: Bool = true
 
     // MARK: - Auto-Follow Event IDs
     private static let autoFollowKey = "autoFollowEventIDs"

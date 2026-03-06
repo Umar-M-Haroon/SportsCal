@@ -38,6 +38,10 @@ struct SettingsView: View {
                 Section("Developer") {
                     Toggle("Debug Mode", isOn: $bindableAppStorage.debugMode)
                     if appStorage.debugMode {
+                        Toggle("Use Local Server", isOn: $bindableAppStorage.useLocalServer)
+                            .onChange(of: appStorage.useLocalServer) { _, newValue in
+                                NetworkHandler.useLocalServer = newValue
+                            }
                         LocalServerStatusView()
                         Button("Dump Caches") {
                             do {
@@ -218,6 +222,7 @@ struct SettingsView: View {
 
 struct LocalServerStatusView: View {
     @Environment(LocalServerDiscovery.self) private var discovery
+    @Environment(UserDefaultStorage.self) private var appStorage
     @State private var manualHost: String = ""
 
     var body: some View {
@@ -239,6 +244,16 @@ struct LocalServerStatusView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
             }
+        }
+        HStack {
+            Text("Active: ")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(NetworkHandler.baseURL(debug: appStorage.debugMode))
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
         }
         TextField("Manual host override", text: $manualHost)
             .font(.caption.monospaced())

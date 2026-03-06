@@ -59,6 +59,7 @@ struct SportsCalApp: App {
                 .environment(viewModel)
                 .onAppear {
                     appStorage.launches += 1
+                    NetworkHandler.useLocalServer = appStorage.useLocalServer
                     if isTestFlight {
                         appStorage.debugMode = true
                     }
@@ -81,6 +82,10 @@ struct SportsCalApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: .favoritesDidChange)) { _ in
                     #if os(iOS)
                     PhoneWatchSyncService.shared.syncAllPreferences()
+                    let currentFavorites = favorites.teams
+                    Task.detached(priority: .utility) {
+                        SpotlightIndexer.indexFavoriteTeams(currentFavorites)
+                    }
                     #endif
                 }
                 .onChange(of: appStorage.enabledSports) { _, _ in
@@ -111,6 +116,18 @@ struct SportsCalApp: App {
         }
         #if os(iOS)
         .backgroundTaskIfAvailable()
+        #endif
+
+        #if os(macOS)
+        MenuBarExtra {
+            MenuBarContentView()
+                .environment(appStorage)
+                .environment(favorites)
+                .environment(viewModel)
+        } label: {
+            MenuBarLabel(liveCount: viewModel.liveEvents.count, todayCount: viewModel.todayGames.count, liveSports: viewModel.currentlyLiveSports)
+        }
+        .menuBarExtraStyle(.window)
         #endif
     }
 
