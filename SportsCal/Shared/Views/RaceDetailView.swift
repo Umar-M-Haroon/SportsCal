@@ -412,8 +412,15 @@ struct RaceDetailView: View {
                         Circle()
                             .fill(sessionStatusColor(session.status))
                             .frame(width: 8, height: 8)
-                        Text(session.sessionName)
-                            .font(.subheadline)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(session.sessionName)
+                                .font(.subheadline)
+                            if let sessionDate = parseSessionDate(session.date) {
+                                Text(sessionDate.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute()))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                         Spacer()
                         if let status = session.status {
                             Text(status == "post" ? "Complete" : (status == "in" ? "In Progress" : "Upcoming"))
@@ -428,6 +435,24 @@ struct RaceDetailView: View {
         .padding()
         .background(Color.secondaryGroupedBackground)
         .cornerRadius(12)
+    }
+
+    private static let sessionDateFormatters: [DateFormatter] = {
+        let formats = ["yyyy-MM-dd'T'HH:mm:ssX", "yyyy-MM-dd'T'HH:mmX"]
+        return formats.map { format in
+            let df = DateFormatter()
+            df.dateFormat = format
+            df.locale = Locale(identifier: "en_US_POSIX")
+            return df
+        }
+    }()
+
+    private func parseSessionDate(_ dateString: String?) -> Date? {
+        guard let dateString else { return nil }
+        for formatter in Self.sessionDateFormatters {
+            if let date = formatter.date(from: dateString) { return date }
+        }
+        return nil
     }
 
     // MARK: - Legacy Leaderboard (fallback when no sessions)
