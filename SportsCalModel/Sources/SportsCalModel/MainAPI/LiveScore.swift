@@ -274,7 +274,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     }
 }
 public struct LiveScore: Codable, Equatable {
-    public init(nba: LiveEvent? = nil, mlb: LiveEvent? = nil, soccer: LiveEvent? = nil, nfl: LiveEvent? = nil, nhl: LiveEvent? = nil, golf: LiveEvent? = nil, tennis: LiveEvent? = nil, racing: LiveEvent? = nil) {
+    public init(nba: LiveEvent? = nil, mlb: LiveEvent? = nil, soccer: LiveEvent? = nil, nfl: LiveEvent? = nil, nhl: LiveEvent? = nil, golf: LiveEvent? = nil, tennis: LiveEvent? = nil, racing: LiveEvent? = nil, f1Standings: F1Standings? = nil) {
         self.nba = nba
         self.mlb = mlb
         self.soccer = soccer
@@ -283,6 +283,7 @@ public struct LiveScore: Codable, Equatable {
         self.golf = golf
         self.tennis = tennis
         self.racing = racing
+        self.f1Standings = f1Standings
     }
 
     public var nba: LiveEvent?
@@ -293,6 +294,7 @@ public struct LiveScore: Codable, Equatable {
     public var golf: LiveEvent?
     public var tennis: LiveEvent?
     public var racing: LiveEvent?
+    public var f1Standings: F1Standings?
 
     /// Merges two LiveScore objects, combining events per sport
     public func merging(with other: LiveScore?) -> LiveScore {
@@ -305,7 +307,8 @@ public struct LiveScore: Codable, Equatable {
             nhl: LiveEvent.merging(self.nhl, other.nhl),
             golf: LiveEvent.merging(self.golf, other.golf),
             tennis: LiveEvent.merging(self.tennis, other.tennis),
-            racing: LiveEvent.merging(self.racing, other.racing)
+            racing: LiveEvent.merging(self.racing, other.racing),
+            f1Standings: self.f1Standings ?? other.f1Standings
         )
     }
 

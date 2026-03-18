@@ -57,6 +57,10 @@ enum RedisEndpoint {
         case latestSchedule
         case scheduleLastUpdate
         case teams
+        case f1Standings
+        case f1Circuits
+        case f1CircuitImages
+        case f1EnrichmentLastUpdate
         public var value: RedisKey {
             switch self {
             case .latestLiveInfo:
@@ -77,6 +81,14 @@ enum RedisEndpoint {
                 return "Schedule Last Update"
             case .teams:
                 return "ESPN Teams"
+            case .f1Standings:
+                return "F1 Standings"
+            case .f1Circuits:
+                return "F1 Circuits"
+            case .f1CircuitImages:
+                return "F1 Circuit Images"
+            case .f1EnrichmentLastUpdate:
+                return "F1 Enrichment Last Update"
             }
         }
         public var debugValue: RedisKey {
@@ -99,6 +111,14 @@ enum RedisEndpoint {
                 return "debug-Schedule Last Update"
             case .teams:
                 return "debug-ESPN Teams"
+            case .f1Standings:
+                return "debug-F1 Standings"
+            case .f1Circuits:
+                return "debug-F1 Circuits"
+            case .f1CircuitImages:
+                return "debug-F1 Circuit Images"
+            case .f1EnrichmentLastUpdate:
+                return "debug-F1 Enrichment Last Update"
             }
         }
         public func getValue(isDebug: Bool = false) -> RedisKey {

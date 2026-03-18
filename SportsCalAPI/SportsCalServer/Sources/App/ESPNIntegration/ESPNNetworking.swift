@@ -226,13 +226,14 @@ class ESPNNetworking {
     /// Returns `[competitionId: [competitorId: gapString]]`.
     /// P1 gets totalTime (e.g. "1:42:06.304"), P2+ gets behindTime (e.g. "+0.895").
     static func getF1TimingMap(req: some Client, scoreboards: [Scoreboard]) async -> [String: [String: String]] {
-        // Collect all completed competitions with their event IDs
+        // Collect completed and in-progress competitions with their event IDs
         var work: [(eventId: String, competitionId: String, competitors: [Competitor])] = []
         for scoreboard in scoreboards {
             for event in scoreboard.events {
                 for competition in event.competitions ?? [] {
                     let isCompleted = competition.status?.type.completed ?? false
-                    guard isCompleted, let competitors = competition.competitors, !competitors.isEmpty else { continue }
+                    let isInProgress = competition.status?.type.state == "in"
+                    guard (isCompleted || isInProgress), let competitors = competition.competitors, !competitors.isEmpty else { continue }
                     work.append((eventId: event.id, competitionId: competition.id, competitors: competitors))
                 }
             }
@@ -261,6 +262,14 @@ class ESPNNetworking {
                                 return (competitor.id, behind)
                             } else if let total = stats.statValue(named: "totalTime") {
                                 return (competitor.id, total)
+                            }
+                            // Fallback: check for laps behind or status (DNF/DNS/+N Laps)
+                            if let lapsDown = stats.statValue(named: "lapsDown"), !lapsDown.isEmpty, lapsDown != "0" {
+                                return (competitor.id, "+\(lapsDown) Lap\(lapsDown == "1" ? "" : "s")")
+                            }
+                            if let status = stats.statValue(named: "status"), !status.isEmpty,
+                               status != "Running" && status != "Active" {
+                                return (competitor.id, status) // e.g. "DNF", "DNS", "Retired"
                             }
                             return (competitor.id, nil)
                         } catch {

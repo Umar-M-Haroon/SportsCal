@@ -77,12 +77,24 @@ class Integrator {
         try await ESPNNetworking.getScoreboard(req: client, DecodeType: Scoreboard.self, league: league, dates: dates)
     }
     
-    static func getESPNLiveScore(_ client: some Client) async -> LiveScore {
+    static func getESPNLiveScore(_ client: some Client, f1ConstructorMap: [String: String] = [:]) async -> LiveScore {
         let espnScores = await getESPNScores(client)
         var events: [SportType: LiveEvent] = [:]
         for (sportType, scoreboard) in espnScores {
             if let league = sportType.toLeague {
-                events[sportType] = LiveEvent(events: scoreboard, league: league)
+                if league.isRacing {
+                    // For F1, pass the cached constructor map so live data has team names
+                    var constructorMap = f1ConstructorMap
+                    // If no cached map, try to fetch one quickly from this scoreboard
+                    if constructorMap.isEmpty {
+                        constructorMap = await ESPNNetworking.getF1ConstructorMap(req: client, scoreboard: scoreboard)
+                    }
+                    // Fetch live timing for in-progress sessions
+                    let timingMap = await ESPNNetworking.getF1TimingMap(req: client, scoreboards: [scoreboard])
+                    events[sportType] = LiveEvent(events: scoreboard, league: league, constructorMap: constructorMap, timingMap: timingMap)
+                } else {
+                    events[sportType] = LiveEvent(events: scoreboard, league: league)
+                }
             }
         }
         return LiveScore(nba: events[.basketball], mlb: events[.mlb], nfl: events[.nfl], nhl: events[.hockey], golf: events[.golf], tennis: events[.tennis], racing: events[.racing])

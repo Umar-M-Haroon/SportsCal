@@ -80,6 +80,10 @@ public func configure(_ app: Application) async throws {
         app.queues.schedule(standingsSnapshotJob)
             .daily()
             .at(.init(integerLiteral: 6), .init(integerLiteral: 0))
+        let f1EnrichmentJob = F1EnrichmentJob()
+        app.queues.schedule(f1EnrichmentJob)
+            .hourly()
+            .at(10)
 
         try app.queues.startScheduledJobs()
     }
