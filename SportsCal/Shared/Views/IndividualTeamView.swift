@@ -23,6 +23,7 @@ struct IndividualTeamView: View {
     var score: Int?
     var isWinning: Bool
     var isAway: Bool
+    var record: String? = nil
     var data: Data? = nil
     // Fallback logo view when URL is missing
     private var fallbackLogo: some View {
@@ -144,6 +145,12 @@ struct IndividualTeamView: View {
                     .foregroundColor(.secondary)
                     .font(.headline)
             .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
+            }
+            if let record {
+                Text(record)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             }
         }
     }

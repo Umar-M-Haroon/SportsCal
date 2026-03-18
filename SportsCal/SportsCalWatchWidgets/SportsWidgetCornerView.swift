@@ -26,7 +26,7 @@ struct SportsWidgetCornerView: View {
             // No games — show app icon
             Text("SC")
                 .font(.system(size: 12, weight: .bold))
-                .widgetLabel("SportsCal")
+                .widgetLabel("Scoreline")
         }
     }
 

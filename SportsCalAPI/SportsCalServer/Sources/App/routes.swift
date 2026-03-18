@@ -307,10 +307,13 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     routes.get("liveActivity",":token",":eventID") { req async throws in
         let token = req.parameters.get("token")!
         let eventID = req.parameters.get("eventID")!
+        let homeTeam = try? req.query.get(String.self, at: "home")
+        let awayTeam = try? req.query.get(String.self, at: "away")
+        let registration = APNSRegistration(eventID: eventID, homeTeam: homeTeam, awayTeam: awayTeam)
         if req.application.environment == .development {
-            try await req.application.redis.setex("debug-APNS-\(token)", to: eventID, expirationInSeconds: 60 * 60 * 8).get()
+            try await req.application.redis.setex("debug-APNS-\(token)", toJSON: registration, expirationInSeconds: 60 * 60 * 8).get()
         } else {
-            try await req.application.redis.setex("APNS-\(token)", to: eventID, expirationInSeconds: 60 * 60 * 8).get()
+            try await req.application.redis.setex("APNS-\(token)", toJSON: registration, expirationInSeconds: 60 * 60 * 8).get()
         }
         return HTTPStatus.ok
     }

@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "1DEC76B1268EFB6700D217A1"
-               BuildableName = "SportsCal.app"
+               BuildableName = "Scoreline.app"
                BlueprintName = "SportsCal (iOS)"
                ReferencedContainer = "container:SportsCal.xcodeproj">
             </BuildableReference>
@@ -68,7 +68,7 @@
       launchStyle = "0"
       useCustomWorkingDirectory = "NO"
       ignoresPersistentStateOnLaunch = "NO"
-      debugDocumentVersioning = "YES"
+      debugDocumentVersioning = "NO"
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES">
       <BuildableProductRunnable
@@ -76,7 +76,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1DEC76B1268EFB6700D217A1"
-            BuildableName = "SportsCal.app"
+            BuildableName = "Scoreline.app"
             BlueprintName = "SportsCal (iOS)"
             ReferencedContainer = "container:SportsCal.xcodeproj">
          </BuildableReference>
@@ -130,7 +130,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1DEC76B1268EFB6700D217A1"
-            BuildableName = "SportsCal.app"
+            BuildableName = "Scoreline.app"
             BlueprintName = "SportsCal (iOS)"
             ReferencedContainer = "container:SportsCal.xcodeproj">
          </BuildableReference>

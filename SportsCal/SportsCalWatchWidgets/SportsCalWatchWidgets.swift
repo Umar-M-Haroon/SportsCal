@@ -32,6 +32,9 @@ struct WatchWidgetEntryView: View {
         case .accessoryCorner:
             SportsWidgetCornerView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
+        case .accessoryExtraLarge:
+            SportsWidgetExtraLargeView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
         default:
             SportsWidgetCircularView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
@@ -58,7 +61,8 @@ struct SportsCalWatchWidget: Widget {
             .accessoryCircular,
             .accessoryRectangular,
             .accessoryInline,
-            .accessoryCorner
+            .accessoryCorner,
+            .accessoryExtraLarge
         ])
         .contentMarginsDisabled()
     }

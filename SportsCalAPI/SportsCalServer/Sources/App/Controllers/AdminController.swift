@@ -96,7 +96,7 @@ struct AdminController: RouteCollection {
         let jobs = [
             JobStatus(name: "ScheduleUpdateJob", schedule: "Every second", lastRun: scheduleLastUpdate, status: "active"),
             JobStatus(name: "APNSJob", schedule: "Every second", lastRun: nil, status: "active"),
-            JobStatus(name: "ESPNFetchJob", schedule: "Minutely at :02", lastRun: nil, status: "active"),
+            JobStatus(name: "ESPNFetchJob", schedule: "Minutely at :15", lastRun: nil, status: "active"),
             JobStatus(name: "ESPNSoccerJob", schedule: "Minutely at :02", lastRun: nil, status: "active"),
             JobStatus(name: "ESPNTennisJob", schedule: "Minutely at :02", lastRun: nil, status: "active"),
             JobStatus(name: "ESPNTeamFetchJob", schedule: "Hourly at :38", lastRun: nil, status: "active")

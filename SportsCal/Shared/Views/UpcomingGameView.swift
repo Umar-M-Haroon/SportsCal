@@ -22,56 +22,77 @@ struct UpcomingGameView: View {
     @Environment(GameViewModel.self) private var viewModel
     var isFavorite: Bool = false
     var formatter =  Date.RelativeFormatStyle(presentation: .numeric, capitalizationContext: .beginningOfSentence)
+
+    private var isStartingSoon: Bool {
+        guard let date = game.standardDate else { return false }
+        let interval = date.timeIntervalSinceNow
+        return interval > 0 && interval <= 1800 // within 30 minutes
+    }
+
+    private var timeColor: Color {
+        isStartingSoon ? .orange : .secondary
+    }
+
     var body: some View {
         NavigationLink {
             GameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
                 .environment(viewModel)
                 .environment(favorites)
         } label: {
-            HStack {
-                IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: false, isAway: true)
-                .frame(maxWidth: .infinity)
-                VStack(alignment: .center, spacing: 8) {
-                    if showCountdown, let date = game.standardDate {
-                        Text(formatter.format(date))
-                            .font(.system(.subheadline, design: .monospaced))
-                            .fontWeight(.medium)
-                            .accessibilityValue(accessibilityLabel)
-                            .accessibilityLabel(accessibilityLabel)
-                            .foregroundColor(.secondary)
-                    } else if isFavorite, let isoDate = game.standardDate {
-                        Text(isoDate.formatted(.dateTime.hour().minute()))
-                            .font(.system(.subheadline, design: .monospaced))
-                            .fontWeight(.medium)
-                            .accessibilityValue(accessibilityLabel)
-                            .accessibilityLabel(accessibilityLabel)
-                            .foregroundColor(.secondary)
+            VStack(spacing: 6) {
+                HStack {
+                    IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: false, isAway: true, record: game.awayRecord)
+                    .frame(maxWidth: .infinity)
+                    VStack(alignment: .center, spacing: 8) {
+                        if showCountdown, let date = game.standardDate {
+                            Text(formatter.format(date))
+                                .font(.system(.subheadline, design: .monospaced))
+                                .fontWeight(.medium)
+                                .accessibilityValue(accessibilityLabel)
+                                .accessibilityLabel(accessibilityLabel)
+                                .foregroundColor(timeColor)
+                        } else if isFavorite, let isoDate = game.standardDate {
+                            Text(isoDate.formatted(.dateTime.hour().minute()))
+                                .font(.system(.subheadline, design: .monospaced))
+                                .fontWeight(.medium)
+                                .accessibilityValue(accessibilityLabel)
+                                .accessibilityLabel(accessibilityLabel)
+                                .foregroundColor(timeColor)
 
+                        }
+                        if let isoDateString = game.standardDate?.formatToTime() {
+                            Text(isoDateString)
+                                .font(.system(.subheadline, design: .monospaced))
+                                .fontWeight(.medium)
+                                .foregroundColor(timeColor)
+                        }
+                        Menu {
+                            #if canImport(ActivityKit) && os(iOS)
+                            AutoFollowButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                                .environment(viewModel)
+                            #endif
+                            FavoriteMenu(game: game)
+                                .environment(favorites)
+                            CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+                            NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+                        } label: {
+                            Image(systemName: "ellipsis")
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
                     }
-                    if let isoDateString = game.standardDate?.formatToTime() {
-                        Text(isoDateString)
-                            .font(.system(.subheadline, design: .monospaced))
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                    }
-                    Menu {
-                        #if canImport(ActivityKit) && os(iOS)
-                        AutoFollowButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
-                            .environment(viewModel)
-                        #endif
-                        FavoriteMenu(game: game)
-                            .environment(favorites)
-                        CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-                        NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-                    } label: {
-                        Image(systemName: "ellipsis")
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
+                        .fixedSize(horizontal: true, vertical: false)
+                    IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: Int(game.intHomeScore ?? ""), isWinning: false, isAway: false, record: game.homeRecord)
+                    .frame(maxWidth: .infinity)
                 }
-                    .fixedSize(horizontal: true, vertical: false)
-                IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: Int(game.intHomeScore ?? ""), isWinning: false, isAway: false)
-                .frame(maxWidth: .infinity)
+
+                // Venue for favorites
+                if isFavorite, let venue = game.venueName {
+                    Text(venue)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity)
+                }
             }
         }
         .buttonStyle(.plain)
