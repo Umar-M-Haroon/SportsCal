@@ -13,10 +13,21 @@ import Logging
 
 struct ESPNTennisJob: AsyncScheduledJob {
     private static let logger = Logger(label: "com.sportscal.espn-tennis")
+    private static var isFirstRun = true
 
     func run(context: Queues.QueueContext) async throws {
-        let endpoint = RedisEndpoint.ESPN.allTennisScoreboards.getValue(isDebug: context.application.environment == .development)
-        let tennisScoreboards = try await context.application.redis.get(endpoint, asJSON: [Leagues: Scoreboard].self)
+        let isDebug = context.application.environment == .development
+        let endpoint = RedisEndpoint.ESPN.allTennisScoreboards.getValue(isDebug: isDebug)
+
+        let tennisScoreboards: [Leagues: Scoreboard]?
+        if Self.isFirstRun {
+            Self.isFirstRun = false
+            _ = try? await context.application.redis.delete(endpoint)
+            tennisScoreboards = nil
+            Self.logger.info("First run after startup — fetching all tennis leagues")
+        } else {
+            tennisScoreboards = try await context.application.redis.get(endpoint, asJSON: [Leagues: Scoreboard].self)
+        }
         let leaguesToFetch = getActiveLeagues(tennisScoreboards: tennisScoreboards)
         Self.logger.info("Fetching tennis leagues", metadata: ["leagues": "\(leaguesToFetch)"])
         var espnInfo = try await withThrowingTaskGroup(of: [Leagues: Scoreboard].self) { group in
@@ -47,7 +58,7 @@ struct ESPNTennisJob: AsyncScheduledJob {
             })
         }
         if leaguesToFetch == Leagues.allCases.filter({$0.isTennis}) {
-            try await context.application.redis.setex(RedisEndpoint.ESPN.allTennisScoreboards.getValue(isDebug: context.application.environment == .development), toJSON: espnInfo, expirationInSeconds: 60 * 60)
+            try await context.application.redis.setex(RedisEndpoint.ESPN.allTennisScoreboards.getValue(isDebug: context.application.environment == .development), toJSON: espnInfo, expirationInSeconds: 60 * 15)
         }
         try await context.application.redis.set(RedisEndpoint.ESPN.latestTennisScoreboards.getValue(isDebug: context.application.environment == .development), toJSON: espnInfo)
     }
@@ -76,7 +87,14 @@ struct ESPNTennisJob: AsyncScheduledJob {
                     guard let status = game.status else { return false }
                     return !status.type.completed && status.type.state != "pre" && status.type.state != "post"
                 })
-                if hasAnyUpcomingEvents || hasLiveEvents {
+                let hasProbablyStartedEvents = scoreboard.events.contains(where: { game in
+                    guard let gameDate = formatter.date(from: game.date) else { return false }
+                    let minutesAgo = date.timeIntervalSince(gameDate) / 60
+                    let status = game.status?.type
+                    let isStillMarkedPre = status?.state == "pre" || status == nil
+                    return isStillMarkedPre && minutesAgo >= 2 && minutesAgo <= 180
+                })
+                if hasAnyUpcomingEvents || hasLiveEvents || hasProbablyStartedEvents {
                     activeScoreboards[league] = scoreboard
                 }
             }

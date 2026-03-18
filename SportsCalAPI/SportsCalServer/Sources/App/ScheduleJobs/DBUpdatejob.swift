@@ -10,6 +10,7 @@ import Queues
 import RediStack
 import SportsCalModel
 import Logging
+import Vapor
 
 struct ScheduleUpdateJob: AsyncScheduledJob {
     private static let logger = Logger(label: "com.sportscal.schedule-update")
@@ -163,6 +164,12 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                     .reduce(into: LiveEvent(events: [])) { partialResult, next in
                     partialResult.events += next.events
                 }
+                // Deduplicate games from overlapping seasons (previous/current/next)
+                var seenEventIDs = Set<String>()
+                events.events = events.events.filter { game in
+                    guard let eventID = game.idEvent else { return true }
+                    return seenEventIDs.insert(eventID).inserted
+                }
                 events.events.removeAll(where: {$0.strTimestamp == nil})
                 events.events = events.events.map({
                     if $0.isoDate == nil {
@@ -240,6 +247,55 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                     } else {
                         schedule.racing = events // fallback to TheSportsDB
                     }
+                    // Attach cached F1 enrichment data (circuits + standings)
+                    if var racingGames = schedule.racing?.events {
+                        let circuitsKey = RedisEndpoint.ESPN.f1Circuits.getValue(isDebug: isDebug)
+                        let standingsKey = RedisEndpoint.ESPN.f1Standings.getValue(isDebug: isDebug)
+                        let cachedCircuits = try? await context.application.redis.get(circuitsKey, asJSON: [String: F1CircuitInfo].self)
+                        let cachedStandings = try? await context.application.redis.get(standingsKey, asJSON: F1Standings.self)
+                        if let circuits = cachedCircuits, !circuits.isEmpty {
+                            for i in racingGames.indices {
+                                let game = racingGames[i]
+                                let raceName = game.strHomeTeam.lowercased().replacingOccurrences(of: "-", with: " ")
+                                for (key, info) in circuits {
+                                    let normalized = key.lowercased().replacingOccurrences(of: "-", with: " ")
+                                    if raceName.contains(normalized) || normalized.contains(raceName) {
+                                        racingGames[i] = Game(
+                                            idLiveScore: game.idLiveScore, idEvent: game.idEvent,
+                                            idLeague: game.idLeague,
+                                            strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam,
+                                            intHomeScore: game.intHomeScore, intAwayScore: game.intAwayScore,
+                                            strStatus: game.strStatus, strProgress: game.strProgress,
+                                            strTimestamp: game.strTimestamp, lastPlay: game.lastPlay,
+                                            isCompleted: game.isCompleted, isoDate: game.isoDate,
+                                            leaderboardEntries: game.leaderboardEntries,
+                                            sessions: game.sessions, venueName: game.venueName,
+                                            circuitInfo: info
+                                        )
+                                        break
+                                    }
+                                    if let venue = game.venueName?.lowercased(),
+                                       (venue.contains(info.locality.lowercased()) || venue.contains(info.country.lowercased())) {
+                                        racingGames[i] = Game(
+                                            idLiveScore: game.idLiveScore, idEvent: game.idEvent,
+                                            idLeague: game.idLeague,
+                                            strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam,
+                                            intHomeScore: game.intHomeScore, intAwayScore: game.intAwayScore,
+                                            strStatus: game.strStatus, strProgress: game.strProgress,
+                                            strTimestamp: game.strTimestamp, lastPlay: game.lastPlay,
+                                            isCompleted: game.isCompleted, isoDate: game.isoDate,
+                                            leaderboardEntries: game.leaderboardEntries,
+                                            sessions: game.sessions, venueName: game.venueName,
+                                            circuitInfo: info
+                                        )
+                                        break
+                                    }
+                                }
+                            }
+                            schedule.racing = LiveEvent(events: racingGames)
+                        }
+                        schedule.f1Standings = cachedStandings
+                    }
                     Self.logger.info("Schedule loaded", metadata: ["sport": "racing", "events": "\(schedule.racing?.events.count ?? 0)", "constructors": "\(f1ConstructorMap.count)", "timingCompetitions": "\(f1TimingMap.count)"])
                 default:
                     if schedule.soccer == nil {
@@ -256,6 +312,10 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 ])
             }
         }
+
+        // Enrich schedule with ESPN scoreboard data (records, leaders, linescores, venue, etc.)
+        Self.logger.info("Enriching schedule with ESPN scoreboard data")
+        schedule = await enrichScheduleWithESPN(schedule: schedule, client: context.application.client)
 
         // Extract teams from all games (multi-season coverage)
         let gameTeams = extractTeamsFromGames(allGames)
@@ -296,6 +356,168 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         // Always update the timestamp so we know when we last checked
         try await context.application.redis.set(lastUpdateKey, toJSON: Date())
         Self.logger.info("Schedule check complete", metadata: ["dataChanged": "\(scheduleChanged)"])
+    }
+    // MARK: - ESPN Enrichment
+
+    /// Fetches ESPN scoreboards for each sport and merges enrichment data
+    /// (records, leaders, linescores, venue, team colors) into the TheSportsDB schedule.
+    private func enrichScheduleWithESPN(schedule: LiveScore, client: any Client) async -> LiveScore {
+        let sportLeagues: [(SportType, Leagues, WritableKeyPath<LiveScore, LiveEvent?>)] = [
+            (.basketball, .nba, \.nba),
+            (.mlb, .mlb, \.mlb),
+            (.nfl, .nfl, \.nfl),
+            (.hockey, .nhl, \.nhl),
+        ]
+
+        var enriched = schedule
+
+        for (sport, league, keyPath) in sportLeagues {
+            guard let scheduleEvents = schedule[keyPath: keyPath] else { continue }
+            do {
+                let scoreboard = try await Integrator.getESPNScoreboard(for: league, client)
+                guard let espnLiveEvent = LiveEvent(events: scoreboard, league: league) else { continue }
+
+                let merged = mergeEnrichment(schedule: scheduleEvents, espn: espnLiveEvent)
+                enriched[keyPath: keyPath] = merged
+                Self.logger.info("ESPN enrichment merged", metadata: ["sport": "\(sport)", "espnGames": "\(espnLiveEvent.events.count)", "scheduleGames": "\(scheduleEvents.events.count)"])
+            } catch {
+                Self.logger.warning("ESPN enrichment failed for \(sport): \(error)")
+            }
+        }
+
+        // Soccer enrichment from cached scoreboards (already fetched by ESPNSoccerJob)
+        // Tennis/Golf/Racing already use ESPN as primary source in schedule build
+
+        return enriched
+    }
+
+    /// Normalizes team names to handle abbreviation differences
+    /// (e.g., "LA Clippers" → "los angeles clippers")
+    private func normalizeTeamName(_ name: String) -> String {
+        var result = name.lowercased()
+        let abbreviations: [(abbreviation: String, full: String)] = [
+            ("la ", "los angeles "),
+            ("ny ", "new york "),
+            ("nyc ", "new york city "),
+            ("nyrb", "new york red bulls"),
+            ("okc ", "oklahoma city "),
+            ("phx ", "phoenix "),
+            ("gs ", "golden state "),
+            ("no ", "new orleans "),
+            ("sa ", "san antonio "),
+            ("sl ", "salt lake "),
+            ("stl ", "st. louis "),
+            ("kc ", "kansas city "),
+            ("tb ", "tampa bay "),
+            ("ne ", "new england "),
+            ("mn ", "minnesota "),
+            ("ind ", "indiana "),
+        ]
+        for (abbr, full) in abbreviations {
+            if result.hasPrefix(abbr) {
+                result = full + result.dropFirst(abbr.count)
+                break
+            }
+        }
+        result = result.replacingOccurrences(of: " fc", with: "")
+        result = result.replacingOccurrences(of: "fc ", with: "")
+        result = result.replacingOccurrences(of: " sc", with: "")
+        result = result.replacingOccurrences(of: "sc ", with: "")
+        return result.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Merges ESPN enrichment fields into TheSportsDB schedule games by matching team names + day.
+    private func mergeEnrichment(schedule: LiveEvent, espn: LiveEvent) -> LiveEvent {
+        // Build ESPN lookup by team names + day
+        var espnByNames: [String: Game] = [:]
+        var espnByNormalized: [String: Game] = [:]
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = TimeZone(secondsFromGMT: 0)
+
+        for game in espn.events {
+            let day: String
+            if let date = game.isoDate {
+                day = df.string(from: date)
+            } else if let ts = game.strTimestamp, ts.count >= 10 {
+                day = String(ts.prefix(10))
+            } else {
+                day = ""
+            }
+            let key = "\(game.strHomeTeam.lowercased())|\(game.strAwayTeam.lowercased())|\(day)"
+            espnByNames[key] = game
+
+            let normalizedKey = "\(normalizeTeamName(game.strHomeTeam))|\(normalizeTeamName(game.strAwayTeam))|\(day)"
+            espnByNormalized[normalizedKey] = game
+
+            // Also index by team ID for better matching
+            if let homeID = game.idHomeTeam, let awayID = game.idAwayTeam {
+                let idKey = "\(homeID)|\(awayID)|\(day)"
+                espnByNames[idKey] = game
+            }
+        }
+
+        let merged = schedule.events.map { scheduleGame -> Game in
+            let day: String
+            if let date = scheduleGame.isoDate {
+                day = df.string(from: date)
+            } else if let ts = scheduleGame.strTimestamp, ts.count >= 10 {
+                day = String(ts.prefix(10))
+            } else {
+                day = ""
+            }
+
+            // Try matching by team names
+            let nameKey = "\(scheduleGame.strHomeTeam.lowercased())|\(scheduleGame.strAwayTeam.lowercased())|\(day)"
+            var espnMatch = espnByNames[nameKey]
+
+            // Try matching by team IDs
+            if espnMatch == nil, let homeID = scheduleGame.idHomeTeam, let awayID = scheduleGame.idAwayTeam {
+                let idKey = "\(homeID)|\(awayID)|\(day)"
+                espnMatch = espnByNames[idKey]
+            }
+
+            // Fallback: normalized team names (handles "LA" vs "Los Angeles" etc.)
+            if espnMatch == nil {
+                let normalizedKey = "\(normalizeTeamName(scheduleGame.strHomeTeam))|\(normalizeTeamName(scheduleGame.strAwayTeam))|\(day)"
+                espnMatch = espnByNormalized[normalizedKey]
+            }
+
+            guard let espnGame = espnMatch else { return scheduleGame }
+
+            // Merge ESPN enrichment fields onto schedule game
+            let isPreGame = espnGame.strStatus == "pre"
+            return Game(
+                idLiveScore: scheduleGame.idLiveScore,
+                idEvent: scheduleGame.idEvent,
+                idLeague: scheduleGame.idLeague,
+                idHomeTeam: scheduleGame.idHomeTeam,
+                idAwayTeam: scheduleGame.idAwayTeam,
+                strHomeTeam: espnGame.strHomeTeam,
+                strAwayTeam: espnGame.strAwayTeam,
+                strHomeTeamBadge: espnGame.strHomeTeamBadge ?? scheduleGame.strHomeTeamBadge,
+                strAwayTeamBadge: espnGame.strAwayTeamBadge ?? scheduleGame.strAwayTeamBadge,
+                intHomeScore: isPreGame ? scheduleGame.intHomeScore : (espnGame.intHomeScore ?? scheduleGame.intHomeScore),
+                intAwayScore: isPreGame ? scheduleGame.intAwayScore : (espnGame.intAwayScore ?? scheduleGame.intAwayScore),
+                strStatus: espnGame.strStatus ?? scheduleGame.strStatus,
+                strProgress: espnGame.strProgress ?? scheduleGame.strProgress,
+                strTimestamp: scheduleGame.strTimestamp,
+                lastPlay: espnGame.lastPlay ?? scheduleGame.lastPlay,
+                homeLinescores: espnGame.homeLinescores ?? scheduleGame.homeLinescores,
+                awayLinescores: espnGame.awayLinescores ?? scheduleGame.awayLinescores,
+                homeLeaders: espnGame.homeLeaders ?? scheduleGame.homeLeaders,
+                awayLeaders: espnGame.awayLeaders ?? scheduleGame.awayLeaders,
+                isCompleted: espnGame.isCompleted ?? scheduleGame.isCompleted,
+                isoDate: scheduleGame.isoDate,
+                venueName: espnGame.venueName ?? scheduleGame.venueName,
+                homeTeamColor: espnGame.homeTeamColor ?? scheduleGame.homeTeamColor,
+                awayTeamColor: espnGame.awayTeamColor ?? scheduleGame.awayTeamColor,
+                homeRecord: espnGame.homeRecord ?? scheduleGame.homeRecord,
+                awayRecord: espnGame.awayRecord ?? scheduleGame.awayRecord
+            )
+        }
+
+        return LiveEvent(events: merged)
     }
 }
 
