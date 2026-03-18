@@ -23,7 +23,7 @@ struct SportsCalControlWidget: ControlWidget {
                 }
             }
         }
-        .displayName("SportsCal")
+        .displayName("Scoreline")
         .description("See your next game at a glance")
     }
 
@@ -40,7 +40,7 @@ struct SportsCalControlWidget: ControlWidget {
 
 @available(iOS 18.0, *)
 struct OpenSportsCalIntent: OpenIntent {
-    static var title: LocalizedStringResource = "Open SportsCal"
+    static var title: LocalizedStringResource = "Open Scoreline"
 
     @Parameter(title: "Target")
     var target: OpenSportsCalTarget
@@ -50,11 +50,11 @@ struct OpenSportsCalIntent: OpenIntent {
 struct OpenSportsCalTarget: AppEntity {
     let id: String
 
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "SportsCal"
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Scoreline"
     static var defaultQuery = OpenSportsCalQuery()
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "SportsCal")
+        DisplayRepresentation(title: "Scoreline")
     }
 
     static var defaultValue: OpenSportsCalTarget {

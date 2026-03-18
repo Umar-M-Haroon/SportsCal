@@ -41,14 +41,39 @@ struct APNSJob: AsyncScheduledJob {
         events.append(contentsOf: liveScore?.tennis?.events ?? [])
         events.append(contentsOf: liveScore?.racing?.events ?? [])
 
-        let eventIDs = try await context.application.redis.mget(keys).get()
+        let registrationValues = try await context.application.redis.mget(keys).get()
         let apnsClient = isDebug
             ? await context.application.apns.client(.development)
             : await context.application.apns.client(.production)
 
         for (index, key) in keys.enumerated() {
-            guard let eventID = eventIDs[index].string,
-                  let event = events.first(where: { $0.idEvent == eventID }),
+            guard let rawValue = registrationValues[index].string else { continue }
+
+            // Parse registration — supports both new JSON format and legacy plain eventID
+            let registration: APNSRegistration
+            if let data = rawValue.data(using: .utf8),
+               let parsed = try? JSONDecoder().decode(APNSRegistration.self, from: data) {
+                registration = parsed
+            } else {
+                // Legacy format: plain event ID string
+                registration = APNSRegistration(eventID: rawValue, homeTeam: nil, awayTeam: nil)
+            }
+
+            // Match event: try event ID first, then fall back to team names
+            let event: Game?
+            if let found = events.first(where: { $0.idEvent == registration.eventID }) {
+                event = found
+            } else if let home = registration.homeTeam, let away = registration.awayTeam {
+                let homeLower = home.lowercased()
+                let awayLower = away.lowercased()
+                event = events.first(where: {
+                    $0.strHomeTeam.lowercased() == homeLower && $0.strAwayTeam.lowercased() == awayLower
+                })
+            } else {
+                event = nil
+            }
+
+            guard let event,
                   let homeScore = Int(event.intHomeScore ?? ""),
                   let awayScore = Int(event.intAwayScore ?? "") else { continue }
 

@@ -29,6 +29,14 @@ struct PushToStartRegistration: Codable, Content {
     var eventIDs: [String]?
 }
 
+/// Stored in Redis for each APNS-{token} registration.
+/// Includes team names so the APNSJob can match by team even when event IDs differ.
+struct APNSRegistration: Codable {
+    var eventID: String
+    var homeTeam: String?
+    var awayTeam: String?
+}
+
 // MARK: - APNSClientProtocol extension for push-to-start
 extension APNSClientProtocol {
     @discardableResult

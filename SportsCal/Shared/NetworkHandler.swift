@@ -233,9 +233,14 @@ struct NetworkHandler {
         return task
     }
 
-    static func subscribeToLiveActivityUpdate(token: String, eventID: String, debug: Bool = false) async throws {
-        let urlString = "\(baseURL(debug: debug))/liveActivity/\(token)/\(eventID)"
-        let url = URL(string: urlString)!
+    static func subscribeToLiveActivityUpdate(token: String, eventID: String, homeTeam: String? = nil, awayTeam: String? = nil, debug: Bool = false) async throws {
+        var components = URLComponents(string: "\(baseURL(debug: debug))/liveActivity/\(token)/\(eventID)")!
+        // Include team names so the server can match by name when event IDs differ
+        var queryItems: [URLQueryItem] = []
+        if let homeTeam { queryItems.append(URLQueryItem(name: "home", value: homeTeam)) }
+        if let awayTeam { queryItems.append(URLQueryItem(name: "away", value: awayTeam)) }
+        if !queryItems.isEmpty { components.queryItems = queryItems }
+        let url = components.url!
         let (_, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)

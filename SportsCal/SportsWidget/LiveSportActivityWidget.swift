@@ -9,6 +9,35 @@ import SwiftUI
 import WidgetKit
 import UIKit
 #if canImport(ActivityKit)
+
+/// Loads a team badge image from the shared app group container, with a fallback to team initials.
+@ViewBuilder
+private func badgeImage(for teamName: String, size: CGFloat) -> some View {
+    if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(teamName),
+       let data = try? Data(contentsOf: fileURL),
+       let image = UIImage(data: data) {
+        Image(uiImage: image)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: size, height: size)
+    } else {
+        teamInitialsView(teamName, size: size)
+    }
+}
+
+/// Fallback view showing team initials in a circle when badge image is unavailable.
+@ViewBuilder
+private func teamInitialsView(_ teamName: String, size: CGFloat) -> some View {
+    ZStack {
+        Circle()
+            .fill(Color.gray.opacity(0.3))
+            .frame(width: size, height: size)
+        Text(String(teamName.prefix(3)))
+            .font(.system(size: size * 0.35, weight: .bold))
+            .foregroundColor(.white)
+    }
+}
+
 struct LiveSportActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: LiveSportActivityAttributes.self) { context in
@@ -34,21 +63,7 @@ struct LiveSportActivityWidget: Widget {
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack {
-                        if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.awayTeam),
-                           let data = try? Data(contentsOf: fileURL),
-                           let image = UIImage(data: data) {
-                            Image(uiImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 35, height: 35)
-                        } else {
-#if DEBUG
-                            Image(systemName: "circle.fill")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 35, height: 35)
-#endif
-                        }
+                        badgeImage(for: context.attributes.awayTeam, size: 35)
                         VStack {
                             if context.state.awayScore > context.state.homeScore {
                                 Text("\(context.state.awayScore)")
@@ -63,7 +78,7 @@ struct LiveSportActivityWidget: Widget {
                         }
                     }
                 }
-                
+
                 DynamicIslandExpandedRegion(.trailing) {
                     HStack {
                         VStack {
@@ -78,21 +93,7 @@ struct LiveSportActivityWidget: Widget {
                             }
                             Text(context.attributes.homeTeam)
                         }
-                        if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.homeTeam),
-                           let data = try? Data(contentsOf: fileURL),
-                           let image = UIImage(data: data) {
-                            Image(uiImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 35, height: 35)
-                        } else {
-#if DEBUG
-                            Image(systemName: "circle.fill")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 35, height: 35)
-#endif
-                        }
+                        badgeImage(for: context.attributes.homeTeam, size: 35)
                     }
                 }
                 
@@ -121,19 +122,7 @@ struct LiveSportActivityWidget: Widget {
                 
             } compactLeading: {
                 HStack(spacing: 4) {
-                    if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent( context.attributes.awayTeam),
-                       let data = try? Data(contentsOf: fileURL),
-                       let image = UIImage(data: data) {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 10, height: 10)
-                    } else {
-                        Image(systemName: "circle.fill")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 10, height: 10)
-                    }
+                    badgeImage(for: context.attributes.awayTeam, size: 10)
                     Text(context.attributes.awayTeam)
                         .font(.caption2)
                     if context.state.awayScore > context.state.homeScore {
@@ -146,19 +135,7 @@ struct LiveSportActivityWidget: Widget {
                 }
             } compactTrailing: {
                 HStack(spacing: 4) {
-                    if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.homeTeam),
-                       let data = try? Data(contentsOf: fileURL),
-                       let image = UIImage(data: data) {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 10, height: 10)
-                    } else {
-                        Image(systemName: "circle.fill")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 10, height: 10)
-                    }
+                    badgeImage(for: context.attributes.homeTeam, size: 10)
                     Text(context.attributes.homeTeam)
                         .font(.caption2)
                     if context.state.awayScore < context.state.homeScore {
@@ -172,40 +149,12 @@ struct LiveSportActivityWidget: Widget {
             } minimal: {
                 VStack(spacing: 0) {
                     HStack(spacing: 4) {
-                        if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.awayTeam),
-                           let data = try? Data(contentsOf: fileURL),
-                           let image = UIImage(data: data) {
-                            Image(uiImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 10, height: 10)
-                        } else {
-#if DEBUG
-                            Image(systemName: "circle.fill")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 10, height: 10)
-#endif
-                        }
+                        badgeImage(for: context.attributes.awayTeam, size: 10)
                         Text("\(context.state.awayScore)")
                             .font(.system(size: 8))
                     }
                     HStack(spacing: 4) {
-                        if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.homeTeam),
-                           let data = try? Data(contentsOf: fileURL),
-                           let image = UIImage(data: data) {
-                            Image(uiImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 10, height: 10)
-                        } else {
-#if DEBUG
-                            Image(systemName: "circle.fill")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 10, height: 10)
-#endif
-                        }
+                        badgeImage(for: context.attributes.homeTeam, size: 10)
                         Text("\(context.state.homeScore)")
                             .font(.system(size: 8))
                     }
