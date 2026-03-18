@@ -27,6 +27,12 @@ struct DayChipStrip: View {
         return f
     }()
 
+    private static let fullDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .full
+        return f
+    }()
+
     private var today: Date {
         calendar.startOfDay(for: Date())
     }
@@ -76,7 +82,7 @@ struct DayChipStrip: View {
             scrollPosition = calendar.startOfDay(for: selectedDate)
         }
         .onChange(of: selectedDate) { _, newValue in
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                 scrollPosition = calendar.startOfDay(for: newValue)
             }
         }
@@ -97,7 +103,7 @@ struct DayChipStrip: View {
         let hasGames = hasGames(date)
 
         return Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                 selectedDate = date
             }
         } label: {
@@ -129,6 +135,22 @@ struct DayChipStrip: View {
             .foregroundColor(selected ? .white : .primary)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(chipAccessibilityLabel(for: date, isToday: today, hasGames: hasGames))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func chipAccessibilityLabel(for date: Date, isToday: Bool, hasGames: Bool) -> Text {
+        let fullDate = Self.fullDateFormatter.string(from: date)
+        var parts = fullDate
+        if isToday {
+            parts += ", today"
+        }
+        if hasGames {
+            parts += ", has games"
+        } else {
+            parts += ", no games"
+        }
+        return Text(parts)
     }
 
     private func dayAbbreviation(for date: Date) -> String {

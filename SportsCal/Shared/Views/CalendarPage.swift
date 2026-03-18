@@ -15,6 +15,7 @@ struct CalendarPage: View {
     @Environment(Favorites.self) private var favorites
     @Binding var sheetType: SheetType?
     @Binding var showFavoritesOnly: Bool
+    @Binding var spotlightDate: Date?
     @State private var navigateToDate: Date?
     @State private var sportFilter: SportChipFilter = .all
     @State private var showSportPicker: Bool = false
@@ -46,6 +47,12 @@ struct CalendarPage: View {
         .onChange(of: storage.enabledSports) { oldValue, newValue in
             if case .sport(let sport) = sportFilter, !newValue.contains(sport) {
                 sportFilter = .all
+            }
+        }
+        .onChange(of: spotlightDate) { _, newDate in
+            if let newDate {
+                navigateToDate = newDate
+                spotlightDate = nil
             }
         }
     }

@@ -39,4 +39,27 @@ extension Game {
     var standardDate: Date? {
         self.isoDate ?? self.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter)
     }
+
+    /// For multi-session events (F1), returns the last session's date (e.g. Race day)
+    /// so the event appears under the correct day. Falls back to standardDate.
+    var effectiveEndDate: Date? {
+        if let sessions = sessions, !sessions.isEmpty,
+           let lastDateStr = sessions.last?.date,
+           let lastDate = DateFormatters.isoFormatter.date(from: lastDateStr) {
+            return lastDate
+        }
+        return standardDate
+    }
+
+    /// All dates this event spans (for multi-session events like F1 weekends).
+    /// Returns each unique calendar day from the first to last session.
+    var sessionDates: [Date] {
+        guard let sessions = sessions, !sessions.isEmpty else {
+            return [standardDate].compactMap { $0 }
+        }
+        return sessions.compactMap { session in
+            guard let dateStr = session.date else { return nil }
+            return DateFormatters.isoFormatter.date(from: dateStr)
+        }
+    }
 }

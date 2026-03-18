@@ -14,6 +14,9 @@ import ActivityKit
 #endif
 import Sentry
 import os
+#if canImport(AppIntents)
+import AppIntents
+#endif
 
 // MARK: - GameWithTeams
 // Pre-computed game with team data to avoid expensive lookups during rendering
@@ -58,6 +61,8 @@ public class GameViewModel: NSObject {
     var todayGamesWithTeams: [GameWithTeams] = []
     var todayFavoriteGamesWithTeams: [GameWithTeams] = []
     var todayOtherGamesBySport: [SportType: [GameWithTeams]] = [:]
+    var todayAllGamesBySport: [SportType: [GameWithTeams]] = [:]
+    var f1Standings: F1Standings?
 
     var favorites: Favorites
     var teams: [Team] = []
@@ -105,8 +110,10 @@ public class GameViewModel: NSObject {
         let computedTodayGamesWithTeams = computedTodayGames.compactMap { makeGameWithTeams($0) }
         let computedTodayFavorites = computedTodayGamesWithTeams.filter { favorites.contains($0.game) }
         let computedTodayOther = computeTodayOtherGamesBySport(todayGamesWithTeams: computedTodayGamesWithTeams)
+        let liveIDs = Set(computedLiveEventsWithTeams.map(\.id))
+        let computedTodayAll = computeTodayAllGamesBySport(todayGamesWithTeams: computedTodayGamesWithTeams, liveIDs: liveIDs)
 
-        // Batch-assign all 9 stored properties — SwiftUI coalesces into one update
+        // Batch-assign all stored properties — SwiftUI coalesces into one update
         liveEvents = computedLiveEvents
         liveEventsWithTeams = computedLiveEventsWithTeams
         allLiveEvents = computedAllLiveEvents
@@ -116,6 +123,7 @@ public class GameViewModel: NSObject {
         todayGamesWithTeams = computedTodayGamesWithTeams
         todayFavoriteGamesWithTeams = computedTodayFavorites
         todayOtherGamesBySport = computedTodayOther
+        todayAllGamesBySport = computedTodayAll
 
         if appStorage.debugMode {
             let elapsed = (CFAbsoluteTimeGetCurrent() - start) * 1000
@@ -266,6 +274,12 @@ public class GameViewModel: NSObject {
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
 
         return (filteredGames ?? []).filter { game in
+            // For multi-session events (F1), check if any session falls on today
+            if !game.sessionDates.isEmpty {
+                return game.sessionDates.contains { date in
+                    date >= today && date < tomorrow
+                }
+            }
             guard let gameDate = game.standardDate else { return false }
             return gameDate >= today && gameDate < tomorrow
         }
@@ -285,6 +299,28 @@ public class GameViewModel: NSObject {
                 grouped[sport]?.append(gameWithTeams)
             } else {
                 grouped[sport] = [gameWithTeams]
+            }
+        }
+        return grouped
+    }
+
+    private func computeTodayAllGamesBySport(todayGamesWithTeams: [GameWithTeams], liveIDs: Set<String>) -> [SportType: [GameWithTeams]] {
+        let nonLive = todayGamesWithTeams.filter { !liveIDs.contains($0.id) }
+        var grouped: [SportType: [GameWithTeams]] = [:]
+        for gameWithTeams in nonLive {
+            guard let leagueString = gameWithTeams.game.idLeague,
+                  let intLeague = Int(leagueString),
+                  let league = Leagues(rawValue: intLeague) else { continue }
+            let sport = SportType(league: league)
+            grouped[sport, default: []].append(gameWithTeams)
+        }
+        // Sort each group: favorites first, then by game date
+        for (sport, games) in grouped {
+            grouped[sport] = games.sorted { a, b in
+                let aFav = favorites.contains(a.game)
+                let bFav = favorites.contains(b.game)
+                if aFav != bFav { return aFav }
+                return (a.game.standardDate ?? .distantPast) < (b.game.standardDate ?? .distantPast)
             }
         }
         return grouped
@@ -471,6 +507,8 @@ public class GameViewModel: NSObject {
     private func handleLiveGames() async throws {
         AppLogger.networking.info("Getting live games")
         var liveInfo = try await NetworkHandler.getLiveSnapshot(debug: appStorage.debugMode)
+        // Merge live scores into schedule before filtering out completed games
+        mergeLiveIntoSchedule(liveInfo)
         liveInfo.removeNonStarting()
         liveInfo.removeOtherInfo()
         self.currentLiveInfo = liveInfo
@@ -677,6 +715,7 @@ public class GameViewModel: NSObject {
         ensureWebSocketConnected()
         #if canImport(ActivityKit) && os(iOS)
         registerPushToStartIfNeeded()
+        observeLiveActivities()
         preCacheFavoriteTeamBadges()
         #endif
         appStorage.cleanupExpiredAutoFollows(games: totalGames ?? [])
@@ -693,6 +732,8 @@ public class GameViewModel: NSObject {
             case .string(let jsonString):
                 if let jsonData = jsonString.data(using: .utf8) {
                     var newLiveInfo = try JSONDecoder().decode(LiveScore.self, from: jsonData)
+                    // Merge live scores (including completed games) into schedule before filtering
+                    mergeLiveIntoSchedule(newLiveInfo)
                     newLiveInfo.removeNonStarting()
                     newLiveInfo.removeOtherInfo()
                     withAnimation {
@@ -718,6 +759,88 @@ public class GameViewModel: NSObject {
         }
     }
     
+    /// Merges live WebSocket data into totalGames so schedule rows reflect current scores/status.
+    /// Called before removeNonStarting() so completed games also get their final scores merged.
+    private func mergeLiveIntoSchedule(_ liveScore: LiveScore) {
+        guard var games = totalGames, !games.isEmpty else { return }
+
+        let allLive = [liveScore.nba?.events, liveScore.mlb?.events, liveScore.soccer?.events,
+                       liveScore.nfl?.events, liveScore.nhl?.events, liveScore.golf?.events,
+                       liveScore.tennis?.events, liveScore.racing?.events]
+            .compactMap { $0 }.flatMap { $0 }
+        guard !allLive.isEmpty else { return }
+
+        // Build lookups for matching: by event ID (most reliable) and by team names (fallback)
+        var liveByEventID: [String: Game] = [:]
+        var liveByTeams: [String: Game] = [:]
+        for game in allLive {
+            if let eventID = game.idEvent {
+                liveByEventID[eventID] = game
+            }
+            let key = "\(game.strHomeTeam.lowercased())|\(game.strAwayTeam.lowercased())|\(game.idLeague ?? "")"
+            liveByTeams[key] = game
+        }
+
+        var changed = false
+        for i in games.indices {
+            let scheduled = games[i]
+            // Match by event ID first (reliable for F1/golf/tennis where team names change)
+            // Fall back to team names for backwards compatibility
+            let live: Game
+            if let eventID = scheduled.idEvent, let match = liveByEventID[eventID] {
+                live = match
+            } else {
+                let key = "\(scheduled.strHomeTeam.lowercased())|\(scheduled.strAwayTeam.lowercased())|\(scheduled.idLeague ?? "")"
+                guard let match = liveByTeams[key] else { continue }
+                live = match
+            }
+
+            // Only update if the live data has meaningful status (not pre-game)
+            guard live.strStatus != "pre" && live.strStatus != "NS" else { continue }
+
+            // Only update if something actually changed
+            if scheduled.intHomeScore == live.intHomeScore &&
+               scheduled.intAwayScore == live.intAwayScore &&
+               scheduled.strStatus == live.strStatus &&
+               scheduled.strProgress == live.strProgress &&
+               scheduled.isCompleted == live.isCompleted { continue }
+
+            games[i] = Game(
+                idLiveScore: scheduled.idLiveScore, idEvent: scheduled.idEvent,
+                idLeague: scheduled.idLeague,
+                idHomeTeam: scheduled.idHomeTeam, idAwayTeam: scheduled.idAwayTeam,
+                strHomeTeam: scheduled.strHomeTeam, strAwayTeam: live.strAwayTeam,
+                strHomeTeamBadge: live.strHomeTeamBadge ?? scheduled.strHomeTeamBadge,
+                strAwayTeamBadge: live.strAwayTeamBadge ?? scheduled.strAwayTeamBadge,
+                intHomeScore: live.intHomeScore ?? scheduled.intHomeScore,
+                intAwayScore: live.intAwayScore ?? scheduled.intAwayScore,
+                strStatus: live.strStatus ?? scheduled.strStatus,
+                strProgress: live.strProgress ?? scheduled.strProgress,
+                strTimestamp: scheduled.strTimestamp,
+                lastPlay: live.lastPlay ?? scheduled.lastPlay,
+                homeLinescores: live.homeLinescores ?? scheduled.homeLinescores,
+                awayLinescores: live.awayLinescores ?? scheduled.awayLinescores,
+                homeLeaders: live.homeLeaders ?? scheduled.homeLeaders,
+                awayLeaders: live.awayLeaders ?? scheduled.awayLeaders,
+                isCompleted: live.isCompleted ?? scheduled.isCompleted,
+                isoDate: scheduled.isoDate,
+                leaderboardEntries: live.leaderboardEntries ?? scheduled.leaderboardEntries,
+                sessions: live.sessions ?? scheduled.sessions,
+                venueName: live.venueName ?? scheduled.venueName,
+                circuitInfo: live.circuitInfo ?? scheduled.circuitInfo
+            )
+            changed = true
+        }
+
+        if changed {
+            totalGames = games
+            // Rebuild filtered games and caches
+            gameWithTeamsCache.removeAll()
+            gamesWithTeamsDateCache.removeAll()
+            filterSports(force: true, skipLiveUpdate: true)
+        }
+    }
+
     func setGames(result: LiveScore, skipLiveUpdate: Bool = false) {
         // Invalidate caches since games changed
         gameWithTeamsCache.removeAll()
@@ -726,6 +849,9 @@ public class GameViewModel: NSObject {
         totalGames = [result.nhl?.events, result.nfl?.events, result.soccer?.events, result.mlb?.events, result.nba?.events, result.golf?.events, result.tennis?.events, result.racing?.events]
             .compactMap({$0})
             .flatMap({$0})
+        if let standings = result.f1Standings {
+            f1Standings = standings
+        }
         filterSports(force: true, skipLiveUpdate: skipLiveUpdate)
     }
     
@@ -783,7 +909,9 @@ public class GameViewModel: NSObject {
     func showGame(game: Game) -> Bool {
         // if hidePastEvents
         // if game in past
-        guard let date = game.standardDate else { return false}
+        // For multi-session events (F1), use the latest session date (Race day) so
+        // the event isn't hidden while the weekend is still ongoing or just finished.
+        guard let date = game.effectiveEndDate else { return false }
         if date.timeIntervalSinceNow < 0 {
             if self.appStorage.hidePastEvents{
                 return false
@@ -978,11 +1106,50 @@ public class GameViewModel: NSObject {
         Task.detached(priority: .utility) {
             SpotlightIndexer.indexGames(spotlightGames, favorites: spotlightFavorites)
         }
+
+        // Donate intents for proactive Siri suggestions
+        donateIntents(games: snapshotGames)
         #endif
     }
+    #if !WIDGET_EXTENSION
+    private func donateIntents(games: [Game]) {
+        let favoriteTeams = favorites.teams
+        let enabledSports = appStorage.enabledSports
+        Task.detached(priority: .utility) {
+            let manager = IntentDonationManager.shared
+
+            // Donate TrackGameIntent for favorite teams with upcoming games today/tomorrow
+            let calendar = Calendar.current
+            let now = Date()
+            guard let endDate = calendar.date(byAdding: .day, value: 2, to: calendar.startOfDay(for: now)) else { return }
+
+            for game in games {
+                guard let gameDate = game.standardDate,
+                      gameDate >= now && gameDate < endDate else { continue }
+                let isHomeFav = favoriteTeams.contains(game.strHomeTeam)
+                let isAwayFav = favoriteTeams.contains(game.strAwayTeam)
+                guard isHomeFav || isAwayFav else { continue }
+
+                let teamName = isHomeFav ? game.strHomeTeam : game.strAwayTeam
+                var intent = TrackGameIntent()
+                intent.team = TeamEntity(id: teamName, name: teamName)
+                try? await manager.donate(intent: intent)
+            }
+
+            // Donate OpenSportIntent for enabled sports
+            for sport in enabledSports {
+                var intent = OpenSportIntent()
+                intent.sport = SportAppEnum(sportType: sport)
+                try? await manager.donate(intent: intent)
+            }
+        }
+    }
+    #endif
+
     func sortByDate() {
         let groupDic = Dictionary(grouping: filteredGames ?? []) { game -> DateComponents in
-            let gameDate = game.standardDate ?? .now
+            // For multi-session events (F1), group by the effective end date (Race day)
+            let gameDate = game.effectiveEndDate ?? game.standardDate ?? .now
             let date2 = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: gameDate)
             return date2
         }
@@ -1203,6 +1370,49 @@ public class GameViewModel: NSObject {
         return dates
     }
 
+    // MARK: - Up Next Helpers (used by DayPage empty state)
+
+    /// Returns the next date after `date` that has filtered games.
+    func nextDateWithGames(after date: Date) -> Date? {
+        let calendar = Calendar.current
+        let dayEnd = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: date) ?? date)
+        return (filteredGames ?? [])
+            .compactMap(\.standardDate)
+            .filter { $0 >= dayEnd }
+            .min()
+            .map { calendar.startOfDay(for: $0) }
+    }
+
+    /// Returns the next game involving any favorited team after `date`.
+    func nextFavoriteGame(after date: Date, favorites: Favorites) -> GameWithTeams? {
+        guard !favorites.teams.isEmpty else { return nil }
+        let calendar = Calendar.current
+        let dayEnd = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: date) ?? date)
+        return (filteredGames ?? [])
+            .filter { game in
+                guard let gameDate = game.standardDate, gameDate >= dayEnd else { return false }
+                return favorites.contains(game)
+            }
+            .min { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
+            .flatMap { makeGameWithTeams($0) }
+    }
+
+    /// Returns a compact summary of filtered games on a date (sport + count), sorted by count descending.
+    func gameSummary(for date: Date) -> [(sport: SportType, count: Int)] {
+        let games = gamesWithTeams(for: date)
+        var counts: [SportType: Int] = [:]
+        for gwt in games {
+            guard let leagueString = gwt.game.idLeague,
+                  let intLeague = Int(leagueString),
+                  let league = Leagues(rawValue: intLeague) else { continue }
+            let sport = SportType(league: league)
+            counts[sport, default: 0] += 1
+        }
+        return counts
+            .map { (sport: $0.key, count: $0.value) }
+            .sorted { $0.count > $1.count }
+    }
+
     /// Returns live events for a specific sport regardless of user preferences
     func liveEventsForSport(_ sport: SportType) -> [Game] {
         let events: [Game]?
@@ -1414,25 +1624,27 @@ extension GameViewModel {
         guard let homeTeamName = homeTeam.strTeamShort ?? homeTeam.strTeam,
               let awayTeamName = awayTeam.strTeamShort ?? awayTeam.strTeam else { throw ModelErrors.unknownTeam(game) }
 
-        // Download and cache badge images when available
-        if let homeBadgeString = homeTeam.strTeamBadge,
-           let homeBadgeURL = URL(string: homeBadgeString.contains("thesportsdb.com") ? homeBadgeString + "/tiny" : homeBadgeString),
-           let awayBadgeString = awayTeam.strTeamBadge,
-           let awayBadgeURL = URL(string: awayBadgeString.contains("thesportsdb.com") ? awayBadgeString + "/tiny" : awayBadgeString) {
-            do {
-                async let (homeData, _) = URLSession.shared.data(for: URLRequest(url: homeBadgeURL, cachePolicy: .returnCacheDataElseLoad))
-                async let (awayData, _) = URLSession.shared.data(for: URLRequest(url: awayBadgeURL, cachePolicy: .returnCacheDataElseLoad))
-
-                if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appending(path: homeTeamName) {
-                    try await homeData.write(to: fileURL)
+        // Download and cache badge images independently (don't require both to succeed)
+        if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") {
+            await withTaskGroup(of: Void.self) { group in
+                for (teamName, team) in [(homeTeamName, homeTeam), (awayTeamName, awayTeam)] {
+                    guard let badgeString = team.strTeamBadge,
+                          let badgeURL = URL(string: badgeString.contains("thesportsdb.com") ? badgeString + "/tiny" : badgeString) else { continue }
+                    group.addTask {
+                        do {
+                            let (data, _) = try await URLSession.shared.data(for: URLRequest(url: badgeURL, cachePolicy: .returnCacheDataElseLoad))
+                            // Validate the data is actually an image before saving
+                            guard UIImage(data: data) != nil else {
+                                AppLogger.liveActivity.notice("Badge data for \(teamName) is not a valid image")
+                                return
+                            }
+                            let fileURL = containerURL.appendingPathComponent(teamName)
+                            try data.write(to: fileURL)
+                        } catch {
+                            AppLogger.liveActivity.notice("Badge download failed for \(teamName): \(error.localizedDescription)")
+                        }
+                    }
                 }
-
-                if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appending(path: awayTeamName) {
-                    try await awayData.write(to: fileURL)
-                }
-            } catch {
-                // Badge download failed — continue without badges (e.g. debug fake teams)
-                AppLogger.liveActivity.notice("Badge download failed, continuing without images: \(error.localizedDescription)")
             }
         }
 
@@ -1448,18 +1660,11 @@ extension GameViewModel {
                 activity = try Activity.request(attributes: activityAttributes, contentState: initialContentState, pushType: .token)
 
                 if appStorage.debugMode {
-                    if let pushToken = activity.pushToken {
-                        let tokenPrefix = pushToken.map { String(format: "%02x", $0) }.joined().prefix(12)
-                        AutoFollowLogger.shared.log("Live activity started, push token: \(tokenPrefix)...", level: .success)
-                    } else {
-                        AutoFollowLogger.shared.log("Live activity started (no push token yet)", level: .success)
-                    }
+                    AutoFollowLogger.shared.log("Live activity started, observing push token updates...", level: .success)
                 }
 
-                if let token = activity.pushToken, let eventID = game.idEvent {
-                    let tokenString = token.map { String(format: "%02x", $0)}.joined()
-                    try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID, debug: appStorage.debugMode)
-                }
+                // Observe the token stream — the token may not be available immediately
+                observePushTokenUpdates(for: activity)
             } catch {
                 if appStorage.debugMode {
                     AutoFollowLogger.shared.log("Live activity request failed: \(error.localizedDescription)", level: .error)
@@ -1468,9 +1673,48 @@ extension GameViewModel {
             }
         }
     }
-    
+
+    /// Observes push token updates for a single Live Activity and registers with the server.
+    /// The token may arrive asynchronously after Activity.request(), so we must use the stream.
+    private func observePushTokenUpdates(for activity: Activity<LiveSportActivityAttributes>) {
+        let eventID = activity.attributes.eventID
+        let homeTeam = activity.attributes.homeTeam
+        let awayTeam = activity.attributes.awayTeam
+        let isDebug = appStorage.debugMode
+        Task.detached {
+            for await tokenData in activity.pushTokenUpdates {
+                let tokenString = tokenData.map { String(format: "%02x", $0) }.joined()
+                if isDebug {
+                    await MainActor.run {
+                        AutoFollowLogger.shared.log("Push token received for \(homeTeam) vs \(awayTeam): \(tokenString.prefix(12))...", level: .success)
+                    }
+                }
+                AppLogger.liveActivity.info("Registering push token for event \(eventID) (\(homeTeam) vs \(awayTeam)): \(tokenString.prefix(12))...")
+                do {
+                    try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID, homeTeam: homeTeam, awayTeam: awayTeam, debug: isDebug)
+                    if isDebug {
+                        await MainActor.run {
+                            AutoFollowLogger.shared.log("Server registered activity token OK (\(homeTeam) vs \(awayTeam))", level: .success)
+                        }
+                    }
+                } catch {
+                    AppLogger.liveActivity.error("Failed to register activity token: \(error.localizedDescription)")
+                    if isDebug {
+                        await MainActor.run {
+                            AutoFollowLogger.shared.log("Failed to register activity token: \(error.localizedDescription)", level: .error)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Re-registers push tokens for any already-running Live Activities (e.g. after app relaunch).
     func observeLiveActivities() {
-        
+        for activity in Activity<LiveSportActivityAttributes>.activities {
+            AppLogger.liveActivity.info("Re-observing existing activity for event \(activity.attributes.eventID)")
+            observePushTokenUpdates(for: activity)
+        }
     }
     
     /// Registers for push-to-start Live Activity tokens and sends them to the server
@@ -1569,7 +1813,7 @@ extension GameViewModel {
 
             for team in [homeTeam, awayTeam] {
                 guard let teamName = team.strTeamShort ?? team.strTeam else { continue }
-                let fileURL = containerURL.appending(path: teamName)
+                let fileURL = containerURL.appendingPathComponent(teamName)
                 if FileManager.default.fileExists(atPath: fileURL.path) { continue }
 
                 guard let badgeString = team.strTeamBadge,
@@ -1577,6 +1821,7 @@ extension GameViewModel {
 
                 do {
                     let (data, _) = try await URLSession.shared.data(for: URLRequest(url: badgeURL, cachePolicy: .returnCacheDataElseLoad))
+                    guard UIImage(data: data) != nil else { continue }
                     try data.write(to: fileURL)
                 } catch {
                     AppLogger.liveActivity.notice("Failed to pre-cache badge for \(teamName): \(error.localizedDescription)")
@@ -1593,7 +1838,7 @@ extension GameViewModel {
             guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") else { return }
 
             for teamName in favorites.teams {
-                let fileURL = containerURL.appending(path: teamName)
+                let fileURL = containerURL.appendingPathComponent(teamName)
                 if FileManager.default.fileExists(atPath: fileURL.path) { continue }
 
                 guard let team = teamByName[teamName],
@@ -1602,6 +1847,7 @@ extension GameViewModel {
 
                 do {
                     let (data, _) = try await URLSession.shared.data(for: URLRequest(url: badgeURL, cachePolicy: .returnCacheDataElseLoad))
+                    guard UIImage(data: data) != nil else { continue }
                     try data.write(to: fileURL)
                 } catch {
                     AppLogger.liveActivity.notice("Failed to pre-cache badge for \(teamName): \(error.localizedDescription)")
@@ -1642,18 +1888,28 @@ extension GameViewModel {
     }
 
     func updateLiveActivities() async throws {
-        var states: [String: LiveSportActivityAttributes.ContentState] = [:]
+        // Build lookup by team names since event IDs may differ between schedule (TheSportsDB) and live data (ESPN)
+        var statesByTeams: [String: LiveSportActivityAttributes.ContentState] = [:]
+        var statesByEventID: [String: LiveSportActivityAttributes.ContentState] = [:]
         for liveEvent in allLiveEvents {
+            let contentState = LiveSportActivityAttributes.ContentState(homeScore: Int(liveEvent.intHomeScore ?? "") ?? 0, awayScore: Int(liveEvent.intAwayScore ?? "") ?? 0, status: liveEvent.strStatus, progress: liveEvent.strProgress, lastPlay: nil)
             if let eventID = liveEvent.idEvent {
-                let contentState = LiveSportActivityAttributes.ContentState(homeScore: Int(liveEvent.intHomeScore ?? "") ?? 0, awayScore: Int(liveEvent.intAwayScore ?? "") ?? 0, status: liveEvent.strStatus, progress: liveEvent.strProgress, lastPlay: nil)
-                states[eventID] = contentState
+                statesByEventID[eventID] = contentState
             }
+            // Key by lowercased team names for fuzzy matching
+            let teamKey = "\(liveEvent.strHomeTeam.lowercased())|\(liveEvent.strAwayTeam.lowercased())"
+            statesByTeams[teamKey] = contentState
         }
         for activity in Activity<LiveSportActivityAttributes>.activities {
             let currentState = activity.contentState
             let eventID = activity.attributes.eventID
-            if let savedContentState = states[eventID], savedContentState != currentState {
-                await activity.update(using: savedContentState)
+            // Try event ID first, fall back to team name matching
+            let newState = statesByEventID[eventID] ?? {
+                let teamKey = "\(activity.attributes.homeTeam.lowercased())|\(activity.attributes.awayTeam.lowercased())"
+                return statesByTeams[teamKey]
+            }()
+            if let newState, newState != currentState {
+                await activity.update(using: newState)
             }
         }
     }
