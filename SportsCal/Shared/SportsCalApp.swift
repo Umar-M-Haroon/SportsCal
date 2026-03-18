@@ -107,6 +107,21 @@ struct SportsCalApp: App {
                     }
                 }
         }
+        #if os(macOS)
+        .defaultSize(width: 1000, height: 700)
+        .commands {
+            CommandGroup(after: .toolbar) {
+                Button("Refresh") {
+                    viewModel.getInfo()
+                }
+                .keyboardShortcut("r", modifiers: .command)
+                Button("Jump to Today") {
+                    NotificationCenter.default.post(name: .jumpToToday, object: nil)
+                }
+                .keyboardShortcut("t", modifiers: .command)
+            }
+        }
+        #endif
         .onChange(of: scenePhase) { oldPhase, newPhase in
             if newPhase == .background {
                 #if os(iOS)
@@ -125,9 +140,30 @@ struct SportsCalApp: App {
                 .environment(favorites)
                 .environment(viewModel)
         } label: {
-            MenuBarLabel(liveCount: viewModel.liveEvents.count, todayCount: viewModel.todayGames.count, liveSports: viewModel.currentlyLiveSports)
+            MenuBarLabel(
+                liveFavorites: viewModel.liveEventsWithTeams.filter { favorites.contains($0.game) },
+                liveGames: viewModel.liveEventsWithTeams,
+                upcomingFavorite: {
+                    let liveIDs = Set(viewModel.liveEvents.map(\.id))
+                    return viewModel.todayFavoriteGamesWithTeams.first { gwt in
+                        guard let d = gwt.game.standardDate else { return false }
+                        return d > Date() && !liveIDs.contains(gwt.game.id)
+                    }
+                }(),
+                liveCount: viewModel.liveEvents.count,
+                todayCount: viewModel.todayGames.count,
+                liveSports: viewModel.currentlyLiveSports
+            )
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            MacSettingsView()
+                .environment(appStorage)
+                .environment(favorites)
+                .environment(viewModel)
+                .environment(serverDiscovery)
+        }
         #endif
     }
 
@@ -143,18 +179,32 @@ struct SportsCalApp: App {
     #endif
 }
 
+#if os(macOS)
+extension Notification.Name {
+    static let jumpToToday = Notification.Name("com.scoreline.jumpToToday")
+}
+#endif
+
 #if os(iOS)
 extension Scene {
     func backgroundTaskIfAvailable() -> some Scene {
         self.backgroundTask(.appRefresh("com.KomodoLLC.SportsCal.updateGamesAndActivities")) {
             AppLogger.general.info("Running background task")
 #if canImport(ActivityKit) && os(iOS)
+            // Re-register current push tokens for all active Live Activities.
+            // Use the current token directly instead of awaiting the stream,
+            // which would block indefinitely and prevent other activities from being processed.
             for activity in Activity<LiveSportActivityAttributes>.activities {
-                for await data in activity.pushTokenUpdates {
-                    let myToken = data.map { String(format: "%02x", $0)}.joined()
-                    AppLogger.liveActivity.info("Live activity token updated: \(myToken)")
+                if let tokenData = activity.pushToken {
+                    let tokenString = tokenData.map { String(format: "%02x", $0) }.joined()
+                    AppLogger.liveActivity.info("Background re-registering token for \(activity.attributes.eventID): \(tokenString.prefix(12))...")
                     do {
-                        try await NetworkHandler.subscribeToLiveActivityUpdate(token: myToken, eventID: activity.attributes.eventID)
+                        try await NetworkHandler.subscribeToLiveActivityUpdate(
+                            token: tokenString,
+                            eventID: activity.attributes.eventID,
+                            homeTeam: activity.attributes.homeTeam,
+                            awayTeam: activity.attributes.awayTeam
+                        )
                     } catch {
                         AppLogger.liveActivity.error("Error updating on background: \(error.localizedDescription)")
                     }

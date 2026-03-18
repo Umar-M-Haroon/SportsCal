@@ -6,9 +6,9 @@
 //
 
 import SwiftUI
+import CoreSpotlight
 #if os(iOS)
 import EventKit
-import CoreSpotlight
 #endif
 import WidgetKit
 import StoreKit
@@ -43,6 +43,13 @@ enum SheetType: Identifiable {
     case paywall
 }
 
+#if os(macOS)
+enum MacSidebarItem: Hashable {
+    case games
+    case sport(SportType)
+}
+#endif
+
 struct ContentView: View {
     @Environment(\.scenePhase) var scenePhase
     @Environment(\.requestReview) private var requestReview
@@ -62,14 +69,107 @@ struct ContentView: View {
 
     @State var calendarShowFavoritesOnly: Bool = false
     @State private var selectedTab: Int = 0
+    @State private var spotlightGameID: String?
+    @State private var spotlightCalendarDate: Date?
+
+    #if os(macOS)
+    @State private var sidebarSelection: MacSidebarItem? = .games
+    #endif
+
     var body: some View {
+        mainNavigation
+            .refreshable(action: {
+                viewModel.getInfo()
+            })
+            .alert("Scoreline Pro", isPresented: $shouldShowSportsCalProAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("This feature requires Scoreline Pro")
+            }
+            .sheet(item: $sheetType) { sheetType in
+                switch sheetType {
+                case .settings:
+                    #if os(iOS)
+                    SettingsView(sheetType: $sheetType)
+                        .environment(storage)
+                        .environment(viewModel)
+                    #else
+                    EmptyView()
+                    #endif
+                case .onboarding:
+                    OnboardingPage(sheetType: $sheetType)
+                        .environment(storage)
+                        .environment(viewModel)
+                case .calendar(let eventGame):
+                    #if os(iOS)
+                    if let game = eventGame {
+                        makeCalendarEvent(game: game)
+                    }
+                    #else
+                    EmptyView()
+                    #endif
+                case .detail:
+                    DetailView()
+                case .listDetail(let listGames, let liveGames):
+                    ListDetailView(listGames: listGames, liveGames: liveGames, sheetType: $sheetType)
+                        .environment(storage)
+                        .environment(viewModel)
+                        .environment(favorites)
+                        .presentationDetents([.medium, .large])
+                case .paywall:
+                    NavigationStack {
+                                    Text("Cancel")
+                    }
+                }
+            }
+            .onChange(of: scenePhase) { oldPhase, newPhase in
+                if newPhase == .active {
+                    viewModel.getInfo()
+                    viewModel.ensureWebSocketConnected()
+                }
+            }
+            .onChange(of: storage.hiddenCompetitions) { _, _ in
+                viewModel.filterSports()
+            }
+            .onChange(of: storage.debugMode) { _, _ in
+                viewModel.updateLiveData()
+            }
+            .onAppear {
+                WidgetCenter.shared.reloadAllTimelines()
+                if viewModel.appStorage.launches == 5 {
+                    requestReview()
+                }
+                if viewModel.appStorage.shouldShowOnboarding {
+                    sheetType = .onboarding
+                }
+                // Check if launched via OpenSportIntent
+                checkIntentOpenSport()
+            }
+            #if os(iOS)
+            .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                handleSpotlightActivity(activity)
+            }
+            #endif
+    }
+
+    // MARK: - Platform Navigation
+
+    @ViewBuilder
+    private var mainNavigation: some View {
+        #if os(macOS)
+        NavigationSplitView {
+            macSidebar
+        } detail: {
+            macDetail
+        }
+        #else
         TabView(selection: $selectedTab) {
             NavigationStack {
-                DayPage(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert)
+                DayPage(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, spotlightGameID: $spotlightGameID)
                     .environment(viewModel)
                     .environment(storage)
                     .environment(favorites)
-                    .navigationTitle("SportsCal")
+                    .navigationTitle("Scoreline")
                     .toolbar { settingsToolbarItem }
             }
             .tabItem {
@@ -79,11 +179,11 @@ struct ContentView: View {
 
             #if os(iOS)
             NavigationStack {
-                CalendarPage(sheetType: $sheetType, showFavoritesOnly: $calendarShowFavoritesOnly)
+                CalendarPage(sheetType: $sheetType, showFavoritesOnly: $calendarShowFavoritesOnly, spotlightDate: $spotlightCalendarDate)
                     .environment(viewModel)
                     .environment(favorites)
                     .environment(storage)
-                    .navigationTitle("SportsCal")
+                    .navigationTitle("Scoreline")
                     .toolbar {
                         settingsToolbarItem
                         ToolbarItem {
@@ -108,7 +208,7 @@ struct ContentView: View {
                     .environment(viewModel)
                     .environment(storage)
                     .environment(favorites)
-                    .navigationTitle("SportsCal")
+                    .navigationTitle("Scoreline")
                     .toolbar { settingsToolbarItem }
             }
             .tabItem {
@@ -120,75 +220,71 @@ struct ContentView: View {
             .tag(1)
             #endif
         }
-        .refreshable(action: {
-            viewModel.getInfo()
-        })
-        .alert("SportsCal Pro", isPresented: $shouldShowSportsCalProAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("This feature requires SportsCal Pro")
-        }
-        .sheet(item: $sheetType) { sheetType in
-            switch sheetType {
-            case .settings:
-                SettingsView(sheetType: $sheetType)
-                    .environment(storage)
-                    .environment(viewModel)
-            case .onboarding:
-                OnboardingPage(sheetType: $sheetType)
-                    .environment(storage)
-                    .environment(viewModel)
-            case .calendar(let eventGame):
-                #if os(iOS)
-                if let game = eventGame {
-                    makeCalendarEvent(game: game)
-                }
-                #else
-                EmptyView()
-                #endif
-            case .detail:
-                DetailView()
-            case .listDetail(let listGames, let liveGames):
-                ListDetailView(listGames: listGames, liveGames: liveGames, sheetType: $sheetType)
-                    .environment(storage)
-                    .environment(viewModel)
-                    .environment(favorites)
-                    .presentationDetents([.medium, .large])
-            case .paywall:
-                NavigationStack {
-                                Text("Cancel")
-                }
-            }
-        }
-        .onChange(of: scenePhase) { oldPhase, newPhase in
-            if newPhase == .active {
-                viewModel.getInfo()
-                viewModel.ensureWebSocketConnected()
-            }
-        }
-        .onChange(of: storage.hiddenCompetitions) { _, _ in
-            viewModel.filterSports()
-        }
-        .onChange(of: storage.debugMode) { _, _ in
-            viewModel.updateLiveData()
-        }
-        .onAppear {
-            WidgetCenter.shared.reloadAllTimelines()
-            if viewModel.appStorage.launches == 5 {
-                requestReview()
-            }
-            if viewModel.appStorage.shouldShowOnboarding {
-                sheetType = .onboarding
-            }
-            // Check if launched via OpenSportIntent
-            checkIntentOpenSport()
-        }
-        #if os(iOS)
-        .onContinueUserActivity(CSSearchableItemActionType) { activity in
-            handleSpotlightActivity(activity)
-        }
         #endif
     }
+
+    // MARK: - macOS Sidebar
+
+    #if os(macOS)
+    private var macSidebar: some View {
+        List(selection: $sidebarSelection) {
+            Label("Games", systemImage: "sportscourt")
+                .tag(MacSidebarItem.games)
+
+            Section("Sports") {
+                ForEach(storage.enabledSports, id: \.self) { sport in
+                    sidebarSportRow(sport)
+                        .tag(MacSidebarItem.sport(sport))
+                }
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationTitle("Scoreline")
+        .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 260)
+    }
+
+    private func sidebarSportRow(_ sport: SportType) -> some View {
+        HStack {
+            Label {
+                Text(sport.displayName)
+            } icon: {
+                Image(systemName: sport.systemImage)
+                    .foregroundStyle(sport.color)
+            }
+            Spacer()
+            if let count = viewModel.liveGameCountsBySport[sport], count > 0 {
+                Text("\(count) live")
+                    .font(.caption2.bold())
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.red, in: Capsule())
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var macDetail: some View {
+        switch sidebarSelection {
+        case .games, .none:
+            NavigationStack {
+                DayPage(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, spotlightGameID: $spotlightGameID)
+                    .environment(viewModel)
+                    .environment(storage)
+                    .environment(favorites)
+                    .navigationTitle("Games")
+            }
+        case .sport(let sport):
+            NavigationStack {
+                BrowseSportView(sport: sport)
+                    .environment(viewModel)
+                    .environment(storage)
+                    .environment(favorites)
+            }
+            .id(sport)
+        }
+    }
+    #endif
 
     // MARK: - Deep Link Handling
 
@@ -197,11 +293,20 @@ struct ContentView: View {
         guard let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String else { return }
 
         if identifier.hasPrefix("game-") {
-            // Navigate to Games tab — the game will be visible in the list
+            let eventID = String(identifier.dropFirst("game-".count))
+            spotlightGameID = eventID
             selectedTab = 0
         } else if identifier.hasPrefix("team-") {
-            // Navigate to Games tab with favorites context
+            calendarShowFavoritesOnly = true
             selectedTab = 0
+        } else if identifier.hasPrefix("date-") {
+            let dateString = String(identifier.dropFirst("date-".count))
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            if let date = formatter.date(from: dateString) {
+                spotlightCalendarDate = date
+                selectedTab = 1
+            }
         }
     }
 
@@ -218,6 +323,7 @@ struct ContentView: View {
         }
     }
 
+    #if os(iOS)
     @ToolbarContentBuilder
     private var settingsToolbarItem: some ToolbarContent {
         ToolbarItem(placement: .navigation) {
@@ -229,6 +335,7 @@ struct ContentView: View {
             }
         }
     }
+    #endif
 
     #if os(iOS)
     func makeCalendarEvent(game: Game) -> CalendarRepresentable {

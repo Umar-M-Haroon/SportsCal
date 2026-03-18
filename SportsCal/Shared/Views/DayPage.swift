@@ -15,7 +15,9 @@ struct DayPage: View {
     @Environment(GameViewModel.self) private var viewModel
     @Environment(UserDefaultStorage.self) private var storage
     @Environment(Favorites.self) private var favorites
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @Binding var shouldShowSportsCalProAlert: Bool
+    @Binding var spotlightGameID: String?
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var sheetType: SheetType?
     @State private var collapsedSportSections: Set<SportType> = []
@@ -86,9 +88,16 @@ struct DayPage: View {
             }
         }
 
-        let otherBySport = SportType.allCases.compactMap { sport -> (sport: SportType, games: [GameWithTeams])? in
+        let otherBySport = storage.orderedSports.compactMap { sport -> (sport: SportType, games: [GameWithTeams])? in
             guard let sportGames = grouped[sport], !sportGames.isEmpty else { return nil }
-            return (sport: sport, games: sportGames)
+            // Sort completed games to the bottom within each sport section
+            let sorted = sportGames.sorted { a, b in
+                let aDone = a.game.hasDoneStatus
+                let bDone = b.game.hasDoneStatus
+                if aDone != bDone { return !aDone }
+                return false // preserve existing order otherwise
+            }
+            return (sport: sport, games: sorted)
         }
 
         let empty = liveFilt.isEmpty && favs.isEmpty && otherBySport.isEmpty
@@ -139,6 +148,42 @@ struct DayPage: View {
         )
     }
 
+    private var isBoardLayout: Bool {
+        sizeClass == .regular
+    }
+
+    private var boardColumns: [BoardColumn] {
+        let games = dayGames
+        let live = filteredLiveEvents
+        let liveIDs = liveGameIDs
+
+        var grouped: [SportType: [GameWithTeams]] = [:]
+        for gwt in games {
+            guard let leagueString = gwt.game.idLeague,
+                  let intLeague = Int(leagueString),
+                  let league = Leagues(rawValue: intLeague) else { continue }
+            let sport = SportType(league: league)
+            grouped[sport, default: []].append(gwt)
+        }
+
+        return storage.enabledSports.map { sport in
+            let sportGames = grouped[sport] ?? []
+            let liveForSport = live.filter { $0.game.sportType == sport }
+            let liveForSportIDs = Set(liveForSport.map { $0.id })
+
+            let other = sportGames
+                .filter { !liveForSportIDs.contains($0.id) }
+                .sorted { a, b in
+                    let aDone = a.game.hasDoneStatus
+                    let bDone = b.game.hasDoneStatus
+                    if aDone != bDone { return !aDone }
+                    return false
+                }
+
+            return BoardColumn(sport: sport, liveGames: liveForSport, otherGames: other)
+        }
+    }
+
     private var isEmpty: Bool {
         dayData.isEmpty
     }
@@ -152,39 +197,16 @@ struct DayPage: View {
     }
 
     var body: some View {
-        @Bindable var bindableStorage = storage
-
-        List {
-            // Day chip strip
-            Section {
-                DayChipStrip(
-                    selectedDate: $selectedDate,
-                    datesWithGames: viewModel.datesWithGames(),
-                    pastDays: daysForDuration(storage.hidePastEvents ? .oneDay : storage.hidePastGamesDuration),
-                    futureDays: daysForDuration(storage.durations)
-                )
-            }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-
-            if !viewModel.sortedGamesWithTeams.isEmpty || !viewModel.liveEventsWithTeams.isEmpty {
-                if isSearchActive {
-                    searchResultsContent
-                } else {
-                    dayContent
-                }
+        Group {
+            if isBoardLayout {
+                boardBody
             } else {
-                loadingOrEmptyContent
+                listBody
             }
         }
-        #if os(iOS)
-        .searchable(text: $searchString, tokens: $searchTokens, suggestedTokens: .constant(suggestedSearchTokens), placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search games...") { token in
-            token.label
+        .navigationDestination(item: $spotlightGameID) { eventID in
+            spotlightDestination(for: eventID)
         }
-        #else
-        .searchable(text: $searchString, prompt: "Search games...")
-        #endif
-        .gesture(daySwipeGesture)
         .sheet(item: $sheetType) { sheetType in
             switch sheetType {
             case .settings:
@@ -260,6 +282,85 @@ struct DayPage: View {
             navigateDay(by: 1)
             return .handled
         }
+        .onReceive(NotificationCenter.default.publisher(for: .jumpToToday)) { _ in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectedDate = calendar.startOfDay(for: Date())
+            }
+        }
+        #endif
+    }
+
+    // MARK: - Board Layout (iPad/Mac)
+
+    private var boardBody: some View {
+        VStack(spacing: 0) {
+            DayChipStrip(
+                selectedDate: $selectedDate,
+                datesWithGames: viewModel.datesWithGames(),
+                pastDays: daysForDuration(storage.hidePastEvents ? .oneDay : storage.hidePastGamesDuration),
+                futureDays: daysForDuration(storage.durations)
+            )
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+
+            if !viewModel.sortedGamesWithTeams.isEmpty || !viewModel.liveEventsWithTeams.isEmpty {
+                GameBoardLayout(columns: boardColumns, favorites: favorites) { gwt, isLive in
+                    gameRow(for: gwt, isLive: isLive)
+                }
+            } else {
+                Spacer()
+                if viewModel.networkState == .loading || viewModel.isFetching {
+                    ProgressView()
+                } else {
+                    VStack {
+                        Text("No games fetched")
+                            .foregroundColor(.secondary)
+                        Button("Retry") { viewModel.retry() }
+                            .foregroundColor(.blue)
+                    }
+                }
+                Spacer()
+            }
+        }
+    }
+
+    // MARK: - List Layout (iPhone)
+
+    private var listBody: some View {
+        List {
+            // Day chip strip
+            Section {
+                DayChipStrip(
+                    selectedDate: $selectedDate,
+                    datesWithGames: viewModel.datesWithGames(),
+                    pastDays: daysForDuration(storage.hidePastEvents ? .oneDay : storage.hidePastGamesDuration),
+                    futureDays: daysForDuration(storage.durations)
+                )
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+
+            if !viewModel.sortedGamesWithTeams.isEmpty || !viewModel.liveEventsWithTeams.isEmpty {
+                if isSearchActive {
+                    searchResultsContent
+                } else {
+                    dayContent
+                }
+            } else {
+                loadingOrEmptyContent
+            }
+        }
+        #if os(iOS)
+        .searchable(text: $searchString, tokens: $searchTokens, suggestedTokens: .constant(suggestedSearchTokens), placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search games...") { token in
+            token.label
+        }
+        #else
+        .searchable(text: $searchString, tokens: $searchTokens, suggestedTokens: .constant(suggestedSearchTokens), prompt: "Search games...") { token in
+            token.label
+        }
+        #endif
+        #if os(iOS)
+        .gesture(daySwipeGesture)
         #endif
     }
 
@@ -399,7 +500,7 @@ struct DayPage: View {
         // Hidden games peek
         if showHiddenGames {
             let hiddenBySport = viewModel.hiddenGamesBySport(for: selectedDate)
-            let hiddenSections = SportType.allCases.compactMap { sport -> (sport: SportType, games: [GameWithTeams])? in
+            let hiddenSections = storage.orderedSports.compactMap { sport -> (sport: SportType, games: [GameWithTeams])? in
                 guard let games = hiddenBySport[sport], !games.isEmpty else { return nil }
                 return (sport: sport, games: games)
             }
@@ -542,7 +643,8 @@ struct DayPage: View {
                     showCountdown: $bindableStorage.showStartTime,
                     shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
                     sheetType: $sheetType,
-                    dateFormat: storage.dateFormat
+                    dateFormat: storage.dateFormat,
+                    isFavorite: favorites.contains(game)
                 )
                 .environment(favorites)
             }
@@ -636,6 +738,37 @@ struct DayPage: View {
         }
     }
 
+    // MARK: - Spotlight Deep Link
+
+    @ViewBuilder
+    private func spotlightDestination(for eventID: String) -> some View {
+        if let game = viewModel.totalGames?.first(where: { $0.idEvent == eventID }) {
+            if game.isRace {
+                RaceDetailView(game: game)
+                    .environment(viewModel)
+                    .environment(favorites)
+            } else if game.isTennisMatch {
+                TennisMatchDetailView(game: game)
+                    .environment(viewModel)
+                    .environment(favorites)
+            } else if game.isIndividualSport {
+                TournamentDetailView(game: game)
+                    .environment(viewModel)
+                    .environment(favorites)
+            } else if let (homeTeam, awayTeam) = viewModel.getTeams(for: game) {
+                GameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                    .environment(viewModel)
+                    .environment(favorites)
+            } else {
+                Text("Game not found")
+                    .foregroundColor(.secondary)
+            }
+        } else {
+            Text("Game not found")
+                .foregroundColor(.secondary)
+        }
+    }
+
     // MARK: - Navigation
 
     private var daySwipeGesture: some Gesture {
@@ -697,7 +830,7 @@ struct DayPage: View {
 }
 
 #Preview {
-    DayPage(shouldShowSportsCalProAlert: .constant(false))
+    DayPage(shouldShowSportsCalProAlert: .constant(false), spotlightGameID: .constant(nil))
         .environment(GameViewModel(appStorage: UserDefaultStorage(), favorites: Favorites()))
         .environment(UserDefaultStorage())
         .environment(Favorites())
