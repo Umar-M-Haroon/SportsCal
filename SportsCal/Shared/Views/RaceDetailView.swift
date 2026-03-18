@@ -20,6 +20,13 @@ struct RaceDetailView: View {
     @State private var shouldShowSportsCalProAlert = false
     @State private var sheetType: SheetType?
     @State private var selectedSessionIndex: Int = 0
+    @State private var showStandings = false
+    @State private var standingsTab: StandingsTab = .drivers
+
+    private enum StandingsTab: String, CaseIterable {
+        case drivers = "Drivers"
+        case constructors = "Constructors"
+    }
 
     private var isLive: Bool {
         game.strStatus == "in"
@@ -34,6 +41,7 @@ struct RaceDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                circuitImageSection
                 raceHeader
                 if hasSessions {
                     sessionPicker
@@ -48,6 +56,7 @@ struct RaceDetailView: View {
                     gapRibbonSection
                     legacyLeaderboard
                 }
+                standingsSection
             }
             .padding()
         }
@@ -106,7 +115,11 @@ struct RaceDetailView: View {
                     Text(game.strHomeTeam)
                         .font(.title2)
                         .fontWeight(.bold)
-                    if let venue = game.venueName {
+                    if let circuit = game.circuitInfo {
+                        Text("\(circuit.circuitName) — \(circuit.locality), \(circuit.country)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    } else if let venue = game.venueName {
                         Text(venue)
                             .font(.subheadline)
                             .foregroundColor(.secondary)
@@ -345,8 +358,16 @@ struct RaceDetailView: View {
             let session = selectedSessionIndex < sessions.count ? sessions[selectedSessionIndex] : nil
             let sessionName = session?.sessionName ?? "Standings"
 
-            Text(sessionName)
-                .font(.headline)
+            HStack {
+                Text(sessionName)
+                    .font(.headline)
+                Spacer()
+                if let progress = session?.progress, session?.status == "in" {
+                    Text(progress)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
 
             if let session, !session.leaderboard.isEmpty {
                 // Header row
@@ -526,6 +547,152 @@ struct RaceDetailView: View {
         .padding()
         .background(Color.secondaryGroupedBackground)
         .cornerRadius(12)
+    }
+
+    // MARK: - Circuit Image
+    @ViewBuilder
+    private var circuitImageSection: some View {
+        if let imageURL = game.circuitInfo?.circuitImageURL, let url = URL(string: imageURL) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxHeight: 200)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                case .failure:
+                    EmptyView()
+                default:
+                    ProgressView()
+                        .frame(height: 100)
+                }
+            }
+        }
+    }
+
+    // MARK: - Championship Standings
+    @ViewBuilder
+    private var standingsSection: some View {
+        if let standings = viewModel.f1Standings,
+           (!standings.driverStandings.isEmpty || !standings.constructorStandings.isEmpty) {
+            VStack(alignment: .leading, spacing: 12) {
+                Button {
+                    withAnimation { showStandings.toggle() }
+                } label: {
+                    HStack {
+                        Text("Championship Standings")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        Spacer()
+                        Image(systemName: showStandings ? "chevron.up" : "chevron.down")
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if showStandings {
+                    Picker("Standings", selection: $standingsTab) {
+                        ForEach(StandingsTab.allCases, id: \.self) { tab in
+                            Text(tab.rawValue).tag(tab)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    switch standingsTab {
+                    case .drivers:
+                        driverStandingsView(standings.driverStandings)
+                    case .constructors:
+                        constructorStandingsView(standings.constructorStandings)
+                    }
+                }
+            }
+            .padding()
+            .background(Color.secondaryGroupedBackground)
+            .cornerRadius(12)
+        }
+    }
+
+    private func driverStandingsView(_ standings: [F1DriverStanding]) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Text("Pos")
+                    .frame(width: 32, alignment: .leading)
+                Text("Driver")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("Team")
+                    .frame(width: 90, alignment: .leading)
+                Text("Pts")
+                    .frame(width: 50, alignment: .trailing)
+            }
+            .font(.caption2)
+            .foregroundColor(.secondary)
+            .padding(.bottom, 6)
+
+            ForEach(standings, id: \.position) { standing in
+                HStack(spacing: 0) {
+                    Text("\(standing.position)")
+                        .frame(width: 32, alignment: .leading)
+                        .fontWeight(standing.position <= 3 ? .bold : .regular)
+                    Text(standing.driverName)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .lineLimit(1)
+                    Text(standing.constructorName)
+                        .frame(width: 90, alignment: .leading)
+                        .lineLimit(1)
+                    Text(standing.points.truncatingRemainder(dividingBy: 1) == 0
+                         ? "\(Int(standing.points))" : "\(standing.points, specifier: "%.1f")")
+                        .frame(width: 50, alignment: .trailing)
+                        .fontWeight(standing.position <= 3 ? .bold : .regular)
+                }
+                .font(.caption)
+                .foregroundColor(standing.position <= 3 ? .primary : .secondary)
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
+    private func constructorStandingsView(_ standings: [F1ConstructorStanding]) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Text("Pos")
+                    .frame(width: 32, alignment: .leading)
+                Text("Constructor")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("Wins")
+                    .frame(width: 40, alignment: .trailing)
+                Text("Pts")
+                    .frame(width: 50, alignment: .trailing)
+            }
+            .font(.caption2)
+            .foregroundColor(.secondary)
+            .padding(.bottom, 6)
+
+            ForEach(standings, id: \.position) { standing in
+                HStack(spacing: 0) {
+                    Text("\(standing.position)")
+                        .frame(width: 32, alignment: .leading)
+                        .fontWeight(standing.position <= 3 ? .bold : .regular)
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(F1GapRibbonView.colorForConstructorName(standing.constructorName))
+                            .frame(width: 6, height: 6)
+                        Text(standing.constructorName)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("\(standing.wins)")
+                        .frame(width: 40, alignment: .trailing)
+                    Text(standing.points.truncatingRemainder(dividingBy: 1) == 0
+                         ? "\(Int(standing.points))" : "\(standing.points, specifier: "%.1f")")
+                        .frame(width: 50, alignment: .trailing)
+                        .fontWeight(standing.position <= 3 ? .bold : .regular)
+                }
+                .font(.caption)
+                .foregroundColor(standing.position <= 3 ? .primary : .secondary)
+                .padding(.vertical, 2)
+            }
+        }
     }
 
     #if os(iOS)

@@ -142,6 +142,10 @@ struct F1GapRibbonView: View {
         }
     }
 
+    static func colorForConstructorName(_ constructor: String) -> Color {
+        constructorColors[constructor] ?? .gray
+    }
+
     private func colorForConstructor(_ constructor: String?) -> Color {
         guard let constructor else { return .gray }
         return Self.constructorColors[constructor] ?? .gray

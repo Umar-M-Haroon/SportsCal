@@ -45,11 +45,23 @@ struct RaceScoreView: View {
                 }
             }
 
-            // Race status/progress
-            if let progress = game.strProgress {
-                Text(progress)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+            // Circuit location + race status
+            HStack(spacing: 4) {
+                if let circuit = game.circuitInfo {
+                    Text("\(circuit.locality), \(circuit.country)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                if game.circuitInfo != nil && game.strProgress != nil {
+                    Text("·")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                if let progress = game.strProgress {
+                    Text(progress)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
             }
 
             // Mini leaderboard (top 3 drivers)
