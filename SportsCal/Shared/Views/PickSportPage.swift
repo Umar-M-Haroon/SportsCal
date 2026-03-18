@@ -137,7 +137,7 @@ struct PickSportPage: View {
             } header: {
                 HStack {
                     Spacer()
-                    Text("Try SportsCal Pro for multiple sports")
+                    Text("Try Scoreline Pro for multiple sports")
                     Spacer()
                 }
             }

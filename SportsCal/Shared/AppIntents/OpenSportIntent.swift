@@ -11,7 +11,7 @@ import SportsCalModel
 
 struct OpenSportIntent: AppIntent {
     static var title: LocalizedStringResource = "Open Sport"
-    static var description: IntentDescription = "Opens SportsCal to show games for a specific sport."
+    static var description: IntentDescription = "Opens Scoreline to show games for a specific sport."
 
     @Parameter(title: "Sport")
     var sport: SportAppEnum
@@ -23,6 +23,6 @@ struct OpenSportIntent: AppIntent {
         let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
         defaults?.set(sport.rawValue, forKey: "intentOpenSport")
 
-        return .result(dialog: "Opening \(sport.sportType.capitalized) games in SportsCal.")
+        return .result(dialog: "Opening \(sport.sportType.capitalized) games in Scoreline.")
     }
 }

@@ -16,7 +16,7 @@ struct SubscriptionRequiredView: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 300, height: 300)
                 .foregroundStyle(.white)
-            Text("SportsCal Pro Subscription Required")
+            Text("Scoreline Pro Subscription Required")
                 .foregroundStyle(.white)
             Button("Subscribe", action: {
                 sheetType = .paywall

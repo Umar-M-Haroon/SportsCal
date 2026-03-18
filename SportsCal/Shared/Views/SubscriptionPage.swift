@@ -35,7 +35,7 @@
 //            Form {
 //                Section {
 //                    VStack(alignment: .center) {
-//                        Text("SportsCal Pro")
+//                        Text("Scoreline Pro")
 //                            .font(.title2)
 //                            .bold()
 //                        Text("Unlock Pro for extra features and help support future development!")
@@ -112,7 +112,7 @@
 //                    .listRowBackground(Color.clear)
 //                } else {
 //                    VStack {
-//                        Text("Thank you for purchasing SportsCal Pro!")
+//                        Text("Thank you for purchasing Scoreline Pro!")
 //                            .frame(maxWidth: .infinity, alignment: .center)
 //                        Button(action: {
 //                            didSuccessfullyPurchase = true
@@ -125,9 +125,9 @@
 //                    }
 //                }
 //            }
-//            .navigationBarTitle(Text("SportsCal Pro"))
+//            .navigationBarTitle(Text("Scoreline Pro"))
 //            .alert(isPresented: $showAlert) { () -> Alert in
-//                Alert(title: Text("Thank you!"), message: Text("Thank you for purchasing SportsCal Pro!"), dismissButton:  Alert.Button.default(Text("Dismiss"), action: {
+//                Alert(title: Text("Thank you!"), message: Text("Thank you for purchasing Scoreline Pro!"), dismissButton:  Alert.Button.default(Text("Dismiss"), action: {
 //                    DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 4) {
 //                        self.didSuccessfullyPurchase = false
 //                    }

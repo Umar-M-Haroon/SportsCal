@@ -11,14 +11,14 @@ import SportsCalModel
 
 struct ShowFavoriteGamesIntent: AppIntent {
     static var title: LocalizedStringResource = "Show Favorite Games"
-    static var description: IntentDescription = "Opens SportsCal showing only your favorite teams' upcoming games."
+    static var description: IntentDescription = "Opens Scoreline showing only your favorite teams' upcoming games."
 
     static var openAppWhenRun: Bool = true
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let favorites = IntentDataProvider.readFavorites()
         guard !favorites.isEmpty else {
-            return .result(dialog: "You don't have any favorite teams yet. Open SportsCal to add some!")
+            return .result(dialog: "You don't have any favorite teams yet. Open Scoreline to add some!")
         }
 
         let games = IntentDataProvider.readCachedGames()
@@ -31,6 +31,6 @@ struct ShowFavoriteGamesIntent: AppIntent {
         }
 
         let count = favoriteGames.count
-        return .result(dialog: "Opening SportsCal with \(count) upcoming game\(count == 1 ? "" : "s") for your favorites.")
+        return .result(dialog: "Opening Scoreline with \(count) upcoming game\(count == 1 ? "" : "s") for your favorites.")
     }
 }

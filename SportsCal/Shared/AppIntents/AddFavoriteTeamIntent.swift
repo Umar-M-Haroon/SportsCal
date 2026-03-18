@@ -11,7 +11,7 @@ import SportsCalModel
 
 struct AddFavoriteTeamIntent: AppIntent {
     static var title: LocalizedStringResource = "Add Favorite Team"
-    static var description: IntentDescription = "Add a team to your SportsCal favorites."
+    static var description: IntentDescription = "Add a team to your Scoreline favorites."
 
     @Parameter(title: "Team")
     var team: TeamEntity
@@ -30,13 +30,13 @@ struct AddFavoriteTeamIntent: AppIntent {
         IntentDataProvider.writeFavorites(favorites)
         NotificationCenter.default.post(name: Notification.Name("favoritesDidChange"), object: nil)
 
-        return .result(dialog: "Added \(teamName) to your SportsCal favorites.")
+        return .result(dialog: "Added \(teamName) to your Scoreline favorites.")
     }
 }
 
 struct RemoveFavoriteTeamIntent: AppIntent {
     static var title: LocalizedStringResource = "Remove Favorite Team"
-    static var description: IntentDescription = "Remove a team from your SportsCal favorites."
+    static var description: IntentDescription = "Remove a team from your Scoreline favorites."
 
     @Parameter(title: "Team")
     var team: TeamEntity
@@ -55,6 +55,6 @@ struct RemoveFavoriteTeamIntent: AppIntent {
         IntentDataProvider.writeFavorites(favorites)
         NotificationCenter.default.post(name: Notification.Name("favoritesDidChange"), object: nil)
 
-        return .result(dialog: "Removed \(teamName) from your SportsCal favorites.")
+        return .result(dialog: "Removed \(teamName) from your Scoreline favorites.")
     }
 }

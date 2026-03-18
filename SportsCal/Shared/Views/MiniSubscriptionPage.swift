@@ -11,7 +11,7 @@ struct MiniSubscriptionPage: View {
     @Binding var subscriptionPresented: Bool
     var body: some View {
         VStack() {
-            Text("SportsCal Pro")
+            Text("Scoreline Pro")
                 .font(.title2)
                 .bold()
 //                MiniFeatureView(featureName: "Push Notifications", featureDescription: "Get notified when tasks are added and completed", imageName: "app.badge.fill", color: .red)
