@@ -9,17 +9,164 @@ import SwiftUI
 import SportsCalModel
 import os
 
+// MARK: - Shared Section Views
+
+struct DeveloperSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+    @Environment(GameViewModel.self) private var viewModel
+
+    var isTestFlight: Bool {
+        guard let path = Bundle.main.appStoreReceiptURL?.path else { return false }
+        return path.contains("sandboxReceipt")
+    }
+
+    var body: some View {
+        @Bindable var bindableAppStorage = appStorage
+
+        Section("Developer") {
+            Toggle("Debug Mode", isOn: $bindableAppStorage.debugMode)
+            if appStorage.debugMode {
+                Toggle("Use Local Server", isOn: $bindableAppStorage.useLocalServer)
+                    .onChange(of: appStorage.useLocalServer) { _, newValue in
+                        NetworkHandler.useLocalServer = newValue
+                    }
+                LocalServerStatusView()
+                Button("Dump Caches") {
+                    do {
+                        try viewModel.dumpCaches()
+                    } catch {
+                        AppLogger.general.error("Cache dump failed: \(error.localizedDescription)")
+                    }
+                }
+                #if os(iOS)
+                NavigationLink("Live Activity Testing") {
+                    DebugLiveActivityTestView()
+                        .environment(viewModel)
+                        .environment(appStorage)
+                }
+                #endif
+            }
+        }
+    }
+}
+
+struct ProOptionsSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+
+    var body: some View {
+        @Bindable var bindableAppStorage = appStorage
+
+        Section(header: Text("Scoreline Pro Options")) {
+            HStack {
+                Text("Hide events more than ")
+                Spacer()
+                Menu("\(appStorage.durations.rawValue) away") {
+                    Button(Durations.oneDay.rawValue) { appStorage.durations = .oneDay }
+                    Button(Durations.oneWeek.rawValue) { appStorage.durations = .oneWeek }
+                    Button(Durations.twoWeeks.rawValue) { appStorage.durations = .twoWeeks }
+                    Button(Durations.threeWeeks.rawValue) { appStorage.durations = .threeWeeks }
+                    Button(Durations.oneMonth.rawValue) { appStorage.durations = .oneMonth }
+                    Button(Durations.twoMonths.rawValue) { appStorage.durations = .twoMonths }
+                    Button(Durations.sixMonths.rawValue) { appStorage.durations = .sixMonths }
+                    Button(Durations.oneYear.rawValue) { appStorage.durations = .oneYear }
+                }
+            }
+            Toggle("Hide past events", isOn: $bindableAppStorage.hidePastEvents)
+            Toggle("Show countdown", isOn: $bindableAppStorage.showStartTime)
+        }
+    }
+}
+
+struct ScoresSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+
+    var body: some View {
+        Section(header: Text("Scores")) {
+            HStack {
+                Text("Show past games ")
+                Spacer()
+                Menu("\(appStorage.hidePastGamesDuration.rawValue) old") {
+                    Button(Durations.oneDay.rawValue) { appStorage.hidePastGamesDuration = .oneDay }
+                    Button(Durations.oneWeek.rawValue) { appStorage.hidePastGamesDuration = .oneWeek }
+                    Button(Durations.twoWeeks.rawValue) { appStorage.hidePastGamesDuration = .twoWeeks }
+                    Button(Durations.threeWeeks.rawValue) { appStorage.hidePastGamesDuration = .threeWeeks }
+                    Button(Durations.oneMonth.rawValue) { appStorage.hidePastGamesDuration = .oneMonth }
+                    Button(Durations.twoMonths.rawValue) { appStorage.hidePastGamesDuration = .twoMonths }
+                    Button(Durations.sixMonths.rawValue) { appStorage.hidePastGamesDuration = .sixMonths }
+                    Button(Durations.oneYear.rawValue) { appStorage.hidePastGamesDuration = .oneYear }
+                }
+            }
+            .disabled(appStorage.hidePastEvents)
+        }
+    }
+}
+
+struct DateFormatSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+
+    private var datesAndFormats: [(Date, DateFormatter.Style)] {
+        let dates = [Date.now, Date.dateAfterDaysFromNow(days: 1), Date.dateAfterDaysFromNow(days: 2), Date.dateAfterDaysFromNow(days: 3)]
+        let formats = [DateFormatter.Style.short, .medium, .full, .long]
+        return dates.enumerated().map { ($1, formats[$0]) }
+    }
+
+    var body: some View {
+        @Bindable var bindableAppStorage = appStorage
+
+        Toggle(isOn: $bindableAppStorage.useRelativeValue) {
+            Text("Use Relative Time")
+        }
+        Picker("Date Format", selection: $bindableAppStorage.dateFormat) {
+            ForEach(datesAndFormats, id: \.0) { (date, format) in
+                Text(format.toExample(date: date))
+                    .tag(Int(format.rawValue))
+            }
+        }
+        Section("Preview") {
+            ForEach([Date.now, Date.dateAfterDaysFromNow(days: 1), Date.dateAfterDaysFromNow(days: 2), Date.dateAfterDaysFromNow(days: 3)], id: \.self) { date in
+                Text(formatFromStorage(date: date, isRelative: appStorage.useRelativeValue))
+            }
+        }
+        .pickerStyle(.inline)
+    }
+
+    private func formatFromStorage(date: Date, isRelative: Bool) -> String {
+        let formatter = DateFormatters.dateFormatter
+        formatter.dateStyle = DateFormatter.Style(rawValue: UInt(appStorage.dateFormat))!
+        formatter.timeStyle = .none
+        formatter.doesRelativeDateFormatting = isRelative
+        return formatter.string(from: date)
+    }
+}
+
+struct SoccerCompetitionsSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+
+    var body: some View {
+        Section {
+            #if os(macOS)
+            DisclosureGroup("Visible soccer competitions") {
+                ForEach(Leagues.allCases.filter({ $0.isSoccer }), id: \.self) { league in
+                    CompetitionView(competition: league.leagueName, isShown: !appStorage.hiddenCompetitions.contains(league.leagueName))
+                        .environment(appStorage)
+                }
+            }
+            #else
+            NavigationLink("Visible soccer competitions") {
+                CompetitionPage(competitions: Leagues.allCases.filter({ $0.isSoccer }).map({ $0.leagueName }))
+                    .environment(appStorage)
+            }
+            #endif
+        }
+    }
+}
+
+// MARK: - iOS Settings View
 
 struct SettingsView: View {
     @Environment(UserDefaultStorage.self) private var appStorage
-//    var subscriptionManager = SubscriptionManager.shared
     @Binding var sheetType: SheetType?
     @Environment(GameViewModel.self) private var viewModel
-    var datesAndFormats: [(Date, DateFormatter.Style)] {
-        let dates = [Date.now, Date.dateAfterDaysFromNow(days: 1), Date.dateAfterDaysFromNow(days: 2), Date.dateAfterDaysFromNow(days: 3)]
-        let formats = [DateFormatter.Style.short, .medium, .full, .long]
-        return dates.enumerated().map({($1, formats[$0])})
-    }
     var isTestFlight: Bool {
         guard let path = Bundle.main.appStoreReceiptURL?.path else {
             return false
@@ -27,139 +174,30 @@ struct SettingsView: View {
         return path.contains("sandboxReceipt")
     }
     var body: some View {
-        @Bindable var bindableAppStorage = appStorage
-        
         NavigationStack {
             Form {
                 if isTestFlight {
                     Text("You're on a TestFlight build, debug mode is recommended for new features")
                         .font(.headline)
                 }
-                Section("Developer") {
-                    Toggle("Debug Mode", isOn: $bindableAppStorage.debugMode)
-                    if appStorage.debugMode {
-                        Toggle("Use Local Server", isOn: $bindableAppStorage.useLocalServer)
-                            .onChange(of: appStorage.useLocalServer) { _, newValue in
-                                NetworkHandler.useLocalServer = newValue
-                            }
-                        LocalServerStatusView()
-                        Button("Dump Caches") {
-                            do {
-                                try viewModel.dumpCaches()
-                            } catch {
-                                AppLogger.general.error("Cache dump failed: \(error.localizedDescription)")
-                            }
-                        }
-                        NavigationLink("Live Activity Testing") {
-                            DebugLiveActivityTestView()
-                                .environment(viewModel)
-                                .environment(appStorage)
-                        }
-                    }
-                }
-                NavigationLink("SportsCal Pro") {
+                DeveloperSettingsSection()
+                NavigationLink("Scoreline Pro") {
 //                    SubscriptionPage(selectedProduct: subscriptionManager.monthlySubscription)
 //                        .environmentObject(subscriptionManager)
                 }
-                NavigationLink("Visible soccer competitions") {
-                    CompetitionPage(competitions: Leagues.allCases.filter({$0.isSoccer}).map({$0.leagueName}))
-                        .environment(appStorage)
-                }
-                Section(header: Text("SportsCal Pro Options")) {
-                    HStack {
-                        Text("Hide events more than ")
-                        Spacer()
-                        Menu("\(appStorage.durations.rawValue) away") {
-                            Button(Durations.oneDay.rawValue) {
-                                appStorage.durations = .oneDay
-                            }
-                            Button(Durations.oneWeek.rawValue) {
-                                appStorage.durations = .oneWeek
-                            }
-                            Button(Durations.twoWeeks.rawValue) {
-                                appStorage.durations = .twoWeeks
-                            }
-                            Button(Durations.threeWeeks.rawValue) {
-                                appStorage.durations = .threeWeeks
-                            }
-                            Button(Durations.oneMonth.rawValue) {
-                                appStorage.durations = .oneMonth
-                            }
-                            Button(Durations.twoMonths.rawValue) {
-                                appStorage.durations = .twoMonths
-                            }
-                            Button(Durations.sixMonths.rawValue) {
-                                appStorage.durations = .sixMonths
-                            }
-                            Button(Durations.oneYear.rawValue) {
-                                appStorage.durations = .oneYear
-                            }
-                            
-                        }
-//                        .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
-                    }
-                    Toggle("Hide past events", isOn: $bindableAppStorage.hidePastEvents)
-//                        .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
-                    Toggle("Show countdown", isOn: $bindableAppStorage.showStartTime)
-//                        .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
-//                    .disabled(SubscriptionManager.shared.subscriptionStatus == .notSubscribed)
-                }
+                SoccerCompetitionsSettingsSection()
+                ProOptionsSettingsSection()
+                #if os(iOS)
                 Section(header: Text("Live Activities")) {
+                    @Bindable var bindableAppStorage = appStorage
                     Toggle("Auto-follow favorite games", isOn: $bindableAppStorage.autoFollowFavorites)
                     Text("Automatically start Live Activities when your favorite teams play")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                Section(header: Text("Scores")) {
-                    HStack {
-                        Text("Show past games ")
-                        Spacer()
-                        Menu("\(appStorage.hidePastGamesDuration.rawValue) old") {
-                            Button(Durations.oneDay.rawValue) {
-                                appStorage.hidePastGamesDuration = .oneDay
-                            }
-                            Button(Durations.oneWeek.rawValue) {
-                                appStorage.hidePastGamesDuration = .oneWeek
-                            }
-                            Button(Durations.twoWeeks.rawValue) {
-                                appStorage.hidePastGamesDuration = .twoWeeks
-                            }
-                            Button(Durations.threeWeeks.rawValue) {
-                                appStorage.hidePastGamesDuration = .threeWeeks
-                            }
-                            Button(Durations.oneMonth.rawValue) {
-                                appStorage.hidePastGamesDuration = .oneMonth
-                            }
-                            Button(Durations.twoMonths.rawValue) {
-                                appStorage.hidePastGamesDuration = .twoMonths
-                            }
-                            Button(Durations.sixMonths.rawValue) {
-                                appStorage.hidePastGamesDuration = .sixMonths
-                            }
-                            Button(Durations.oneYear.rawValue) {
-                                appStorage.hidePastGamesDuration = .oneYear
-                            }
-                            
-                        }
-                    }
-                    .disabled(appStorage.hidePastEvents)
-
-                }
-                Toggle(isOn: $bindableAppStorage.useRelativeValue, label: {
-                    Text("Use Relative Time")
-                })
-                Picker.init("Date Format", selection: $bindableAppStorage.dateFormat) {
-                    ForEach(datesAndFormats, id: \.0) { (date, format) in
-                        Text(format.toExample(date: date))
-                            .tag(Int(format.rawValue))
-                    }
-                }
-                Section("Preview", content: {
-                    ForEach([Date.now, Date.dateAfterDaysFromNow(days: 1), Date.dateAfterDaysFromNow(days: 2), Date.dateAfterDaysFromNow(days: 3)], id: \.self) { date in
-                        Text(formatFromStorage(date: date, isRelative: appStorage.useRelativeValue))
-                    }
-                })
-                .pickerStyle(.inline)
+                #endif
+                ScoresSettingsSection()
+                DateFormatSettingsSection()
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -176,26 +214,17 @@ struct SettingsView: View {
             }
         }
     }
-    
+
     func showAttributedString() -> AttributedString {
         var string = AttributedString("Hide events more than")
         //                string.foregroundColor = .blue
-        
+
         if let range = string.range(of: "1 month") { /// here!
             string[range].foregroundColor = .blue
         }
         return string
     }
-    
-    func formatFromStorage(date: Date, isRelative: Bool) -> String {
-        let formatter = DateFormatters.dateFormatter
-        formatter.dateStyle = DateFormatter.Style(rawValue: UInt(appStorage.dateFormat))!
-        formatter.timeStyle = .none
-        formatter.doesRelativeDateFormatting = isRelative
-        let string = formatter.string(from: date)
-        return string
-    }
-    
+
     func dateFormats() -> [String: UInt] {
         let formatter = DateFormatters.dateFormatter
         let allCases = [DateFormatter.Style.short, .medium, .full, .long]
@@ -214,7 +243,7 @@ struct SettingsView: View {
 #Preview {
     @Previewable @State var storage = UserDefaultStorage()
     @Previewable @State var viewModel = GameViewModel(appStorage: UserDefaultStorage(), favorites: Favorites())
-    
+
     SettingsView(sheetType: Binding<SheetType?>.constant(.settings))
         .environment(storage)
         .environment(viewModel)

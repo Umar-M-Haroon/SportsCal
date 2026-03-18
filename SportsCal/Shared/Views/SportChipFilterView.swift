@@ -32,7 +32,7 @@ struct SportChipFilterView: View {
 
     var body: some View {
         let enabledSports = storage.enabledSports
-        let disabledSports = SportType.allCases.filter { !enabledSports.contains($0) }
+        let disabledSports = storage.orderedSports.filter { !enabledSports.contains($0) }
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 if enabledSports.count > 1 {

@@ -32,6 +32,13 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("useRelativeValue") var useRelativeValue: Bool = false
     @ObservationIgnored @AppStorage("autoFollowFavorites") var autoFollowFavorites: Bool = true
     @ObservationIgnored @AppStorage("useLocalServer") var useLocalServer: Bool = true
+    @ObservationIgnored @AppStorage("sportOrder") var sportOrder: [String] = []
+
+    var orderedSports: [SportType] {
+        let ordered = sportOrder.compactMap { SportType(rawValue: $0) }
+        let remaining = SportType.allCases.filter { !ordered.contains($0) }
+        return ordered + remaining
+    }
 
     // MARK: - Auto-Follow Event IDs
     private static let autoFollowKey = "autoFollowEventIDs"
@@ -132,16 +139,7 @@ class UserDefaultStorage {
     }
 
     func recomputeEnabledSports() {
-        var sports: [SportType] = []
-        if effectiveShouldShow(.basketball) { sports.append(.basketball) }
-        if effectiveShouldShow(.soccer)     { sports.append(.soccer) }
-        if effectiveShouldShow(.hockey)     { sports.append(.hockey) }
-        if effectiveShouldShow(.mlb)        { sports.append(.mlb) }
-        if effectiveShouldShow(.nfl)        { sports.append(.nfl) }
-        if effectiveShouldShow(.golf)       { sports.append(.golf) }
-        if effectiveShouldShow(.tennis)     { sports.append(.tennis) }
-        if effectiveShouldShow(.racing)     { sports.append(.racing) }
-        enabledSports = sports
+        enabledSports = orderedSports.filter { effectiveShouldShow($0) }
         syncSportPrefsToAppGroup()
     }
 
@@ -163,6 +161,7 @@ class UserDefaultStorage {
     func syncHiddenCompetitions() {
         let defaults = UserDefaults(suiteName: Self.suiteName)
         defaults?.set(hiddenCompetitions, forKey: "hiddenCompetitions")
+        defaults?.set(sportOrder, forKey: "sportOrder")
     }
 
     func toggleSport(_ sport: SportType, enabled: Bool) {

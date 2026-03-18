@@ -19,7 +19,7 @@ struct BrowsePage: View {
     var body: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(SportType.allCases, id: \.self) { sport in
+                ForEach(storage.orderedSports, id: \.self) { sport in
                     NavigationLink {
                         BrowseSportView(sport: sport)
                             .environment(viewModel)
