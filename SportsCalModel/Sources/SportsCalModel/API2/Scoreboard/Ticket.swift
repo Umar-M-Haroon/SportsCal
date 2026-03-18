@@ -7,11 +7,11 @@ import Foundation
 
 // MARK: - Ticket
 public struct Ticket: Codable {
-    public var summary: String
-    public var numberAvailable: Int
-    public var links: [TicketLink]
+    public var summary: String?
+    public var numberAvailable: Int?
+    public var links: [TicketLink]?
 
-    public init(summary: String, numberAvailable: Int, links: [TicketLink]) {
+    public init(summary: String? = nil, numberAvailable: Int? = nil, links: [TicketLink]? = nil) {
         self.summary = summary
         self.numberAvailable = numberAvailable
         self.links = links

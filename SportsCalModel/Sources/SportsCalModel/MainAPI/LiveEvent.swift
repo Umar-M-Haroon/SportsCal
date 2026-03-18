@@ -60,6 +60,17 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 let homeRec = home.records?.first(where: { $0.type == "total" })?.summary
                 let awayRec = away.records?.first(where: { $0.type == "total" })?.summary
 
+                // Compute aggregate score for multi-leg ties (e.g. UCL knockout)
+                var aggregateScore: String?
+                if let seriesCompetitors = competition.series?.competitors,
+                   seriesCompetitors.count == 2 {
+                    let homeAgg = seriesCompetitors.first(where: { $0.id == homeTeam.id })?.aggregateScore
+                    let awayAgg = seriesCompetitors.first(where: { $0.id == awayTeam.id })?.aggregateScore
+                    if let h = homeAgg, let a = awayAgg {
+                        aggregateScore = "Agg: \(Int(a))-\(Int(h))"
+                    }
+                }
+
                 return [Game(
                     idLiveScore: event.id, idEvent: event.id, strSport: sportType.rawValue,
                     idLeague: leagueID, idHomeTeam: homeTeam.id, idAwayTeam: awayTeam.id,
@@ -75,7 +86,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     awayLeaders: aLeaders?.isEmpty == true ? nil : aLeaders,
                     isCompleted: event.status?.type.completed, isoDate: nil,
                     homeTeamColor: homeColor, awayTeamColor: awayColor,
-                    homeRecord: homeRec, awayRecord: awayRec
+                    homeRecord: homeRec, awayRecord: awayRec,
+                    legDisplay: competition.leg?.displayValue,
+                    aggregateScore: aggregateScore
                 )]
             }
 
@@ -130,7 +143,20 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         let name = competitor.athlete?.displayName ?? "TBD"
                         let score = competitor.score ?? "P\(competitor.order)"
                         let constructorName = constructorMap[competitor.id] ?? competitor.team?.displayName ?? ""
-                        let gap = competitionTiming?[competitor.id] ?? ""
+                        // Gap priority: timing map (core API) → scoreboard statistics → scoreboard score
+                        var gap = competitionTiming?[competitor.id] ?? ""
+                        if gap.isEmpty, let stats = competitor.statistics {
+                            // ESPN scoreboard includes gap stats on competitors during live/completed races
+                            for stat in stats {
+                                let name = stat.name.lowercased()
+                                if (name.contains("behind") || name.contains("gap") || name == "status" || name == "lapsdown"),
+                                   !stat.displayValue.isEmpty, stat.displayValue != "--",
+                                   stat.displayValue != "0", stat.displayValue != "Running" {
+                                    gap = stat.displayValue
+                                    break
+                                }
+                            }
+                        }
                         return LeaderboardEntry(
                             name: name, score: score, position: competitor.order,
                             headshot: competitor.athlete?.headshot,
@@ -175,7 +201,22 @@ public struct LiveEvent: Codable, Equatable, Hashable {
 
                 let venueName = competitions.first?.venue?.fullName
                 let progress = primarySession.progress ?? event.status?.type.shortDetail
-                let primaryStatus = primarySession.status ?? event.status?.type.state
+
+                // For F1, use the primary session status (not event-level) because ESPN
+                // marks the entire event as "post"/"completed" after each practice session.
+                // A race weekend is only truly "in progress" or "complete" based on sessions.
+                let raceSession = eventSessions.first(where: { $0.sessionType == "Race" })
+                let raceCompleted = raceSession?.status == "post"
+                let anySessionLive = eventSessions.contains(where: { $0.status == "in" })
+                let primaryStatus: String?
+                if anySessionLive {
+                    primaryStatus = "in"
+                } else if raceCompleted {
+                    primaryStatus = "post"
+                } else {
+                    // Sessions have happened but race hasn't — show as upcoming
+                    primaryStatus = "pre"
+                }
 
                 return [Game(
                     idLiveScore: event.id, idEvent: event.id, strSport: sportType.rawValue,
@@ -186,7 +227,7 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     strProgress: progress,
                     strTimestamp: event.date,
                     lastPlay: lastPlayStr,
-                    isCompleted: event.status?.type.completed, isoDate: nil,
+                    isCompleted: raceCompleted, isoDate: nil,
                     leaderboardEntries: primarySession.leaderboard,
                     sessions: eventSessions,
                     venueName: venueName
@@ -265,7 +306,7 @@ public struct GameLeader: Codable, Equatable, Hashable {
 
 // MARK: - Event
 public struct Game: Identifiable, Equatable, Hashable {
-    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil) {
+    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil) {
         self.idLiveScore = idLiveScore
         self.idEvent = idEvent
         self._strSport = strSport
@@ -295,6 +336,9 @@ public struct Game: Identifiable, Equatable, Hashable {
         self.awayTeamColor = awayTeamColor
         self.homeRecord = homeRecord
         self.awayRecord = awayRecord
+        self.circuitInfo = circuitInfo
+        self.legDisplay = legDisplay
+        self.aggregateScore = aggregateScore
         // Pre-compute date from strTimestamp if isoDate not provided
         if let isoDate {
             self.isoDate = isoDate
@@ -347,6 +391,9 @@ public struct Game: Identifiable, Equatable, Hashable {
     public let awayTeamColor: String?
     public let homeRecord: String?
     public let awayRecord: String?
+    public let circuitInfo: F1CircuitInfo?
+    public let legDisplay: String?
+    public let aggregateScore: String?
 
     // MARK: - Computed Properties (derived from idLeague)
     // Private storage for backward compatibility when decoding old data
@@ -381,6 +428,7 @@ extension Game: Codable {
         case isCompleted, isoDate
         case leaderboardEntries, sessions, venueName
         case homeTeamColor, awayTeamColor, homeRecord, awayRecord
+        case circuitInfo, legDisplay, aggregateScore
         // Computed properties - decoded for backward compatibility, not encoded
         case strSport, strLeague
         // Individual sport fallback (golf/tennis have null strHomeTeam/strAwayTeam)
@@ -421,6 +469,9 @@ extension Game: Codable {
         awayTeamColor = try container.decodeIfPresent(String.self, forKey: .awayTeamColor)
         homeRecord = try container.decodeIfPresent(String.self, forKey: .homeRecord)
         awayRecord = try container.decodeIfPresent(String.self, forKey: .awayRecord)
+        circuitInfo = try container.decodeIfPresent(F1CircuitInfo.self, forKey: .circuitInfo)
+        legDisplay = try container.decodeIfPresent(String.self, forKey: .legDisplay)
+        aggregateScore = try container.decodeIfPresent(String.self, forKey: .aggregateScore)
         // Decode for backward compatibility with old cached data
         _strSport = try container.decodeIfPresent(String.self, forKey: .strSport)
         _strLeague = try container.decodeIfPresent(String.self, forKey: .strLeague)
@@ -478,6 +529,9 @@ extension Game: Codable {
         try container.encodeIfPresent(awayTeamColor, forKey: .awayTeamColor)
         try container.encodeIfPresent(homeRecord, forKey: .homeRecord)
         try container.encodeIfPresent(awayRecord, forKey: .awayRecord)
+        try container.encodeIfPresent(circuitInfo, forKey: .circuitInfo)
+        try container.encodeIfPresent(legDisplay, forKey: .legDisplay)
+        try container.encodeIfPresent(aggregateScore, forKey: .aggregateScore)
         // Note: strSport and strLeague are not encoded - they're computed from idLeague
         // Deprecated fields are not encoded: strPlayer, idPlayer, intEventScore,
         // intEventScoreTotal, strEventTime, dateEvent, updated

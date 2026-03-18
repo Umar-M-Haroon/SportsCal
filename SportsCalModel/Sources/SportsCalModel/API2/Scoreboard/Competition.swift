@@ -20,8 +20,11 @@ public struct Competition: Codable {
     public var startDate: String?
     public var geoBroadcasts: [GeoBroadcast]?
     public var tickets: [Ticket]?
+    public var leg: CompetitionLeg?
+    public var series: CompetitionSeries?
+    public var notes: [CompetitionNote]?
 
-    public init(id: String, uid: String, date: String, attendance: Int? = nil, type: CompetitionType? = nil, timeValid: Bool? = nil, neutralSite: Bool? = nil, conferenceCompetition: Bool? = nil, recent: Bool? = nil, venue: Venue? = nil, competitors: [Competitor]? = nil, situation: Situation? = nil, status: Status? = nil, broadcasts: [Broadcast]? = nil, format: Format? = nil, startDate: String? = nil, geoBroadcasts: [GeoBroadcast]? = nil, tickets: [Ticket]? = nil) {
+    public init(id: String, uid: String, date: String, attendance: Int? = nil, type: CompetitionType? = nil, timeValid: Bool? = nil, neutralSite: Bool? = nil, conferenceCompetition: Bool? = nil, recent: Bool? = nil, venue: Venue? = nil, competitors: [Competitor]? = nil, situation: Situation? = nil, status: Status? = nil, broadcasts: [Broadcast]? = nil, format: Format? = nil, startDate: String? = nil, geoBroadcasts: [GeoBroadcast]? = nil, tickets: [Ticket]? = nil, leg: CompetitionLeg? = nil, series: CompetitionSeries? = nil, notes: [CompetitionNote]? = nil) {
         self.id = id
         self.uid = uid
         self.date = date
@@ -40,5 +43,37 @@ public struct Competition: Codable {
         self.startDate = startDate
         self.geoBroadcasts = geoBroadcasts
         self.tickets = tickets
+        self.leg = leg
+        self.series = series
+        self.notes = notes
     }
+}
+
+// MARK: - CompetitionLeg
+public struct CompetitionLeg: Codable {
+    public var value: Int
+    public var displayValue: String
+}
+
+// MARK: - CompetitionSeries
+public struct CompetitionSeries: Codable {
+    public var title: String?
+    public var totalCompetitions: Int?
+    public var completed: Bool?
+    public var competitors: [SeriesCompetitor]?
+}
+
+// MARK: - SeriesCompetitor
+public struct SeriesCompetitor: Codable {
+    public var id: String?
+    public var uid: String?
+    public var winner: Bool?
+    public var aggregateScore: Double?
+}
+
+// MARK: - CompetitionNote
+public struct CompetitionNote: Codable {
+    public var text: String?
+    public var headline: String?
+    public var type: String?
 }

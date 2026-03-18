@@ -281,7 +281,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 let homeID = game.idHomeTeam.flatMap { mapping[$0] } ?? game.idHomeTeam
                 let awayID = game.idAwayTeam.flatMap { mapping[$0] } ?? game.idAwayTeam
                 guard homeID != game.idHomeTeam || awayID != game.idAwayTeam else { return game }
-                return Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: homeID, idAwayTeam: awayID, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: game.intHomeScore, intAwayScore: game.intAwayScore, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: game.strStatus, strProgress: game.strProgress, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: game.strTimestamp, lastPlay: game.lastPlay, isCompleted: game.isCompleted, isoDate: game.isoDate)
+                return Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: homeID, idAwayTeam: awayID, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: game.intHomeScore, intAwayScore: game.intAwayScore, strStatus: game.strStatus, strProgress: game.strProgress, strTimestamp: game.strTimestamp, lastPlay: game.lastPlay, homeLinescores: game.homeLinescores, awayLinescores: game.awayLinescores, homeLeaders: game.homeLeaders, awayLeaders: game.awayLeaders, isCompleted: game.isCompleted, isoDate: game.isoDate, leaderboardEntries: game.leaderboardEntries, sessions: game.sessions, venueName: game.venueName, homeTeamColor: game.homeTeamColor, awayTeamColor: game.awayTeamColor, homeRecord: game.homeRecord, awayRecord: game.awayRecord, legDisplay: game.legDisplay, aggregateScore: game.aggregateScore)
             }
         }
 
@@ -314,6 +314,43 @@ struct ESPNFetchJob: AsyncScheduledJob {
         )
     }
 
+    /// Normalizes team names to handle abbreviation differences
+    /// (e.g., "LA Clippers" → "los angeles clippers", "NY Knicks" → "new york knicks")
+    private func normalizeTeamName(_ name: String) -> String {
+        var result = name.lowercased()
+        // Common city abbreviations — order matters (longer matches first)
+        let abbreviations: [(abbreviation: String, full: String)] = [
+            ("la ", "los angeles "),
+            ("ny ", "new york "),
+            ("nyc ", "new york city "),
+            ("nyrb", "new york red bulls"),
+            ("okc ", "oklahoma city "),
+            ("phx ", "phoenix "),
+            ("gs ", "golden state "),
+            ("no ", "new orleans "),
+            ("sa ", "san antonio "),
+            ("sl ", "salt lake "),
+            ("stl ", "st. louis "),
+            ("kc ", "kansas city "),
+            ("tb ", "tampa bay "),
+            ("ne ", "new england "),
+            ("mn ", "minnesota "),
+            ("ind ", "indiana "),
+        ]
+        for (abbr, full) in abbreviations {
+            if result.hasPrefix(abbr) {
+                result = full + result.dropFirst(abbr.count)
+                break
+            }
+        }
+        // Also normalize FC/SC positioning for soccer (e.g., "FC Barcelona" vs "Barcelona FC")
+        result = result.replacingOccurrences(of: " fc", with: "")
+        result = result.replacingOccurrences(of: "fc ", with: "")
+        result = result.replacingOccurrences(of: " sc", with: "")
+        result = result.replacingOccurrences(of: "sc ", with: "")
+        return result.trimmingCharacters(in: .whitespaces)
+    }
+
     /// Merges ESPN events into a single sport's schedule events.
     /// Matches by team IDs + day, falls back to team names + day, or event name for individual sports.
     private func mergeSportEvents(schedule: LiveEvent?, espn: LiveEvent?) -> LiveEvent? {
@@ -325,6 +362,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
         var espnByTeamIDs: [String: Game] = [:]
         // Key: (lowercased homeTeamName, lowercased awayTeamName, dayString)
         var espnByTeamNames: [String: Game] = [:]
+        // Key: (normalized homeTeamName, normalized awayTeamName, dayString)
+        var espnByNormalizedNames: [String: Game] = [:]
         // Key: lowercased event/tournament name (for individual sports)
         var espnByEventName: [String: Game] = [:]
 
@@ -339,6 +378,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
             let nameKey = "\(game.strHomeTeam.lowercased())|\(game.strAwayTeam.lowercased())|\(day)"
             espnByTeamNames[nameKey] = game
+
+            let normalizedKey = "\(normalizeTeamName(game.strHomeTeam))|\(normalizeTeamName(game.strAwayTeam))|\(day)"
+            espnByNormalizedNames[normalizedKey] = game
 
             if game.isIndividualSport {
                 espnByEventName[game.strHomeTeam.lowercased()] = game
@@ -364,6 +406,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 espnMatch = espnByTeamNames[nameKey]
             }
 
+            // Fallback: match by normalized team names + day (handles "LA" vs "Los Angeles" etc.)
+            if espnMatch == nil {
+                let normalizedKey = "\(normalizeTeamName(scheduleGame.strHomeTeam))|\(normalizeTeamName(scheduleGame.strAwayTeam))|\(day)"
+                espnMatch = espnByNormalizedNames[normalizedKey]
+            }
+
             // Individual sports: match by event/tournament name
             if espnMatch == nil && scheduleGame.isIndividualSport {
                 espnMatch = espnByEventName[scheduleGame.strHomeTeam.lowercased()]
@@ -387,8 +435,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 strLeague: nil,
                 idHomeTeam: scheduleGame.idHomeTeam,
                 idAwayTeam: scheduleGame.idAwayTeam,
-                strHomeTeam: scheduleGame.strHomeTeam,
-                strAwayTeam: scheduleGame.strAwayTeam,
+                strHomeTeam: espnGame.strHomeTeam,
+                strAwayTeam: espnGame.strAwayTeam,
                 strHomeTeamBadge: espnGame.strHomeTeamBadge ?? scheduleGame.strHomeTeamBadge,
                 strAwayTeamBadge: espnGame.strAwayTeamBadge ?? scheduleGame.strAwayTeamBadge,
                 intHomeScore: isPreGame ? scheduleGame.intHomeScore : (espnGame.intHomeScore ?? scheduleGame.intHomeScore),
@@ -405,12 +453,37 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 isoDate: scheduleGame.isoDate,
                 leaderboardEntries: espnGame.leaderboardEntries ?? scheduleGame.leaderboardEntries,
                 sessions: espnGame.sessions ?? scheduleGame.sessions,
-                venueName: scheduleGame.venueName ?? espnGame.venueName
+                venueName: scheduleGame.venueName ?? espnGame.venueName,
+                homeTeamColor: espnGame.homeTeamColor ?? scheduleGame.homeTeamColor,
+                awayTeamColor: espnGame.awayTeamColor ?? scheduleGame.awayTeamColor,
+                homeRecord: espnGame.homeRecord ?? scheduleGame.homeRecord,
+                awayRecord: espnGame.awayRecord ?? scheduleGame.awayRecord,
+                circuitInfo: scheduleGame.circuitInfo ?? espnGame.circuitInfo,
+                legDisplay: espnGame.legDisplay ?? scheduleGame.legDisplay,
+                aggregateScore: espnGame.aggregateScore ?? scheduleGame.aggregateScore
             )
         }
 
-        // Append ESPN-only games (no TheSportsDB match)
-        let unmatchedESPN = espn.events.filter { !matchedESPNIDs.contains($0.id) }
+        // Append ESPN-only games (no TheSportsDB match),
+        // but skip games that already exist in the schedule by normalized team+day
+        // (catches name mismatches like "LA Clippers" vs "Los Angeles Clippers")
+        var scheduleByDay: Set<String> = []
+        for game in schedule.events {
+            let day = dayString(from: game)
+            let home = normalizeTeamName(game.strHomeTeam)
+            let away = normalizeTeamName(game.strAwayTeam)
+            scheduleByDay.insert("\(home)|\(away)|\(day)")
+            scheduleByDay.insert("\(away)|\(home)|\(day)")
+        }
+
+        let unmatchedESPN = espn.events.filter { game in
+            guard !matchedESPNIDs.contains(game.id) else { return false }
+            let day = dayString(from: game)
+            let home = normalizeTeamName(game.strHomeTeam)
+            let away = normalizeTeamName(game.strAwayTeam)
+            let key = "\(home)|\(away)|\(day)"
+            return !scheduleByDay.contains(key)
+        }
 
         return LiveEvent(events: merged + unmatchedESPN)
     }
@@ -435,7 +508,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             if let foundEvent = events.first(where: {$0.strHomeTeam == event.strHomeTeam && $0.strAwayTeam == event.strAwayTeam}) {
                 // Only include essential fields - strSport/strLeague are computed from idLeague
                 // Deprecated fields removed: strPlayer, idPlayer, intEventScore, intEventScoreTotal, strEventTime, dateEvent, updated
-                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: event.strStatus, strProgress: event.strProgress, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: foundEvent.strTimestamp, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp))
+                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore)
             } else {
                 return event
             }
