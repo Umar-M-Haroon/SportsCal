@@ -39,8 +39,14 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
 
     case formula1 = 4370
 
+    case ncaaMBBTournament = 100
+
     public var isSoccer: Bool {
-        return ![Leagues.nfl, Leagues.nba, Leagues.nhl, Leagues.mlb, Leagues.pga, Leagues.atp, Leagues.wta, Leagues.formula1].contains(self)
+        return ![Leagues.nfl, Leagues.nba, Leagues.nhl, Leagues.mlb, Leagues.pga, Leagues.atp, Leagues.wta, Leagues.formula1, Leagues.ncaaMBBTournament].contains(self)
+    }
+
+    public var isBasketball: Bool {
+        return [Leagues.nba, Leagues.ncaaMBBTournament].contains(self)
     }
 
     public var isGolf: Bool {
@@ -113,6 +119,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             self = .wta
         case "f1":
             self = .formula1
+        case "mens-college-basketball":
+            self = .ncaaMBBTournament
         default:
             return nil
         }
@@ -176,6 +184,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "wta"
         case .formula1:
             return "f1"
+        case .ncaaMBBTournament:
+            return "mens-college-basketball"
         default:
             return nil
         }
@@ -239,6 +249,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "WTA Tour"
         case .formula1:
             return "Formula 1"
+        case .ncaaMBBTournament:
+            return "NCAA Tournament"
         }
     }
 
@@ -248,7 +260,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "soccer"
         case .nfl:
             return "football"
-        case .nba:
+        case .nba, .ncaaMBBTournament:
             return "basketball"
         case .nhl:
             return "hockey"
@@ -260,6 +272,45 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "tennis"
         case .formula1:
             return "racing"
+        }
+    }
+
+    /// ESPN CDN logo URL for this league (light mode)
+    public var logoURL: URL? {
+        guard let id = espnLogoID else { return nil }
+        return URL(string: "https://a.espncdn.com/i/leaguelogos/soccer/500/\(id).png")
+    }
+
+    /// ESPN CDN logo URL for this league (dark mode)
+    public var darkLogoURL: URL? {
+        guard let id = espnLogoID else { return nil }
+        return URL(string: "https://a.espncdn.com/i/leaguelogos/soccer/500-dark/\(id).png")
+    }
+
+    /// ESPN internal league ID used for logo URLs (only soccer leagues)
+    private var espnLogoID: String? {
+        switch self {
+        case .English_Premier_League: return "23"
+        case .English_League_Championship: return "24"
+        case .German_Bundesliga: return "10"
+        case .Serie_A: return "12"
+        case .Ligue_1: return "9"
+        case .La_Liga: return "15"
+        case .Eredivisie: return "11"
+        case .MLS: return "19"
+        case .Liga_MX: return "22"
+        case .FIFA_World_Cup: return "4"
+        case .UEFA_Champions_League: return "2"
+        case .UEFA_Europa_League: return "2310"
+        case .FA_Cup: return "40"
+        case .Copa_del_Rey: return "80"
+        case .Coupe_De_France: return "182"
+        case .DFB_Pokal: return "2061"
+        case .UEFA_Nations_League: return "2395"
+        case .Copa_America: return "83"
+        case .UEFA_Conference_League: return "20296"
+        case .Womens_World_Cup: return "60"
+        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament: return nil
         }
     }
 

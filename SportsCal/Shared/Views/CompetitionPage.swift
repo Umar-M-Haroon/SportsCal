@@ -9,11 +9,11 @@ import SwiftUI
 import SportsCalModel
 
 struct CompetitionPage: View {
-    var competitions: [String]
+    var competitions: [Leagues]
     @Environment(UserDefaultStorage.self) private var appStorage
     var body: some View {
-        List(competitions.indices, id: \.self) { index in
-            CompetitionView(competition: competitions[index], isShown: !appStorage.hiddenCompetitions.contains(where: {$0 == competitions[index]}))
+        List(competitions, id: \.self) { league in
+            CompetitionView(league: league, isShown: !appStorage.hiddenCompetitions.contains(league.leagueName))
                 .environment(appStorage)
         }
         .navigationTitle("Show Competitions")
@@ -22,6 +22,6 @@ struct CompetitionPage: View {
 
 #Preview {
     @Previewable @State var storage = UserDefaultStorage()
-    CompetitionPage(competitions: ["Premier League", "La Liga", "Serie A"])
+    CompetitionPage(competitions: [.English_Premier_League, .La_Liga, .Serie_A])
         .environment(storage)
 }

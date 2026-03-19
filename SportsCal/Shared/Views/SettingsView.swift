@@ -147,13 +147,35 @@ struct SoccerCompetitionsSettingsSection: View {
             #if os(macOS)
             DisclosureGroup("Visible soccer competitions") {
                 ForEach(Leagues.allCases.filter({ $0.isSoccer }), id: \.self) { league in
-                    CompetitionView(competition: league.leagueName, isShown: !appStorage.hiddenCompetitions.contains(league.leagueName))
+                    CompetitionView(league: league, isShown: !appStorage.hiddenCompetitions.contains(league.leagueName))
                         .environment(appStorage)
                 }
             }
             #else
             NavigationLink("Visible soccer competitions") {
-                CompetitionPage(competitions: Leagues.allCases.filter({ $0.isSoccer }).map({ $0.leagueName }))
+                CompetitionPage(competitions: Leagues.allCases.filter({ $0.isSoccer }))
+                    .environment(appStorage)
+            }
+            #endif
+        }
+    }
+}
+
+struct BasketballCompetitionsSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+
+    var body: some View {
+        Section {
+            #if os(macOS)
+            DisclosureGroup("Visible basketball competitions") {
+                ForEach(Leagues.allCases.filter({ $0.isBasketball }), id: \.self) { league in
+                    CompetitionView(league: league, isShown: !appStorage.hiddenCompetitions.contains(league.leagueName))
+                        .environment(appStorage)
+                }
+            }
+            #else
+            NavigationLink("Visible basketball competitions") {
+                CompetitionPage(competitions: Leagues.allCases.filter({ $0.isBasketball }))
                     .environment(appStorage)
             }
             #endif
@@ -186,6 +208,7 @@ struct SettingsView: View {
 //                        .environmentObject(subscriptionManager)
                 }
                 SoccerCompetitionsSettingsSection()
+                BasketballCompetitionsSettingsSection()
                 ProOptionsSettingsSection()
                 #if os(iOS)
                 Section(header: Text("Live Activities")) {

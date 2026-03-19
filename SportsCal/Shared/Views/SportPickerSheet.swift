@@ -39,13 +39,30 @@ struct SportPickerSheet: View {
                         #if os(macOS)
                         DisclosureGroup("Manage Soccer Leagues") {
                             ForEach(Leagues.allCases.filter({ $0.isSoccer }), id: \.self) { league in
-                                CompetitionView(competition: league.leagueName, isShown: !storage.hiddenCompetitions.contains(league.leagueName))
+                                CompetitionView(league: league, isShown: !storage.hiddenCompetitions.contains(league.leagueName))
                                     .environment(storage)
                             }
                         }
                         #else
                         NavigationLink("Manage Soccer Leagues") {
-                            CompetitionPage(competitions: Leagues.allCases.filter({ $0.isSoccer }).map({ $0.leagueName }))
+                            CompetitionPage(competitions: Leagues.allCases.filter({ $0.isSoccer }))
+                                .environment(storage)
+                        }
+                        #endif
+                    }
+                }
+                if storage.shouldShowNBA {
+                    Section {
+                        #if os(macOS)
+                        DisclosureGroup("Manage Basketball Leagues") {
+                            ForEach(Leagues.allCases.filter({ $0.isBasketball }), id: \.self) { league in
+                                CompetitionView(league: league, isShown: !storage.hiddenCompetitions.contains(league.leagueName))
+                                    .environment(storage)
+                            }
+                        }
+                        #else
+                        NavigationLink("Manage Basketball Leagues") {
+                            CompetitionPage(competitions: Leagues.allCases.filter({ $0.isBasketball }))
                                 .environment(storage)
                         }
                         #endif
