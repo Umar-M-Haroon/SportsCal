@@ -6,6 +6,7 @@ import { RedisViewer } from './RedisViewer'
 import { TeamsExplorer } from './TeamsExplorer'
 import { DebugTools } from './DebugTools'
 import { ServerControl } from './ServerControl'
+import { Logs } from './Logs'
 
 export class Dashboard {
   private currentView: string = ''
@@ -24,6 +25,7 @@ export class Dashboard {
     this.components.set('teams', new TeamsExplorer())
     this.components.set('debug', new DebugTools())
     this.components.set('server', new ServerControl())
+    this.components.set('logs', new Logs())
 
     this.setupNavigation()
     this.showView('health')

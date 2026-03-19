@@ -84,7 +84,7 @@ struct AdminController: RouteCollection {
 
             isConnected = true
         } catch {
-            print("Redis health check failed: \(error)")
+            req.logger.error("Redis health check failed: \(error)")
         }
 
         // Get last update times from Redis

@@ -9,6 +9,43 @@ func routes(_ app: Application) throws {
     // Register API version middleware globally
     app.middleware.use(APIVersionMiddleware())
 
+    // MARK: - Log Streaming WebSocket
+    app.webSocket("ws", "logs") { req, ws async in
+        await LogBroadcaster.shared.addSubscriber(ws)
+
+        ws.onText { ws, text in
+            // Parse filter commands from client
+            guard let data = text.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let type = json["type"] as? String, type == "filter" else {
+                return
+            }
+
+            var filter = LogFilter()
+
+            if let levelStr = json["level"] as? String,
+               let level = Logger.Level(levelStr) {
+                filter.minLevel = level
+            }
+
+            if let labels = json["labels"] as? [String], !labels.isEmpty {
+                filter.labels = Set(labels)
+            }
+
+            if let search = json["search"] as? String, !search.isEmpty {
+                filter.searchText = search
+            }
+
+            Task {
+                await LogBroadcaster.shared.updateSubscriberFilter(ws, filter: filter)
+            }
+        }
+
+        // Keep alive until disconnect
+        try? await ws.onClose.get()
+        await LogBroadcaster.shared.removeSubscriber(ws)
+    }
+
     // MARK: - Admin Routes
     // Admin dashboard endpoints for monitoring and management
     try app.register(collection: AdminController())

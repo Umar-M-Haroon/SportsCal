@@ -92,6 +92,9 @@ public func configure(_ app: Application) async throws {
 
     try routes(app)
 
+    // Start interactive log commands reader (stdin)
+    startLogCommands()
+
     // Advertise via Bonjour so the iOS app can discover the local dev server
     #if os(macOS)
     if app.environment == .development {
