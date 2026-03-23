@@ -18,8 +18,13 @@ public struct Competitor: Codable {
     public var statistics: [Statistic]?
     public var leaders: [CompetitorLeader]?
     public var records: [Record]?
+    public var curatedRank: CuratedRank?
 
-    public init(id: String, uid: String, type: String, order: Int, homeAway: String? = nil, team: CompetitorTeam? = nil, score: String? = nil, linescores: [Linescore]? = nil, statistics: [Statistic]? = nil, leaders: [CompetitorLeader]? = nil, records: [Record]? = nil) {
+    public struct CuratedRank: Codable {
+        public var current: Int?
+    }
+
+    public init(id: String, uid: String, type: String, order: Int, homeAway: String? = nil, team: CompetitorTeam? = nil, score: String? = nil, linescores: [Linescore]? = nil, statistics: [Statistic]? = nil, leaders: [CompetitorLeader]? = nil, records: [Record]? = nil, curatedRank: CuratedRank? = nil) {
         self.id = id
         self.uid = uid
         self.type = type
@@ -31,5 +36,6 @@ public struct Competitor: Codable {
         self.statistics = statistics
         self.leaders = leaders
         self.records = records
+        self.curatedRank = curatedRank
     }
 }

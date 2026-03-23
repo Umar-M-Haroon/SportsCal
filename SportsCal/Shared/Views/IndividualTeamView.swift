@@ -24,6 +24,7 @@ struct IndividualTeamView: View {
     var isWinning: Bool
     var isAway: Bool
     var record: String? = nil
+    var seed: Int? = nil
     var data: Data? = nil
     // Fallback logo view when URL is missing
     private var fallbackLogo: some View {
@@ -136,12 +137,12 @@ struct IndividualTeamView: View {
             }
             .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             if let shortName {
-                Text(shortName)
+                Text(seed != nil ? "(\(seed!)) \(shortName)" : shortName)
                     .font(.headline)
                     .foregroundColor(.secondary)
             .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             } else if let longName {
-                Text(longName)
+                Text(seed != nil ? "(\(seed!)) \(longName)" : longName)
                     .foregroundColor(.secondary)
                     .font(.headline)
             .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)

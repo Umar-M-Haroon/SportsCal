@@ -21,6 +21,7 @@ struct UpcomingGameView: View {
     @State var dateFormat: Int
     @Environment(GameViewModel.self) private var viewModel
     var isFavorite: Bool = false
+    var navigationDisabled: Bool = false
     var formatter =  Date.RelativeFormatStyle(presentation: .numeric, capitalizationContext: .beginningOfSentence)
 
     private var isStartingSoon: Bool {
@@ -34,14 +35,9 @@ struct UpcomingGameView: View {
     }
 
     var body: some View {
-        NavigationLink {
-            GameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
-                .environment(viewModel)
-                .environment(favorites)
-        } label: {
-            VStack(spacing: 6) {
+        let content = VStack(spacing: 6) {
                 HStack {
-                    IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: false, isAway: true, record: game.awayRecord)
+                    IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: false, isAway: true, record: game.awayRecord, seed: game.awaySeed)
                     .frame(maxWidth: .infinity)
                     VStack(alignment: .center, spacing: 8) {
                         if showCountdown, let date = game.standardDate {
@@ -82,7 +78,7 @@ struct UpcomingGameView: View {
                         .buttonBorderShape(.capsule)
                     }
                         .fixedSize(horizontal: true, vertical: false)
-                    IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: Int(game.intHomeScore ?? ""), isWinning: false, isAway: false, record: game.homeRecord)
+                    IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: Int(game.intHomeScore ?? ""), isWinning: false, isAway: false, record: game.homeRecord, seed: game.homeSeed)
                     .frame(maxWidth: .infinity)
                 }
 
@@ -94,8 +90,19 @@ struct UpcomingGameView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
+
+        if navigationDisabled {
+            content
+        } else {
+            NavigationLink {
+                GameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                    .environment(viewModel)
+                    .environment(favorites)
+            } label: {
+                content
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
     }
 }
 

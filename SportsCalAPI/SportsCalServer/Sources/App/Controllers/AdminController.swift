@@ -920,6 +920,16 @@ struct AdminController: RouteCollection {
             result.nba = LiveEvent(events: nbaScoreboard, league: .nba)
         }
 
+        // Fetch NCAA Tournament scoreboard and merge into basketball
+        if let ncaaScoreboard = try? await Integrator.getESPNScoreboard(for: .ncaaMBBTournament, req.application.client),
+           let ncaaLiveEvent = LiveEvent(events: ncaaScoreboard, league: .ncaaMBBTournament) {
+            if result.nba == nil {
+                result.nba = ncaaLiveEvent
+            } else {
+                result.nba = LiveEvent(events: (result.nba?.events ?? []) + ncaaLiveEvent.events)
+            }
+        }
+
         // Fetch NHL scoreboard
         if let nhlScoreboard = try? await Integrator.getESPNScoreboard(for: .nhl, req.application.client) {
             result.nhl = LiveEvent(events: nhlScoreboard, league: .nhl)

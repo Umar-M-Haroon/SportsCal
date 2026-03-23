@@ -397,10 +397,15 @@ struct MenuBarContentView: View {
         )
     }
 
+    private func seedPrefix(_ seed: Int?) -> String {
+        guard let seed else { return "" }
+        return "(\(seed)) "
+    }
+
     private func teamRow(gwt: GameWithTeams, isLive: Bool) -> some View {
         let game = gwt.game
-        let away = gwt.awayTeam?.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased()
-        let home = gwt.homeTeam?.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased()
+        let away = seedPrefix(game.awaySeed) + (gwt.awayTeam?.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased())
+        let home = seedPrefix(game.homeSeed) + (gwt.homeTeam?.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased())
 
         return HStack {
             if isLive, let awayScore = game.intAwayScore, let homeScore = game.intHomeScore {

@@ -23,6 +23,7 @@ struct GameScoreView: View {
     @Binding var sheetType: SheetType?
     
     var isLive: Bool
+    var navigationDisabled: Bool = false
     #if canImport(ActivityKit) && os(iOS)
     private let activitiesEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
     #endif
@@ -50,12 +51,7 @@ struct GameScoreView: View {
         @Bindable var bindableFavorites = favorites
         @Bindable var bindableViewModel = viewModel
 
-        NavigationLink {
-            GameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
-                .environment(viewModel)
-                .environment(favorites)
-        } label: {
-            VStack(spacing: 6) {
+        let content = VStack(spacing: 6) {
                 HStack {
                     if viewModel.appStorage.debugMode, game.idEvent?.hasPrefix(DebugGameFactory.isFakeEventPrefix) == true {
                         Text("DEBUG")
@@ -64,7 +60,7 @@ struct GameScoreView: View {
                             .padding(.horizontal, 4)
                             .background(.orange, in: RoundedRectangle(cornerRadius: 4))
                     }
-                    IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: awayScore, isWinning: awayScore > homeScore, isAway: true, record: game.awayRecord)
+                    IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: awayScore, isWinning: awayScore > homeScore, isAway: true, record: game.awayRecord, seed: game.awaySeed)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     VStack(spacing: 8) {
                         if let unformatted = game.strProgress {
@@ -105,7 +101,7 @@ struct GameScoreView: View {
                         .buttonBorderShape(.capsule)
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
-                    IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: homeScore, isWinning: homeScore > awayScore, isAway: false, record: game.homeRecord)
+                    IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: homeScore, isWinning: homeScore > awayScore, isAway: false, record: game.homeRecord, seed: game.homeSeed)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
 
@@ -118,27 +114,46 @@ struct GameScoreView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
+
+        if navigationDisabled {
+            content
+        } else {
+            NavigationLink {
+                GameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                    .environment(viewModel)
+                    .environment(favorites)
+            } label: {
+                content
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
     }
 }
 #Preview {
     @Previewable @State var favorites = Favorites()
     @Previewable @State var viewModel = GameViewModel(appStorage: UserDefaultStorage(), favorites: Favorites())
-    
+
+    let nbaGame: Game = .init(strLeague: "\(Leagues.nba.rawValue)", strHomeTeam: "4", strAwayTeam: "6", strStatus: "3P", strProgress: "6", strTimestamp: "2022-10-30T00:03:00", isoDate: nil, homeTeamColor: "552583", awayTeamColor: "CE1141")
+    let mlbGame: Game = .init(strLeague: "\(Leagues.mlb.rawValue)", strHomeTeam: "4", strAwayTeam: "6", strStatus: "3P", strProgress: "4", strTimestamp: "2022-10-30T00:03:00", isoDate: nil, homeTeamColor: "333366", awayTeamColor: "003831")
+    let nflGame: Game = .init(strLeague: "\(Leagues.nfl.rawValue)", strHomeTeam: "4", strAwayTeam: "6", strStatus: "3P", strProgress: "4", strTimestamp: "2022-10-30T00:03:00", isoDate: nil, homeTeamColor: "003594", awayTeamColor: "A71930")
+    let soccerGame: Game = .init(strLeague: "\(Leagues.English_Premier_League.rawValue)", strHomeTeam: "4", strAwayTeam: "6", strStatus: "3P", strProgress: "4", strTimestamp: "2022-10-30T00:03:00", isoDate: nil, homeTeamColor: "DA291C", awayTeamColor: "6CABDD")
+
     List {
         GameScoreView(homeTeam:
-                .init(strTeam: "Colorado Rockies Long Name", strTeamShort: nil, strAlternate: "COL", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/wvbk1d1550584627.png"), awayTeam: Team(strTeam: "Houston Astros", strTeamShort: "HOU", strAlternate: "HOU", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/miwigx1521893583.png"), homeScore: 119, awayScore: 89, game:
-                .init(strLeague: "\(Leagues.nba.rawValue)", strHomeTeam: "4", strAwayTeam: "6", strStatus: "3P", strProgress: "6", strTimestamp: "2022-10-30T00:03:00", isoDate: nil), shouldShowSportsCalProAlert: .constant(false), sheetType: .constant(nil), isLive: true)
+                .init(strTeam: "Los Angeles Lakers", strTeamShort: "LAL", strAlternate: "LAL", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/wvbk1d1550584627.png"), awayTeam: Team(strTeam: "Houston Rockets", strTeamShort: "HOU", strAlternate: "HOU", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/miwigx1521893583.png"), homeScore: 119, awayScore: 89, game: nbaGame, shouldShowSportsCalProAlert: .constant(false), sheetType: .constant(nil), isLive: true)
+        .gameCard(game: nbaGame, isLive: true)
         .environment(favorites)
         .environment(viewModel)
-        GameScoreView(homeTeam: .init(strTeam: "Colorado Rockies", strTeamShort: "COL", strAlternate: "COL", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/wvbk1d1550584627.png"), awayTeam: Team(strTeam: "Houston Astros", strTeamShort: "HOU", strAlternate: "HOU", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/miwigx1521893583.png"), homeScore: 3, awayScore: 4, game: .init(strHomeTeam: "4", strAwayTeam: "6", strStatus: "3P", strProgress: "4", strTimestamp: "2022-10-30T00:03:00", isoDate: nil), shouldShowSportsCalProAlert: .constant(false), sheetType: .constant(nil), isLive: true)
+        GameScoreView(homeTeam: .init(strTeam: "Colorado Rockies", strTeamShort: "COL", strAlternate: "COL", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/wvbk1d1550584627.png"), awayTeam: Team(strTeam: "Houston Astros", strTeamShort: "HOU", strAlternate: "HOU", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/miwigx1521893583.png"), homeScore: 3, awayScore: 4, game: mlbGame, shouldShowSportsCalProAlert: .constant(false), sheetType: .constant(nil), isLive: false)
+            .gameCard(game: mlbGame, isLive: false)
             .environment(favorites)
             .environment(viewModel)
-        GameScoreView(homeTeam: .init(strTeam: "Colorado Rockies", strTeamShort: "COL", strAlternate: "COL", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/wvbk1d1550584627.png"), awayTeam: Team(strTeam: "Houston Astros", strTeamShort: "HOU", strAlternate: "HOU", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/miwigx1521893583.png"), homeScore: 4, awayScore: 3, game: .init(strHomeTeam: "4", strAwayTeam: "6", strStatus: "3P", strProgress: "4", strTimestamp: "2022-10-30T00:03:00", isoDate: nil), shouldShowSportsCalProAlert: .constant(false), sheetType: .constant(nil), isLive: true)
+        GameScoreView(homeTeam: .init(strTeam: "Dallas Cowboys", strTeamShort: "DAL", strAlternate: "DAL", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/wvbk1d1550584627.png"), awayTeam: Team(strTeam: "San Francisco 49ers", strTeamShort: "SF", strAlternate: "SF", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/miwigx1521893583.png"), homeScore: 24, awayScore: 31, game: nflGame, shouldShowSportsCalProAlert: .constant(false), sheetType: .constant(nil), isLive: true)
+            .gameCard(game: nflGame, isLive: true)
             .environment(favorites)
             .environment(viewModel)
-        GameScoreView(homeTeam: .init(strTeam: "Colorado Rockies", strTeamShort: "COL", strAlternate: "COL", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/wvbk1d1550584627.png"), awayTeam: Team(strTeam: "Houston Astros", strTeamShort: "HOU", strAlternate: "HOU", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/miwigx1521893583.png"), homeScore: 4, awayScore: 6, game: .init(strHomeTeam: "4", strAwayTeam: "6", strStatus: "3P", strProgress: "4", strTimestamp: "2022-10-30T00:03:00", isoDate: nil), shouldShowSportsCalProAlert: .constant(false), sheetType: .constant(nil), isLive: true)
+        GameScoreView(homeTeam: .init(strTeam: "Manchester United", strTeamShort: "MUN", strAlternate: "MUN", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/wvbk1d1550584627.png"), awayTeam: Team(strTeam: "Manchester City", strTeamShort: "MCI", strAlternate: "MCI", strTeamBadge: "https://www.thesportsdb.com/images/media/team/badge/miwigx1521893583.png"), homeScore: 2, awayScore: 1, game: soccerGame, shouldShowSportsCalProAlert: .constant(false), sheetType: .constant(nil), isLive: false)
+            .gameCard(game: soccerGame, isLive: false)
             .environment(favorites)
             .environment(viewModel)
     }

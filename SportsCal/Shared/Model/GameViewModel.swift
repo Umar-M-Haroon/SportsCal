@@ -20,7 +20,7 @@ import AppIntents
 
 // MARK: - GameWithTeams
 // Pre-computed game with team data to avoid expensive lookups during rendering
-public struct GameWithTeams: Identifiable {
+public struct GameWithTeams: Identifiable, Hashable {
     public var id: String { game.id }
     public let game: Game
     public let homeTeam: Team?
@@ -146,7 +146,13 @@ public class GameViewModel: NSObject {
             sports.append(.mlb)
         }
         if appStorage.shouldShowNBA, let events = currentLiveInfo?.nba?.events, !events.isEmpty {
-            sports.append(.basketball)
+            let filtered = events.filter { game in
+                guard let leagueString = game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let league = Leagues(rawValue: intLeague) else { return false }
+                return league.isBasketball && !appStorage.hiddenCompetitions.contains(league.leagueName)
+            }
+            if !filtered.isEmpty { sports.append(.basketball) }
         }
         if appStorage.shouldShowNFL, let events = currentLiveInfo?.nfl?.events, !events.isEmpty {
             sports.append(.nfl)
@@ -197,8 +203,8 @@ public class GameViewModel: NSObject {
             let filteredNBA = nbaEvents.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
-                      let _ = Leagues(rawValue: intLeague) else { return false }
-                return true
+                      let league = Leagues(rawValue: intLeague) else { return false }
+                return league.isBasketball && !appStorage.hiddenCompetitions.contains(league.leagueName)
             }
             if !filteredNBA.isEmpty {
                 counts[.basketball] = filteredNBA.count
@@ -357,10 +363,10 @@ public class GameViewModel: NSObject {
             basketballGames?.removeAll(where: { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
-                      let _ = Leagues(rawValue: intLeague) else {
+                      let league = Leagues(rawValue: intLeague) else {
                     return true
                 }
-                return false
+                return !league.isBasketball || appStorage.hiddenCompetitions.contains(league.leagueName)
             })
             if let basketballGames {
                 games.append(contentsOf: basketballGames)
@@ -827,7 +833,9 @@ public class GameViewModel: NSObject {
                 leaderboardEntries: live.leaderboardEntries ?? scheduled.leaderboardEntries,
                 sessions: live.sessions ?? scheduled.sessions,
                 venueName: live.venueName ?? scheduled.venueName,
-                circuitInfo: live.circuitInfo ?? scheduled.circuitInfo
+                circuitInfo: live.circuitInfo ?? scheduled.circuitInfo,
+                homeSeed: live.homeSeed ?? scheduled.homeSeed,
+                awaySeed: live.awaySeed ?? scheduled.awaySeed
             )
             changed = true
         }
@@ -885,7 +893,13 @@ public class GameViewModel: NSObject {
         }
         if appStorage.shouldShowNBA {
             if let basketballGames = gamesDict[.basketball] {
-                allGames.append(contentsOf: basketballGames)
+                let filtered = basketballGames.filter { game in
+                    guard let leagueString = game.idLeague,
+                          let intLeague = Int(leagueString),
+                          let league = Leagues(rawValue: intLeague) else { return false }
+                    return league.isBasketball && !appStorage.hiddenCompetitions.contains(league.leagueName)
+                }
+                allGames.append(contentsOf: filtered)
             }
         }
         if appStorage.shouldShowNFL {

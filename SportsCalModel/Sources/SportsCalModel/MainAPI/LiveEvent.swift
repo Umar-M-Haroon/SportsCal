@@ -55,6 +55,8 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                                       playerName: name, displayValue: top.displayValue, headshot: top.athlete?.headshot)
                 }
 
+                let homeSeed = league == .ncaaMBBTournament ? home.curatedRank?.current : nil
+                let awaySeed = league == .ncaaMBBTournament ? away.curatedRank?.current : nil
                 let homeColor = homeTeam.color
                 let awayColor = awayTeam.color
                 let homeRec = home.records?.first(where: { $0.type == "total" })?.summary
@@ -88,7 +90,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     homeTeamColor: homeColor, awayTeamColor: awayColor,
                     homeRecord: homeRec, awayRecord: awayRec,
                     legDisplay: competition.leg?.displayValue,
-                    aggregateScore: aggregateScore
+                    aggregateScore: aggregateScore,
+                    homeSeed: homeSeed,
+                    awaySeed: awaySeed
                 )]
             }
 
@@ -306,7 +310,7 @@ public struct GameLeader: Codable, Equatable, Hashable {
 
 // MARK: - Event
 public struct Game: Identifiable, Equatable, Hashable {
-    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil) {
+    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil) {
         self.idLiveScore = idLiveScore
         self.idEvent = idEvent
         self._strSport = strSport
@@ -339,6 +343,8 @@ public struct Game: Identifiable, Equatable, Hashable {
         self.circuitInfo = circuitInfo
         self.legDisplay = legDisplay
         self.aggregateScore = aggregateScore
+        self.homeSeed = homeSeed
+        self.awaySeed = awaySeed
         // Pre-compute date from strTimestamp if isoDate not provided
         if let isoDate {
             self.isoDate = isoDate
@@ -394,6 +400,8 @@ public struct Game: Identifiable, Equatable, Hashable {
     public let circuitInfo: F1CircuitInfo?
     public let legDisplay: String?
     public let aggregateScore: String?
+    public let homeSeed: Int?
+    public let awaySeed: Int?
 
     // MARK: - Computed Properties (derived from idLeague)
     // Private storage for backward compatibility when decoding old data
@@ -429,6 +437,7 @@ extension Game: Codable {
         case leaderboardEntries, sessions, venueName
         case homeTeamColor, awayTeamColor, homeRecord, awayRecord
         case circuitInfo, legDisplay, aggregateScore
+        case homeSeed, awaySeed
         // Computed properties - decoded for backward compatibility, not encoded
         case strSport, strLeague
         // Individual sport fallback (golf/tennis have null strHomeTeam/strAwayTeam)
@@ -472,6 +481,8 @@ extension Game: Codable {
         circuitInfo = try container.decodeIfPresent(F1CircuitInfo.self, forKey: .circuitInfo)
         legDisplay = try container.decodeIfPresent(String.self, forKey: .legDisplay)
         aggregateScore = try container.decodeIfPresent(String.self, forKey: .aggregateScore)
+        homeSeed = try container.decodeIfPresent(Int.self, forKey: .homeSeed)
+        awaySeed = try container.decodeIfPresent(Int.self, forKey: .awaySeed)
         // Decode for backward compatibility with old cached data
         _strSport = try container.decodeIfPresent(String.self, forKey: .strSport)
         _strLeague = try container.decodeIfPresent(String.self, forKey: .strLeague)
@@ -532,6 +543,8 @@ extension Game: Codable {
         try container.encodeIfPresent(circuitInfo, forKey: .circuitInfo)
         try container.encodeIfPresent(legDisplay, forKey: .legDisplay)
         try container.encodeIfPresent(aggregateScore, forKey: .aggregateScore)
+        try container.encodeIfPresent(homeSeed, forKey: .homeSeed)
+        try container.encodeIfPresent(awaySeed, forKey: .awaySeed)
         // Note: strSport and strLeague are not encoded - they're computed from idLeague
         // Deprecated fields are not encoded: strPlayer, idPlayer, intEventScore,
         // intEventScoreTotal, strEventTime, dateEvent, updated

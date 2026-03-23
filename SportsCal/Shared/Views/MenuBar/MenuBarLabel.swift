@@ -61,8 +61,10 @@ struct MenuBarLabel: View {
                         .font(.caption2)
                 }
             } else {
-                let away = gwt.awayTeam?.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased()
-                let home = gwt.homeTeam?.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased()
+                let awaySeed = game.awaySeed.map { "(\($0)) " } ?? ""
+                let homeSeed = game.homeSeed.map { "(\($0)) " } ?? ""
+                let away = awaySeed + (gwt.awayTeam?.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased())
+                let home = homeSeed + (gwt.homeTeam?.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased())
                 if let awayScore = game.intAwayScore, let homeScore = game.intHomeScore {
                     Text("\(away) \(awayScore) - \(home) \(homeScore)")
                         .font(.caption2)
