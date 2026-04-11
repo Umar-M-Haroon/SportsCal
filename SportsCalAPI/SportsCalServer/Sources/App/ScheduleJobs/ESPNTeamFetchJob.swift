@@ -25,6 +25,10 @@ struct ESPNTeamFetchJob: AsyncScheduledJob {
         let espnTeamsDict = try await withThrowingTaskGroup(of: [Leagues: TeamResponse].self) { group in
             var allTeams: [Leagues: TeamResponse] = [:]
             for league in Leagues.allCases {
+                // Skip NCAA — college team names collide with pro teams
+                // (e.g. "Islanders" matching "New York Islanders") and would
+                // overwrite logos/abbreviations with wrong data
+                if league == .ncaaMBBTournament { continue }
                 group.addTask {
                     [league : try await Integrator.getTeam(league: league, client: context.application.client)]
                 }

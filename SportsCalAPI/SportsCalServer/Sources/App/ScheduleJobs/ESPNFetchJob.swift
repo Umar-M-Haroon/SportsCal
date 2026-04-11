@@ -47,17 +47,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
         }
 
         Self.logger.info("Fetching ESPN live scores")
-        var espnResult = await Integrator.getESPNLiveScore(context.application.client)
-
-        // Fetch NCAA Tournament and merge into basketball slot
-        if let ncaaScoreboard = try? await Integrator.getESPNScoreboard(for: .ncaaMBBTournament, context.application.client),
-           let ncaaLiveEvent = LiveEvent(events: ncaaScoreboard, league: .ncaaMBBTournament) {
-            if espnResult.nba == nil {
-                espnResult = LiveScore(nba: ncaaLiveEvent, mlb: espnResult.mlb, soccer: espnResult.soccer, nfl: espnResult.nfl, nhl: espnResult.nhl, golf: espnResult.golf, tennis: espnResult.tennis, racing: espnResult.racing)
-            } else {
-                espnResult = LiveScore(nba: LiveEvent(events: (espnResult.nba?.events ?? []) + ncaaLiveEvent.events), mlb: espnResult.mlb, soccer: espnResult.soccer, nfl: espnResult.nfl, nhl: espnResult.nhl, golf: espnResult.golf, tennis: espnResult.tennis, racing: espnResult.racing)
-            }
-        }
+        let espnResult = await Integrator.getESPNLiveScore(context.application.client)
 
         let latestLiveResult = try await context.application.redis.get(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug), asJSON: LiveScore.self)
 
@@ -80,8 +70,28 @@ struct ESPNFetchJob: AsyncScheduledJob {
         }
 
         // Translate ESPN team IDs to TheSportsDB IDs in all live games
+        // This must happen BEFORE merging NCAA games, since ESPN IDs are per-sport
+        // and NCAA team IDs can collide with NBA team IDs in the mapping
         if !espnToTSDB.isEmpty {
             newResult = newResult.map { translateTeamIDs(in: $0, using: espnToTSDB) }
+        }
+
+        // Merge NCAA Tournament into basketball AFTER ID translation to avoid
+        // NCAA ESPN IDs being incorrectly mapped to NBA TheSportsDB IDs
+        if let ncaaScoreboard = try? await Integrator.getESPNScoreboard(for: .ncaaMBBTournament, context.application.client),
+           let ncaaLiveEvent = LiveEvent(events: ncaaScoreboard, league: .ncaaMBBTournament) {
+            if let existing = newResult?.nba {
+                newResult = newResult.map { result in
+                    LiveScore(nba: LiveEvent(events: existing.events + ncaaLiveEvent.events), mlb: result.mlb, soccer: result.soccer, nfl: result.nfl, nhl: result.nhl, golf: result.golf, tennis: result.tennis, racing: result.racing)
+                }
+            } else {
+                newResult = newResult.map { result in
+                    LiveScore(nba: ncaaLiveEvent, mlb: result.mlb, soccer: result.soccer, nfl: result.nfl, nhl: result.nhl, golf: result.golf, tennis: result.tennis, racing: result.racing)
+                }
+                if newResult == nil {
+                    newResult = LiveScore(nba: ncaaLiveEvent)
+                }
+            }
         }
 
         // Detect newly started games and send push-to-start notifications
@@ -448,8 +458,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 idAwayTeam: scheduleGame.idAwayTeam,
                 strHomeTeam: espnGame.strHomeTeam,
                 strAwayTeam: espnGame.strAwayTeam,
-                strHomeTeamBadge: espnGame.strHomeTeamBadge ?? scheduleGame.strHomeTeamBadge,
-                strAwayTeamBadge: espnGame.strAwayTeamBadge ?? scheduleGame.strAwayTeamBadge,
+                strHomeTeamBadge: scheduleGame.strHomeTeamBadge ?? espnGame.strHomeTeamBadge,
+                strAwayTeamBadge: scheduleGame.strAwayTeamBadge ?? espnGame.strAwayTeamBadge,
                 intHomeScore: isPreGame ? scheduleGame.intHomeScore : (espnGame.intHomeScore ?? scheduleGame.intHomeScore),
                 intAwayScore: isPreGame ? scheduleGame.intAwayScore : (espnGame.intAwayScore ?? scheduleGame.intAwayScore),
                 strStatus: espnGame.strStatus ?? scheduleGame.strStatus,

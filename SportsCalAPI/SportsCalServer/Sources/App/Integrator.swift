@@ -97,16 +97,6 @@ class Integrator {
                 }
             }
         }
-        // Fetch NCAA Tournament and merge into basketball
-        if let ncaaScoreboard = try? await getESPNScoreboard(for: .ncaaMBBTournament, client),
-           let ncaaLiveEvent = LiveEvent(events: ncaaScoreboard, league: .ncaaMBBTournament) {
-            if let existing = events[.basketball] {
-                events[.basketball] = LiveEvent(events: existing.events + ncaaLiveEvent.events)
-            } else {
-                events[.basketball] = ncaaLiveEvent
-            }
-        }
-
         return LiveScore(nba: events[.basketball], mlb: events[.mlb], nfl: events[.nfl], nhl: events[.hockey], golf: events[.golf], tennis: events[.tennis], racing: events[.racing])
     }
     
