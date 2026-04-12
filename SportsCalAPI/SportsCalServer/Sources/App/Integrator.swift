@@ -48,13 +48,33 @@ class Integrator {
         return result
     }
     
+    /// Last time golf scoreboard was fetched — used to throttle golf to every 5 minutes
+    private static var lastGolfFetch: Date?
+    private static var lastGolfResult: Scoreboard?
+    private static let golfFetchInterval: TimeInterval = 5 * 60 // 5 minutes
+
     private static func getESPNScores(_ client: some Client) async -> [SportType: Scoreboard] {
         return await withTaskGroup(of: (SportType, Scoreboard?).self) { group in
             var espnInfo: [SportType: Scoreboard] = [:]
             for sport in SportType.allCases.filter({$0.toLeague != nil}) {
+                // Throttle golf fetches — every 5 min instead of every minute
+                if sport == .golf,
+                   let lastFetch = lastGolfFetch,
+                   Date().timeIntervalSince(lastFetch) < golfFetchInterval,
+                   let cached = lastGolfResult {
+                    espnInfo[sport] = cached
+                    logger.info("Using cached golf scoreboard", metadata: [
+                        "age": "\(String(format: "%.0f", Date().timeIntervalSince(lastFetch)))s"
+                    ])
+                    continue
+                }
                 group.addTask {
                     do {
-                        return (sport, try await getScoreboard(sport: sport, client: client))
+                        let result = try await getScoreboard(sport: sport, client: client)
+                        if sport == .golf {
+                            await updateGolfCache(result)
+                        }
+                        return (sport, result)
                     } catch {
                         logger.error("ESPN fetch failed for sport, continuing with others", metadata: [
                             "sport": "\(sport)",
@@ -73,6 +93,11 @@ class Integrator {
         }
     }
     
+    private static func updateGolfCache(_ scoreboard: Scoreboard) {
+        lastGolfFetch = Date()
+        lastGolfResult = scoreboard
+    }
+
     public static func getESPNScoreboard(for league: Leagues, _ client: some Client, dates: Int? = nil) async throws -> Scoreboard {
         try await ESPNNetworking.getScoreboard(req: client, DecodeType: Scoreboard.self, league: league, dates: dates)
     }

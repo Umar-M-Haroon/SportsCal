@@ -84,6 +84,10 @@ public func configure(_ app: Application) async throws {
         app.queues.schedule(f1EnrichmentJob)
             .hourly()
             .at(10)
+        let golfEnrichmentJob = GolfEnrichmentJob()
+        app.queues.schedule(golfEnrichmentJob)
+            .hourly()
+            .at(25)
 
         try app.queues.startScheduledJobs()
     }

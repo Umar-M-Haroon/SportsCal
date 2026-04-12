@@ -13,8 +13,14 @@ public struct Athlete: Codable {
     public var jersey: String?
     public var position: Position?
     public var active: Bool?
+    public var flag: AthleteFlag?
 
-    public init(id: String, fullName: String, displayName: String, shortName: String, links: [AthleteLink], headshot: String, jersey: String?, position: Position, active: Bool) {
+    public struct AthleteFlag: Codable {
+        public var href: String?
+        public var alt: String?
+    }
+
+    public init(id: String, fullName: String, displayName: String, shortName: String, links: [AthleteLink], headshot: String, jersey: String?, position: Position, active: Bool, flag: AthleteFlag? = nil) {
         self.id = id
         self.fullName = fullName
         self.displayName = displayName
@@ -24,5 +30,6 @@ public struct Athlete: Codable {
         self.jersey = jersey
         self.position = position
         self.active = active
+        self.flag = flag
     }
 }

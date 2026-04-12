@@ -17,8 +17,14 @@ public struct LeaderboardEntry: Codable, Equatable, Hashable {
     public let rounds: [String]
     public let constructor: String?
     public let gap: String?
+    public let isCut: Bool?
+    public let movement: Int?
+    public let flagURL: String?
+    public let flagAlt: String?
+    public let teeTime: String?
+    public let roundDetails: [GolfRoundDetail]?
 
-    public init(name: String, score: String, position: Int, headshot: String? = nil, thruHole: String? = nil, rounds: [String] = [], constructor: String? = nil, gap: String? = nil) {
+    public init(name: String, score: String, position: Int, headshot: String? = nil, thruHole: String? = nil, rounds: [String] = [], constructor: String? = nil, gap: String? = nil, isCut: Bool? = nil, movement: Int? = nil, flagURL: String? = nil, flagAlt: String? = nil, teeTime: String? = nil, roundDetails: [GolfRoundDetail]? = nil) {
         self.name = name
         self.score = score
         self.position = position
@@ -27,6 +33,12 @@ public struct LeaderboardEntry: Codable, Equatable, Hashable {
         self.rounds = rounds
         self.constructor = constructor
         self.gap = gap
+        self.isCut = isCut
+        self.movement = movement
+        self.flagURL = flagURL
+        self.flagAlt = flagAlt
+        self.teeTime = teeTime
+        self.roundDetails = roundDetails
     }
 }
 

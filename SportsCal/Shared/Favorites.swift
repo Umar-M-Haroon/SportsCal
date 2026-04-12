@@ -12,23 +12,28 @@ import SportsCalModel
 @Observable
 class Favorites: Equatable {
     private(set) var teams: Set<String>
-    
+    private(set) var players: Set<String>
+
     private let saveKey = "Favorites"
-    
-    init() {
-        // watchOS: app group is not available cross-device, read from standard UserDefaults
-        // (synced via WatchConnectivity)
+    private let playerSaveKey = "FavoritePlayers"
+
+    private var defaults: UserDefaults? {
         #if os(watchOS)
-        let array = UserDefaults.standard.stringArray(forKey: saveKey)
+        return UserDefaults.standard
         #else
-        let array = UserDefaults(suiteName: "group.Komodo.SportsCal")?.stringArray(forKey: saveKey)
+        return UserDefaults(suiteName: "group.Komodo.SportsCal")
+        #endif
+    }
+
+    init() {
+        #if os(watchOS)
+        let ud = UserDefaults.standard
+        #else
+        let ud = UserDefaults(suiteName: "group.Komodo.SportsCal")
         #endif
 
-        var teamSet = Set<String>()
-        array?.forEach({ team in
-            teamSet.insert(team)
-        })
-        teams = teamSet
+        teams = Set(ud?.stringArray(forKey: saveKey) ?? [])
+        players = Set(ud?.stringArray(forKey: playerSaveKey) ?? [])
     }
     func contains(_ team: Game) -> Bool {
         return teams.contains(team.strHomeTeam) || teams.contains(team.strAwayTeam)
@@ -38,6 +43,9 @@ class Favorites: Equatable {
     }
     func containsAway(_ away: String) -> Bool {
         teams.contains(away)
+    }
+    func containsPlayer(_ name: String) -> Bool {
+        players.contains(name)
     }
     func add(_ favorite: String) {
         teams.insert(favorite)
@@ -49,16 +57,29 @@ class Favorites: Equatable {
         save()
         NotificationCenter.default.post(name: .favoritesDidChange, object: nil)
     }
-    func save() {
-        let stringArray = Array(teams)
-        #if os(watchOS)
-        UserDefaults.standard.set(stringArray, forKey: saveKey)
-        #else
-        UserDefaults(suiteName: "group.Komodo.SportsCal")?.set(stringArray, forKey: saveKey)
-        #endif
+    func addPlayer(_ name: String) {
+        players.insert(name)
+        save()
+        NotificationCenter.default.post(name: .favoritesDidChange, object: nil)
     }
-    static func ==(lhs: Favorites, rhs: Favorites) -> Bool{
-        return lhs.teams == rhs.teams
+    func removePlayer(_ name: String) {
+        players.remove(name)
+        save()
+        NotificationCenter.default.post(name: .favoritesDidChange, object: nil)
+    }
+    func save() {
+        defaults?.set(Array(teams), forKey: saveKey)
+        defaults?.set(Array(players), forKey: playerSaveKey)
+    }
+
+    /// Re-reads favorites from the appropriate UserDefaults store.
+    /// Called by CloudSyncManager when remote favorites arrive via iCloud KVS.
+    func reloadFromDefaults() {
+        teams = Set(defaults?.stringArray(forKey: saveKey) ?? [])
+        players = Set(defaults?.stringArray(forKey: playerSaveKey) ?? [])
+    }
+    static func ==(lhs: Favorites, rhs: Favorites) -> Bool {
+        return lhs.teams == rhs.teams && lhs.players == rhs.players
     }
 }
 

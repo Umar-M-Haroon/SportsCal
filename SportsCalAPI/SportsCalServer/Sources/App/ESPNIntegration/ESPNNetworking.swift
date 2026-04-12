@@ -294,6 +294,87 @@ class ESPNNetworking {
         return timingMap
     }
 
+    // MARK: - Golf Summary (per-event detail with hole-by-hole data)
+
+    /// Fetches detailed golf tournament summary including course info, hole-by-hole scores, and round stats.
+    static func getGolfSummary(req: some Client, eventId: String) async throws -> GolfSummaryResponse {
+        let urlString = "http://site.api.espn.com/apis/site/v2/sports/golf/pga/summary?event=\(eventId)"
+        do {
+            let response = try await req.get(URI(string: urlString))
+            return try response.content.decode(GolfSummaryResponse.self)
+        } catch {
+            logger.error("ESPN golf summary fetch failed", metadata: [
+                "eventId": "\(eventId)",
+                "url": "\(urlString)",
+                "error": "\(error)"
+            ])
+            throw error
+        }
+    }
+
+    // MARK: - Golf Summary Response Models
+
+    struct GolfSummaryResponse: Codable {
+        var courses: [GolfSummaryCourse]?
+        var rounds: [GolfSummaryRound]?
+    }
+
+    struct GolfSummaryCourse: Codable {
+        var name: String?
+        var par: Int?
+        var holes: [GolfSummaryCourseHole]?
+    }
+
+    struct GolfSummaryCourseHole: Codable {
+        var number: Int
+        var par: Int
+        var yardage: Int?
+    }
+
+    struct GolfSummaryRound: Codable {
+        var number: Int?
+        var displayName: String?
+        var competitors: [GolfSummaryCompetitor]?
+    }
+
+    struct GolfSummaryCompetitor: Codable {
+        var id: String?
+        var athlete: GolfSummaryAthlete?
+        var score: String?
+        var status: GolfSummaryCompetitorStatus?
+        var linescores: [GolfSummaryLinescore]?
+        var statistics: [GolfSummaryStatCategory]?
+    }
+
+    struct GolfSummaryAthlete: Codable {
+        var id: String?
+        var displayName: String?
+    }
+
+    struct GolfSummaryCompetitorStatus: Codable {
+        var period: Int?
+        var displayValue: String?
+        var thru: Int?
+    }
+
+    struct GolfSummaryLinescore: Codable {
+        var period: Int?   // hole number
+        var value: Int?    // strokes on this hole
+    }
+
+    struct GolfSummaryStatCategory: Codable {
+        var name: String?
+        var displayName: String?
+        var stats: [GolfSummaryStat]?
+    }
+
+    struct GolfSummaryStat: Codable {
+        var name: String?
+        var displayName: String?
+        var value: Double?
+        var displayValue: String?
+    }
+
     static func decodeSportToPath(sport: SportType) -> String? {
         switch sport {
         case .basketball:

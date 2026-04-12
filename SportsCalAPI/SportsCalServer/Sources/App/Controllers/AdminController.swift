@@ -862,10 +862,27 @@ struct AdminController: RouteCollection {
                 message: "ESPNFetchJob executed successfully. Live scores updated with translated team IDs.",
                 jobName: jobName
             )
+        case "GolfEnrichmentJob":
+            let context = QueueContext(
+                queueName: .default,
+                configuration: .init(),
+                application: req.application,
+                logger: req.logger,
+                on: req.eventLoop
+            )
+
+            let job = GolfEnrichmentJob()
+            try await job.run(context: context)
+
+            return TriggerJobResponse(
+                success: true,
+                message: "GolfEnrichmentJob executed successfully. Golf course info and round details enriched.",
+                jobName: jobName
+            )
         default:
             return TriggerJobResponse(
                 success: false,
-                message: "Job '\(jobName)' not recognized. Available jobs: ESPNTeamFetchJob, ScheduleUpdateJob",
+                message: "Job '\(jobName)' not recognized. Available jobs: ESPNTeamFetchJob, ScheduleUpdateJob, ESPNFetchJob, GolfEnrichmentJob",
                 jobName: jobName
             )
         }

@@ -247,7 +247,33 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 let progress = competition.status?.type.shortDetail ?? event.status?.type.shortDetail
                 let competitors = Array((competition.competitors ?? []).prefix(30))
 
-                // Build structured leaderboard entries with headshots, thru-hole, and golf stats
+                // Extract course hole pars from the first competitor's first round hole data
+                let holePars: [Int]? = {
+                    guard let firstCompetitor = (competition.competitors ?? []).first,
+                          let firstRound = firstCompetitor.linescores?.first,
+                          let holes = firstRound.linescores, !holes.isEmpty else { return nil }
+                    // Derive par from scoreType: if score=4 and scoreType="E", par=4; if score=3 and scoreType="-1", par=4
+                    return holes.sorted(by: { ($0.period ?? 0) < ($1.period ?? 0) }).map { hole in
+                        let score = Int(hole.value ?? 0)
+                        if let st = hole.scoreType?.displayValue {
+                            if st == "E" { return score }
+                            if let diff = Int(st.replacingOccurrences(of: "+", with: "")) {
+                                return score - diff
+                            }
+                        }
+                        return 4 // fallback
+                    }
+                }()
+                let derivedCoursePar = holePars?.reduce(0, +)
+
+                // Build course info if we have hole data
+                let courseInfo: GolfCourseInfo? = {
+                    guard let par = derivedCoursePar else { return nil }
+                    let courseName = competition.venue?.fullName ?? event.name
+                    return GolfCourseInfo(courseName: courseName, par: par, holePars: holePars)
+                }()
+
+                // Build structured leaderboard entries with headshots, thru-hole, golf stats, and round details
                 let entries: [LeaderboardEntry] = competitors.enumerated().map { index, competitor in
                     let name = competitor.athlete?.displayName ?? "TBD"
                     let score = competitor.score ?? "--"
@@ -272,13 +298,69 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     let flagURL = competitor.athlete?.flag?.href
                     let flagAlt = competitor.athlete?.flag?.alt
 
+                    // Per-round details with hole-by-hole scores and stats
+                    let roundDetails: [GolfRoundDetail]? = {
+                        let allLinescores = competitor.linescores ?? []
+                        let details = allLinescores.compactMap { roundLS -> GolfRoundDetail? in
+                            guard let roundNum = roundLS.period else { return nil }
+
+                            let totalScore = roundLS.value.map { Int($0) }
+
+                            // Hole-by-hole scores
+                            let holeScores: [GolfHoleScore]? = roundLS.linescores?.compactMap { holeLS -> GolfHoleScore? in
+                                guard let holeNum = holeLS.period, holeNum >= 1, holeNum <= 18 else { return nil }
+                                let holeScore = holeLS.value.map { Int($0) }
+                                let holePar = holePars != nil && holeNum <= holePars!.count ? holePars![holeNum - 1] : 4
+                                return GolfHoleScore(hole: holeNum, par: holePar, score: holeScore)
+                            }
+
+                            // Round stats from nested statistics
+                            let stats: GolfRoundStats? = {
+                                guard let categories = roundLS.statistics?.categories,
+                                      let statEntries = categories.first?.stats,
+                                      statEntries.count >= 6 else { return nil }
+                                // ESPN golf stats order: [birdiesOrBetter, bogeys, ?, ?, ?, pars, teeTime]
+                                let birdies = statEntries.count > 0 ? statEntries[0].value.map { Int($0) } : nil
+                                let bogeys = statEntries.count > 1 ? statEntries[1].value.map { Int($0) } : nil
+                                let parCount = statEntries.count > 5 ? statEntries[5].value.map { Int($0) } : nil
+
+                                // Count eagles from hole scores (birdiesOrBetter includes eagles)
+                                var eagles = 0
+                                var actualBirdies = birdies ?? 0
+                                if let holes = holeScores {
+                                    for hole in holes {
+                                        if let s = hole.score, s <= hole.par - 2 { eagles += 1 }
+                                    }
+                                    if eagles > 0 { actualBirdies = max(0, actualBirdies - eagles) }
+                                }
+
+                                // Derive putts from total score if not directly available
+                                return GolfRoundStats(
+                                    birdies: actualBirdies > 0 ? actualBirdies : birdies,
+                                    bogeys: bogeys,
+                                    eagles: eagles > 0 ? eagles : nil,
+                                    pars: parCount
+                                )
+                            }()
+
+                            return GolfRoundDetail(
+                                roundNumber: roundNum,
+                                totalScore: totalScore,
+                                stats: stats,
+                                holeScores: holeScores
+                            )
+                        }
+                        return details.isEmpty ? nil : details
+                    }()
+
                     return LeaderboardEntry(
                         name: name, score: score, position: competitor.order,
                         headshot: headshot, thruHole: thruHole, rounds: rounds,
                         isCut: isCut ? true : nil,
                         movement: movement,
                         flagURL: flagURL, flagAlt: flagAlt,
-                        teeTime: teeTime
+                        teeTime: teeTime,
+                        roundDetails: roundDetails
                     )
                 }
 
@@ -305,7 +387,8 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     lastPlay: leaderboard,
                     isCompleted: event.status?.type.completed, isoDate: nil,
                     leaderboardEntries: entries,
-                    venueName: venueName
+                    venueName: venueName,
+                    golfCourseInfo: courseInfo
                 )]
             }
 

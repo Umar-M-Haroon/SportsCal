@@ -50,6 +50,12 @@
 		1D73B99C2F86E13400C98966 /* AdInsertionHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73B99B2F86E13400C98966 /* AdInsertionHelper.swift */; };
 		1D73B99E2F86E13D00C98966 /* NativeAdManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73B99D2F86E13D00C98966 /* NativeAdManager.swift */; };
 		1D73B9A02F86E14D00C98966 /* NativeAdCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73B99F2F86E14D00C98966 /* NativeAdCardView.swift */; };
+		1D73C0282F8B8A9000C98966 /* F1WeekendWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C0272F8B8A9000C98966 /* F1WeekendWidget.swift */; };
+		1D73C0292F8B8A9000C98966 /* F1WeekendWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C0272F8B8A9000C98966 /* F1WeekendWidget.swift */; };
+		1D73C02B2F8B8AA400C98966 /* GolfLeaderboardWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C02A2F8B8AA400C98966 /* GolfLeaderboardWidget.swift */; };
+		1D73C02C2F8B8AA400C98966 /* GolfLeaderboardWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C02A2F8B8AA400C98966 /* GolfLeaderboardWidget.swift */; };
+		1D73C02E2F8B8AD000C98966 /* StandingsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C02D2F8B8AD000C98966 /* StandingsWidget.swift */; };
+		1D73C02F2F8B8AD000C98966 /* StandingsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C02D2F8B8AD000C98966 /* StandingsWidget.swift */; };
 		1D77F64B297CFDCC0023E6DB /* SportsTint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D77F64A297CFDCC0023E6DB /* SportsTint.swift */; };
 		1D77F64C297CFDCC0023E6DB /* SportsTint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D77F64A297CFDCC0023E6DB /* SportsTint.swift */; };
 		1D7D46AA29EA9F9A00179018 /* CalendarViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7D46A929EA9F9A00179018 /* CalendarViewRepresentable.swift */; };
@@ -161,6 +167,11 @@
 		1DFBEE702AEB456100753DE1 /* SubscriptionRequiredView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFBEE6F2AEB456100753DE1 /* SubscriptionRequiredView.swift */; };
 		8A4FD23681DA590FA36AD974 /* GameDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD6F330B4DD18EE38269B549 /* GameDetailView.swift */; };
 		9B1E2F4A2F3810A100C1D2E3 /* TournamentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1E2F492F3810A100C1D2E3 /* TournamentDetailView.swift */; };
+		A1B2C3D401000001AABBCCDD /* SubscriptionManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D402000001AABBCCDD /* SubscriptionManagerTests.swift */; };
+		A1B2C3D401000002AABBCCDD /* RevenueCatIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D402000002AABBCCDD /* RevenueCatIntegrationTests.swift */; };
+		A1B2C3D401000003AABBCCDD /* StoreKitIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D402000003AABBCCDD /* StoreKitIntegrationTests.swift */; };
+		A1B2C3D401000004AABBCCDD /* ProFeatureGatingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D402000004AABBCCDD /* ProFeatureGatingTests.swift */; };
+		A1B2C3D401000005AABBCCDD /* SportsCalStoreKit.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 1D73B9A12F8B5D4900C98966 /* SportsCalStoreKit.storekit */; };
 		AA000001TIPS000000000001 /* Tips.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001TIPS000000000000 /* Tips.swift */; };
 		AA000001TIPS000000000002 /* Tips.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001TIPS000000000000 /* Tips.swift */; };
 		AA00001000000000 /* SportAppEnum.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000 /* SportAppEnum.swift */; };
@@ -189,6 +200,9 @@
 		BB00060200000002 /* GolfScoreSparkline.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00060100000001 /* GolfScoreSparkline.swift */; };
 		BB00060400000004 /* GolfPlayerComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00060300000003 /* GolfPlayerComparisonView.swift */; };
 		BB00060600000006 /* GolfHoleGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00060500000005 /* GolfHoleGridView.swift */; };
+		BB00060800000008 /* GolfScorecardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00060700000007 /* GolfScorecardView.swift */; };
+		BB00060A0000000A /* GolfCourseDifficultyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00060900000009 /* GolfCourseDifficultyView.swift */; };
+		BB00060C0000000C /* GolfGlossaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00060B0000000B /* GolfGlossaryView.swift */; };
 		BB00070200000002 /* StandingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00070100000001 /* StandingsViewModel.swift */; };
 		CC00010200000002 /* StatScatterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00010100000001 /* StatScatterView.swift */; };
 		CC00020200000002 /* TeamStatsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00020100000001 /* TeamStatsViewModel.swift */; };
@@ -308,6 +322,10 @@
 		1D73B99F2F86E14D00C98966 /* NativeAdCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAdCardView.swift; sourceTree = "<group>"; };
 		1D73B9A12F8B5D4900C98966 /* SportsCalStoreKit.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = SportsCalStoreKit.storekit; sourceTree = "<group>"; };
 		1D73BC622F8B61B100C98966 /* StoreKitTestCertificate.cer */ = {isa = PBXFileReference; lastKnownFileType = file; path = StoreKitTestCertificate.cer; sourceTree = "<group>"; };
+		1D73C0232F8B87FD00C98966 /* SportsCalTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = file; path = SportsCalTests.xctestplan; sourceTree = "<group>"; };
+		1D73C0272F8B8A9000C98966 /* F1WeekendWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = F1WeekendWidget.swift; sourceTree = "<group>"; };
+		1D73C02A2F8B8AA400C98966 /* GolfLeaderboardWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfLeaderboardWidget.swift; sourceTree = "<group>"; };
+		1D73C02D2F8B8AD000C98966 /* StandingsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingsWidget.swift; sourceTree = "<group>"; };
 		1D77F64A297CFDCC0023E6DB /* SportsTint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsTint.swift; sourceTree = "<group>"; };
 		1D7D46A929EA9F9A00179018 /* CalendarViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewRepresentable.swift; sourceTree = "<group>"; };
 		1D7D46AD29EAAE1700179018 /* DecorationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecorationView.swift; sourceTree = "<group>"; };
@@ -391,6 +409,10 @@
 		1DFA3D672A4E8B0A007BA22C /* TiledGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TiledGridView.swift; sourceTree = "<group>"; };
 		1DFBEE6F2AEB456100753DE1 /* SubscriptionRequiredView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRequiredView.swift; sourceTree = "<group>"; };
 		9B1E2F492F3810A100C1D2E3 /* TournamentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TournamentDetailView.swift; sourceTree = "<group>"; };
+		A1B2C3D402000001AABBCCDD /* SubscriptionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerTests.swift; sourceTree = "<group>"; };
+		A1B2C3D402000002AABBCCDD /* RevenueCatIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatIntegrationTests.swift; sourceTree = "<group>"; };
+		A1B2C3D402000003AABBCCDD /* StoreKitIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitIntegrationTests.swift; sourceTree = "<group>"; };
+		A1B2C3D402000004AABBCCDD /* ProFeatureGatingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProFeatureGatingTests.swift; sourceTree = "<group>"; };
 		AA00000100000000 /* SportAppEnum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportAppEnum.swift; sourceTree = "<group>"; };
 		AA000001TIPS000000000000 /* Tips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tips.swift; sourceTree = "<group>"; };
 		AA00000200000000 /* IntentDataProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentDataProvider.swift; sourceTree = "<group>"; };
@@ -411,6 +433,9 @@
 		BB00060100000001 /* GolfScoreSparkline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfScoreSparkline.swift; sourceTree = "<group>"; };
 		BB00060300000003 /* GolfPlayerComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfPlayerComparisonView.swift; sourceTree = "<group>"; };
 		BB00060500000005 /* GolfHoleGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfHoleGridView.swift; sourceTree = "<group>"; };
+		BB00060700000007 /* GolfScorecardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfScorecardView.swift; sourceTree = "<group>"; };
+		BB00060900000009 /* GolfCourseDifficultyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfCourseDifficultyView.swift; sourceTree = "<group>"; };
+		BB00060B0000000B /* GolfGlossaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfGlossaryView.swift; sourceTree = "<group>"; };
 		BB00070100000001 /* StandingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingsViewModel.swift; sourceTree = "<group>"; };
 		C5D905CEEF684D5CB7178662 /* ScheduleFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleFilterTests.swift; sourceTree = "<group>"; };
 		CC00010100000001 /* StatScatterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatScatterView.swift; sourceTree = "<group>"; };
@@ -526,6 +551,10 @@
 			children = (
 				1D1DAB9829CDB50D005434D6 /* SportsCalTests.swift */,
 				C5D905CEEF684D5CB7178662 /* ScheduleFilterTests.swift */,
+				A1B2C3D402000001AABBCCDD /* SubscriptionManagerTests.swift */,
+				A1B2C3D402000002AABBCCDD /* RevenueCatIntegrationTests.swift */,
+				A1B2C3D402000003AABBCCDD /* StoreKitIntegrationTests.swift */,
+				A1B2C3D402000004AABBCCDD /* ProFeatureGatingTests.swift */,
 			);
 			path = SportsCalTests;
 			sourceTree = "<group>";
@@ -585,6 +614,9 @@
 				BB00060100000001 /* GolfScoreSparkline.swift */,
 				BB00060300000003 /* GolfPlayerComparisonView.swift */,
 				BB00060500000005 /* GolfHoleGridView.swift */,
+				BB00060700000007 /* GolfScorecardView.swift */,
+				BB00060900000009 /* GolfCourseDifficultyView.swift */,
+				BB00060B0000000B /* GolfGlossaryView.swift */,
 				BB00040100000001 /* F1GapRibbonView.swift */,
 				BB00050100000001 /* SportsRingView.swift */,
 				CC00010100000001 /* StatScatterView.swift */,
@@ -644,6 +676,9 @@
 				1D408096290BAA6A00729FFE /* LiveSportActivityWidget.swift */,
 				1DE16FFE26F29D4B007B1B57 /* Assets.xcassets */,
 				1DE1700026F29D4B007B1B57 /* Info.plist */,
+				1D73C0272F8B8A9000C98966 /* F1WeekendWidget.swift */,
+				1D73C02A2F8B8AA400C98966 /* GolfLeaderboardWidget.swift */,
+				1D73C02D2F8B8AD000C98966 /* StandingsWidget.swift */,
 			);
 			path = SportsWidget;
 			sourceTree = "<group>";
@@ -661,6 +696,7 @@
 		1DEC76A5268EFB6500D217A1 = {
 			isa = PBXGroup;
 			children = (
+				1D73C0232F8B87FD00C98966 /* SportsCalTests.xctestplan */,
 				1D73B9A12F8B5D4900C98966 /* SportsCalStoreKit.storekit */,
 				1D73BC622F8B61B100C98966 /* StoreKitTestCertificate.cer */,
 				1D981BD92F37CA1E00401880 /* SportsCalModel */,
@@ -1056,6 +1092,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D401000005AABBCCDD /* SportsCalStoreKit.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1119,6 +1156,10 @@
 			files = (
 				1D1DAB9929CDB50D005434D6 /* SportsCalTests.swift in Sources */,
 				FAC419D238E640E4802E1D64 /* ScheduleFilterTests.swift in Sources */,
+				A1B2C3D401000001AABBCCDD /* SubscriptionManagerTests.swift in Sources */,
+				A1B2C3D401000002AABBCCDD /* RevenueCatIntegrationTests.swift in Sources */,
+				A1B2C3D401000003AABBCCDD /* StoreKitIntegrationTests.swift in Sources */,
+				A1B2C3D401000004AABBCCDD /* ProFeatureGatingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1153,6 +1194,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1D73C0292F8B8A9000C98966 /* F1WeekendWidget.swift in Sources */,
 				1D7F46622F4502BE00F44569 /* WidgetInteractiveIntents.swift in Sources */,
 				1D6691AA2F5D451200D5F688 /* Constants.swift in Sources */,
 				1D7F46612F4502B700F44569 /* WidgetAppIntents.swift in Sources */,
@@ -1160,8 +1202,10 @@
 				1D7F46632F4502EC00F44569 /* WidgetRaceCell.swift in Sources */,
 				1D7F46642F4502EC00F44569 /* RectangularWidgetTeamView.swift in Sources */,
 				1DF27D6F2F6C6651000F5FCE /* CloudSyncManager.swift in Sources */,
+				1D73C02E2F8B8AD000C98966 /* StandingsWidget.swift in Sources */,
 				1D7F46652F4502EC00F44569 /* WidgetTournamentCell.swift in Sources */,
 				1D7F46662F4502EC00F44569 /* SportsWidgetCircularView.swift in Sources */,
+				1D73C02C2F8B8AA400C98966 /* GolfLeaderboardWidget.swift in Sources */,
 				1D7F46672F4502EC00F44569 /* SportsWidgetRectangularView.swift in Sources */,
 				1D7F46682F4502EC00F44569 /* SportsWidgetInlineView.swift in Sources */,
 				AA00010000000001 /* Teams+Extensions.swift in Sources */,
@@ -1188,7 +1232,9 @@
 				1D1DABC929D18D62005434D6 /* RectangularWidgetTeamView.swift in Sources */,
 				1DB93DC42907659300311FAA /* Favorites.swift in Sources */,
 				EE00020200000002 /* EngagementTracker.swift in Sources */,
+				1D73C0282F8B8A9000C98966 /* F1WeekendWidget.swift in Sources */,
 				EE00040200000002 /* GameTimeLabel.swift in Sources */,
+				1D73C02B2F8B8AA400C98966 /* GolfLeaderboardWidget.swift in Sources */,
 				1D408091290B9E3700729FFE /* Teams+Extensions.swift in Sources */,
 				1DE897DE2F4196D3006657FF /* AppLogger.swift in Sources */,
 				1DE1F0C72941B9B300741B19 /* SportsWidgetSmallView.swift in Sources */,
@@ -1220,6 +1266,7 @@
 				1DE1F0BF2941B94F00741B19 /* SportsWidgetLargeView.swift in Sources */,
 				1DBEB4172F05F6340025B04C /* Constants.swift in Sources */,
 				AA000001TIPS000000000001 /* Tips.swift in Sources */,
+				1D73C02F2F8B8AD000C98966 /* StandingsWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1326,6 +1373,9 @@
 				BB00060200000002 /* GolfScoreSparkline.swift in Sources */,
 				BB00060400000004 /* GolfPlayerComparisonView.swift in Sources */,
 				BB00060600000006 /* GolfHoleGridView.swift in Sources */,
+				BB00060800000008 /* GolfScorecardView.swift in Sources */,
+				BB00060A0000000A /* GolfCourseDifficultyView.swift in Sources */,
+				BB00060C0000000C /* GolfGlossaryView.swift in Sources */,
 				BB00040200000002 /* F1GapRibbonView.swift in Sources */,
 				BB00050200000002 /* SportsRingView.swift in Sources */,
 				BB00070200000002 /* StandingsViewModel.swift in Sources */,
@@ -1398,7 +1448,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SportsCal.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SportsCal";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Scoreline.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Scoreline";
 			};
 			name = Debug;
 		};
@@ -1419,7 +1469,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SportsCal.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SportsCal";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Scoreline.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Scoreline";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;

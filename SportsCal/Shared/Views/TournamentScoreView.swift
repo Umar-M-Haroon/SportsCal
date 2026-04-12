@@ -22,6 +22,17 @@ struct TournamentScoreView: View {
         return SportType(league: league)
     }
 
+    /// Top 5 + any favorite players not already in top 5
+    private var displayEntries: [LeaderboardEntry] {
+        let all = game.resolvedLeaderboard
+        var result = Array(all.prefix(5))
+        let favoriteExtras = all.dropFirst(5).filter { favorites.containsPlayer($0.name) }
+        for fav in favoriteExtras.prefix(3) {
+            result.append(fav)
+        }
+        return result
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Tournament header
@@ -36,6 +47,15 @@ struct TournamentScoreView: View {
                 if let sport = sportType {
                     Image(systemName: sport.systemImage)
                         .foregroundColor(sport.color)
+                }
+                if game.isMajor {
+                    Text("MAJOR")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.green.gradient)
+                        .clipShape(Capsule())
                 }
                 Text(game.strHomeTeam)
                     .font(.headline)
@@ -59,21 +79,43 @@ struct TournamentScoreView: View {
                     .foregroundColor(.secondary)
             }
 
-            // Mini leaderboard (top 5 in compact view)
-            let entries = Array(game.resolvedLeaderboard.prefix(5))
+            // Mini leaderboard
+            let entries = displayEntries
             if !entries.isEmpty {
                 VStack(spacing: 4) {
                     ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
+                        let isFavPlayer = favorites.containsPlayer(entry.name)
                         HStack(spacing: 6) {
                             Text("\(entry.position)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .frame(width: 18, alignment: .trailing)
                             HeadshotView(url: entry.headshot, size: 24)
+                            if isFavPlayer {
+                                Image(systemName: "star.fill")
+                                    .font(.caption2)
+                                    .foregroundColor(.yellow)
+                            }
                             Text(entry.name)
                                 .font(.subheadline)
-                                .fontWeight(index == 0 ? .semibold : .regular)
+                                .fontWeight(index == 0 || isFavPlayer ? .semibold : .regular)
                                 .lineLimit(1)
+                            if entry.isCut == true {
+                                Text("CUT")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(Color.red.opacity(0.8))
+                                    .clipShape(Capsule())
+                            } else if let movement = entry.movement, movement != 0 {
+                                HStack(spacing: 1) {
+                                    Image(systemName: movement < 0 ? "arrow.up" : "arrow.down")
+                                    Text("\(abs(movement))")
+                                }
+                                .font(.caption2)
+                                .foregroundColor(movement < 0 ? .green : .red)
+                            }
                             if let thru = entry.thruHole {
                                 Text(thru)
                                     .font(.caption2)
@@ -85,6 +127,7 @@ struct TournamentScoreView: View {
                                 .fontWeight(index == 0 ? .semibold : .regular)
                                 .foregroundColor(index == 0 ? .primary : .secondary)
                         }
+                        .opacity(entry.isCut == true ? 0.5 : 1.0)
                     }
                 }
             } else if game.strAwayTeam != "TBD" {
@@ -101,7 +144,7 @@ struct TournamentScoreView: View {
                 }
             } else if let date = game.standardDate {
                 // Scheduled tournament with no details yet
-                Text(date.formatted(.dateTime.weekday(.wide).month().day().hour().minute()))
+                GameTimeLabel(date: date, includeDate: true)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
