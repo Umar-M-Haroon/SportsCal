@@ -8,7 +8,7 @@
 import SwiftUI
 import os
 import TipKit
-//import Purchases
+import RevenueCat
 #if os(iOS)
 import BackgroundTasks
 import WatchConnectivity
@@ -29,16 +29,27 @@ struct SportsCalApp: App {
 
     @State var appStorage = UserDefaultStorage()
     @State var favorites = Favorites()
+    @State private var engagementTracker = EngagementTracker()
     @State private var serverDiscovery = LocalServerDiscovery()
+    @State private var subscriptionManager = SubscriptionManager.shared
+    #if os(iOS)
+    @State private var adManager = NativeAdManager()
+    #endif
     @State private var viewModel: GameViewModel
 
     init() {
         let storage = UserDefaultStorage()
         let favs = Favorites()
+        let tracker = EngagementTracker()
         _appStorage = State(initialValue: storage)
         _favorites = State(initialValue: favs)
-        _viewModel = State(initialValue: GameViewModel(appStorage: storage, favorites: favs))
+        _engagementTracker = State(initialValue: tracker)
+        let vm = GameViewModel(appStorage: storage, favorites: favs)
+        vm.engagementTracker = tracker
+        _viewModel = State(initialValue: vm)
         try? Tips.configure()
+        CloudSyncManager.shared.startSync(storage: storage, favorites: favs)
+        SubscriptionManager.shared.configure()
         #if os(iOS)
         PhoneWatchSyncService.shared.activate()
         #endif
@@ -53,10 +64,14 @@ struct SportsCalApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-//                .environmentObject(SubscriptionManager.shared)
+                .environment(subscriptionManager)
+                #if os(iOS)
+                .environment(adManager)
+                #endif
                 .environment(appStorage)
                 .environment(favorites)
                 .environment(viewModel)
+                .environment(engagementTracker)
                 .onAppear {
                     appStorage.launches += 1
                     NetworkHandler.useLocalServer = appStorage.useLocalServer
@@ -66,7 +81,19 @@ struct SportsCalApp: App {
                     if appStorage.debugMode {
                         serverDiscovery.start()
                     }
+                    #if os(iOS)
+                    if !subscriptionManager.isPro && AdConfiguration.isEnabled {
+                        adManager.preloadAds(count: 5)
+                    }
+                    #endif
                 }
+                #if os(iOS)
+                .onChange(of: subscriptionManager.isPro) { _, newValue in
+                    if !newValue && AdConfiguration.isEnabled {
+                        adManager.preloadAds(count: 5)
+                    }
+                }
+                #endif
                 .onChange(of: appStorage.debugMode) { _, newValue in
                     if newValue {
                         serverDiscovery.start()
@@ -139,6 +166,7 @@ struct SportsCalApp: App {
                 .environment(appStorage)
                 .environment(favorites)
                 .environment(viewModel)
+                .environment(engagementTracker)
         } label: {
             MenuBarLabel(
                 liveFavorites: viewModel.liveEventsWithTeams.filter { favorites.contains($0.game) },
@@ -162,6 +190,7 @@ struct SportsCalApp: App {
                 .environment(appStorage)
                 .environment(favorites)
                 .environment(viewModel)
+                .environment(engagementTracker)
                 .environment(serverDiscovery)
         }
         #endif

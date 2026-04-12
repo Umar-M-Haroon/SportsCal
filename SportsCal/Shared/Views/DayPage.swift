@@ -446,6 +446,15 @@ struct DayPage: View {
             }
         }
 
+        #if os(iOS)
+        if !subscriptionManager.isPro && AdConfiguration.isEnabled,
+           let ad = adManager.adForSlot(filteredOtherBySport.count + 1) {
+            Section {
+                NativeAdCardView(nativeAd: ad)
+            }
+        }
+        #endif
+
         // Other games grouped by sport (collapsed by default)
         ForEach(Array(filteredOtherBySport.enumerated()), id: \.element.sport) { index, section in
             let isCollapsed = collapsedSportSections.contains(section.sport)
@@ -1047,8 +1056,8 @@ struct DayPage: View {
     @ViewBuilder
     private func flatGameList(games: [GameWithTeams]) -> some View {
         #if os(iOS)
-        if !subscriptionManager.isPro && AdConfiguration.isEnabled,
-           case .everyNGames(let n) = AdConfiguration.strategy {
+        if !subscriptionManager.isPro && AdConfiguration.isEnabled {
+            let n = AdConfiguration.adaptiveInterval(forGameCount: games.count)
             let adIndices = AdInsertionHelper.gameAdIndices(
                 totalGames: games.count,
                 every: n,

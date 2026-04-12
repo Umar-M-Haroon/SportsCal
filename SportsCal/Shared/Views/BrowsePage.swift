@@ -292,9 +292,26 @@ struct BrowseSportView: View {
             }
         } else {
             Section(header) {
+                #if os(iOS)
+                if !subscriptionManager.isPro && AdConfiguration.isEnabled {
+                    let n = AdConfiguration.adaptiveInterval(forGameCount: games.count)
+                    let adIndices = AdInsertionHelper.gameAdIndices(totalGames: games.count, every: n, maxAds: 2)
+                    ForEach(Array(games.enumerated()), id: \.element.id) { index, gwt in
+                        gameRowWithDate(gwt, isLive: false, showFullDate: true)
+                        if adIndices.contains(index), let ad = adManager.adForSlot(index + 1) {
+                            NativeAdCardView(nativeAd: ad)
+                        }
+                    }
+                } else {
+                    ForEach(games) { gwt in
+                        gameRowWithDate(gwt, isLive: false, showFullDate: true)
+                    }
+                }
+                #else
                 ForEach(games) { gwt in
                     gameRowWithDate(gwt, isLive: false, showFullDate: true)
                 }
+                #endif
             }
         }
     }

@@ -20,6 +20,11 @@ struct GameDetailView: View {
 
     @Environment(GameViewModel.self) private var viewModel
     @Environment(Favorites.self) private var favorites
+    @Environment(EngagementTracker.self) private var engagementTracker
+    #if os(iOS)
+    @Environment(NativeAdManager.self) private var adManager
+    @Environment(SubscriptionManager.self) private var subscriptionManager
+    #endif
     @State private var shouldShowSportsCalProAlert = false
     @State private var sheetType: SheetType?
 
@@ -48,6 +53,12 @@ struct GameDetailView: View {
                 momentumChartSection
                 keyPlayersSection
                 headToHeadSection
+                #if os(iOS)
+                if !subscriptionManager.isPro && AdConfiguration.isEnabled,
+                   let ad = adManager.adForSlot(0) {
+                    NativeAdCardView(nativeAd: ad)
+                }
+                #endif
                 standingsSection
             }
             .padding()
@@ -58,6 +69,12 @@ struct GameDetailView: View {
         #endif
         .task {
             await loadStandings()
+            if !game.isIndividualSport,
+               !favorites.contains(game),
+               let sportType {
+                engagementTracker.recordView(team: game.strHomeTeam, sport: sportType)
+                engagementTracker.recordView(team: game.strAwayTeam, sport: sportType)
+            }
         }
         .sheet(item: $sheetType) { sheet in
             switch sheet {
@@ -151,7 +168,7 @@ struct GameDetailView: View {
                 Text(date.formatted(.dateTime.weekday(.wide).month().day()))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
-                Text(date.formatToTime())
+                GameTimeLabel(date: date)
                     .font(.title2)
                     .fontWeight(.semibold)
             }
@@ -214,7 +231,7 @@ struct GameDetailView: View {
             }
             Spacer()
             if let date = game.standardDate {
-                Text(date.formatted(.dateTime.month().day().year().hour().minute()))
+                GameTimeLabel(date: date, includeDate: true)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

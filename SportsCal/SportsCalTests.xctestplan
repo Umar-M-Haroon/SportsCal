@@ -1,0 +1,25 @@
+{
+  "configurations" : [
+    {
+      "id" : "BE6DCB11-FE11-4617-9831-FCA1D9738915",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "performanceAntipatternCheckerEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:SportsCal.xcodeproj",
+        "identifier" : "1D1DAB9529CDB50C005434D6",
+        "name" : "SportsCalTests"
+      }
+    }
+  ],
+  "version" : 1
+}
