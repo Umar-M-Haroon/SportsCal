@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SportsCalModel
+import RevenueCatUI
 import os
 
 // MARK: - Shared Section Views
@@ -14,6 +15,7 @@ import os
 struct DeveloperSettingsSection: View {
     @Environment(UserDefaultStorage.self) private var appStorage
     @Environment(GameViewModel.self) private var viewModel
+    @Environment(SubscriptionManager.self) private var subscriptionManager
 
     var isTestFlight: Bool {
         guard let path = Bundle.main.appStoreReceiptURL?.path else { return false }
@@ -31,6 +33,10 @@ struct DeveloperSettingsSection: View {
                         NetworkHandler.useLocalServer = newValue
                     }
                 LocalServerStatusView()
+                Toggle("Mock Pro Subscription", isOn: Binding(
+                    get: { subscriptionManager.isPro },
+                    set: { subscriptionManager.setMockPro($0) }
+                ))
                 Button("Dump Caches") {
                     do {
                         try viewModel.dumpCaches()
@@ -204,8 +210,7 @@ struct SettingsView: View {
                 }
                 DeveloperSettingsSection()
                 NavigationLink("Scoreline Pro") {
-//                    SubscriptionPage(selectedProduct: subscriptionManager.monthlySubscription)
-//                        .environmentObject(subscriptionManager)
+                    PaywallView()
                 }
                 SoccerCompetitionsSettingsSection()
                 BasketballCompetitionsSettingsSection()

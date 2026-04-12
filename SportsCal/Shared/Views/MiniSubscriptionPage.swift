@@ -9,28 +9,48 @@ import SwiftUI
 
 struct MiniSubscriptionPage: View {
     @Binding var subscriptionPresented: Bool
+
     var body: some View {
-        VStack() {
+        VStack {
             Text("Scoreline Pro")
                 .font(.title2)
                 .bold()
-//                MiniFeatureView(featureName: "Push Notifications", featureDescription: "Get notified when tasks are added and completed", imageName: "app.badge.fill", color: .red)
-//                
-//                MiniFeatureView(featureName: "Multiple Sports", featureDescription: "See multiple sports at once", imageName: "sportscourt.fill", color: .green)
-//                
-//                MiniFeatureView(featureName: "Calendar Integration", featureDescription: "See events that are more than a week away", imageName: "calendar.circle.fill", color: .blue)
-            Button(action: {
+            MiniFeatureView(featureName: "Ad-Free Experience", featureDescription: "Remove all ads", imageName: "eye.slash.fill", color: .purple)
+            MiniFeatureView(featureName: "Push Notifications", featureDescription: "Get notified about games", imageName: "app.badge.fill", color: .red)
+            MiniFeatureView(featureName: "Calendar Integration", featureDescription: "Extended calendar access", imageName: "calendar.circle.fill", color: .blue)
+            Button {
                 subscriptionPresented = true
-            }, label: {
+            } label: {
                 Text("Unlock Pro")
                     .bold()
-                    .frame(maxWidth: .infinity,alignment: .center)
-
-            })
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
             .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity)
-        
+    }
+}
+
+// MARK: - Feature Row
+
+struct MiniFeatureView: View {
+    var featureName: String
+    var featureDescription: String
+    var imageName: String
+    var color: Color?
+
+    var body: some View {
+        HStack {
+            Image(systemName: imageName)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 45, height: 45)
+                .foregroundColor(color)
+            Text(featureName)
+                .font(.headline)
+                .padding()
+            Spacer()
+        }
     }
 }
 

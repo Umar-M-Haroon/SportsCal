@@ -6,23 +6,22 @@
 //
 
 import SwiftUI
+import RevenueCatUI
 
 struct SubscriptionSheet: View {
     @Binding var subscriptionPresented: Bool
+
     var body: some View {
-        NavigationStack {
-//            SubscriptionPage(selectedProduct: SubscriptionManager.shared.monthlySubscription)
-//                .environmentObject(SubscriptionManager.shared)
-//                .navigationBarItems(leading: Button(action: {
-//                    subscriptionPresented = false
-//                }, label: {
-                    Text("Cancel")
-//                })
-//                )
-        }
+        PaywallView(displayCloseButton: true)
+            .onPurchaseCompleted { _ in
+                subscriptionPresented = false
+            }
+            .onRestoreCompleted { _ in
+                subscriptionPresented = false
+            }
     }
 }
 
 #Preview {
-    SubscriptionSheet(subscriptionPresented: .constant(false))
+    SubscriptionSheet(subscriptionPresented: .constant(true))
 }
