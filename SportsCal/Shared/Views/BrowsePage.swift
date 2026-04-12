@@ -84,6 +84,10 @@ struct BrowseSportView: View {
     @Environment(GameViewModel.self) private var viewModel
     @Environment(UserDefaultStorage.self) private var storage
     @Environment(Favorites.self) private var favorites
+    @Environment(SubscriptionManager.self) private var subscriptionManager
+    #if os(iOS)
+    @Environment(NativeAdManager.self) private var adManager
+    #endif
 
     @State private var browseVM: SportBrowseViewModel?
     @State private var shouldShowSportsCalProAlert = false
@@ -189,6 +193,15 @@ struct BrowseSportView: View {
                     todaySection(browseVM.todayGames)
                 }
 
+                #if os(iOS)
+                if !subscriptionManager.isPro && AdConfiguration.isEnabled,
+                   let ad = adManager.adForSlot(0) {
+                    Section {
+                        NativeAdCardView(nativeAd: ad)
+                    }
+                }
+                #endif
+
                 if !browseVM.upcomingGames.isEmpty {
                     upcomingOrRecentSections(browseVM.upcomingGames, header: "Upcoming")
                 }
@@ -232,6 +245,17 @@ struct BrowseSportView: View {
                     Label(gpName, systemImage: "flag.checkered.2.crossed")
                 }
             }
+        } else if sport == .tennis {
+            let groups = groupedByTournament(games)
+            ForEach(groups, id: \.key) { name, matches in
+                Section {
+                    ForEach(matches) { gwt in
+                        gameRowWithDate(gwt, isLive: false, showFullDate: false)
+                    }
+                } header: {
+                    Label(name, systemImage: "tennisball.fill")
+                }
+            }
         } else {
             Section("Today") {
                 ForEach(games) { gwt in
@@ -255,6 +279,17 @@ struct BrowseSportView: View {
                     Label(gpName, systemImage: "flag.checkered.2.crossed")
                 }
             }
+        } else if sport == .tennis {
+            let groups = groupedByTournament(games)
+            ForEach(groups, id: \.key) { name, matches in
+                Section {
+                    ForEach(matches) { gwt in
+                        gameRowWithDate(gwt, isLive: false, showFullDate: true)
+                    }
+                } header: {
+                    Label(name, systemImage: "tennisball.fill")
+                }
+            }
         } else {
             Section(header) {
                 ForEach(games) { gwt in
@@ -270,15 +305,9 @@ struct BrowseSportView: View {
     private func gameRowWithDate(_ gwt: GameWithTeams, isLive: Bool, showFullDate: Bool) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             if !isLive, let date = gwt.game.standardDate {
-                if showFullDate {
-                    Text(date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute()))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } else {
-                    Text(date.formatted(.dateTime.hour().minute()))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                GameTimeLabel(date: date, includeDate: showFullDate)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
             gameRow(gwt, isLive: isLive)
         }
@@ -316,6 +345,24 @@ struct BrowseSportView: View {
             } else {
                 seen[key] = result.count
                 result.append((key: key, sessions: [gwt]))
+            }
+        }
+        return result
+    }
+
+    // MARK: - Tennis Tournament Grouping
+
+    private func groupedByTournament(_ games: [GameWithTeams]) -> [(key: String, matches: [GameWithTeams])] {
+        var result: [(key: String, matches: [GameWithTeams])] = []
+        var seen: [String: Int] = [:]
+
+        for gwt in games {
+            let key = gwt.game.tournamentName ?? gwt.game.strLeague ?? "Tennis"
+            if let idx = seen[key] {
+                result[idx].matches.append(gwt)
+            } else {
+                seen[key] = result.count
+                result.append((key: key, matches: [gwt]))
             }
         }
         return result

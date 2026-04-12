@@ -118,7 +118,8 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                             strTimestamp: competition.date,
                             homeLinescores: hLinescores?.isEmpty == true ? nil : hLinescores,
                             awayLinescores: aLinescores?.isEmpty == true ? nil : aLinescores,
-                            isCompleted: competition.status?.type.completed ?? event.status?.type.completed, isoDate: nil
+                            isCompleted: competition.status?.type.completed ?? event.status?.type.completed, isoDate: nil,
+                            tournamentName: event.name
                         )
                     }
                 }
@@ -246,7 +247,7 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 let progress = competition.status?.type.shortDetail ?? event.status?.type.shortDetail
                 let competitors = Array((competition.competitors ?? []).prefix(30))
 
-                // Build structured leaderboard entries with headshots + thru-hole
+                // Build structured leaderboard entries with headshots, thru-hole, and golf stats
                 let entries: [LeaderboardEntry] = competitors.enumerated().map { index, competitor in
                     let name = competitor.athlete?.displayName ?? "TBD"
                     let score = competitor.score ?? "--"
@@ -256,9 +257,28 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         guard let v = ls.value else { return nil }
                         return v.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(v))" : "\(v)"
                     }
+
+                    // Movement indicator (position change)
+                    let movementStr = competitor.statistics?.first(where: { $0.name == "movement" })?.displayValue
+                    let movement = movementStr.flatMap { Int($0) }
+
+                    // Cut status
+                    let isCut = score.lowercased() == "cut"
+
+                    // Tee time for upcoming round
+                    let teeTime = competitor.statistics?.first(where: { $0.name == "teeTime" })?.displayValue
+
+                    // Country flag
+                    let flagURL = competitor.athlete?.flag?.href
+                    let flagAlt = competitor.athlete?.flag?.alt
+
                     return LeaderboardEntry(
                         name: name, score: score, position: competitor.order,
-                        headshot: headshot, thruHole: thruHole, rounds: rounds
+                        headshot: headshot, thruHole: thruHole, rounds: rounds,
+                        isCut: isCut ? true : nil,
+                        movement: movement,
+                        flagURL: flagURL, flagAlt: flagAlt,
+                        teeTime: teeTime
                     )
                 }
 
@@ -310,7 +330,7 @@ public struct GameLeader: Codable, Equatable, Hashable {
 
 // MARK: - Event
 public struct Game: Identifiable, Equatable, Hashable {
-    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil) {
+    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil) {
         self.idLiveScore = idLiveScore
         self.idEvent = idEvent
         self._strSport = strSport
@@ -341,10 +361,12 @@ public struct Game: Identifiable, Equatable, Hashable {
         self.homeRecord = homeRecord
         self.awayRecord = awayRecord
         self.circuitInfo = circuitInfo
+        self.golfCourseInfo = golfCourseInfo
         self.legDisplay = legDisplay
         self.aggregateScore = aggregateScore
         self.homeSeed = homeSeed
         self.awaySeed = awaySeed
+        self.tournamentName = tournamentName
         // Pre-compute date from strTimestamp if isoDate not provided
         if let isoDate {
             self.isoDate = isoDate
@@ -398,10 +420,12 @@ public struct Game: Identifiable, Equatable, Hashable {
     public let homeRecord: String?
     public let awayRecord: String?
     public let circuitInfo: F1CircuitInfo?
+    public let golfCourseInfo: GolfCourseInfo?
     public let legDisplay: String?
     public let aggregateScore: String?
     public let homeSeed: Int?
     public let awaySeed: Int?
+    public let tournamentName: String?
 
     // MARK: - Computed Properties (derived from idLeague)
     // Private storage for backward compatibility when decoding old data
@@ -436,8 +460,8 @@ extension Game: Codable {
         case isCompleted, isoDate
         case leaderboardEntries, sessions, venueName
         case homeTeamColor, awayTeamColor, homeRecord, awayRecord
-        case circuitInfo, legDisplay, aggregateScore
-        case homeSeed, awaySeed
+        case circuitInfo, golfCourseInfo, legDisplay, aggregateScore
+        case homeSeed, awaySeed, tournamentName
         // Computed properties - decoded for backward compatibility, not encoded
         case strSport, strLeague
         // Individual sport fallback (golf/tennis have null strHomeTeam/strAwayTeam)
@@ -479,10 +503,12 @@ extension Game: Codable {
         homeRecord = try container.decodeIfPresent(String.self, forKey: .homeRecord)
         awayRecord = try container.decodeIfPresent(String.self, forKey: .awayRecord)
         circuitInfo = try container.decodeIfPresent(F1CircuitInfo.self, forKey: .circuitInfo)
+        golfCourseInfo = try container.decodeIfPresent(GolfCourseInfo.self, forKey: .golfCourseInfo)
         legDisplay = try container.decodeIfPresent(String.self, forKey: .legDisplay)
         aggregateScore = try container.decodeIfPresent(String.self, forKey: .aggregateScore)
         homeSeed = try container.decodeIfPresent(Int.self, forKey: .homeSeed)
         awaySeed = try container.decodeIfPresent(Int.self, forKey: .awaySeed)
+        tournamentName = try container.decodeIfPresent(String.self, forKey: .tournamentName)
         // Decode for backward compatibility with old cached data
         _strSport = try container.decodeIfPresent(String.self, forKey: .strSport)
         _strLeague = try container.decodeIfPresent(String.self, forKey: .strLeague)
@@ -541,10 +567,12 @@ extension Game: Codable {
         try container.encodeIfPresent(homeRecord, forKey: .homeRecord)
         try container.encodeIfPresent(awayRecord, forKey: .awayRecord)
         try container.encodeIfPresent(circuitInfo, forKey: .circuitInfo)
+        try container.encodeIfPresent(golfCourseInfo, forKey: .golfCourseInfo)
         try container.encodeIfPresent(legDisplay, forKey: .legDisplay)
         try container.encodeIfPresent(aggregateScore, forKey: .aggregateScore)
         try container.encodeIfPresent(homeSeed, forKey: .homeSeed)
         try container.encodeIfPresent(awaySeed, forKey: .awaySeed)
+        try container.encodeIfPresent(tournamentName, forKey: .tournamentName)
         // Note: strSport and strLeague are not encoded - they're computed from idLeague
         // Deprecated fields are not encoded: strPlayer, idPlayer, intEventScore,
         // intEventScoreTotal, strEventTime, dateEvent, updated
@@ -652,6 +680,26 @@ extension Game {
         case .racing:
             return (1...count).map { "Lap \($0)" }
         }
+    }
+
+    /// Whether this is a major golf tournament (Masters, US Open, PGA Championship, The Open)
+    public var isMajor: Bool {
+        let name = strHomeTeam.lowercased()
+        return name.contains("masters") ||
+               name.contains("u.s. open") || name.contains("us open") ||
+               name.contains("pga championship") ||
+               name.contains("the open championship") || name.contains("the open")
+    }
+
+    /// Course par — from enrichment data when available, falling back to hardcoded majors
+    public var coursePar: Int? {
+        if let par = golfCourseInfo?.par { return par }
+        let name = strHomeTeam.lowercased()
+        if name.contains("masters") { return 72 }
+        if name.contains("pga championship") { return 72 }
+        if name.contains("u.s. open") || name.contains("us open") { return 70 }
+        if name.contains("the open") { return 72 }
+        return nil
     }
 
     public var sportType: SportType? {

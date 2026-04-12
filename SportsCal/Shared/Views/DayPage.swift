@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SportsCalModel
+import TipKit
 #if os(iOS)
 import EventKit
 #endif
@@ -15,6 +16,11 @@ struct DayPage: View {
     @Environment(GameViewModel.self) private var viewModel
     @Environment(UserDefaultStorage.self) private var storage
     @Environment(Favorites.self) private var favorites
+    @Environment(EngagementTracker.self) private var engagementTracker
+    @Environment(SubscriptionManager.self) private var subscriptionManager
+    #if os(iOS)
+    @Environment(NativeAdManager.self) private var adManager
+    #endif
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var spotlightGameID: String?
@@ -27,6 +33,7 @@ struct DayPage: View {
     @State private var searchString: String = ""
     @State private var searchTokens: [SearchToken] = []
     @State private var showHiddenGames: Bool = false
+    @State private var boardNavigationTarget: GameWithTeams?
 
     private var calendar: Calendar { Calendar.current }
 
@@ -58,6 +65,7 @@ struct DayPage: View {
     private struct DayData {
         let allGames: [GameWithTeams]
         let filteredFavorites: [GameWithTeams]
+        let suggestedGames: [GameWithTeams]
         let filteredOtherBySport: [(sport: SportType, games: [GameWithTeams])]
         let isEmpty: Bool
     }
@@ -69,14 +77,21 @@ struct DayPage: View {
     private var dayData: DayData {
         let games = dayGames
         let liveFilt = filteredLiveEvents
+        let suggestedTeamNames = engagementTracker.suggestedTeamNames(excluding: favorites.teams)
 
         var favs: [GameWithTeams] = []
+        var suggested: [GameWithTeams] = []
         var grouped: [SportType: [GameWithTeams]] = [:]
 
         for gwt in games {
             if favorites.contains(gwt.game) {
                 if sportFilter.matches(gwt.game) {
                     favs.append(gwt)
+                }
+            } else if !suggestedTeamNames.isEmpty &&
+                      (suggestedTeamNames.contains(gwt.game.strHomeTeam) || suggestedTeamNames.contains(gwt.game.strAwayTeam)) {
+                if sportFilter.matches(gwt.game) {
+                    suggested.append(gwt)
                 }
             } else {
                 guard let leagueString = gwt.game.idLeague,
@@ -100,9 +115,9 @@ struct DayPage: View {
             return (sport: sport, games: sorted)
         }
 
-        let empty = liveFilt.isEmpty && favs.isEmpty && otherBySport.isEmpty
+        let empty = liveFilt.isEmpty && favs.isEmpty && suggested.isEmpty && otherBySport.isEmpty
 
-        return DayData(allGames: games, filteredFavorites: favs, filteredOtherBySport: otherBySport, isEmpty: empty)
+        return DayData(allGames: games, filteredFavorites: favs, suggestedGames: suggested, filteredOtherBySport: otherBySport, isEmpty: empty)
     }
 
     private var filteredLiveEvents: [GameWithTeams] {
@@ -207,6 +222,9 @@ struct DayPage: View {
         .navigationDestination(item: $spotlightGameID) { eventID in
             spotlightDestination(for: eventID)
         }
+        .navigationDestination(item: $boardNavigationTarget) { gwt in
+            boardDetailView(for: gwt)
+        }
         .sheet(item: $sheetType) { sheetType in
             switch sheetType {
             case .settings:
@@ -305,7 +323,7 @@ struct DayPage: View {
 
             if !viewModel.sortedGamesWithTeams.isEmpty || !viewModel.liveEventsWithTeams.isEmpty {
                 GameBoardLayout(columns: boardColumns, favorites: favorites) { gwt, isLive in
-                    gameRow(for: gwt, isLive: isLive)
+                    boardGameRow(for: gwt, isLive: isLive)
                 }
             } else {
                 Spacer()
@@ -351,6 +369,9 @@ struct DayPage: View {
             }
         }
         #if os(iOS)
+        .listSectionSpacing(.compact)
+        #endif
+        #if os(iOS)
         .searchable(text: $searchString, tokens: $searchTokens, suggestedTokens: .constant(suggestedSearchTokens), placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search games...") { token in
             token.label
         }
@@ -395,14 +416,42 @@ struct DayPage: View {
             }
         }
 
+        // Suggested for you
+        if !dayData.suggestedGames.isEmpty {
+            Section {
+                TipView(FavoriteTeamSuggestionTip())
+                    .tipBackground(Color.secondaryGroupedBackground)
+                    .onAppear {
+                        if let top = engagementTracker.topSuggestedTeam(excluding: favorites.teams) {
+                            FavoriteTeamSuggestionTip.suggestedTeamName = top.teamName
+                        }
+                    }
+                    .onTapGesture {
+                        if let top = engagementTracker.topSuggestedTeam(excluding: favorites.teams) {
+                            favorites.add(top.teamName)
+                            FavoriteTeamSuggestionTip.suggestedTeamName = ""
+                            FavoriteTeamSuggestionTip().invalidate(reason: .actionPerformed)
+                        }
+                    }
+                ForEach(dayData.suggestedGames) { gameWithTeams in
+                    gameRow(for: gameWithTeams, isLive: false)
+                }
+            } header: {
+                HStack {
+                    Image(systemName: "star.badge.plus")
+                        .foregroundColor(.purple)
+                    Text("Suggested For You")
+                        .font(.headline)
+                }
+            }
+        }
+
         // Other games grouped by sport (collapsed by default)
-        ForEach(filteredOtherBySport, id: \.sport) { section in
+        ForEach(Array(filteredOtherBySport.enumerated()), id: \.element.sport) { index, section in
             let isCollapsed = collapsedSportSections.contains(section.sport)
             Section {
                 if !isCollapsed {
-                    ForEach(section.games) { gameWithTeams in
-                        gameRow(for: gameWithTeams, isLive: false)
-                    }
+                    sportSectionContent(games: section.games)
                 }
             } header: {
                 Button {
@@ -430,6 +479,17 @@ struct DayPage: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            #if os(iOS)
+            // Insert ad between sport sections
+            if shouldShowAdBetweenSections(afterIndex: index) {
+                if let ad = adManager.adForSlot(index) {
+                    Section {
+                        NativeAdCardView(nativeAd: ad)
+                    }
+                }
+            }
+            #endif
         }
 
         // Empty state
@@ -456,6 +516,12 @@ struct DayPage: View {
                     } else {
                         Text(isToday ? "No games scheduled for today" : "No games scheduled for \(formattedSelectedDate)")
                             .foregroundColor(.secondary)
+                        // Next game hint when a specific sport is filtered
+                        if case .sport(let activeSport) = sportFilter,
+                           let nextGame = viewModel.nextGame(for: activeSport, after: selectedDate),
+                           let nextDate = nextGame.standardDate {
+                            nextGameHint(sport: activeSport, date: nextDate)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -583,6 +649,12 @@ struct DayPage: View {
 
     @ViewBuilder
     private func gameRow(for gameWithTeams: GameWithTeams, isLive: Bool) -> some View {
+        gameRowContent(for: gameWithTeams, isLive: isLive)
+            .gameCard(game: gameWithTeams.game, isLive: isLive)
+    }
+
+    @ViewBuilder
+    private func gameRowContent(for gameWithTeams: GameWithTeams, isLive: Bool) -> some View {
         @Bindable var bindableStorage = storage
         let game = gameWithTeams.game
         if game.isRace {
@@ -615,6 +687,7 @@ struct DayPage: View {
             } label: {
                 TournamentScoreView(game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: isLive)
                     .environment(viewModel)
+                    .environment(favorites)
             }
             .buttonStyle(.plain)
         } else if let homeTeam = gameWithTeams.homeTeam,
@@ -648,6 +721,92 @@ struct DayPage: View {
                 )
                 .environment(favorites)
             }
+        }
+    }
+
+    // MARK: - Board Game Row (programmatic navigation)
+
+    @ViewBuilder
+    private func boardGameRow(for gameWithTeams: GameWithTeams, isLive: Bool) -> some View {
+        @Bindable var bindableStorage = storage
+        let game = gameWithTeams.game
+
+        Button {
+            boardNavigationTarget = gameWithTeams
+        } label: {
+            Group {
+                if game.isRace {
+                    RaceScoreView(game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: isLive)
+                        .environment(viewModel)
+                        .environment(favorites)
+                } else if game.isTennisMatch {
+                    TennisMatchScoreView(game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: isLive)
+                        .environment(viewModel)
+                        .environment(favorites)
+                } else if game.isIndividualSport {
+                    TournamentScoreView(game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: isLive)
+                        .environment(viewModel)
+                        .environment(favorites)
+                } else if let homeTeam = gameWithTeams.homeTeam,
+                          let awayTeam = gameWithTeams.awayTeam {
+                    let isPreGame = game.strStatus == "pre" || game.strStatus == "NS"
+                    if let homeScore = Int(game.intHomeScore ?? ""),
+                       let awayScore = Int(game.intAwayScore ?? ""),
+                       !isPreGame {
+                        GameScoreView(
+                            homeTeam: homeTeam,
+                            awayTeam: awayTeam,
+                            homeScore: homeScore,
+                            awayScore: awayScore,
+                            game: game,
+                            shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
+                            sheetType: $sheetType,
+                            isLive: isLive,
+                            navigationDisabled: true
+                        )
+                        .environment(favorites)
+                        .environment(viewModel)
+                    } else {
+                        UpcomingGameView(
+                            homeTeam: homeTeam,
+                            awayTeam: awayTeam,
+                            game: game,
+                            showCountdown: $bindableStorage.showStartTime,
+                            shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
+                            sheetType: $sheetType,
+                            dateFormat: storage.dateFormat,
+                            isFavorite: favorites.contains(game),
+                            navigationDisabled: true
+                        )
+                        .environment(favorites)
+                        .environment(viewModel)
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func boardDetailView(for gwt: GameWithTeams) -> some View {
+        let game = gwt.game
+        if game.isRace {
+            RaceDetailView(game: game)
+                .environment(viewModel)
+                .environment(favorites)
+        } else if game.isTennisMatch {
+            TennisMatchDetailView(game: game)
+                .environment(viewModel)
+                .environment(favorites)
+        } else if game.isIndividualSport {
+            TournamentDetailView(game: game)
+                .environment(viewModel)
+                .environment(favorites)
+        } else if let homeTeam = gwt.homeTeam, let awayTeam = gwt.awayTeam {
+            GameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                .environment(viewModel)
+                .environment(favorites)
         }
     }
 
@@ -815,6 +974,17 @@ struct DayPage: View {
         return formatter.string(from: selectedDate)
     }
 
+    private func nextGameHint(sport: SportType, date: Date) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: sport.systemImage)
+                .foregroundStyle(sport.color)
+            Text("Next \(sport.displayName) game: \(date.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated)))")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.top, 4)
+    }
+
     #if os(iOS)
     private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
@@ -827,6 +997,95 @@ struct DayPage: View {
         return CalendarRepresentable(eventStore: eventStore, event: event)
     }
     #endif
+
+    // MARK: - Ad Helpers
+
+    @ViewBuilder
+    private func sportSectionContent(games: [GameWithTeams]) -> some View {
+        let hasTennisMatches = games.contains { $0.game.isTennisMatch }
+        if hasTennisMatches {
+            tennisTournamentContent(games: games)
+        } else {
+            flatGameList(games: games)
+        }
+    }
+
+    @ViewBuilder
+    private func tennisTournamentContent(games: [GameWithTeams]) -> some View {
+        let grouped = groupedByTournament(games)
+        ForEach(grouped, id: \.key) { tournamentName, matches in
+            DisclosureGroup {
+                flatGameList(games: matches)
+            } label: {
+                HStack {
+                    Text(tournamentName)
+                        .font(.subheadline.weight(.medium))
+                    Text("(\(matches.count))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+
+    private func groupedByTournament(_ games: [GameWithTeams]) -> [(key: String, matches: [GameWithTeams])] {
+        var result: [(key: String, matches: [GameWithTeams])] = []
+        var seen: [String: Int] = [:]
+
+        for gwt in games {
+            let key = gwt.game.tournamentName ?? gwt.game.strLeague ?? "Tennis"
+            if let idx = seen[key] {
+                result[idx].matches.append(gwt)
+            } else {
+                seen[key] = result.count
+                result.append((key: key, matches: [gwt]))
+            }
+        }
+        return result
+    }
+
+    @ViewBuilder
+    private func flatGameList(games: [GameWithTeams]) -> some View {
+        #if os(iOS)
+        if !subscriptionManager.isPro && AdConfiguration.isEnabled,
+           case .everyNGames(let n) = AdConfiguration.strategy {
+            let adIndices = AdInsertionHelper.gameAdIndices(
+                totalGames: games.count,
+                every: n,
+                maxAds: AdConfiguration.maxAdsPerScreen
+            )
+            ForEach(Array(games.enumerated()), id: \.element.id) { index, gameWithTeams in
+                gameRow(for: gameWithTeams, isLive: false)
+                if adIndices.contains(index), let ad = adManager.adForSlot(index) {
+                    NativeAdCardView(nativeAd: ad)
+                }
+            }
+        } else {
+            ForEach(games) { gameWithTeams in
+                gameRow(for: gameWithTeams, isLive: false)
+            }
+        }
+        #else
+        ForEach(games) { gameWithTeams in
+            gameRow(for: gameWithTeams, isLive: false)
+        }
+        #endif
+    }
+
+    #if os(iOS)
+    private func shouldShowAdBetweenSections(afterIndex index: Int) -> Bool {
+        guard !subscriptionManager.isPro,
+              AdConfiguration.isEnabled,
+              case .betweenSections = AdConfiguration.strategy else {
+            return false
+        }
+        let slots = AdInsertionHelper.sectionAdSlots(
+            sectionCount: filteredOtherBySport.count,
+            maxAds: AdConfiguration.maxAdsPerScreen
+        )
+        return slots.contains(index)
+    }
+    #endif
 }
 
 #Preview {
@@ -834,4 +1093,9 @@ struct DayPage: View {
         .environment(GameViewModel(appStorage: UserDefaultStorage(), favorites: Favorites()))
         .environment(UserDefaultStorage())
         .environment(Favorites())
+        .environment(EngagementTracker())
+        .environment(SubscriptionManager.shared)
+        #if os(iOS)
+        .environment(NativeAdManager())
+        #endif
 }
