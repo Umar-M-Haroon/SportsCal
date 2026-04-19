@@ -195,7 +195,11 @@ struct DayPage: View {
                     return false
                 }
 
-            return BoardColumn(sport: sport, liveGames: liveForSport, otherGames: other)
+            let nextDate: Date? = (sportGames.isEmpty && liveForSport.isEmpty)
+                ? viewModel.nextGame(for: sport, after: selectedDate)?.standardDate
+                : nil
+
+            return BoardColumn(sport: sport, liveGames: liveForSport, otherGames: other, nextGameDate: nextDate)
         }
     }
 
@@ -321,8 +325,37 @@ struct DayPage: View {
             .padding(.horizontal)
             .padding(.bottom, 8)
 
-            if !viewModel.sortedGamesWithTeams.isEmpty || !viewModel.liveEventsWithTeams.isEmpty {
-                GameBoardLayout(columns: boardColumns, favorites: favorites) { gwt, isLive in
+            if isEmpty && (!viewModel.sortedGamesWithTeams.isEmpty || !viewModel.liveEventsWithTeams.isEmpty) {
+                Spacer()
+                VStack(spacing: 12) {
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                    Text(isToday ? "No games scheduled for today" : "No games scheduled for \(formattedSelectedDate)")
+                        .foregroundStyle(.secondary)
+                    if let nextDate = viewModel.nextDateWithGames(after: selectedDate) {
+                        nextGamesHint(
+                            date: nextDate,
+                            sportCounts: viewModel.gameCountsBySport(for: nextDate)
+                        ) {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                selectedDate = nextDate
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                Spacer()
+            } else if !viewModel.sortedGamesWithTeams.isEmpty || !viewModel.liveEventsWithTeams.isEmpty {
+                GameBoardLayout(
+                    columns: boardColumns,
+                    favorites: favorites,
+                    onJumpToDate: { date in
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedDate = calendar.startOfDay(for: date)
+                        }
+                    }
+                ) { gwt, isLive in
                     boardGameRow(for: gwt, isLive: isLive)
                 }
             } else {
@@ -530,6 +563,18 @@ struct DayPage: View {
                            let nextGame = viewModel.nextGame(for: activeSport, after: selectedDate),
                            let nextDate = nextGame.standardDate {
                             nextGameHint(sport: activeSport, date: nextDate)
+                        }
+                        // Next games hint when no specific sport is filtered
+                        if case .all = sportFilter,
+                           let nextDate = viewModel.nextDateWithGames(after: selectedDate) {
+                            nextGamesHint(
+                                date: nextDate,
+                                sportCounts: viewModel.gameCountsBySport(for: nextDate)
+                            ) {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    selectedDate = nextDate
+                                }
+                            }
                         }
                     }
                 }
@@ -992,6 +1037,41 @@ struct DayPage: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.top, 4)
+    }
+
+    private func nextGamesHint(date: Date, sportCounts: [SportType: Int], onTap: @escaping () -> Void) -> some View {
+        let ordered = sportCounts.sorted { $0.value > $1.value }
+        let visible = ordered.prefix(3).map(\.key)
+        let overflow = max(0, ordered.count - visible.count)
+
+        return Button(action: onTap) {
+            VStack(spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar.badge.clock")
+                        .foregroundStyle(.secondary)
+                    Text("Next games: \(date.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated)))")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                if !visible.isEmpty {
+                    HStack(spacing: 8) {
+                        ForEach(visible, id: \.self) { sport in
+                            Image(systemName: sport.systemImage)
+                                .foregroundStyle(sport.color)
+                                .font(.subheadline)
+                        }
+                        if overflow > 0 {
+                            Text("+\(overflow)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .contentShape(Rectangle())
+            .padding(.top, 4)
+        }
+        .buttonStyle(.plain)
     }
 
     #if os(iOS)

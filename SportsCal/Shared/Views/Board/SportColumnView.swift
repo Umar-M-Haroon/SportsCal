@@ -11,6 +11,8 @@ struct SportColumnView<GameContent: View>: View {
     let liveGames: [GameWithTeams]
     let otherGames: [GameWithTeams]
     let favorites: Favorites
+    let nextGameDate: Date?
+    let onJumpToDate: (Date) -> Void
     @ViewBuilder let gameContent: (GameWithTeams, Bool) -> GameContent
 
     @State private var isCollapsed: Bool = false
@@ -21,34 +23,72 @@ struct SportColumnView<GameContent: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            if !isCollapsed && !isEmpty {
-                ScrollView(.vertical, showsIndicators: true) {
-                    LazyVStack(spacing: 8) {
-                        ForEach(liveGames) { gwt in
-                            BoardGameCard(isFavorite: favorites.contains(gwt.game), isLive: true) {
-                                gameContent(gwt, true)
-                            }
-                        }
-                        ForEach(otherGames) { gwt in
-                            BoardGameCard(isFavorite: favorites.contains(gwt.game), isLive: false) {
-                                gameContent(gwt, false)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 8)
+            if !isCollapsed {
+                if isEmpty {
+                    emptyBody
+                } else {
+                    gamesBody
                 }
             }
         }
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .onAppear {
-            if isEmpty { isCollapsed = true }
+    }
+
+    private var gamesBody: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            LazyVStack(spacing: 8) {
+                ForEach(liveGames) { gwt in
+                    BoardGameCard(isFavorite: favorites.contains(gwt.game), isLive: true) {
+                        gameContent(gwt, true)
+                    }
+                }
+                ForEach(otherGames) { gwt in
+                    BoardGameCard(isFavorite: favorites.contains(gwt.game), isLive: false) {
+                        gameContent(gwt, false)
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
         }
+    }
+
+    private var emptyBody: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "calendar.badge.clock")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+            if let date = nextGameDate {
+                Button {
+                    onJumpToDate(date)
+                } label: {
+                    VStack(spacing: 2) {
+                        Text("Next \(sport.displayName) game")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(date.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated)))
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(sport.color)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text("No upcoming \(sport.displayName) games")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(.vertical, 16)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
     }
 
     private var header: some View {
         Button {
-            guard !isEmpty else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 isCollapsed.toggle()
             }
@@ -62,11 +102,9 @@ struct SportColumnView<GameContent: View>: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 Spacer()
-                if !isEmpty {
-                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)

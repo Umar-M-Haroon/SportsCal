@@ -11,11 +11,13 @@ struct BoardColumn: Identifiable {
     let sport: SportType
     let liveGames: [GameWithTeams]
     let otherGames: [GameWithTeams]
+    let nextGameDate: Date?
 }
 
 struct GameBoardLayout<GameContent: View>: View {
     let columns: [BoardColumn]
     let favorites: Favorites
+    let onJumpToDate: (Date) -> Void
     @ViewBuilder let gameContent: (GameWithTeams, Bool) -> GameContent
 
     var body: some View {
@@ -33,6 +35,8 @@ struct GameBoardLayout<GameContent: View>: View {
                             liveGames: column.liveGames,
                             otherGames: column.otherGames,
                             favorites: favorites,
+                            nextGameDate: column.nextGameDate,
+                            onJumpToDate: onJumpToDate,
                             gameContent: gameContent
                         )
                         .frame(width: columnWidth)
@@ -48,12 +52,19 @@ struct GameBoardLayout<GameContent: View>: View {
         let padding: CGFloat = 32
         let spacing: CGFloat = 12
         let usable = availableWidth - padding - CGFloat(columnCount - 1) * spacing
+        #if os(macOS)
+        // Cap at 2 columns visible on macOS; extra sports scroll horizontally.
+        let maxColumns = 2
+        let visibleCount = min(columnCount, maxColumns)
+        let visibleUsable = availableWidth - padding - CGFloat(visibleCount - 1) * spacing
+        return visibleUsable / CGFloat(visibleCount)
+        #else
         let fittable = max(1, Int(usable / 300))
-
         if columnCount <= fittable {
             return usable / CGFloat(columnCount)
         } else {
             return 300
         }
+        #endif
     }
 }
