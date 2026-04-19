@@ -880,16 +880,17 @@ public class GameViewModel: NSObject {
     func getGamesFromUserPreferences() -> [Game] {
         var allGames: [Game] = []
         if appStorage.shouldShowSoccer {
-            allGames.append(contentsOf: gamesDict[.soccer] ?? [])
-            allGames = allGames.filter { game in
+            let soccerGames = (gamesDict[.soccer] ?? []).filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
                 return league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
             }
+            allGames.append(contentsOf: applyFavoritesFilter(soccerGames, favoritesOnly: appStorage.favoritesOnlySoccer))
         }
         if appStorage.shouldShowMLB {
-            allGames.append(contentsOf: gamesDict[.mlb] ?? [])
+            let games = gamesDict[.mlb] ?? []
+            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyMLB))
         }
         if appStorage.shouldShowNBA {
             if let basketballGames = gamesDict[.basketball] {
@@ -899,25 +900,35 @@ public class GameViewModel: NSObject {
                           let league = Leagues(rawValue: intLeague) else { return false }
                     return league.isBasketball && !appStorage.hiddenCompetitions.contains(league.leagueName)
                 }
-                allGames.append(contentsOf: filtered)
+                allGames.append(contentsOf: applyFavoritesFilter(filtered, favoritesOnly: appStorage.favoritesOnlyNBA))
             }
         }
         if appStorage.shouldShowNFL {
-            allGames.append(contentsOf: gamesDict[.nfl] ?? [])
+            let games = gamesDict[.nfl] ?? []
+            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyNFL))
         }
         if appStorage.shouldShowNHL {
-            allGames.append(contentsOf: gamesDict[.hockey] ?? [])
+            let games = gamesDict[.hockey] ?? []
+            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyNHL))
         }
         if appStorage.shouldShowGolf {
-            allGames.append(contentsOf: gamesDict[.golf] ?? [])
+            let games = gamesDict[.golf] ?? []
+            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyGolf))
         }
         if appStorage.shouldShowTennis {
-            allGames.append(contentsOf: gamesDict[.tennis] ?? [])
+            let games = gamesDict[.tennis] ?? []
+            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyTennis))
         }
         if appStorage.shouldShowRacing {
-            allGames.append(contentsOf: gamesDict[.racing] ?? [])
+            let games = gamesDict[.racing] ?? []
+            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyRacing))
         }
         return allGames
+    }
+
+    private func applyFavoritesFilter(_ games: [Game], favoritesOnly: Bool) -> [Game] {
+        guard favoritesOnly else { return games }
+        return games.filter { favorites.matches($0) }
     }
     
     func showGame(game: Game) -> Bool {

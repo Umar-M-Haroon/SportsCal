@@ -38,6 +38,13 @@ class Favorites: Equatable {
     func contains(_ team: Game) -> Bool {
         return teams.contains(team.strHomeTeam) || teams.contains(team.strAwayTeam)
     }
+    func matches(_ game: Game) -> Bool {
+        if contains(game) { return true }
+        if game.isIndividualSport {
+            return game.resolvedLeaderboard.contains { containsPlayer($0.name) }
+        }
+        return false
+    }
     func containsHome(_ home: String) -> Bool {
         return teams.contains(home)
     }

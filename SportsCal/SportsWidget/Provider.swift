@@ -356,11 +356,47 @@ class Provider: AppIntentTimelineProvider {
         }
     }
 
+    private func applyPerSportFavoritesFilter(_ games: [Game], favorites: Favorites) -> [Game] {
+        #if os(watchOS)
+        let defaults = UserDefaults.standard
+        #else
+        let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
+        #endif
+        guard let defaults else { return games }
+        func favOnly(_ key: String) -> Bool { defaults.bool(forKey: key) }
+        return games.filter { game in
+            guard let sport = game.sportType else { return true }
+            let favOnlyForSport: Bool = {
+                switch sport {
+                case .basketball: return favOnly("favoritesOnlyNBA")
+                case .soccer:     return favOnly("favoritesOnlySoccer")
+                case .hockey:     return favOnly("favoritesOnlyNHL")
+                case .mlb:        return favOnly("favoritesOnlyMLB")
+                case .nfl:        return favOnly("favoritesOnlyNFL")
+                case .golf:       return favOnly("favoritesOnlyGolf")
+                case .tennis:     return favOnly("favoritesOnlyTennis")
+                case .racing:     return favOnly("favoritesOnlyRacing")
+                }
+            }()
+            if !favOnlyForSport { return true }
+            return favorites.matches(game)
+        }
+    }
+
     /// Returns the list of enabled sport types based on the intent configuration
     private func enabledSportTypes(for sport: SportSelection) -> [SportType] {
         if let single = sport.sportType {
             return [single]
         }
+
+        // Check for interactive sport tab override (iOS only, allSports mode)
+        #if os(iOS)
+        if let selectedRaw = UserDefaults(suiteName: "group.Komodo.SportsCal")?.string(forKey: "widgetSelectedSport"),
+           let selected = SportSelection(rawValue: selectedRaw),
+           let sportType = selected.sportType {
+            return [sportType]
+        }
+        #endif
 
         // All Sports mode: read user preferences
         // watchOS: read from standard UserDefaults (synced via WatchConnectivity)
@@ -396,12 +432,15 @@ class Provider: AppIntentTimelineProvider {
         // Try the app group snapshot first — written by the main app, no network needed
         if let snapshot {
             AppLogger.widget.info("[networking] snapshot hit: \(snapshot.games.count) games, \(snapshot.teams.count) teams, age=\(Int(Date().timeIntervalSince(snapshot.updatedAt)))s, mem=\(widgetMemoryMB())")
-            var games = applyLeagueFilter(
-                filterSnapshot(snapshot.games, sport: sport, targetDate: targetDate),
-                hiddenLeagues: hiddenLeagues
+            let favorites = Favorites()
+            var games = applyPerSportFavoritesFilter(
+                applyLeagueFilter(
+                    filterSnapshot(snapshot.games, sport: sport, targetDate: targetDate),
+                    hiddenLeagues: hiddenLeagues
+                ),
+                favorites: favorites
             )
             AppLogger.widget.info("[networking] after filter: \(games.count) games")
-            let favorites = Favorites()
 
             if favoriteOnly {
                 let favGames = games.filter { favorites.contains($0) }
@@ -449,6 +488,7 @@ class Provider: AppIntentTimelineProvider {
                 games = games.filter { $0.sportType == sportType }
             }
             games = applyLeagueFilter(games, hiddenLeagues: hiddenLeagues)
+            games = applyPerSportFavoritesFilter(games, favorites: favorites)
             AppLogger.widget.info("[networking] after day filter: \(games.count) games for \(targetDate.formatted(.dateTime.month(.abbreviated).day()))")
 
             if favoriteOnly {

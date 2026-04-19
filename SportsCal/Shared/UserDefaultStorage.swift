@@ -19,6 +19,14 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("shouldShowGolf") var shouldShowGolf: Bool = false
     @ObservationIgnored @AppStorage("shouldShowTennis") var shouldShowTennis: Bool = false
     @ObservationIgnored @AppStorage("shouldShowRacing") var shouldShowRacing: Bool = false
+    @ObservationIgnored @AppStorage("favoritesOnlyNBA") var favoritesOnlyNBA: Bool = false
+    @ObservationIgnored @AppStorage("favoritesOnlyNFL") var favoritesOnlyNFL: Bool = false
+    @ObservationIgnored @AppStorage("favoritesOnlyNHL") var favoritesOnlyNHL: Bool = false
+    @ObservationIgnored @AppStorage("favoritesOnlySoccer") var favoritesOnlySoccer: Bool = false
+    @ObservationIgnored @AppStorage("favoritesOnlyMLB") var favoritesOnlyMLB: Bool = false
+    @ObservationIgnored @AppStorage("favoritesOnlyGolf") var favoritesOnlyGolf: Bool = false
+    @ObservationIgnored @AppStorage("favoritesOnlyTennis") var favoritesOnlyTennis: Bool = false
+    @ObservationIgnored @AppStorage("favoritesOnlyRacing") var favoritesOnlyRacing: Bool = false
     @ObservationIgnored @AppStorage("shouldShowOnboarding") var shouldShowOnboarding: Bool = true
     @ObservationIgnored @AppStorage("hidesPastEvents") var hidePastEvents: Bool = true  // Hide past games by default for performance
     @ObservationIgnored @AppStorage("soonestOnTop") var soonestOnTop: Bool = true
@@ -154,6 +162,14 @@ class UserDefaultStorage {
         defaults?.set(shouldShowGolf, forKey: "shouldShowGolf")
         defaults?.set(shouldShowTennis, forKey: "shouldShowTennis")
         defaults?.set(shouldShowRacing, forKey: "shouldShowRacing")
+        defaults?.set(favoritesOnlyNBA, forKey: "favoritesOnlyNBA")
+        defaults?.set(favoritesOnlyNFL, forKey: "favoritesOnlyNFL")
+        defaults?.set(favoritesOnlyNHL, forKey: "favoritesOnlyNHL")
+        defaults?.set(favoritesOnlySoccer, forKey: "favoritesOnlySoccer")
+        defaults?.set(favoritesOnlyMLB, forKey: "favoritesOnlyMLB")
+        defaults?.set(favoritesOnlyGolf, forKey: "favoritesOnlyGolf")
+        defaults?.set(favoritesOnlyTennis, forKey: "favoritesOnlyTennis")
+        defaults?.set(favoritesOnlyRacing, forKey: "favoritesOnlyRacing")
         defaults?.set(hiddenCompetitions, forKey: "hiddenCompetitions")
     }
 
@@ -176,6 +192,33 @@ class UserDefaultStorage {
         case .racing:     shouldShowRacing = enabled
         }
         recomputeEnabledSports()
+    }
+
+    func favoritesOnly(for sport: SportType) -> Bool {
+        switch sport {
+        case .basketball: return favoritesOnlyNBA
+        case .soccer:     return favoritesOnlySoccer
+        case .hockey:     return favoritesOnlyNHL
+        case .mlb:        return favoritesOnlyMLB
+        case .nfl:        return favoritesOnlyNFL
+        case .golf:       return favoritesOnlyGolf
+        case .tennis:     return favoritesOnlyTennis
+        case .racing:     return favoritesOnlyRacing
+        }
+    }
+
+    func setFavoritesOnly(_ sport: SportType, value: Bool) {
+        switch sport {
+        case .basketball: favoritesOnlyNBA = value
+        case .soccer:     favoritesOnlySoccer = value
+        case .hockey:     favoritesOnlyNHL = value
+        case .mlb:        favoritesOnlyMLB = value
+        case .nfl:        favoritesOnlyNFL = value
+        case .golf:       favoritesOnlyGolf = value
+        case .tennis:     favoritesOnlyTennis = value
+        case .racing:     favoritesOnlyRacing = value
+        }
+        syncSportPrefsToAppGroup()
     }
 
     func switchTo(sportType: SportType) {

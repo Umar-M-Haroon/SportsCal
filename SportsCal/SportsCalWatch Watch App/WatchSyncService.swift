@@ -66,6 +66,16 @@ final class WatchSyncService: NSObject, WCSessionDelegate {
         if let tennis = context["shouldShowTennis"] as? Bool { defaults.set(tennis, forKey: "shouldShowTennis") }
         if let racing = context["shouldShowRacing"] as? Bool { defaults.set(racing, forKey: "shouldShowRacing") }
 
+        // Favorites-only per-sport
+        if let v = context["favoritesOnlyNBA"] as? Bool { defaults.set(v, forKey: "favoritesOnlyNBA") }
+        if let v = context["favoritesOnlySoccer"] as? Bool { defaults.set(v, forKey: "favoritesOnlySoccer") }
+        if let v = context["favoritesOnlyNHL"] as? Bool { defaults.set(v, forKey: "favoritesOnlyNHL") }
+        if let v = context["favoritesOnlyMLB"] as? Bool { defaults.set(v, forKey: "favoritesOnlyMLB") }
+        if let v = context["favoritesOnlyNFL"] as? Bool { defaults.set(v, forKey: "favoritesOnlyNFL") }
+        if let v = context["favoritesOnlyGolf"] as? Bool { defaults.set(v, forKey: "favoritesOnlyGolf") }
+        if let v = context["favoritesOnlyTennis"] as? Bool { defaults.set(v, forKey: "favoritesOnlyTennis") }
+        if let v = context["favoritesOnlyRacing"] as? Bool { defaults.set(v, forKey: "favoritesOnlyRacing") }
+
         // Favorites
         if let favorites = context["favorites"] as? [String] {
             defaults.set(favorites, forKey: "Favorites")

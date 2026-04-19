@@ -1,6 +1,6 @@
 import XCTest
 import SportsCalModel
-@testable import SportsCal
+@testable import Scoreline
 
 /// Tests that GameViewModel filtering logic correctly shows/hides games
 /// based on sport preferences and hidden competitions.
@@ -15,19 +15,26 @@ final class ScheduleFilterTests: XCTestCase {
     private let sportKeys = [
         "shouldShowNBA", "shouldShowNFL", "shouldShowNHL",
         "shouldShowSoccer", "shouldShowMLB", "shouldShowGolf",
-        "shouldShowTennis", "shouldShowRacing", "hiddenCompetitions"
+        "shouldShowTennis", "shouldShowRacing", "hiddenCompetitions",
+        "favoritesOnlyNBA", "favoritesOnlyNFL", "favoritesOnlyNHL",
+        "favoritesOnlySoccer", "favoritesOnlyMLB", "favoritesOnlyGolf",
+        "favoritesOnlyTennis", "favoritesOnlyRacing",
+        "Favorites", "FavoritePlayers"
     ]
 
     override func setUp() {
         super.setUp()
+        // Clear stores before constructing UserDefaultStorage / Favorites so they
+        // initialize from a clean state.
+        let appGroup = UserDefaults(suiteName: "group.Komodo.SportsCal")
+        for key in sportKeys {
+            UserDefaults.standard.removeObject(forKey: key)
+            appGroup?.removeObject(forKey: key)
+        }
+
         appStorage = UserDefaultStorage()
         favorites = Favorites()
         viewModel = GameViewModel(appStorage: appStorage, favorites: favorites)
-
-        // Disable all sports by default
-        for key in sportKeys {
-            UserDefaults.standard.removeObject(forKey: key)
-        }
 
         // Build mock games with known counts per league
         let mockGames = buildMockGames()
@@ -46,8 +53,10 @@ final class ScheduleFilterTests: XCTestCase {
     }
 
     override func tearDown() {
+        let appGroup = UserDefaults(suiteName: "group.Komodo.SportsCal")
         for key in sportKeys {
             UserDefaults.standard.removeObject(forKey: key)
+            appGroup?.removeObject(forKey: key)
         }
         super.tearDown()
     }
@@ -218,6 +227,64 @@ final class ScheduleFilterTests: XCTestCase {
 
         let sports = Set(filtered.compactMap { $0.strSport })
         XCTAssertEqual(sports, ["basketball", "hockey"])
+    }
+
+    // MARK: - Favorites-Only Tests
+
+    func testFavoritesOnlyMLBShowsOnlyFavoritedTeamGames() {
+        appStorage.shouldShowMLB = true
+        appStorage.favoritesOnlyMLB = true
+        favorites.add("Home MLB 0") // one of 2 mock MLB teams
+
+        let filtered = viewModel.getGamesFromUserPreferences()
+        XCTAssertEqual(filtered.count, 1, "Only 1 MLB game should match the favorited team")
+        XCTAssertEqual(filtered.first?.strHomeTeam, "Home MLB 0")
+    }
+
+    func testFavoritesOnlyMLBWithNoFavoritesReturnsEmpty() {
+        appStorage.shouldShowMLB = true
+        appStorage.favoritesOnlyMLB = true
+        // No favorites added
+
+        let filtered = viewModel.getGamesFromUserPreferences()
+        XCTAssertEqual(filtered.count, 0, "No games should show when favorites-only is on but no favorites exist")
+    }
+
+    func testFavoritesOnlyGolfMatchesOnFavoritedPlayer() {
+        appStorage.shouldShowGolf = true
+        appStorage.favoritesOnlyGolf = true
+        favorites.addPlayer("Scottie Scheffler")
+
+        // Inject a leaderboard containing the favorited player into the first golf game.
+        guard var pga0 = viewModel.totalGames?.first(where: { $0.idEvent == "pga-0" }) else {
+            return XCTFail("Mock PGA game missing")
+        }
+        pga0 = Game(
+            idEvent: pga0.idEvent, idLeague: pga0.idLeague,
+            strHomeTeam: pga0.strHomeTeam, strAwayTeam: pga0.strAwayTeam,
+            strTimestamp: pga0.strTimestamp, isoDate: nil,
+            leaderboardEntries: [
+                LeaderboardEntry(name: "Scottie Scheffler", score: "-12", position: 1),
+                LeaderboardEntry(name: "Rory McIlroy", score: "-10", position: 2)
+            ]
+        )
+        var updated = viewModel.totalGames ?? []
+        if let idx = updated.firstIndex(where: { $0.idEvent == "pga-0" }) { updated[idx] = pga0 }
+        viewModel.totalGames = updated
+        viewModel.gamesDict[.golf] = updated.filter { $0.idLeague == "\(Leagues.pga.rawValue)" }
+
+        let filtered = viewModel.getGamesFromUserPreferences()
+        XCTAssertEqual(filtered.count, 1, "Only the tournament with Scheffler should remain")
+        XCTAssertEqual(filtered.first?.idEvent, "pga-0")
+    }
+
+    func testSportToggleOffSuppressesFavoritesOnly() {
+        appStorage.shouldShowMLB = false
+        appStorage.favoritesOnlyMLB = true
+        favorites.add("Home MLB 0")
+
+        let filtered = viewModel.getGamesFromUserPreferences()
+        XCTAssertTrue(filtered.isEmpty, "Sport disabled should trump favorites-only")
     }
 
     func testHidingMultipleSoccerCompetitions() {

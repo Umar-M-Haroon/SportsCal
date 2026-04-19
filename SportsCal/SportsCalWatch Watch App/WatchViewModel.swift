@@ -52,6 +52,27 @@ final class WatchViewModel {
         favoriteTeams.contains(game.strHomeTeam) || favoriteTeams.contains(game.strAwayTeam)
     }
 
+    private func isFavoritesOnly(_ sport: SportType) -> Bool {
+        let defaults = UserDefaults.standard
+        switch sport {
+        case .basketball: return defaults.bool(forKey: "favoritesOnlyNBA")
+        case .soccer:     return defaults.bool(forKey: "favoritesOnlySoccer")
+        case .hockey:     return defaults.bool(forKey: "favoritesOnlyNHL")
+        case .mlb:        return defaults.bool(forKey: "favoritesOnlyMLB")
+        case .nfl:        return defaults.bool(forKey: "favoritesOnlyNFL")
+        case .golf:       return defaults.bool(forKey: "favoritesOnlyGolf")
+        case .tennis:     return defaults.bool(forKey: "favoritesOnlyTennis")
+        case .racing:     return defaults.bool(forKey: "favoritesOnlyRacing")
+        }
+    }
+
+    func applyPerSportFavoritesFilter(_ games: [Game]) -> [Game] {
+        games.filter { game in
+            guard let sport = game.sportType, isFavoritesOnly(sport) else { return true }
+            return isFavorite(game)
+        }
+    }
+
     func isLiveGame(_ game: Game) -> Bool {
         guard let status = game.strStatus?.lowercased() else { return false }
         return !status.isEmpty &&
@@ -106,13 +127,14 @@ final class WatchViewModel {
                 favorites: Array(favoriteTeams)
             )
 
+            let filteredGames = applyPerSportFavoritesFilter(fetchedGames)
             await MainActor.run {
-                self.games = fetchedGames
+                self.games = filteredGames
                 self.teams = fetchedTeams
-                self.liveGames = fetchedGames.filter { self.isLiveGame($0) }
+                self.liveGames = filteredGames.filter { self.isLiveGame($0) }
                 self.lastUpdated = Date()
             }
-            cacheData(games: fetchedGames, teams: fetchedTeams)
+            cacheData(games: filteredGames, teams: fetchedTeams)
         } catch {
             // Silently fail — cached data remains visible
         }

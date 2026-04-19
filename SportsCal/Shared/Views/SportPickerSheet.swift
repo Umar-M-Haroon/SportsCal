@@ -27,6 +27,17 @@ struct SportPickerSheet: View {
                             Label(sport.displayName, systemImage: sport.systemImage)
                                 .modifier(SportsTint(sport: sport))
                         }
+                        if storage.effectiveShouldShow(sport) {
+                            Toggle(isOn: Binding(
+                                get: { storage.favoritesOnly(for: sport) },
+                                set: { storage.setFavoritesOnly(sport, value: $0) }
+                            )) {
+                                Label("Favorites only", systemImage: "star.fill")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.leading, 28)
+                        }
                     }
                     .onMove { from, to in
                         sports.move(fromOffsets: from, toOffset: to)
