@@ -450,7 +450,7 @@ struct DayPage: View {
         }
 
         // Suggested for you
-        if !dayData.suggestedGames.isEmpty {
+        if storage.showSuggestedForYou, !dayData.suggestedGames.isEmpty {
             Section {
                 TipView(FavoriteTeamSuggestionTip())
                     .tipBackground(Color.secondaryGroupedBackground)

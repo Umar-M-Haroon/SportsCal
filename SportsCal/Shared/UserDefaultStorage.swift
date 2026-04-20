@@ -39,6 +39,7 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("hiddenCompetitions") var hiddenCompetitions: [String] = []
     @ObservationIgnored @AppStorage("useRelativeValue") var useRelativeValue: Bool = false
     @ObservationIgnored @AppStorage("autoFollowFavorites") var autoFollowFavorites: Bool = true
+    @ObservationIgnored @AppStorage("showSuggestedForYou") var showSuggestedForYou: Bool = true
     @ObservationIgnored @AppStorage("useLocalServer") var useLocalServer: Bool = true
     @ObservationIgnored @AppStorage("sportOrder") var sportOrder: [String] = []
 

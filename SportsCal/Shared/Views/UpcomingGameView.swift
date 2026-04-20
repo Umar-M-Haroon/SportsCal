@@ -40,42 +40,12 @@ struct UpcomingGameView: View {
                     IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: false, isAway: true, record: game.awayRecord, seed: game.awaySeed)
                     .frame(maxWidth: .infinity)
                     VStack(alignment: .center, spacing: 8) {
-                        if showCountdown, let date = game.standardDate {
-                            Text(formatter.format(date))
-                                .font(.system(.subheadline, design: .monospaced))
-                                .fontWeight(.medium)
-                                .accessibilityValue(accessibilityLabel)
-                                .accessibilityLabel(accessibilityLabel)
-                                .foregroundColor(timeColor)
-                        } else if isFavorite, let isoDate = game.standardDate {
-                            Text(isoDate.formatted(.dateTime.hour().minute()))
-                                .font(.system(.subheadline, design: .monospaced))
-                                .fontWeight(.medium)
-                                .accessibilityValue(accessibilityLabel)
-                                .accessibilityLabel(accessibilityLabel)
-                                .foregroundColor(timeColor)
-
-                        }
-                        if let isoDateString = game.standardDate?.formatToTime() {
-                            Text(isoDateString)
+                        if let date = game.standardDate {
+                            GameTimeLabel(date: date)
                                 .font(.system(.subheadline, design: .monospaced))
                                 .fontWeight(.medium)
                                 .foregroundColor(timeColor)
                         }
-                        Menu {
-                            #if canImport(ActivityKit) && os(iOS)
-                            AutoFollowButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
-                                .environment(viewModel)
-                            #endif
-                            FavoriteMenu(game: game)
-                                .environment(favorites)
-                            CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-                            NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-                        } label: {
-                            Image(systemName: "ellipsis")
-                        }
-                        .buttonStyle(.bordered)
-                        .buttonBorderShape(.capsule)
                     }
                         .fixedSize(horizontal: true, vertical: false)
                     IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: Int(game.intHomeScore ?? ""), isWinning: false, isAway: false, record: game.homeRecord, seed: game.homeSeed)
@@ -89,6 +59,25 @@ struct UpcomingGameView: View {
                         .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity)
                 }
+
+                if game.playoff != nil {
+                    PlayoffPill(
+                        game: game,
+                        homeTeamShort: homeTeam.strTeamShort,
+                        awayTeamShort: awayTeam.strTeamShort
+                    )
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+            }
+            .contextMenu {
+                #if canImport(ActivityKit) && os(iOS)
+                AutoFollowButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                    .environment(viewModel)
+                #endif
+                FavoriteMenu(game: game)
+                    .environment(favorites)
+                CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+                NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
             }
 
         if navigationDisabled {

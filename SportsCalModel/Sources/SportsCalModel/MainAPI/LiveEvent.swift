@@ -55,22 +55,101 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                                       playerName: name, displayValue: top.displayValue, headshot: top.athlete?.headshot)
                 }
 
-                let homeSeed = league == .ncaaMBBTournament ? home.curatedRank?.current : nil
-                let awaySeed = league == .ncaaMBBTournament ? away.curatedRank?.current : nil
+                // Playoff detection: season.type == 3 is ESPN's authoritative postseason flag.
+                // Fall back to series presence, and to event/notes text matching, so playoff
+                // context still populates when any one signal is missing.
+                let playoffEligibleTeamLeagues: Set<Leagues> = [.nba, .nhl, .mlb, .nfl, .ncaaMBBTournament]
+                let namedAsPostseason: Bool = {
+                    let short = event.shortName ?? ""
+                    let nameHaystack = (event.name + " " + short).lowercased()
+                    let noteHaystack = (competition.notes ?? [])
+                        .compactMap { ($0.headline ?? "") + " " + ($0.text ?? "") }
+                        .joined(separator: " ")
+                        .lowercased()
+                    let haystack = nameHaystack + " " + noteHaystack
+                    let markers = [
+                        "playoff", "postseason", "wild card", "wild-card", "divisional",
+                        "conference final", "conference semifinal", "conference quarterfinal",
+                        "nba finals", "stanley cup", "world series", "alcs", "nlcs",
+                        "division series", "championship series", "super bowl"
+                    ]
+                    return markers.contains(where: { haystack.contains($0) })
+                }()
+                let isPlayoff = (event.season?.type == 3)
+                    || (competition.series != nil && playoffEligibleTeamLeagues.contains(league))
+                    || (namedAsPostseason && playoffEligibleTeamLeagues.contains(league))
+
+                // `curatedRank.current` is a real bracket seed (1–16) only for NCAA tournament
+                // competitors. For pro-league games ESPN returns 99 as an "unranked" sentinel,
+                // which would surface as "(99)". Pro-league playoff seeds live on the standings
+                // endpoint and need separate wiring — leave seeds nil here for now.
+                let homeSeed = (league == .ncaaMBBTournament) ? home.curatedRank?.current : nil
+                let awaySeed = (league == .ncaaMBBTournament) ? away.curatedRank?.current : nil
                 let homeColor = homeTeam.color
                 let awayColor = awayTeam.color
                 let homeRec = home.records?.first(where: { $0.type == "total" })?.summary
                 let awayRec = away.records?.first(where: { $0.type == "total" })?.summary
 
-                // Compute aggregate score for multi-leg ties (e.g. UCL knockout)
+                // ESPN overloads SeriesCompetitor.aggregateScore: series wins for NBA/NHL/MLB
+                // versus aggregate goals for soccer knockout rounds. Keep the soccer string rendering,
+                // use the integer wins rendering for the playoff context.
+                let winsFormatLeagues: Set<Leagues> = [.nba, .nhl, .mlb]
+
+                // Soccer aggregate rendering (unchanged behaviour for UCL etc.)
                 var aggregateScore: String?
-                if let seriesCompetitors = competition.series?.competitors,
+                if !winsFormatLeagues.contains(league),
+                   let seriesCompetitors = competition.series?.competitors,
                    seriesCompetitors.count == 2 {
                     let homeAgg = seriesCompetitors.first(where: { $0.id == homeTeam.id })?.aggregateScore
                     let awayAgg = seriesCompetitors.first(where: { $0.id == awayTeam.id })?.aggregateScore
                     if let h = homeAgg, let a = awayAgg {
                         aggregateScore = "Agg: \(Int(a))-\(Int(h))"
                     }
+                }
+
+                var playoff: PlayoffContext? = nil
+                if isPlayoff {
+                    // ESPN populates `competitors[].wins` for NBA/NHL/MLB playoff series.
+                    // `aggregateScore` is a different field used by soccer knockouts.
+                    var homeWins: Int? = nil
+                    var awayWins: Int? = nil
+                    if winsFormatLeagues.contains(league),
+                       let sc = competition.series?.competitors, sc.count == 2 {
+                        homeWins = sc.first(where: { $0.id == homeTeam.id })?.wins
+                        awayWins = sc.first(where: { $0.id == awayTeam.id })?.wins
+                    }
+                    // Prefer ESPN's own "Game N" labeling (notes headline, status detail).
+                    // Avoid wins-sum inference — it lags the scoreboard by a cycle.
+                    let gameNumberTextSources: [String?] = (competition.notes ?? [])
+                        .flatMap { [$0.headline, $0.text] }
+                        + [
+                            event.shortName, event.name,
+                            event.status?.type.detail, event.status?.type.shortDetail,
+                            competition.status?.type.detail, competition.status?.type.shortDetail
+                        ]
+                    let gameNumber: Int? = winsFormatLeagues.contains(league)
+                        ? gameNumberTextSources.lazy.compactMap { Self.parseGameNumber(from: $0) }.first
+                        : nil
+
+                    // Round label preference: notes headline (e.g. "East 1st Round - Game 2")
+                    // beats series.title which is usually just "Playoff Series". Strip any
+                    // trailing "- Game N" so it doesn't duplicate the game number display.
+                    let rawSeriesTitle = competition.notes?.first(where: { $0.headline?.isEmpty == false })?.headline
+                        ?? competition.series?.title
+                        ?? competition.notes?.first(where: { $0.text?.isEmpty == false })?.text
+                        ?? event.shortName
+                        ?? event.name
+                    let seriesTitle = Self.stripGameSuffix(from: rawSeriesTitle)
+
+                    playoff = PlayoffContext(
+                        seriesTitle: seriesTitle,
+                        gameNumber: gameNumber,
+                        bestOf: competition.series?.totalCompetitions,
+                        homeWins: homeWins,
+                        awayWins: awayWins,
+                        seriesCompleted: competition.series?.completed,
+                        isNeutralSite: competition.neutralSite
+                    )
                 }
 
                 return [Game(
@@ -92,7 +171,8 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     legDisplay: competition.leg?.displayValue,
                     aggregateScore: aggregateScore,
                     homeSeed: homeSeed,
-                    awaySeed: awaySeed
+                    awaySeed: awaySeed,
+                    playoff: playoff
                 )]
             }
 
@@ -400,6 +480,34 @@ public struct LiveEvent: Codable, Equatable, Hashable {
     enum CodingKeys: String, CodingKey {
         case events
     }
+
+    /// Extracts a `Game N` number from free-form ESPN strings (event names, notes).
+    /// Matches "Game 3", "Game 3:", "- Game 3", "game3", etc.
+    static func parseGameNumber(from source: String?) -> Int? {
+        guard let source = source?.lowercased(), source.contains("game") else { return nil }
+        // Tokenize on non-alphanumeric separators, scan for "game" followed by an integer.
+        let tokens = source.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+        for (i, token) in tokens.enumerated() {
+            if token == "game", i + 1 < tokens.count, let n = Int(tokens[i + 1]), (1...7).contains(n) {
+                return n
+            }
+        }
+        // Also catch the glued form, e.g. "game3"
+        if let range = source.range(of: #"game\s*(\d+)"#, options: .regularExpression) {
+            let digits = source[range].filter { $0.isNumber }
+            if let n = Int(digits), (1...7).contains(n) { return n }
+        }
+        return nil
+    }
+
+    /// Strips a trailing `"- Game N"` (or `" Game N"`) so that round labels like
+    /// `"East 1st Round - Game 2"` become just `"East 1st Round"` for display.
+    static func stripGameSuffix(from source: String) -> String {
+        guard let range = source.range(of: #"\s*[-–—]?\s*[Gg]ame\s+\d+\s*$"#, options: .regularExpression) else {
+            return source
+        }
+        return String(source[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
+    }
 }
 
 // MARK: - GameLeader
@@ -409,11 +517,52 @@ public struct GameLeader: Codable, Equatable, Hashable {
     public let playerName: String
     public let displayValue: String
     public let headshot: String?
+
+    public init(category: String, categoryDisplay: String, playerName: String, displayValue: String, headshot: String? = nil) {
+        self.category = category
+        self.categoryDisplay = categoryDisplay
+        self.playerName = playerName
+        self.displayValue = displayValue
+        self.headshot = headshot
+    }
+}
+
+// MARK: - PlayoffContext
+/// Captures playoff/postseason series metadata when a game is part of a playoff bracket.
+/// Populated during ESPN → Game translation when `season.type == 3` or a CompetitionSeries
+/// is present on a playoff-eligible league (NBA/NHL/MLB/NFL/NCAA MBB).
+public struct PlayoffContext: Codable, Equatable, Hashable {
+    /// e.g. "NBA Finals", "Eastern Conf. Finals", "Wild Card"
+    public var seriesTitle: String?
+    /// Current game's number in the series (1-indexed). Nil for single-elim (NFL).
+    public var gameNumber: Int?
+    /// Series format length (e.g. 7 for best-of-7). Nil for single-elim.
+    public var bestOf: Int?
+    /// Wins so far for the home team in this series. Nil for single-elim.
+    public var homeWins: Int?
+    /// Wins so far for the away team in this series. Nil for single-elim.
+    public var awayWins: Int?
+    /// True once the series has been decided.
+    public var seriesCompleted: Bool?
+    /// True for games played on a neutral site (e.g. Super Bowl, Final Four).
+    public var isNeutralSite: Bool?
+
+    public init(seriesTitle: String? = nil, gameNumber: Int? = nil, bestOf: Int? = nil,
+                homeWins: Int? = nil, awayWins: Int? = nil,
+                seriesCompleted: Bool? = nil, isNeutralSite: Bool? = nil) {
+        self.seriesTitle = seriesTitle
+        self.gameNumber = gameNumber
+        self.bestOf = bestOf
+        self.homeWins = homeWins
+        self.awayWins = awayWins
+        self.seriesCompleted = seriesCompleted
+        self.isNeutralSite = isNeutralSite
+    }
 }
 
 // MARK: - Event
 public struct Game: Identifiable, Equatable, Hashable {
-    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil) {
+    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, playoff: PlayoffContext? = nil) {
         self.idLiveScore = idLiveScore
         self.idEvent = idEvent
         self._strSport = strSport
@@ -450,6 +599,9 @@ public struct Game: Identifiable, Equatable, Hashable {
         self.homeSeed = homeSeed
         self.awaySeed = awaySeed
         self.tournamentName = tournamentName
+        self.homeInjuries = homeInjuries
+        self.awayInjuries = awayInjuries
+        self.playoff = playoff
         // Pre-compute date from strTimestamp if isoDate not provided
         if let isoDate {
             self.isoDate = isoDate
@@ -509,6 +661,9 @@ public struct Game: Identifiable, Equatable, Hashable {
     public let homeSeed: Int?
     public let awaySeed: Int?
     public let tournamentName: String?
+    public let homeInjuries: [InjuryReport]?
+    public let awayInjuries: [InjuryReport]?
+    public let playoff: PlayoffContext?
 
     // MARK: - Computed Properties (derived from idLeague)
     // Private storage for backward compatibility when decoding old data
@@ -545,6 +700,8 @@ extension Game: Codable {
         case homeTeamColor, awayTeamColor, homeRecord, awayRecord
         case circuitInfo, golfCourseInfo, legDisplay, aggregateScore
         case homeSeed, awaySeed, tournamentName
+        case homeInjuries, awayInjuries
+        case playoff
         // Computed properties - decoded for backward compatibility, not encoded
         case strSport, strLeague
         // Individual sport fallback (golf/tennis have null strHomeTeam/strAwayTeam)
@@ -589,9 +746,17 @@ extension Game: Codable {
         golfCourseInfo = try container.decodeIfPresent(GolfCourseInfo.self, forKey: .golfCourseInfo)
         legDisplay = try container.decodeIfPresent(String.self, forKey: .legDisplay)
         aggregateScore = try container.decodeIfPresent(String.self, forKey: .aggregateScore)
-        homeSeed = try container.decodeIfPresent(Int.self, forKey: .homeSeed)
-        awaySeed = try container.decodeIfPresent(Int.self, forKey: .awaySeed)
+        // Sanitize seed values on decode — ESPN returns `99` as a "no rank" sentinel for
+        // pro-league competitors, and older cached responses may still carry it. Any value
+        // outside the realistic bracket range (1...16, NCAA tournament) is discarded.
+        let rawHomeSeed = try container.decodeIfPresent(Int.self, forKey: .homeSeed)
+        let rawAwaySeed = try container.decodeIfPresent(Int.self, forKey: .awaySeed)
+        homeSeed = rawHomeSeed.flatMap { (1...16).contains($0) ? $0 : nil }
+        awaySeed = rawAwaySeed.flatMap { (1...16).contains($0) ? $0 : nil }
         tournamentName = try container.decodeIfPresent(String.self, forKey: .tournamentName)
+        homeInjuries = try container.decodeIfPresent([InjuryReport].self, forKey: .homeInjuries)
+        awayInjuries = try container.decodeIfPresent([InjuryReport].self, forKey: .awayInjuries)
+        playoff = try container.decodeIfPresent(PlayoffContext.self, forKey: .playoff)
         // Decode for backward compatibility with old cached data
         _strSport = try container.decodeIfPresent(String.self, forKey: .strSport)
         _strLeague = try container.decodeIfPresent(String.self, forKey: .strLeague)
@@ -656,6 +821,9 @@ extension Game: Codable {
         try container.encodeIfPresent(homeSeed, forKey: .homeSeed)
         try container.encodeIfPresent(awaySeed, forKey: .awaySeed)
         try container.encodeIfPresent(tournamentName, forKey: .tournamentName)
+        try container.encodeIfPresent(homeInjuries, forKey: .homeInjuries)
+        try container.encodeIfPresent(awayInjuries, forKey: .awayInjuries)
+        try container.encodeIfPresent(playoff, forKey: .playoff)
         // Note: strSport and strLeague are not encoded - they're computed from idLeague
         // Deprecated fields are not encoded: strPlayer, idPlayer, intEventScore,
         // intEventScoreTotal, strEventTime, dateEvent, updated
@@ -684,6 +852,42 @@ extension Game {
             return league.isRacing
         }
         return strSport == "racing"
+    }
+
+    /// Best-effort playoff marker when structured `playoff` data isn't available
+    /// (e.g. stale cached responses, or data paths that bypass ESPN scoreboard parsing).
+    /// Checks league + team-name text + date window to surface a round label.
+    public var fallbackPostseasonTitle: String? {
+        guard let leagueID = idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:)) else {
+            return nil
+        }
+        let eligible: Set<Leagues> = [.nba, .nhl, .mlb, .nfl]
+        guard eligible.contains(leagueID) else { return nil }
+
+        let combined = (strHomeTeam + " " + strAwayTeam).lowercased()
+        let markers = [
+            "playoff", "postseason", "wild card", "wild-card", "divisional",
+            "conference final", "conference semifinal",
+            "nba finals", "stanley cup", "world series",
+            "alcs", "nlcs", "alds", "nlds",
+            "division series", "championship series", "super bowl"
+        ]
+        if let match = markers.first(where: { combined.contains($0) }) {
+            return match.capitalized
+        }
+
+        // Date-window fallback for each league's typical postseason.
+        if let date = isoDate {
+            let month = Calendar(identifier: .gregorian).component(.month, from: date)
+            switch leagueID {
+            case .nba:  if (4...6).contains(month)  { return "NBA Postseason" }
+            case .nhl:  if (4...6).contains(month)  { return "NHL Postseason" }
+            case .mlb:  if month == 10 || month == 11 { return "MLB Postseason" }
+            case .nfl:  if month == 1 || month == 2 { return "NFL Postseason" }
+            default: break
+            }
+        }
+        return nil
     }
 
     /// Structured leaderboard with headshots and thru-hole data.

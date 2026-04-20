@@ -58,11 +58,12 @@ struct DeveloperSettingsSection: View {
 
 struct ProOptionsSettingsSection: View {
     @Environment(UserDefaultStorage.self) private var appStorage
+    @Environment(SubscriptionManager.self) private var subscriptionManager
 
     var body: some View {
         @Bindable var bindableAppStorage = appStorage
 
-        Section(header: Text("Scoreline Pro Options")) {
+        Section(header: Text("Scoreline Pro Options"), footer: proFooter) {
             HStack {
                 Text("Hide events more than ")
                 Spacer()
@@ -79,6 +80,14 @@ struct ProOptionsSettingsSection: View {
             }
             Toggle("Hide past events", isOn: $bindableAppStorage.hidePastEvents)
             Toggle("Show countdown", isOn: $bindableAppStorage.showStartTime)
+        }
+        .disabled(!subscriptionManager.isPro)
+    }
+
+    @ViewBuilder
+    private var proFooter: some View {
+        if !subscriptionManager.isPro {
+            Text("Requires Scoreline Pro")
         }
     }
 }
@@ -224,6 +233,13 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
                 #endif
+                Section(header: Text("Personalization")) {
+                    @Bindable var bindableAppStorage = appStorage
+                    Toggle("Suggested For You", isOn: $bindableAppStorage.showSuggestedForYou)
+                    Text("Surface games from teams you've been checking on the Day tab, even if they aren't favorites.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 ScoresSettingsSection()
                 DateFormatSettingsSection()
             }

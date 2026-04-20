@@ -63,6 +63,10 @@ enum RedisEndpoint {
         case f1EnrichmentLastUpdate
         case golfEnrichment
         case golfEnrichmentLastUpdate
+        case injuries
+        case injuriesLastUpdate
+        case postseasonWindow
+        case postseasonWindowLastUpdate
         public var value: RedisKey {
             switch self {
             case .latestLiveInfo:
@@ -95,6 +99,14 @@ enum RedisEndpoint {
                 return "Golf Enrichment"
             case .golfEnrichmentLastUpdate:
                 return "Golf Enrichment Last Update"
+            case .injuries:
+                return "Injuries"
+            case .injuriesLastUpdate:
+                return "Injuries Last Update"
+            case .postseasonWindow:
+                return "Postseason Window"
+            case .postseasonWindowLastUpdate:
+                return "Postseason Window Last Update"
             }
         }
         public var debugValue: RedisKey {
@@ -129,6 +141,14 @@ enum RedisEndpoint {
                 return "debug-Golf Enrichment"
             case .golfEnrichmentLastUpdate:
                 return "debug-Golf Enrichment Last Update"
+            case .injuries:
+                return "debug-Injuries"
+            case .injuriesLastUpdate:
+                return "debug-Injuries Last Update"
+            case .postseasonWindow:
+                return "debug-Postseason Window"
+            case .postseasonWindowLastUpdate:
+                return "debug-Postseason Window Last Update"
             }
         }
         public func getValue(isDebug: Bool = false) -> RedisKey {

@@ -30,7 +30,7 @@ struct GameDetailView: View {
 
     @State private var standing: Standing?
     @State private var standingsLoading = true
-    @State private var standingsError = false
+    @State private var standingsErrorMessage: String?
 
     private var league: Leagues? {
         guard let id = game.idLeague, let intID = Int(id) else { return nil }
@@ -49,9 +49,11 @@ struct GameDetailView: View {
                 gameHeader
                 gameInfo
                 actionsRow
+                playoffSeriesSection
                 boxScoreSection
                 momentumChartSection
                 keyPlayersSection
+                injuriesSection
                 headToHeadSection
                 #if os(iOS)
                 if !subscriptionManager.isPro && AdConfiguration.isEnabled,
@@ -329,6 +331,116 @@ struct GameDetailView: View {
     }
     #endif
 
+    // MARK: - Playoff Series
+    @ViewBuilder
+    private var playoffSeriesSection: some View {
+        if let playoff = game.playoff {
+            playoffRichSection(playoff: playoff)
+        } else if let fallbackTitle = fallbackPlayoffTitle {
+            playoffMinimalSection(title: fallbackTitle)
+        }
+    }
+
+    @ViewBuilder
+    private func playoffRichSection(playoff: PlayoffContext) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(playoff.seriesTitle ?? "Postseason")
+                    .font(.headline)
+                Spacer()
+                if let best = playoff.bestOf {
+                    Text("Best of \(best)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let home = playoff.homeWins, let away = playoff.awayWins,
+               let best = playoff.bestOf {
+                seriesDots(homeWins: home, awayWins: away, bestOf: best)
+
+                Text(seriesStatusText(
+                    homeWins: home, awayWins: away,
+                    seriesCompleted: playoff.seriesCompleted ?? false
+                ))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+
+            if let gameNumber = playoff.gameNumber, gameNumber > 0 {
+                Text("Game \(gameNumber)" + (playoff.bestOf.map { " of \($0)" } ?? ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if playoff.isNeutralSite == true, let venue = game.venueName {
+                Label("Neutral site · \(venue)", systemImage: "mappin.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if playoff.isNeutralSite == true {
+                Label("Neutral site", systemImage: "mappin.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    private func playoffMinimalSection(title: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "trophy.fill")
+                .foregroundStyle(.yellow)
+            Text(title)
+                .font(.headline)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var fallbackPlayoffTitle: String? { game.fallbackPostseasonTitle }
+
+    @ViewBuilder
+    private func seriesDots(homeWins: Int, awayWins: Int, bestOf: Int) -> some View {
+        let played = homeWins + awayWins
+        HStack(spacing: 6) {
+            ForEach(0..<bestOf, id: \.self) { index in
+                Circle()
+                    .fill(fillForSeriesDot(index: index, homeWins: homeWins, awayWins: awayWins, played: played))
+                    .frame(width: 10, height: 10)
+            }
+        }
+    }
+
+    private func fillForSeriesDot(index: Int, homeWins: Int, awayWins: Int, played: Int) -> Color {
+        // Wins so far are ordered as opaque dots: away wins first, then home wins.
+        // Remaining dots (scheduled but unplayed) are shown dimmed.
+        if index < awayWins {
+            return Color(hex: game.awayTeamColor ?? "") ?? .accentColor
+        }
+        if index < played {
+            return Color(hex: game.homeTeamColor ?? "") ?? .accentColor
+        }
+        return Color.secondary.opacity(0.25)
+    }
+
+    private func seriesStatusText(homeWins: Int, awayWins: Int, seriesCompleted: Bool) -> String {
+        let homeShort = homeTeam.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased()
+        let awayShort = awayTeam.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased()
+        if seriesCompleted {
+            if homeWins > awayWins { return "\(homeShort) win series \(homeWins)-\(awayWins)" }
+            if awayWins > homeWins { return "\(awayShort) win series \(awayWins)-\(homeWins)" }
+            return "Series tied \(homeWins)-\(awayWins)"
+        }
+        if homeWins == awayWins { return "Series tied \(homeWins)-\(awayWins)" }
+        if homeWins > awayWins { return "\(homeShort) lead \(homeWins)-\(awayWins)" }
+        return "\(awayShort) lead \(awayWins)-\(homeWins)"
+    }
+
     // MARK: - Box Score
     @ViewBuilder
     private var boxScoreSection: some View {
@@ -501,6 +613,100 @@ struct GameDetailView: View {
         }
     }
 
+    // MARK: - Injuries
+    @ViewBuilder
+    private var injuriesSection: some View {
+        let home = game.homeInjuries ?? []
+        let away = game.awayInjuries ?? []
+        if !game.isIndividualSport, !(home.isEmpty && away.isEmpty) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Injury Report")
+                    .font(.headline)
+
+                HStack(alignment: .top, spacing: 12) {
+                    injuryColumn(
+                        teamName: awayTeam.strTeamShort ?? awayTeam.strTeam ?? game.strAwayTeam,
+                        reports: away
+                    )
+                    Divider()
+                    injuryColumn(
+                        teamName: homeTeam.strTeamShort ?? homeTeam.strTeam ?? game.strHomeTeam,
+                        reports: home
+                    )
+                }
+            }
+            .padding()
+            .background(Color.secondaryGroupedBackground)
+            .cornerRadius(12)
+        }
+    }
+
+    @ViewBuilder
+    private func injuryColumn(teamName: String, reports: [InjuryReport]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(teamName)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            if reports.isEmpty {
+                Text("No reported injuries")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(Array(reports.prefix(6).enumerated()), id: \.offset) { _, report in
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(report.playerName)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .lineLimit(1)
+                            if let position = report.position {
+                                Text(position)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        HStack(spacing: 6) {
+                            Text(report.status)
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(injuryStatusColor(report.status).opacity(0.2))
+                                .foregroundColor(injuryStatusColor(report.status))
+                                .cornerRadius(4)
+                            if let detail = report.detail {
+                                Text(detail)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                }
+                if reports.count > 6 {
+                    Text("+\(reports.count - 6) more")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func injuryStatusColor(_ status: String) -> Color {
+        let lower = status.lowercased()
+        if lower.contains("out") || lower.contains("ir") || lower.contains("season") {
+            return .red
+        }
+        if lower.contains("question") || lower.contains("doubt") {
+            return .orange
+        }
+        if lower.contains("day") || lower.contains("probable") {
+            return .yellow
+        }
+        return .secondary
+    }
+
     // MARK: - Head-to-Head
     private var headToHeadSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -603,41 +809,48 @@ struct GameDetailView: View {
     }
 
     // MARK: - Standings
+    @ViewBuilder
     private var standingsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Standings")
-                .font(.headline)
+        if !game.isIndividualSport {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Standings")
+                    .font(.headline)
 
-            if standingsLoading {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
-                }
-                .padding(.vertical, 8)
-            } else if standingsError || standing == nil {
-                Text("Standings not available")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 8)
-            } else if let children = standing?.standings.children, !children.isEmpty {
-                ForEach(Array(children.enumerated()), id: \.offset) { _, child in
-                    if let entries = child.standings?.entries, !entries.isEmpty {
-                        standingsGroup(name: child.name, entries: entries)
+                if standingsLoading {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
                     }
-                }
-            } else {
-                Text("Standings not available")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .padding(.vertical, 8)
+                } else if let children = standing?.standings.children, !children.isEmpty {
+                    ForEach(Array(children.enumerated()), id: \.offset) { _, child in
+                        if let entries = child.standings?.entries, !entries.isEmpty {
+                            standingsGroup(name: child.name, entries: entries)
+                        }
+                    }
+                } else {
+                    VStack(spacing: 8) {
+                        Text(standingsErrorMessage ?? "Standings not available")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Button {
+                            standingsLoading = true
+                            standingsErrorMessage = nil
+                            Task { await loadStandings() }
+                        } label: {
+                            Label("Retry", systemImage: "arrow.clockwise")
+                                .font(.subheadline)
+                        }
+                    }
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 8)
+                }
             }
+            .padding()
+            .background(Color.secondaryGroupedBackground)
+            .cornerRadius(12)
         }
-        .padding()
-        .background(Color.secondaryGroupedBackground)
-        .cornerRadius(12)
     }
 
     private func standingsGroup(name: String?, entries: [Entry]) -> some View {
@@ -713,7 +926,8 @@ struct GameDetailView: View {
     private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         let event = EKEvent(eventStore: eventStore)
-        event.title = "\(game.strAwayTeam) @ \(game.strHomeTeam)"
+        let separator = (game.playoff?.isNeutralSite == true) ? " vs " : " @ "
+        event.title = "\(game.strAwayTeam)\(separator)\(game.strHomeTeam)"
         if let gameDate = game.standardDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 2)
@@ -723,17 +937,31 @@ struct GameDetailView: View {
     #endif
 
     private func loadStandings() async {
+        guard !game.isIndividualSport else {
+            standingsLoading = false
+            return
+        }
         guard let leagueID = game.idLeague else {
             standingsLoading = false
-            standingsError = true
+            standingsErrorMessage = "League information missing for this game"
             return
         }
         do {
-            standing = try await NetworkHandler.getStandings(for: leagueID)
+            standing = try await NetworkHandler.getStandings(for: leagueID, debug: viewModel.appStorage.debugMode)
             standingsLoading = false
+        } catch let urlError as URLError {
+            standingsLoading = false
+            switch urlError.code {
+            case .notConnectedToInternet, .networkConnectionLost:
+                standingsErrorMessage = "No internet connection"
+            case .timedOut:
+                standingsErrorMessage = "Request timed out"
+            default:
+                standingsErrorMessage = "Unable to load standings"
+            }
         } catch {
             standingsLoading = false
-            standingsError = true
+            standingsErrorMessage = "Unable to load standings"
         }
     }
 }

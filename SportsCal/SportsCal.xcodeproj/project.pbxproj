@@ -45,7 +45,7 @@
 		1D6691AA2F5D451200D5F688 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBEB4152F05F6340025B04C /* Constants.swift */; };
 		1D73B9902F86DFD600C98966 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 1D73B98F2F86DFD600C98966 /* RevenueCat */; };
 		1D73B9922F86DFD600C98966 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1D73B9912F86DFD600C98966 /* RevenueCatUI */; };
-		1D73B9952F86DFEA00C98966 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 1D73B9942F86DFEA00C98966 /* GoogleMobileAds */; };
+		1D73B9952F86DFEA00C98966 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; platformFilter = ios; productRef = 1D73B9942F86DFEA00C98966 /* GoogleMobileAds */; };
 		1D73B99A2F86E13100C98966 /* AdConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73B9992F86E13100C98966 /* AdConfiguration.swift */; };
 		1D73B99C2F86E13400C98966 /* AdInsertionHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73B99B2F86E13400C98966 /* AdInsertionHelper.swift */; };
 		1D73B99E2F86E13D00C98966 /* NativeAdManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73B99D2F86E13D00C98966 /* NativeAdManager.swift */; };
@@ -56,6 +56,18 @@
 		1D73C02C2F8B8AA400C98966 /* GolfLeaderboardWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C02A2F8B8AA400C98966 /* GolfLeaderboardWidget.swift */; };
 		1D73C02E2F8B8AD000C98966 /* StandingsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C02D2F8B8AD000C98966 /* StandingsWidget.swift */; };
 		1D73C02F2F8B8AD000C98966 /* StandingsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C02D2F8B8AD000C98966 /* StandingsWidget.swift */; };
+		1D73C0792F93498300C98966 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 1D73C0782F93498300C98966 /* SnapshotTesting */; };
+		1D73C07D2F93499F00C98966 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 1D73C07C2F93499F00C98966 /* SnapshotTesting */; };
+		1D73C0812F9349BA00C98966 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 1D73C0802F9349BA00C98966 /* SnapshotTesting */; };
+		1D73C0CD2F934A1100C98966 /* SnapshotFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C0CC2F934A1100C98966 /* SnapshotFixtures.swift */; };
+		1D73C0CF2F934A2200C98966 /* SnapshotHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C0CE2F934A2200C98966 /* SnapshotHelpers.swift */; };
+		1D73C0D12F934A4300C98966 /* RowViewSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C0D02F934A4300C98966 /* RowViewSnapshotTests.swift */; };
+		1D73C0D32F934A4C00C98966 /* DetailViewSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C0D22F934A4C00C98966 /* DetailViewSnapshotTests.swift */; };
+		1D73C0D52F934A5900C98966 /* ScreenSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C0D42F934A5900C98966 /* ScreenSnapshotTests.swift */; };
+		1D73C0D72F934A6500C98966 /* BoardSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C0D62F934A6500C98966 /* BoardSnapshotTests.swift */; };
+		1D73C1642F934AA300C98966 /* MacSnapshotHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C1632F934AA300C98966 /* MacSnapshotHelpers.swift */; };
+		1D73C1662F934AAF00C98966 /* MacViewSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C1652F934AAF00C98966 /* MacViewSnapshotTests.swift */; };
+		1D73C4872F9357EF00C98966 /* RealisticFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C4862F9357EF00C98966 /* RealisticFixtures.swift */; };
 		1D77F64B297CFDCC0023E6DB /* SportsTint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D77F64A297CFDCC0023E6DB /* SportsTint.swift */; };
 		1D77F64C297CFDCC0023E6DB /* SportsTint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D77F64A297CFDCC0023E6DB /* SportsTint.swift */; };
 		1D7D46AA29EA9F9A00179018 /* CalendarViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7D46A929EA9F9A00179018 /* CalendarViewRepresentable.swift */; };
@@ -115,6 +127,7 @@
 		1DE1F0C72941B9B300741B19 /* SportsWidgetSmallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0C62941B9B300741B19 /* SportsWidgetSmallView.swift */; };
 		1DE1F0C92941B9D100741B19 /* SportsWidgetMediumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1F0C82941B9D100741B19 /* SportsWidgetMediumView.swift */; };
 		1DE4EBB12F3AB02300CAC2E8 /* TennisMatchScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB02F3AB02300CAC2E8 /* TennisMatchScoreView.swift */; };
+		EE00B00FF00000000000000B /* PlayoffPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00B00FF00000000000000A /* PlayoffPill.swift */; };
 		1DE4EBB32F3AB03300CAC2E8 /* TennisMatchDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB22F3AB03300CAC2E8 /* TennisMatchDetailView.swift */; };
 		1DE4EBB62F3ACECB00CAC2E8 /* RaceScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB52F3ACECB00CAC2E8 /* RaceScoreView.swift */; };
 		1DE4EBB72F3ACECB00CAC2E8 /* RaceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB42F3ACECB00CAC2E8 /* RaceDetailView.swift */; };
@@ -322,10 +335,19 @@
 		1D73B99F2F86E14D00C98966 /* NativeAdCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAdCardView.swift; sourceTree = "<group>"; };
 		1D73B9A12F8B5D4900C98966 /* SportsCalStoreKit.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = SportsCalStoreKit.storekit; sourceTree = "<group>"; };
 		1D73BC622F8B61B100C98966 /* StoreKitTestCertificate.cer */ = {isa = PBXFileReference; lastKnownFileType = file; path = StoreKitTestCertificate.cer; sourceTree = "<group>"; };
-		1D73C0232F8B87FD00C98966 /* SportsCalTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = file; path = SportsCalTests.xctestplan; sourceTree = "<group>"; };
+		1D73C0232F8B87FD00C98966 /* SportsCalTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = SportsCalTests.xctestplan; sourceTree = "<group>"; };
 		1D73C0272F8B8A9000C98966 /* F1WeekendWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = F1WeekendWidget.swift; sourceTree = "<group>"; };
 		1D73C02A2F8B8AA400C98966 /* GolfLeaderboardWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfLeaderboardWidget.swift; sourceTree = "<group>"; };
 		1D73C02D2F8B8AD000C98966 /* StandingsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingsWidget.swift; sourceTree = "<group>"; };
+		1D73C0CC2F934A1100C98966 /* SnapshotFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotFixtures.swift; sourceTree = "<group>"; };
+		1D73C0CE2F934A2200C98966 /* SnapshotHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelpers.swift; sourceTree = "<group>"; };
+		1D73C0D02F934A4300C98966 /* RowViewSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowViewSnapshotTests.swift; sourceTree = "<group>"; };
+		1D73C0D22F934A4C00C98966 /* DetailViewSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailViewSnapshotTests.swift; sourceTree = "<group>"; };
+		1D73C0D42F934A5900C98966 /* ScreenSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenSnapshotTests.swift; sourceTree = "<group>"; };
+		1D73C0D62F934A6500C98966 /* BoardSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardSnapshotTests.swift; sourceTree = "<group>"; };
+		1D73C1632F934AA300C98966 /* MacSnapshotHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSnapshotHelpers.swift; sourceTree = "<group>"; };
+		1D73C1652F934AAF00C98966 /* MacViewSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacViewSnapshotTests.swift; sourceTree = "<group>"; };
+		1D73C4862F9357EF00C98966 /* RealisticFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealisticFixtures.swift; sourceTree = "<group>"; };
 		1D77F64A297CFDCC0023E6DB /* SportsTint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsTint.swift; sourceTree = "<group>"; };
 		1D7D46A929EA9F9A00179018 /* CalendarViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewRepresentable.swift; sourceTree = "<group>"; };
 		1D7D46AD29EAAE1700179018 /* DecorationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecorationView.swift; sourceTree = "<group>"; };
@@ -366,6 +388,7 @@
 		1DE1F0C62941B9B300741B19 /* SportsWidgetSmallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsWidgetSmallView.swift; sourceTree = "<group>"; };
 		1DE1F0C82941B9D100741B19 /* SportsWidgetMediumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsWidgetMediumView.swift; sourceTree = "<group>"; };
 		1DE4EBB02F3AB02300CAC2E8 /* TennisMatchScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TennisMatchScoreView.swift; sourceTree = "<group>"; };
+		EE00B00FF00000000000000A /* PlayoffPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayoffPill.swift; sourceTree = "<group>"; };
 		1DE4EBB22F3AB03300CAC2E8 /* TennisMatchDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TennisMatchDetailView.swift; sourceTree = "<group>"; };
 		1DE4EBB42F3ACECB00CAC2E8 /* RaceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceDetailView.swift; sourceTree = "<group>"; };
 		1DE4EBB52F3ACECB00CAC2E8 /* RaceScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceScoreView.swift; sourceTree = "<group>"; };
@@ -391,7 +414,7 @@
 		1DEC76AB268EFB6600D217A1 /* SportsCalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsCalApp.swift; sourceTree = "<group>"; };
 		1DEC76AC268EFB6600D217A1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1DEC76AD268EFB6700D217A1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		1DEC76B2268EFB6700D217A1 /* SportsCal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = SportsCal.app; path = Scoreline.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1DEC76B2268EFB6700D217A1 /* Scoreline.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Scoreline.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1DEC76C7268EFB6700D217A1 /* Tests macOS.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Tests macOS.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		1DEC76CB268EFB6700D217A1 /* Tests_macOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests_macOS.swift; sourceTree = "<group>"; };
 		1DEC76E1268EFC0500D217A1 /* NetworkHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkHandler.swift; sourceTree = "<group>"; };
@@ -473,6 +496,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1D73C07D2F93499F00C98966 /* SnapshotTesting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -488,6 +512,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1D73C0812F9349BA00C98966 /* SnapshotTesting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -540,6 +565,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1D73C0792F93498300C98966 /* SnapshotTesting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -555,6 +581,7 @@
 				A1B2C3D402000002AABBCCDD /* RevenueCatIntegrationTests.swift */,
 				A1B2C3D402000003AABBCCDD /* StoreKitIntegrationTests.swift */,
 				A1B2C3D402000004AABBCCDD /* ProFeatureGatingTests.swift */,
+				1D73C0862F9349CD00C98966 /* Snapshots */,
 			);
 			path = SportsCalTests;
 			sourceTree = "<group>";
@@ -582,6 +609,7 @@
 				1D5C463326C9F10400BA827B /* Confetti.swift */,
 				1DEC76AC268EFB6600D217A1 /* ContentView.swift */,
 				1DE4EBB02F3AB02300CAC2E8 /* TennisMatchScoreView.swift */,
+				EE00B00FF00000000000000A /* PlayoffPill.swift */,
 				1DFBEE6F2AEB456100753DE1 /* SubscriptionRequiredView.swift */,
 				1D7D46AF29EBC3BF00179018 /* DetailView.swift */,
 				1DE4EBB22F3AB03300CAC2E8 /* TennisMatchDetailView.swift */,
@@ -636,6 +664,29 @@
 				1D73B99F2F86E14D00C98966 /* NativeAdCardView.swift */,
 			);
 			path = Ads;
+			sourceTree = "<group>";
+		};
+		1D73C0862F9349CD00C98966 /* Snapshots */ = {
+			isa = PBXGroup;
+			children = (
+				1D73C0CC2F934A1100C98966 /* SnapshotFixtures.swift */,
+				1D73C0CE2F934A2200C98966 /* SnapshotHelpers.swift */,
+				1D73C0D02F934A4300C98966 /* RowViewSnapshotTests.swift */,
+				1D73C0D22F934A4C00C98966 /* DetailViewSnapshotTests.swift */,
+				1D73C0D42F934A5900C98966 /* ScreenSnapshotTests.swift */,
+				1D73C0D62F934A6500C98966 /* BoardSnapshotTests.swift */,
+				1D73C4862F9357EF00C98966 /* RealisticFixtures.swift */,
+			);
+			path = Snapshots;
+			sourceTree = "<group>";
+		};
+		1D73C0D82F934A7E00C98966 /* Snapshots */ = {
+			isa = PBXGroup;
+			children = (
+				1D73C1632F934AA300C98966 /* MacSnapshotHelpers.swift */,
+				1D73C1652F934AAF00C98966 /* MacViewSnapshotTests.swift */,
+			);
+			path = Snapshots;
 			sourceTree = "<group>";
 		};
 		1DA4343229079D270010364F /* Model */ = {
@@ -755,7 +806,7 @@
 		1DEC76B3268EFB6700D217A1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				1DEC76B2268EFB6700D217A1 /* SportsCal.app */,
+				1DEC76B2268EFB6700D217A1 /* Scoreline.app */,
 				1DEC76C7268EFB6700D217A1 /* Tests macOS.xctest */,
 				1DE16FF526F29D4A007B1B57 /* SportsWidgetExtension.appex */,
 				1D1DAB9629CDB50D005434D6 /* SportsCalTests.xctest */,
@@ -771,6 +822,7 @@
 			isa = PBXGroup;
 			children = (
 				1DEC76CB268EFB6700D217A1 /* Tests_macOS.swift */,
+				1D73C0D82F934A7E00C98966 /* Snapshots */,
 			);
 			path = "Tests macOS";
 			sourceTree = "<group>";
@@ -846,6 +898,7 @@
 			);
 			name = SportsCalTests;
 			packageProductDependencies = (
+				1D73C07C2F93499F00C98966 /* SnapshotTesting */,
 			);
 			productName = SportsCalTests;
 			productReference = 1D1DAB9629CDB50D005434D6 /* SportsCalTests.xctest */;
@@ -892,6 +945,7 @@
 			);
 			name = "SportsCalWatch Watch AppTests";
 			packageProductDependencies = (
+				1D73C0802F9349BA00C98966 /* SnapshotTesting */,
 			);
 			productName = "SportsCalWatch Watch AppTests";
 			productReference = 1D7F45FF2F44FFE800F44569 /* SportsCalWatch Watch AppTests.xctest */;
@@ -994,7 +1048,7 @@
 				1D73B9942F86DFEA00C98966 /* GoogleMobileAds */,
 			);
 			productName = "SportsCal (iOS)";
-			productReference = 1DEC76B2268EFB6700D217A1 /* SportsCal.app */;
+			productReference = 1DEC76B2268EFB6700D217A1 /* Scoreline.app */;
 			productType = "com.apple.product-type.application";
 		};
 		1DEC76C6268EFB6700D217A1 /* Tests macOS */ = {
@@ -1070,6 +1124,7 @@
 				1DBEB4182F05F8640025B04C /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				1D73B98E2F86DFD600C98966 /* XCRemoteSwiftPackageReference "purchases-ios" */,
 				1D73B9932F86DFEA00C98966 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+				1D73C0752F93497700C98966 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
 			);
 			productRefGroup = 1DEC76B3268EFB6700D217A1 /* Products */;
 			projectDirPath = "";
@@ -1154,11 +1209,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1D73C0CD2F934A1100C98966 /* SnapshotFixtures.swift in Sources */,
 				1D1DAB9929CDB50D005434D6 /* SportsCalTests.swift in Sources */,
 				FAC419D238E640E4802E1D64 /* ScheduleFilterTests.swift in Sources */,
+				1D73C0D12F934A4300C98966 /* RowViewSnapshotTests.swift in Sources */,
+				1D73C0CF2F934A2200C98966 /* SnapshotHelpers.swift in Sources */,
 				A1B2C3D401000001AABBCCDD /* SubscriptionManagerTests.swift in Sources */,
+				1D73C0D52F934A5900C98966 /* ScreenSnapshotTests.swift in Sources */,
 				A1B2C3D401000002AABBCCDD /* RevenueCatIntegrationTests.swift in Sources */,
+				1D73C4872F9357EF00C98966 /* RealisticFixtures.swift in Sources */,
+				1D73C0D32F934A4C00C98966 /* DetailViewSnapshotTests.swift in Sources */,
 				A1B2C3D401000003AABBCCDD /* StoreKitIntegrationTests.swift in Sources */,
+				1D73C0D72F934A6500C98966 /* BoardSnapshotTests.swift in Sources */,
 				A1B2C3D401000004AABBCCDD /* ProFeatureGatingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1349,6 +1411,7 @@
 				1DEC76E2268EFC0500D217A1 /* NetworkHandler.swift in Sources */,
 				1DFA3D682A4E8B0A007BA22C /* TiledGridView.swift in Sources */,
 				1DE4EBB12F3AB02300CAC2E8 /* TennisMatchScoreView.swift in Sources */,
+				EE00B00FF00000000000000B /* PlayoffPill.swift in Sources */,
 				1DDAYPAGE0002000000000002 /* DayPage.swift in Sources */,
 				EE00060200000001 /* DayTimelineView.swift in Sources */,
 				EE00010100000001 /* GameBoardLayout.swift in Sources */,
@@ -1391,6 +1454,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				1DEC76CC268EFB6700D217A1 /* Tests_macOS.swift in Sources */,
+				1D73C1642F934AA300C98966 /* MacSnapshotHelpers.swift in Sources */,
+				1D73C1662F934AAF00C98966 /* MacViewSnapshotTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2172,6 +2237,14 @@
 				minimumVersion = 13.2.0;
 			};
 		};
+		1D73C0752F93497700C98966 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.19.2;
+			};
+		};
 		1DBEB4182F05F8640025B04C /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
@@ -2217,6 +2290,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1D73B9932F86DFEA00C98966 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
 			productName = GoogleMobileAds;
+		};
+		1D73C0782F93498300C98966 /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1D73C0752F93497700C98966 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			productName = SnapshotTesting;
+		};
+		1D73C07C2F93499F00C98966 /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1D73C0752F93497700C98966 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			productName = SnapshotTesting;
+		};
+		1D73C0802F9349BA00C98966 /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1D73C0752F93497700C98966 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			productName = SnapshotTesting;
 		};
 		1D7F465D2F4500BD00F44569 /* SportsCalModel */ = {
 			isa = XCSwiftPackageProductDependency;

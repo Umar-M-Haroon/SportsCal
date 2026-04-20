@@ -9,46 +9,48 @@ func routes(_ app: Application) throws {
     // Register API version middleware globally
     app.middleware.use(APIVersionMiddleware())
 
-    // MARK: - Log Streaming WebSocket
-    app.webSocket("ws", "logs") { req, ws async in
-        await LogBroadcaster.shared.addSubscriber(ws)
+    // MARK: - Development-only routes (admin dashboard, log streaming)
+    if app.environment == .development {
+        // Log Streaming WebSocket
+        app.webSocket("ws", "logs") { req, ws async in
+            await LogBroadcaster.shared.addSubscriber(ws)
 
-        ws.onText { ws, text in
-            // Parse filter commands from client
-            guard let data = text.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let type = json["type"] as? String, type == "filter" else {
-                return
+            ws.onText { ws, text in
+                // Parse filter commands from client
+                guard let data = text.data(using: .utf8),
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let type = json["type"] as? String, type == "filter" else {
+                    return
+                }
+
+                var filter = LogFilter()
+
+                if let levelStr = json["level"] as? String,
+                   let level = Logger.Level(levelStr) {
+                    filter.minLevel = level
+                }
+
+                if let labels = json["labels"] as? [String], !labels.isEmpty {
+                    filter.labels = Set(labels)
+                }
+
+                if let search = json["search"] as? String, !search.isEmpty {
+                    filter.searchText = search
+                }
+
+                Task {
+                    await LogBroadcaster.shared.updateSubscriberFilter(ws, filter: filter)
+                }
             }
 
-            var filter = LogFilter()
-
-            if let levelStr = json["level"] as? String,
-               let level = Logger.Level(levelStr) {
-                filter.minLevel = level
-            }
-
-            if let labels = json["labels"] as? [String], !labels.isEmpty {
-                filter.labels = Set(labels)
-            }
-
-            if let search = json["search"] as? String, !search.isEmpty {
-                filter.searchText = search
-            }
-
-            Task {
-                await LogBroadcaster.shared.updateSubscriberFilter(ws, filter: filter)
-            }
+            // Keep alive until disconnect
+            try? await ws.onClose.get()
+            await LogBroadcaster.shared.removeSubscriber(ws)
         }
 
-        // Keep alive until disconnect
-        try? await ws.onClose.get()
-        await LogBroadcaster.shared.removeSubscriber(ws)
+        // Admin dashboard endpoints for monitoring and management
+        try app.register(collection: AdminController())
     }
-
-    // MARK: - Admin Routes
-    // Admin dashboard endpoints for monitoring and management
-    try app.register(collection: AdminController())
 
     // MARK: - Versioned Routes (v2025)
     // Use versioned routes for new clients. Legacy routes remain for backward compatibility.
@@ -651,8 +653,9 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 
         // Strip heavy fields — keep only what the widget needs
         let strippedGames = trimmed.map { game -> Game in
-            // Trim leaderboard to top 3, drop headshots
-            let strippedLeaderboard = game.leaderboardEntries?.prefix(3).map { entry in
+            // Golf gets more leaderboard entries for the dedicated leaderboard widget
+            let leaderboardLimit = (game.sportType == .golf) ? 8 : 3
+            let strippedLeaderboard = game.leaderboardEntries?.prefix(leaderboardLimit).map { entry in
                 LeaderboardEntry(
                     name: entry.name,
                     score: entry.score,
@@ -661,7 +664,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                     thruHole: entry.thruHole,
                     rounds: [],
                     constructor: entry.constructor,
-                    gap: entry.gap
+                    gap: entry.gap,
+                    movement: entry.movement
                 )
             }
 
@@ -684,9 +688,21 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 strProgress: game.strProgress,
                 strTimestamp: game.strTimestamp,
                 lastPlay: trimmedLastPlay,
+                homeLinescores: game.homeLinescores,
+                awayLinescores: game.awayLinescores,
                 isCompleted: game.isCompleted,
                 isoDate: game.isoDate,
-                leaderboardEntries: strippedLeaderboard.map(Array.init)
+                leaderboardEntries: strippedLeaderboard.map(Array.init),
+                sessions: game.sessions,
+                venueName: game.venueName,
+                homeRecord: game.homeRecord,
+                awayRecord: game.awayRecord,
+                circuitInfo: game.circuitInfo,
+                legDisplay: game.legDisplay,
+                aggregateScore: game.aggregateScore,
+                homeSeed: game.homeSeed,
+                awaySeed: game.awaySeed,
+                playoff: game.playoff
             )
         }
 

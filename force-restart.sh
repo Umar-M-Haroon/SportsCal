@@ -19,9 +19,48 @@ pkill -9 -f "swift run" 2>/dev/null && echo "   Killed swift run processes"
 pkill -9 -f "Run" 2>/dev/null && echo "   Killed Run processes"
 
 echo ""
+
+# Flush dynamic caches so the next fetch cycle repopulates from ESPN / TheSportsDB.
+# Keeps: static team lookups, ESPN↔TSDB ID map, F1 circuit/image data, and all
+# push-notification state (PushToStart-*, SentPushToStart-*, EventState-*).
+# Wipes: every cached live/schedule/enrichment payload, both prod and debug keys.
+echo "2. Clearing dynamic Redis caches (keeping teams, ID map, F1 circuits, push state)..."
+if command -v redis-cli >/dev/null 2>&1; then
+    DYNAMIC_KEYS=(
+      "Latest Full Live Info"
+      "Latest Detailed Full Live Info"
+      "All Soccer Scoreboards"
+      "Latest Soccer Scoreboards"
+      "All Tennis Scoreboards"
+      "Latest Tennis Scoreboards"
+      "Latest Schedule"
+      "Schedule Last Update"
+      "Latest Live Info (TSDB)"
+      "Latest Full Live Info (TSDB)"
+      "F1 Standings"
+      "F1 Enrichment Last Update"
+      "Golf Enrichment"
+      "Golf Enrichment Last Update"
+      "Injuries"
+      "Injuries Last Update"
+      "Postseason Window"
+      "Postseason Window Last Update"
+    )
+    # Build a single DEL call with prod + debug variants of each key.
+    DEL_ARGS=()
+    for key in "${DYNAMIC_KEYS[@]}"; do
+        DEL_ARGS+=("$key" "debug-$key")
+    done
+    DELETED=$(redis-cli del "${DEL_ARGS[@]}")
+    echo "   Cleared $DELETED dynamic key(s)"
+else
+    echo "   ⚠️  redis-cli not found — skipping cache flush"
+fi
+
+echo ""
 export SportsDB_API_KEY="929289"
 
-echo "2. Building server..."
+echo "3. Building server..."
 cd /Users/umar/Developer/SportsCalMonoRepo/SportsCalAPI/SportsCalServer
 swift build
 
@@ -29,7 +68,7 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "✅ Build successful!"
     echo ""
-    echo "3. Starting server..."
+    echo "4. Starting server..."
     echo "   Server will run on http://localhost:8080"
     echo "   Admin dashboard: http://localhost:8080/admin/"
     echo ""

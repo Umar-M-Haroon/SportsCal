@@ -43,7 +43,41 @@ public class GameViewModel: NSObject {
     // Users can adjust date filters to see different time windows
     static let maxDisplayedGames = 500
 
+    // MARK: - Disk-cache schema version
+    /// Bump when Game, LiveScore, or any cached Codable shape changes so previously
+    /// persisted `games.cache` / `teams.cache` / `live.cache` files are invalidated
+    /// instead of out-voting freshly parsed responses.
+    static let cacheSchemaVersion = 2
+
+    /// Versioned base name for `Cache.saveToDisk(with:)` — no `.cache` suffix (it appends).
+    static func cacheStem(base: String) -> String {
+        "\(base)-v\(cacheSchemaVersion)"
+    }
+
+    /// Full filename including extension, used when reading directly or purging.
+    static func cacheFilename(base: String) -> String {
+        "\(cacheStem(base: base)).cache"
+    }
+
+    static func purgeLegacyCacheFiles() {
+        let fm = FileManager.default
+        guard let dir = fm.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
+        let currentFilenames: Set<String> = ["games", "teams", "live"]
+            .map { cacheFilename(base: $0) }
+            .reduce(into: []) { $0.insert($1) }
+        if let contents = try? fm.contentsOfDirectory(atPath: dir.path) {
+            for name in contents where name.hasSuffix(".cache") && !currentFilenames.contains(name) {
+                try? fm.removeItem(at: dir.appendingPathComponent(name))
+            }
+        }
+    }
+
+    /// Test hook: when true, skip network fetches and websocket setup at init.
+    /// Used by snapshot tests to keep fixture data intact.
+    static var isSnapshotTesting: Bool = false
+
     var appStorage: UserDefaultStorage
+    var engagementTracker: EngagementTracker?
     var totalGames: [Game]?
     var filteredGames: [Game]?
     var calendarGames: [Game]?
@@ -469,11 +503,16 @@ public class GameViewModel: NSObject {
         self.networkState = networkState
         self.gamesDict = [:]
         
+        // Delete any cache files from prior schema versions so a stale on-disk copy
+        // can never out-vote a fresh fetch. Bump Self.cacheSchemaVersion whenever
+        // Game/LiveScore gains or changes fields.
+        Self.purgeLegacyCacheFiles()
+
         let folderURLs = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
         var gameFileURL = folderURLs[0]
-        gameFileURL.appendPathComponent("games" + ".cache")
+        gameFileURL.appendPathComponent(Self.cacheFilename(base: "games"))
         var teamFileURL = folderURLs[0]
-        teamFileURL.appendPathComponent("teams" + ".cache")
+        teamFileURL.appendPathComponent(Self.cacheFilename(base: "teams"))
         do {
             let data = try JSONDecoder().decode(Cache<String, LiveScore>.self, from: Data(contentsOf: gameFileURL))
             self.gameCache = data
@@ -488,6 +527,11 @@ public class GameViewModel: NSObject {
 
         // Call super.init() after all stored properties are initialized
         super.init()
+
+        if GameViewModel.isSnapshotTesting {
+            self.networkState = .loaded
+            return
+        }
 
         self.webSocketSession = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
 
@@ -529,7 +573,7 @@ public class GameViewModel: NSObject {
         if let liveInfo = currentLiveInfo {
             liveCache?.insert(liveInfo, for: "live")
         }
-        try liveCache?.saveToDisk(with: "live") 
+        try liveCache?.saveToDisk(with: Self.cacheStem(base: "live"))
     }
     
     private func handleTeams() async throws {
@@ -538,7 +582,7 @@ public class GameViewModel: NSObject {
         self.teams = try await teams
         buildTeamLookupCaches()
         teamCache?.insert(self.teams, for: "teams")
-        try teamCache?.saveToDisk(with: "teams")
+        try teamCache?.saveToDisk(with: Self.cacheStem(base: "teams"))
     }
 
     /// Builds optimized O(1) lookup caches for teams
@@ -690,7 +734,7 @@ public class GameViewModel: NSObject {
         }
         
         gameCache?.insert(groupResult, for: "games")
-        try gameCache?.saveToDisk(with: "games")
+        try gameCache?.saveToDisk(with: Self.cacheStem(base: "games"))
         setGames(result: groupResult, skipLiveUpdate: true)
     }
     
@@ -847,6 +891,30 @@ public class GameViewModel: NSObject {
             gamesWithTeamsDateCache.removeAll()
             filterSports(force: true, skipLiveUpdate: true)
         }
+    }
+
+    /// Test-only: seed fixture data for snapshot rendering. Bypasses network fetch,
+    /// marks state as loaded, and triggers filterSports so derived state (today's
+    /// games, sorted sections, etc.) is populated.
+    func applySnapshotFixtures(games: [Game], liveEvents: [Game] = [], teams: [Team] = [], f1Standings: F1Standings? = nil) {
+        networkFetchTask?.cancel()
+        networkFetchTask = nil
+        self.totalGames = games
+        self.liveEvents = liveEvents
+        self.teams = teams
+        buildTeamLookupCaches()
+        if let standings = f1Standings {
+            self.f1Standings = standings
+        }
+        // Group games by sport so filterSports picks them up
+        self.gamesDict = Dictionary(grouping: games, by: { game in
+            guard let leagueString = game.idLeague,
+                  let intLeague = Int(leagueString),
+                  let league = Leagues(rawValue: intLeague) else { return .basketball }
+            return SportType(league: league)
+        })
+        filterSports(force: true, skipLiveUpdate: true)
+        networkState = .loaded
     }
 
     func setGames(result: LiveScore, skipLiveUpdate: Bool = false) {
@@ -1128,22 +1196,23 @@ public class GameViewModel: NSObject {
         #if !WIDGET_EXTENSION
         let spotlightGames = snapshotGames
         let spotlightFavorites = favorites.teams
+        let spotlightSuggested = engagementTracker?.suggestedTeamNames(excluding: spotlightFavorites) ?? []
         Task.detached(priority: .utility) {
-            SpotlightIndexer.indexGames(spotlightGames, favorites: spotlightFavorites)
+            SpotlightIndexer.indexGames(spotlightGames, favorites: spotlightFavorites, suggestedTeams: spotlightSuggested)
         }
 
         // Donate intents for proactive Siri suggestions
-        donateIntents(games: snapshotGames)
+        donateIntents(games: snapshotGames, suggestedTeams: spotlightSuggested)
         #endif
     }
     #if !WIDGET_EXTENSION
-    private func donateIntents(games: [Game]) {
+    private func donateIntents(games: [Game], suggestedTeams: Set<String> = []) {
         let favoriteTeams = favorites.teams
         let enabledSports = appStorage.enabledSports
         Task.detached(priority: .utility) {
             let manager = IntentDonationManager.shared
 
-            // Donate TrackGameIntent for favorite teams with upcoming games today/tomorrow
+            // Donate TrackGameIntent for favorite and suggested teams with upcoming games today/tomorrow
             let calendar = Calendar.current
             let now = Date()
             guard let endDate = calendar.date(byAdding: .day, value: 2, to: calendar.startOfDay(for: now)) else { return }
@@ -1153,9 +1222,20 @@ public class GameViewModel: NSObject {
                       gameDate >= now && gameDate < endDate else { continue }
                 let isHomeFav = favoriteTeams.contains(game.strHomeTeam)
                 let isAwayFav = favoriteTeams.contains(game.strAwayTeam)
-                guard isHomeFav || isAwayFav else { continue }
+                let isHomeSuggested = suggestedTeams.contains(game.strHomeTeam)
+                let isAwaySuggested = suggestedTeams.contains(game.strAwayTeam)
+                guard isHomeFav || isAwayFav || isHomeSuggested || isAwaySuggested else { continue }
 
-                let teamName = isHomeFav ? game.strHomeTeam : game.strAwayTeam
+                let teamName: String
+                if isHomeFav {
+                    teamName = game.strHomeTeam
+                } else if isAwayFav {
+                    teamName = game.strAwayTeam
+                } else if isHomeSuggested {
+                    teamName = game.strHomeTeam
+                } else {
+                    teamName = game.strAwayTeam
+                }
                 var intent = TrackGameIntent()
                 intent.team = TeamEntity(id: teamName, name: teamName)
                 try? await manager.donate(intent: intent)
@@ -1318,6 +1398,16 @@ public class GameViewModel: NSObject {
             guard let gameDate = game.standardDate else { return false }
             return gameDate >= start && gameDate < end
         }.count
+    }
+
+    /// Returns the next upcoming game of a specific sport after a given date.
+    /// Searches filteredGames so it respects user sport preferences.
+    func nextGame(for sport: SportType, after date: Date) -> Game? {
+        let calendar = Calendar.current
+        let startOfNextDay = calendar.startOfDay(for: date).addingTimeInterval(86400)
+        return (filteredGames ?? [])
+            .filter { $0.sportType == sport && ($0.standardDate ?? .distantPast) >= startOfNextDay }
+            .min(by: { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) })
     }
 
     /// Returns games for a date that exist in totalGames but NOT in filteredGames, grouped by sport.
@@ -1629,9 +1719,9 @@ public class GameViewModel: NSObject {
         teamCache?.deleteAll()
         gameCache?.deleteAll()
         liveCache?.deleteAll()
-        try gameCache?.saveToDisk(with: "games")
-        try teamCache?.saveToDisk(with: "teams")
-        try liveCache?.saveToDisk(with: "live")
+        try gameCache?.saveToDisk(with: Self.cacheStem(base: "games"))
+        try teamCache?.saveToDisk(with: Self.cacheStem(base: "teams"))
+        try liveCache?.saveToDisk(with: Self.cacheStem(base: "live"))
         getInfo()
     }
 }
@@ -1652,22 +1742,9 @@ extension GameViewModel {
         // Download and cache badge images independently (don't require both to succeed)
         if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") {
             await withTaskGroup(of: Void.self) { group in
-                for (teamName, team) in [(homeTeamName, homeTeam), (awayTeamName, awayTeam)] {
-                    guard let badgeString = team.strTeamBadge,
-                          let badgeURL = URL(string: badgeString.contains("thesportsdb.com") ? badgeString + "/tiny" : badgeString) else { continue }
+                for team in [homeTeam, awayTeam] {
                     group.addTask {
-                        do {
-                            let (data, _) = try await URLSession.shared.data(for: URLRequest(url: badgeURL, cachePolicy: .returnCacheDataElseLoad))
-                            // Validate the data is actually an image before saving
-                            guard UIImage(data: data) != nil else {
-                                AppLogger.liveActivity.notice("Badge data for \(teamName) is not a valid image")
-                                return
-                            }
-                            let fileURL = containerURL.appendingPathComponent(teamName)
-                            try data.write(to: fileURL)
-                        } catch {
-                            AppLogger.liveActivity.notice("Badge download failed for \(teamName): \(error.localizedDescription)")
-                        }
+                        await Self.downloadAndCacheBadge(team: team, containerURL: containerURL)
                     }
                 }
             }
@@ -1739,6 +1816,21 @@ extension GameViewModel {
         for activity in Activity<LiveSportActivityAttributes>.activities {
             AppLogger.liveActivity.info("Re-observing existing activity for event \(activity.attributes.eventID)")
             observePushTokenUpdates(for: activity)
+            // Backfill badges for activities started via push-to-start, where the opponent
+            // may not have been a favorite and thus never cached.
+            cacheBadgesForActivity(homeTeam: activity.attributes.homeTeam, awayTeam: activity.attributes.awayTeam)
+        }
+    }
+
+    /// Resolves `homeTeam`/`awayTeam` attribute strings (which may be full or short names) back
+    /// to `Team` objects so their badges can be cached.
+    private func cacheBadgesForActivity(homeTeam: String, awayTeam: String) {
+        Task {
+            guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") else { return }
+            for name in [homeTeam, awayTeam] {
+                guard let team = teamByName[name] ?? teamsDictName[name]?.first else { continue }
+                await Self.downloadAndCacheBadge(team: team, containerURL: containerURL)
+            }
         }
     }
     
@@ -1835,22 +1927,8 @@ extension GameViewModel {
     func preCacheBadges(homeTeam: Team, awayTeam: Team) {
         Task {
             guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") else { return }
-
             for team in [homeTeam, awayTeam] {
-                guard let teamName = team.strTeamShort ?? team.strTeam else { continue }
-                let fileURL = containerURL.appendingPathComponent(teamName)
-                if FileManager.default.fileExists(atPath: fileURL.path) { continue }
-
-                guard let badgeString = team.strTeamBadge,
-                      let badgeURL = URL(string: badgeString.contains("thesportsdb.com") ? badgeString + "/tiny" : badgeString) else { continue }
-
-                do {
-                    let (data, _) = try await URLSession.shared.data(for: URLRequest(url: badgeURL, cachePolicy: .returnCacheDataElseLoad))
-                    guard UIImage(data: data) != nil else { continue }
-                    try data.write(to: fileURL)
-                } catch {
-                    AppLogger.liveActivity.notice("Failed to pre-cache badge for \(teamName): \(error.localizedDescription)")
-                }
+                await Self.downloadAndCacheBadge(team: team, containerURL: containerURL)
             }
         }
     }
@@ -1863,21 +1941,40 @@ extension GameViewModel {
             guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") else { return }
 
             for teamName in favorites.teams {
-                let fileURL = containerURL.appendingPathComponent(teamName)
-                if FileManager.default.fileExists(atPath: fileURL.path) { continue }
-
-                guard let team = teamByName[teamName],
-                      let badgeString = team.strTeamBadge,
-                      let badgeURL = URL(string: badgeString.contains("thesportsdb.com") ? badgeString + "/tiny" : badgeString) else { continue }
-
-                do {
-                    let (data, _) = try await URLSession.shared.data(for: URLRequest(url: badgeURL, cachePolicy: .returnCacheDataElseLoad))
-                    guard UIImage(data: data) != nil else { continue }
-                    try data.write(to: fileURL)
-                } catch {
-                    AppLogger.liveActivity.notice("Failed to pre-cache badge for \(teamName): \(error.localizedDescription)")
-                }
+                guard let team = teamByName[teamName] else { continue }
+                await Self.downloadAndCacheBadge(team: team, containerURL: containerURL)
             }
+        }
+    }
+
+    /// Downloads a team's badge and writes it to the app group container under every name
+    /// the widget might look up by (short name AND full name). Server push-to-start attributes
+    /// use full team names while locally-started activities use short names — caching under both
+    /// ensures the widget finds the badge regardless of which path started the activity.
+    static func downloadAndCacheBadge(team: Team, containerURL: URL) async {
+        let fileNames = Set([team.strTeamShort, team.strTeam].compactMap { $0 }.filter { !$0.isEmpty })
+        guard !fileNames.isEmpty else { return }
+
+        // Skip if already cached under all names
+        if fileNames.allSatisfy({ FileManager.default.fileExists(atPath: containerURL.appendingPathComponent($0).path) }) {
+            return
+        }
+
+        guard let badgeString = team.strTeamBadge,
+              let badgeURL = URL(string: badgeString.contains("thesportsdb.com") ? badgeString + "/tiny" : badgeString) else { return }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(for: URLRequest(url: badgeURL, cachePolicy: .returnCacheDataElseLoad))
+            guard UIImage(data: data) != nil else {
+                AppLogger.liveActivity.notice("Badge data is not a valid image for \(fileNames.joined(separator: ","))")
+                return
+            }
+            for name in fileNames {
+                let fileURL = containerURL.appendingPathComponent(name)
+                try? data.write(to: fileURL)
+            }
+        } catch {
+            AppLogger.liveActivity.notice("Badge download failed for \(fileNames.joined(separator: ",")): \(error.localizedDescription)")
         }
     }
 

@@ -337,6 +337,14 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         Self.logger.info("Enriching schedule with ESPN scoreboard data")
         schedule = await enrichScheduleWithESPN(schedule: schedule, client: context.application.client)
 
+        // Re-attach cached injuries (InjuriesEnrichmentJob persists the lookup dict
+        // but the schedule is rebuilt from scratch here, which would drop per-Game fields)
+        let injuriesKey = RedisEndpoint.ESPN.injuries.getValue(isDebug: isDebug)
+        if let cachedInjuries = try? await context.application.redis.get(injuriesKey, asJSON: [String: [InjuryReport]].self),
+           !cachedInjuries.isEmpty {
+            InjuriesEnrichmentJob.applyInjuries(to: &schedule, lookup: cachedInjuries)
+        }
+
         // Extract teams from all games (multi-season coverage)
         let gameTeams = extractTeamsFromGames(allGames)
         let mergedTeams = mergeTeams(apiTeams: apiTeams, gameTeams: gameTeams)
@@ -535,7 +543,8 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 homeRecord: espnGame.homeRecord ?? scheduleGame.homeRecord,
                 awayRecord: espnGame.awayRecord ?? scheduleGame.awayRecord,
                 homeSeed: espnGame.homeSeed ?? scheduleGame.homeSeed,
-                awaySeed: espnGame.awaySeed ?? scheduleGame.awaySeed
+                awaySeed: espnGame.awaySeed ?? scheduleGame.awaySeed,
+                playoff: espnGame.playoff ?? scheduleGame.playoff
             )
         }
 

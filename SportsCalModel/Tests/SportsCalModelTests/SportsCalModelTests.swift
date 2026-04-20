@@ -10,6 +10,33 @@ final class SportsCalModelTests: XCTestCase {
         XCTAssertNoThrow(try JSONLoader.load(file: "MLBScoreboard", type: Scoreboard.self))
         XCTAssertNoThrow(try JSONLoader.load(file: "BasketballScoreboardMultipleDates", type: Scoreboard.self))
     }
+
+    /// Diagnostic: parse today's real NBA playoff JSON and dump the resulting
+    /// PlayoffContext so we can see exactly what ends up on each Game.
+    func testNBAPlayoffLiveDump() throws {
+        let scoreboard = try JSONLoader.load(file: "NBAPlayoffLive", type: Scoreboard.self) as! Scoreboard
+        guard let liveEvent = LiveEvent(events: scoreboard, league: .nba) else {
+            XCTFail("LiveEvent init returned nil")
+            return
+        }
+        for game in liveEvent.events {
+            print("--- \(game.strAwayTeam) @ \(game.strHomeTeam)")
+            if let p = game.playoff {
+                print("  title:      \(p.seriesTitle ?? "<nil>")")
+                print("  gameNumber: \(p.gameNumber.map(String.init) ?? "<nil>")")
+                print("  bestOf:     \(p.bestOf.map(String.init) ?? "<nil>")")
+                print("  homeWins:   \(p.homeWins.map(String.init) ?? "<nil>")")
+                print("  awayWins:   \(p.awayWins.map(String.init) ?? "<nil>")")
+                print("  completed:  \(p.seriesCompleted.map(String.init(describing:)) ?? "<nil>")")
+                print("  neutral:    \(p.isNeutralSite.map(String.init(describing:)) ?? "<nil>")")
+            } else {
+                print("  playoff: <nil>")
+            }
+        }
+        // Assert at least one game got a real structured gameNumber
+        let hasGameNumber = liveEvent.events.contains { ($0.playoff?.gameNumber ?? 0) > 0 }
+        XCTAssertTrue(hasGameNumber, "No game produced a structured gameNumber — parsing likely broken")
+    }
     
     func testLoadingTeams() throws {
         let nbaTeams: TeamResponse? = try JSONLoader.load(file: "NBATeams", type: TeamResponse.self) as? TeamResponse

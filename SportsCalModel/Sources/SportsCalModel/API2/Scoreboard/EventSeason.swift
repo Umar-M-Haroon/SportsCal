@@ -6,11 +6,15 @@
 import Foundation
 
 // MARK: - EventSeason
+/// Some ESPN endpoints (tennis, etc.) return a season object without a slug, or
+/// without year/type. Everything is optional so a missing field never aborts the
+/// entire scoreboard decode.
 public struct EventSeason: Codable {
-    public var year, type: Int
-    public var slug: String
+    public var year: Int?
+    public var type: Int?
+    public var slug: String?
 
-    public init(year: Int, type: Int, slug: String) {
+    public init(year: Int? = nil, type: Int? = nil, slug: String? = nil) {
         self.year = year
         self.type = type
         self.slug = slug

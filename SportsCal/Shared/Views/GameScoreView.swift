@@ -62,13 +62,20 @@ struct GameScoreView: View {
                     }
                     IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: awayScore, isWinning: awayScore > homeScore, isAway: true, record: game.awayRecord, seed: game.awaySeed)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    VStack(spacing: 8) {
-                        if let unformatted = game.strProgress {
-                            Text(unformatted)
-                                .foregroundColor(.secondary)
-                        } else {
-                            Text(game.strStatus ?? "")
-                                .foregroundColor(.secondary)
+                    VStack(spacing: 4) {
+                        HStack(spacing: 4) {
+                            if isLive {
+                                Circle()
+                                    .fill(.red)
+                                    .frame(width: 6, height: 6)
+                            }
+                            if let unformatted = game.strProgress {
+                                Text(unformatted)
+                                    .foregroundColor(isLive ? .red : .secondary)
+                            } else {
+                                Text(game.strStatus ?? "")
+                                    .foregroundColor(isLive ? .red : .secondary)
+                            }
                         }
                         if let agg = game.aggregateScore {
                             Text(agg)
@@ -79,26 +86,6 @@ struct GameScoreView: View {
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
-                        Menu {
-#if canImport(ActivityKit) && os(iOS)
-                            if isLive && activitiesEnabled  {
-                                LiveActivityButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
-                                    .environment(viewModel)
-                            }
-                            if !isLive {
-                                AutoFollowButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
-                                    .environment(viewModel)
-                            }
-#endif
-                            FavoriteMenu(game: game)
-                                .environment(favorites)
-                            CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-                            NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-                        } label: {
-                            Image(systemName: "ellipsis")
-                        }
-                        .buttonStyle(.bordered)
-                        .buttonBorderShape(.capsule)
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                     IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: homeScore, isWinning: homeScore > awayScore, isAway: false, record: game.homeRecord, seed: game.homeSeed)
@@ -113,6 +100,31 @@ struct GameScoreView: View {
                         .lineLimit(1)
                         .frame(maxWidth: .infinity)
                 }
+
+                if game.playoff != nil {
+                    PlayoffPill(
+                        game: game,
+                        homeTeamShort: homeTeam.strTeamShort,
+                        awayTeamShort: awayTeam.strTeamShort
+                    )
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+            }
+            .contextMenu {
+#if canImport(ActivityKit) && os(iOS)
+                if isLive && activitiesEnabled {
+                    LiveActivityButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                        .environment(viewModel)
+                }
+                if !isLive {
+                    AutoFollowButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                        .environment(viewModel)
+                }
+#endif
+                FavoriteMenu(game: game)
+                    .environment(favorites)
+                CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+                NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
             }
 
         if navigationDisabled {

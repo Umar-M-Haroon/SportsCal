@@ -107,17 +107,87 @@ struct ESPNFetchJob: AsyncScheduledJob {
         try await context.application.redis.setex(RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: isDebug), toJSON: newResult, expirationInSeconds: 60 * 30)
         try await context.application.redis.set(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug), toJSON: newResult)
 
-        // Merge ESPN data into cached schedule so /schedules reflects live scores
+        // Merge ESPN data into cached schedule so /schedules reflects live scores.
+        // Also pull forward a rolling window of upcoming postseason days so games
+        // scheduled for the next few days surface series context (round, Game N, wins).
         if let newResult {
             let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
             if let schedule = try? await context.application.redis.get(scheduleKey, asJSON: LiveScore.self) {
-                let updated = mergeESPNIntoSchedule(schedule: schedule, espn: newResult)
+                let window = await fetchPostseasonWindowIfStale(context: context, isDebug: isDebug, daysAhead: 7)
+                let enriched = newResult.merging(with: window)
+                let updated = mergeESPNIntoSchedule(schedule: schedule, espn: enriched)
                 if updated != schedule {
                     try? await context.application.redis.set(scheduleKey, toJSON: updated)
                     Self.logger.info("Schedule updated with ESPN live data")
                 }
             }
         }
+    }
+
+    // MARK: - Future postseason window
+
+    /// Fetches ESPN scoreboards for the next `daysAhead` days for each playoff-eligible
+    /// team league, filters to games ESPN has flagged as postseason, and caches the result.
+    /// Refreshed every 60 minutes — ESPN's series metadata doesn't change frequently enough
+    /// to justify fetching 28+ scoreboards per minute.
+    private func fetchPostseasonWindowIfStale(
+        context: Queues.QueueContext,
+        isDebug: Bool,
+        daysAhead: Int
+    ) async -> LiveScore {
+        let cacheKey = RedisEndpoint.ESPN.postseasonWindow.getValue(isDebug: isDebug)
+        let updateKey = RedisEndpoint.ESPN.postseasonWindowLastUpdate.getValue(isDebug: isDebug)
+
+        // Use cached window if it's still fresh (<1h old).
+        if let lastUpdate = try? await context.application.redis.get(updateKey, asJSON: Date.self),
+           Date().timeIntervalSince(lastUpdate) < 60 * 60,
+           let cached = try? await context.application.redis.get(cacheKey, asJSON: LiveScore.self) {
+            return cached
+        }
+
+        let playoffLeagues: [(league: Leagues, sport: SportType)] = [
+            (.nba, .basketball), (.nhl, .hockey), (.mlb, .mlb), (.nfl, .nfl)
+        ]
+        let df = DateFormatter()
+        df.dateFormat = "yyyyMMdd"
+        df.timeZone = TimeZone(identifier: "America/New_York") ?? .current
+
+        var eventsBySport: [SportType: [Game]] = [:]
+        for (league, sport) in playoffLeagues {
+            var collected: [Game] = []
+            for offset in 1...daysAhead {
+                guard let date = Calendar.current.date(byAdding: .day, value: offset, to: Date()) else { continue }
+                guard let ymd = Int(df.string(from: date)) else { continue }
+                do {
+                    let scoreboard = try await Integrator.getESPNScoreboard(for: league, context.application.client, dates: ymd)
+                    guard let liveEvent = LiveEvent(events: scoreboard, league: league) else { continue }
+                    // Only carry forward games that actually have structured playoff context.
+                    collected.append(contentsOf: liveEvent.events.filter { $0.playoff != nil })
+                } catch {
+                    Self.logger.debug("Postseason window fetch failed", metadata: [
+                        "league": "\(league)", "date": "\(ymd)", "error": "\(error)"
+                    ])
+                }
+            }
+            if !collected.isEmpty {
+                eventsBySport[sport] = collected
+            }
+        }
+
+        let window = LiveScore(
+            nba: eventsBySport[.basketball].map { LiveEvent(events: $0) },
+            mlb: eventsBySport[.mlb].map { LiveEvent(events: $0) },
+            nfl: eventsBySport[.nfl].map { LiveEvent(events: $0) },
+            nhl: eventsBySport[.hockey].map { LiveEvent(events: $0) }
+        )
+
+        try? await context.application.redis.setex(cacheKey, toJSON: window, expirationInSeconds: 60 * 60)
+        try? await context.application.redis.set(updateKey, toJSON: Date())
+        let total = [window.nba, window.mlb, window.nfl, window.nhl].compactMap { $0?.events.count }.reduce(0, +)
+        Self.logger.info("Postseason window refreshed", metadata: [
+            "daysAhead": "\(daysAhead)", "totalGames": "\(total)"
+        ])
+        return window
     }
 
     /// Detects newly started games and sends push-to-start APNS notifications
@@ -302,7 +372,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 let homeID = game.idHomeTeam.flatMap { mapping[$0] } ?? game.idHomeTeam
                 let awayID = game.idAwayTeam.flatMap { mapping[$0] } ?? game.idAwayTeam
                 guard homeID != game.idHomeTeam || awayID != game.idAwayTeam else { return game }
-                return Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: homeID, idAwayTeam: awayID, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: game.intHomeScore, intAwayScore: game.intAwayScore, strStatus: game.strStatus, strProgress: game.strProgress, strTimestamp: game.strTimestamp, lastPlay: game.lastPlay, homeLinescores: game.homeLinescores, awayLinescores: game.awayLinescores, homeLeaders: game.homeLeaders, awayLeaders: game.awayLeaders, isCompleted: game.isCompleted, isoDate: game.isoDate, leaderboardEntries: game.leaderboardEntries, sessions: game.sessions, venueName: game.venueName, homeTeamColor: game.homeTeamColor, awayTeamColor: game.awayTeamColor, homeRecord: game.homeRecord, awayRecord: game.awayRecord, legDisplay: game.legDisplay, aggregateScore: game.aggregateScore, homeSeed: game.homeSeed, awaySeed: game.awaySeed)
+                return Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: homeID, idAwayTeam: awayID, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: game.intHomeScore, intAwayScore: game.intAwayScore, strStatus: game.strStatus, strProgress: game.strProgress, strTimestamp: game.strTimestamp, lastPlay: game.lastPlay, homeLinescores: game.homeLinescores, awayLinescores: game.awayLinescores, homeLeaders: game.homeLeaders, awayLeaders: game.awayLeaders, isCompleted: game.isCompleted, isoDate: game.isoDate, leaderboardEntries: game.leaderboardEntries, sessions: game.sessions, venueName: game.venueName, homeTeamColor: game.homeTeamColor, awayTeamColor: game.awayTeamColor, homeRecord: game.homeRecord, awayRecord: game.awayRecord, legDisplay: game.legDisplay, aggregateScore: game.aggregateScore, homeSeed: game.homeSeed, awaySeed: game.awaySeed, playoff: game.playoff)
             }
         }
 
@@ -483,7 +553,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 legDisplay: espnGame.legDisplay ?? scheduleGame.legDisplay,
                 aggregateScore: espnGame.aggregateScore ?? scheduleGame.aggregateScore,
                 homeSeed: espnGame.homeSeed ?? scheduleGame.homeSeed,
-                awaySeed: espnGame.awaySeed ?? scheduleGame.awaySeed
+                awaySeed: espnGame.awaySeed ?? scheduleGame.awaySeed,
+                homeInjuries: scheduleGame.homeInjuries ?? espnGame.homeInjuries,
+                awayInjuries: scheduleGame.awayInjuries ?? espnGame.awayInjuries,
+                playoff: espnGame.playoff ?? scheduleGame.playoff
             )
         }
 
@@ -531,7 +604,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             if let foundEvent = events.first(where: {$0.strHomeTeam == event.strHomeTeam && $0.strAwayTeam == event.strAwayTeam}) {
                 // Only include essential fields - strSport/strLeague are computed from idLeague
                 // Deprecated fields removed: strPlayer, idPlayer, intEventScore, intEventScoreTotal, strEventTime, dateEvent, updated
-                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed)
+                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, playoff: event.playoff)
             } else {
                 return event
             }

@@ -57,7 +57,9 @@ public struct CompetitionLeg: Codable {
 
 // MARK: - CompetitionSeries
 public struct CompetitionSeries: Codable {
+    public var type: String?
     public var title: String?
+    public var summary: String?
     public var totalCompetitions: Int?
     public var completed: Bool?
     public var competitors: [SeriesCompetitor]?
@@ -68,6 +70,10 @@ public struct SeriesCompetitor: Codable {
     public var id: String?
     public var uid: String?
     public var winner: Bool?
+    /// Series wins for this competitor (NBA/NHL/MLB). Nil for soccer knockouts.
+    public var wins: Int?
+    public var ties: Int?
+    /// Aggregate goals for soccer knockout ties (UCL etc.). Nil for North American series.
     public var aggregateScore: Double?
 }
 
