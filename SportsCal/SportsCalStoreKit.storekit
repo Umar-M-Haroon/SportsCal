@@ -1,0 +1,112 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "9163D026",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "1580232928",
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_developerTeamID" : "9GDU5ZNHX7",
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 797662600.92589796,
+    "_locale" : "en_US",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "20868562",
+      "localizations" : [
+
+      ],
+      "name" : "SportsCal",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "0.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "1581339320",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Monthly subscription to SportsCal Pro",
+              "displayName" : "SportsCal Pro Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.komodollc.SportsCal.Monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "ScoreLine Monthly",
+          "subscriptionGroupID" : "20868562",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "6.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "1581339731",
+          "introductoryOffer" : {
+            "internalID" : "10CAAFC3",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
+          "localizations" : [
+            {
+              "description" : "SportsCal Pro Yearly Subscription",
+              "displayName" : "SportsCal Pro Yearly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.komodollc.SportsCal.Yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "ScoreLine Yearly",
+          "subscriptionGroupID" : "20868562",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

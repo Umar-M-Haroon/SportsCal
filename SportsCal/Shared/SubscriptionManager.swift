@@ -15,10 +15,23 @@ public class SubscriptionManager: @unchecked Sendable {
     public static let shared = SubscriptionManager()
 
     public var isPro: Bool = false
+    private var isTestInstance: Bool = false
 
     private init() {
         // Check cached value first for instant UI
         isPro = UserDefaults.standard.bool(forKey: "isSubscribed")
+    }
+
+    /// Test-only initializer that skips RevenueCat configuration.
+    /// Allows creating isolated instances for unit testing.
+    /// Test instances ignore the mock-subscribed environment variable.
+    internal init(forTesting initialProValue: Bool) {
+        isPro = initialProValue
+        isTestInstance = true
+    }
+
+    internal var environmentOverridesEnabled: Bool {
+        ProcessInfo.processInfo.environment["mock-subscribed"] != nil
     }
 
     /// Call once at app launch (e.g., in SportsCalApp.init)
@@ -56,10 +69,10 @@ public class SubscriptionManager: @unchecked Sendable {
         UserDefaults.standard.set(value, forKey: "isSubscribed")
     }
 
-    private func updateProStatus(from customerInfo: CustomerInfo) {
+    internal func updateProStatus(from customerInfo: CustomerInfo) {
         let newValue = customerInfo.entitlements["Pro"]?.isActive == true
-        // Allow mock override for testing
-        if ProcessInfo.processInfo.environment["mock-subscribed"] != nil {
+        // Allow mock override for QA builds (skip for test instances)
+        if !isTestInstance, ProcessInfo.processInfo.environment["mock-subscribed"] != nil {
             isPro = true
             UserDefaults.standard.set(true, forKey: "isSubscribed")
             return

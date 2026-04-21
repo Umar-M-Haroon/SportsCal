@@ -118,6 +118,9 @@
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>
+      <StoreKitConfigurationFileReference
+         identifier = "../../SportsCalStoreKit.storekit">
+      </StoreKitConfigurationFileReference>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
