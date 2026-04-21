@@ -20,8 +20,15 @@ struct SportsWidgetSmallView: View {
         Calendar.current.date(byAdding: .day, value: dayOffset, to: Date()) ?? Date()
     }
 
+    private var hasMultipleGames: Bool {
+        (entry.game?.count ?? 0) >= 2
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            if hasMultipleGames {
+                Spacer()
+            }
             VStack(alignment: .leading) {
                 HStack(spacing: 4) {
                     Button(intent: NavigateDayIntent(dayOffset: dayOffset - 1)) {
@@ -68,10 +75,14 @@ struct SportsWidgetSmallView: View {
             } else if let games = entry.game, let game = games.first {
                 smallGameRow(game: game)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer()
             } else {
                 Spacer()
                 Text("No upcoming games")
                     .foregroundColor(.secondary)
+                Spacer()
+            }
+            if hasMultipleGames {
                 Spacer()
             }
         }
