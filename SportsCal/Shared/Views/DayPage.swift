@@ -269,6 +269,13 @@ struct DayPage: View {
                 sportFilterMenu
             }
             ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showSportPicker = true
+                } label: {
+                    Label("Manage Sports", systemImage: "slider.horizontal.3")
+                }
+            }
+            ToolbarItem(placement: .primaryAction) {
                 if !calendar.isDateInToday(selectedDate) {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -872,58 +879,34 @@ struct DayPage: View {
 
     private var sportFilterMenu: some View {
         Menu {
-            Button {
-                withAnimation { sportFilter = .all }
+            Picker(selection: $sportFilter) {
+                Label("All Sports", systemImage: "sportscourt")
+                    .tag(SportChipFilter.all)
+                ForEach(storage.enabledSports, id: \.self) { sport in
+                    let liveCount = viewModel.liveGameCountsBySport[sport] ?? 0
+                    let title = liveCount > 0
+                        ? "\(sport.displayName) · \(liveCount) live"
+                        : sport.displayName
+                    Label(title, systemImage: sport.systemImage)
+                        .tag(SportChipFilter.sport(sport))
+                }
             } label: {
-                if sportFilter == .all {
-                    Label("All Sports", systemImage: "checkmark")
-                } else {
-                    Text("All Sports")
-                }
+                Text("Filter")
             }
-
-            Divider()
-
-            ForEach(storage.enabledSports, id: \.self) { sport in
-                let liveCount = viewModel.liveGameCountsBySport[sport] ?? 0
-                Button {
-                    withAnimation {
-                        if case .sport(let current) = sportFilter, current == sport {
-                            sportFilter = .all
-                        } else {
-                            sportFilter = .sport(sport)
-                        }
-                    }
-                } label: {
-                    let isSelected = sportFilter == .sport(sport)
-                    HStack {
-                        Label(sport.displayName, systemImage: sport.systemImage)
-                        if liveCount > 0 {
-                            Text("(\(liveCount) live)")
-                        }
-                        if isSelected {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
+            .pickerStyle(.inline)
 
             let disabledSports = SportType.allCases.filter { !storage.enabledSports.contains($0) }
             if !disabledSports.isEmpty {
-                Divider()
-
-                ForEach(disabledSports, id: \.self) { sport in
-                    Button {
-                        browseSport = sport
-                    } label: {
-                        Label(sport.displayName, systemImage: sport.systemImage)
+                Menu {
+                    ForEach(disabledSports, id: \.self) { sport in
+                        Button {
+                            browseSport = sport
+                        } label: {
+                            Label(sport.displayName, systemImage: sport.systemImage)
+                        }
                     }
-                }
-
-                Button {
-                    showSportPicker = true
                 } label: {
-                    Label("Manage Sports", systemImage: "plus")
+                    Label("Browse other sports", systemImage: "magnifyingglass")
                 }
             }
         } label: {
