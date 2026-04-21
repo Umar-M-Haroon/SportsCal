@@ -28,4 +28,4 @@ Instruments/
 .netrc
 
 # Snapshot test exports for Figma design review (regenerated on demand)
-SportsCal/SportsCalTests/__Snapshots__/
+**/__Snapshots__/
