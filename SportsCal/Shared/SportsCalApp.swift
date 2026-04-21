@@ -162,25 +162,38 @@ struct SportsCalApp: App {
 
         #if os(macOS)
         MenuBarExtra {
-            MenuBarContentView()
-                .environment(appStorage)
-                .environment(favorites)
-                .environment(viewModel)
-                .environment(engagementTracker)
+            if subscriptionManager.isPro {
+                MenuBarContentView()
+                    .environment(appStorage)
+                    .environment(favorites)
+                    .environment(viewModel)
+                    .environment(engagementTracker)
+            } else {
+                VStack(spacing: 12) {
+                    Text("Scoreline Pro")
+                        .font(.headline)
+                    Text("Subscribe to Scoreline Pro to see live scores in your menu bar.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+                .frame(width: 240)
+            }
         } label: {
             MenuBarLabel(
-                liveFavorites: viewModel.liveEventsWithTeams.filter { favorites.contains($0.game) },
-                liveGames: viewModel.liveEventsWithTeams,
-                upcomingFavorite: {
+                liveFavorites: subscriptionManager.isPro ? viewModel.liveEventsWithTeams.filter { favorites.contains($0.game) } : [],
+                liveGames: subscriptionManager.isPro ? viewModel.liveEventsWithTeams : [],
+                upcomingFavorite: subscriptionManager.isPro ? {
                     let liveIDs = Set(viewModel.liveEvents.map(\.id))
                     return viewModel.todayFavoriteGamesWithTeams.first { gwt in
                         guard let d = gwt.game.standardDate else { return false }
                         return d > Date() && !liveIDs.contains(gwt.game.id)
                     }
-                }(),
-                liveCount: viewModel.liveEvents.count,
-                todayCount: viewModel.todayGames.count,
-                liveSports: viewModel.currentlyLiveSports
+                }() : nil,
+                liveCount: subscriptionManager.isPro ? viewModel.liveEvents.count : 0,
+                todayCount: subscriptionManager.isPro ? viewModel.todayGames.count : 0,
+                liveSports: subscriptionManager.isPro ? viewModel.currentlyLiveSports : []
             )
         }
         .menuBarExtraStyle(.window)
