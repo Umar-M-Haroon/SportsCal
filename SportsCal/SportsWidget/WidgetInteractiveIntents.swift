@@ -78,6 +78,31 @@ struct FollowGameIntent: AppIntent {
 }
 #endif
 
+// MARK: - Select Sport Intent (Interactive Tab Bar)
+
+#if os(iOS)
+struct SelectSportIntent: AppIntent {
+    static var title: LocalizedStringResource = "Select Sport"
+    static var description: IntentDescription = "Filter widget games by sport"
+
+    @Parameter(title: "Sport")
+    var sport: String
+
+    init() {}
+
+    init(sport: SportSelection) {
+        self.sport = sport.rawValue
+    }
+
+    func perform() async throws -> some IntentResult {
+        let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
+        defaults?.set(sport, forKey: "widgetSelectedSport")
+        WidgetCenter.shared.reloadAllTimelines()
+        return .result()
+    }
+}
+#endif
+
 // MARK: - Navigate Day Intent
 
 struct NavigateDayIntent: AppIntent {

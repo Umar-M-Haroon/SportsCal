@@ -51,6 +51,19 @@ enum SportSelection: String, AppEnum {
         case .racing: return .racing
         }
     }
+
+    static func from(sportType: SportType) -> SportSelection {
+        switch sportType {
+        case .basketball: return .basketball
+        case .soccer: return .soccer
+        case .hockey: return .hockey
+        case .mlb: return .mlb
+        case .nfl: return .nfl
+        case .golf: return .golf
+        case .tennis: return .tennis
+        case .racing: return .racing
+        }
+    }
 }
 
 struct SportsWidgetIntent: WidgetConfigurationIntent, CustomIntentMigratedAppIntent {

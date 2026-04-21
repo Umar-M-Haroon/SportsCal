@@ -159,6 +159,9 @@ struct SportsWidgetBundle: WidgetBundle {
         #if os(iOS)
         LiveSportActivityWidget()
         SportsCalControlWidget()
+//        F1WeekendWidget()
+//        GolfLeaderboardWidget()
+        StandingsWidget()
         #endif
     }
 }
@@ -184,6 +187,70 @@ struct SportsWidget: Widget {
         .contentMarginsDisabled()
     }
 }
+
+// MARK: - Sport Tab Bar (Interactive Filtering)
+
+#if os(iOS)
+struct WidgetSportTabBar: View {
+    let compact: Bool
+
+    private var selectedSport: String {
+        UserDefaults(suiteName: "group.Komodo.SportsCal")?.string(forKey: "widgetSelectedSport") ?? SportSelection.allSports.rawValue
+    }
+
+    private var enabledSports: [SportType] {
+        let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
+        var sports: [SportType] = []
+        if defaults?.bool(forKey: "shouldShowNBA") ?? false { sports.append(.basketball) }
+        if defaults?.bool(forKey: "shouldShowSoccer") ?? false { sports.append(.soccer) }
+        if defaults?.bool(forKey: "shouldShowNHL") ?? false { sports.append(.hockey) }
+        if defaults?.bool(forKey: "shouldShowMLB") ?? false { sports.append(.mlb) }
+        if defaults?.bool(forKey: "shouldShowNFL") ?? false { sports.append(.nfl) }
+        if defaults?.bool(forKey: "shouldShowGolf") ?? false { sports.append(.golf) }
+        if defaults?.bool(forKey: "shouldShowTennis") ?? false { sports.append(.tennis) }
+        if defaults?.bool(forKey: "shouldShowRacing") ?? false { sports.append(.racing) }
+        return sports
+    }
+
+    var body: some View {
+        HStack(spacing: compact ? 6 : 8) {
+            // "All" button
+            Button(intent: SelectSportIntent(sport: .allSports)) {
+                Text("All")
+                    .font(.system(size: compact ? 8 : 9, weight: selectedSport == SportSelection.allSports.rawValue ? .bold : .regular))
+                    .foregroundColor(selectedSport == SportSelection.allSports.rawValue ? .primary : .secondary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .background(
+                        selectedSport == SportSelection.allSports.rawValue
+                            ? Color.secondary.opacity(0.2)
+                            : Color.clear
+                    )
+                    .cornerRadius(4)
+            }
+            .buttonStyle(.plain)
+
+            ForEach(enabledSports, id: \.self) { sport in
+                let sportSelection = SportSelection.from(sportType: sport)
+                let isSelected = selectedSport == sportSelection.rawValue
+
+                Button(intent: SelectSportIntent(sport: sportSelection)) {
+                    Image(systemName: sport.widgetSystemImage)
+                        .font(.system(size: compact ? 10 : 12))
+                        .foregroundColor(isSelected ? sport.widgetColor : .secondary)
+                        .padding(3)
+                        .background(isSelected ? sport.widgetColor.opacity(0.15) : Color.clear)
+                        .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 4)
+    }
+}
+#endif
 
 // MARK: - Team Badge Views
 

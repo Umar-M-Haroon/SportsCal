@@ -29,8 +29,9 @@ enum WidgetDataStore {
 
     /// Strips heavy fields from a Game, keeping only what the widget needs.
     private static func stripGame(_ game: Game) -> Game {
-        // Trim leaderboard to top 3, drop headshots and rounds
-        let strippedLeaderboard = game.leaderboardEntries?.prefix(3).map { entry in
+        // Golf gets more leaderboard entries for the dedicated leaderboard widget
+        let leaderboardLimit = (game.sportType == .golf) ? 8 : 3
+        let strippedLeaderboard = game.leaderboardEntries?.prefix(leaderboardLimit).map { entry in
             LeaderboardEntry(
                 name: entry.name,
                 score: entry.score,
@@ -39,7 +40,8 @@ enum WidgetDataStore {
                 thruHole: entry.thruHole,
                 rounds: [],
                 constructor: entry.constructor,
-                gap: entry.gap
+                gap: entry.gap,
+                movement: entry.movement
             )
         }
 
@@ -62,9 +64,20 @@ enum WidgetDataStore {
             strProgress: game.strProgress,
             strTimestamp: game.strTimestamp,
             lastPlay: trimmedLastPlay,
+            homeLinescores: game.homeLinescores,
+            awayLinescores: game.awayLinescores,
             isCompleted: game.isCompleted,
             isoDate: game.isoDate,
-            leaderboardEntries: strippedLeaderboard.map(Array.init)
+            leaderboardEntries: strippedLeaderboard.map(Array.init),
+            sessions: game.sessions,
+            venueName: game.venueName,
+            homeRecord: game.homeRecord,
+            awayRecord: game.awayRecord,
+            circuitInfo: game.circuitInfo,
+            legDisplay: game.legDisplay,
+            aggregateScore: game.aggregateScore,
+            homeSeed: game.homeSeed,
+            awaySeed: game.awaySeed
         )
     }
 
