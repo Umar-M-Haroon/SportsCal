@@ -17,8 +17,7 @@ struct SportsTint: ViewModifier {
                 .foregroundColor(.orange)
         case .mlb:
             content
-                .foregroundColor(.white)
-                .background(.red, in: Circle())
+                .foregroundColor(.red)
         case .nfl:
             content
                 .foregroundColor(.brown)
@@ -113,5 +112,41 @@ extension Color {
         #else
         Color(nsColor: .controlBackgroundColor)
         #endif
+    }
+
+    init?(hex: String?) {
+        guard let hex = hex else { return nil }
+        let clean = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard clean.count == 6, let value = UInt64(clean, radix: 16) else { return nil }
+        self.init(
+            red: Double((value >> 16) & 0xFF) / 255.0,
+            green: Double((value >> 8) & 0xFF) / 255.0,
+            blue: Double(value & 0xFF) / 255.0
+        )
+    }
+}
+
+// MARK: - Game Card Styling
+
+struct GameCardModifier: ViewModifier {
+    let game: Game
+    let isLive: Bool
+
+    private var sportColor: Color {
+        guard let id = game.idLeague, let intID = Int(id),
+              let league = Leagues(rawValue: intID) else { return .gray }
+        return SportType(league: league).color
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .listRowBackground(sportColor.opacity(0.15))
+            .listRowSeparator(.hidden)
+    }
+}
+
+extension View {
+    func gameCard(game: Game, isLive: Bool) -> some View {
+        modifier(GameCardModifier(game: game, isLive: isLive))
     }
 }

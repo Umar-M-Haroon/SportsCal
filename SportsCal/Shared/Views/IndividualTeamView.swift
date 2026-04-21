@@ -139,12 +139,14 @@ struct IndividualTeamView: View {
             if let shortName {
                 Text(seed != nil ? "(\(seed!)) \(shortName)" : shortName)
                     .font(.headline)
-                    .foregroundColor(.secondary)
+                    .fontWeight(isWinning ? .bold : .regular)
+                    .foregroundColor(isWinning ? .primary : .secondary)
             .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             } else if let longName {
                 Text(seed != nil ? "(\(seed!)) \(longName)" : longName)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(isWinning ? .primary : .secondary)
                     .font(.headline)
+                    .fontWeight(isWinning ? .bold : .regular)
             .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             }
             if let record {

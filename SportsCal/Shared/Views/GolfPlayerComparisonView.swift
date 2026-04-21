@@ -32,7 +32,9 @@ struct GolfPlayerComparisonView: View {
                 .padding()
             }
             .navigationTitle("Compare Players")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }

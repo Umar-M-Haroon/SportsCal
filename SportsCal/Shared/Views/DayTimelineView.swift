@@ -148,7 +148,9 @@ struct DayTimelineView: View {
             }
         }
         .padding(.vertical, 12)
+        #if os(iOS)
         .background(Color(.secondarySystemGroupedBackground))
+        #endif
     }
 
     // MARK: - Timeline
@@ -222,6 +224,7 @@ struct DayTimelineView: View {
             .scrollTargetLayout()
         }
         .scrollTargetBehavior(.viewAligned)
+        #if os(iOS)
         .overlay(alignment: .trailing) {
             if hourGames.count > 1 {
                 LinearGradient(
@@ -233,6 +236,7 @@ struct DayTimelineView: View {
                 .allowsHitTesting(false)
             }
         }
+        #endif
     }
 
     private var nowDivider: some View {
