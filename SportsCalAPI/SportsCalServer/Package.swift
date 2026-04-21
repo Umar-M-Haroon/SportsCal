@@ -11,6 +11,7 @@ let package = Package(
         .package(url: "https://github.com/vapor/vapor.git", from: "4.0.0"),
         .package(url: "https://github.com/vapor/redis.git", from: "4.0.0"),
         .package(url: "https://github.com/vapor/queues-redis-driver.git", from: "1.0.0"),
+        .package(url: "https://github.com/vapor/sqlite-nio.git", from: "1.0.0"),
         .package(path: "../../SportsCalModel"),
         .package(url: "https://github.com/vapor/apns.git", branch: "main")
     ],
@@ -21,6 +22,7 @@ let package = Package(
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "QueuesRedisDriver", package: "queues-redis-driver"),
                 .product(name: "Redis", package: "redis"),
+                .product(name: "SQLiteNIO", package: "sqlite-nio"),
                 .product(name: "SportsCalModel", package: "SportsCalModel"),
                 .product(name: "VaporAPNS", package: "apns")
             ],

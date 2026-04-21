@@ -100,6 +100,15 @@
       }
     },
     {
+      "identity" : "sqlite-nio",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/vapor/sqlite-nio.git",
+      "state" : {
+        "revision" : "f768ac53297df50c5a012eadc879cf8e7b7a2cf5",
+        "version" : "1.12.6"
+      }
+    },
+    {
       "identity" : "swift-algorithms",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-algorithms.git",
