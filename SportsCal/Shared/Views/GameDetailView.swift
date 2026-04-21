@@ -35,6 +35,7 @@ struct GameDetailView: View {
     @State private var plays: [Play] = []
     @State private var playsLoading = false
     @State private var playsAvailable = true
+    @State private var selectedPeriod: Int? = nil
 
     private var league: Leagues? {
         guard let id = game.idLeague, let intID = Int(id) else { return nil }
@@ -957,6 +958,20 @@ struct GameDetailView: View {
         }
     }
 
+    /// Unique period numbers present in the plays list, sorted ascending.
+    /// Used to drive the period picker; latest period is auto-selected on first load.
+    private var availablePeriods: [Int] {
+        let set = Set(plays.compactMap { $0.period?.number })
+        return set.sorted()
+    }
+
+    /// Plays for the currently-selected period, in chronological order (first play of the
+    /// period first). Falls back to all plays if no period is available.
+    private var playsInSelectedPeriod: [Play] {
+        guard let selectedPeriod else { return plays }
+        return plays.filter { $0.period?.number == selectedPeriod }
+    }
+
     @ViewBuilder
     private var playByPlaySection: some View {
         if supportsPlayByPlay, let eventID = game.idEvent {
@@ -988,16 +1003,22 @@ struct GameDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 8)
                 } else {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(plays.reversed().prefix(50).enumerated()), id: \.offset) { _, play in
-                            playRow(play)
-                        }
-                        if plays.count > 50 {
-                            Text("Showing latest 50 of \(plays.count) plays")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding(.top, 4)
+                    // Period picker — horizontal scrollable pill row so we can
+                    // handle sports with many periods (MLB innings) gracefully.
+                    periodPicker
+
+                    let visible = playsInSelectedPeriod
+                    if visible.isEmpty {
+                        Text("No plays recorded for this period")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.vertical, 8)
+                    } else {
+                        LazyVStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(visible.enumerated()), id: \.offset) { _, play in
+                                playRow(play)
+                            }
                         }
                     }
                 }
@@ -1011,27 +1032,59 @@ struct GameDetailView: View {
             .onChange(of: game.lastPlay) { _, _ in
                 Task { await loadPlays(eventID: eventID) }
             }
+            .onChange(of: plays) { _, newPlays in
+                // Auto-select the latest period whenever plays refresh, preserving the
+                // user's pick if it still exists.
+                let newAvailable = Set(newPlays.compactMap { $0.period?.number })
+                if let current = selectedPeriod, newAvailable.contains(current) {
+                    return
+                }
+                selectedPeriod = newAvailable.max()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var periodPicker: some View {
+        let periods = availablePeriods
+        if periods.count > 1 {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(periods, id: \.self) { p in
+                        let isSelected = selectedPeriod == p
+                        Button {
+                            selectedPeriod = p
+                        } label: {
+                            Text(periodAbbreviation(p))
+                                .font(.caption)
+                                .fontWeight(isSelected ? .semibold : .regular)
+                                .foregroundColor(isSelected ? .white : .primary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(
+                                    isSelected ? Color.accentColor : Color.secondary.opacity(0.15),
+                                    in: Capsule()
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
         }
     }
 
     @ViewBuilder
     private func playRow(_ play: Play) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                if let period = play.period?.number {
-                    Text(periodAbbreviation(period))
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
-                }
-                if let clockText = play.clock?.displayValue, !clockText.isEmpty {
-                    Text(clockText)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .monospacedDigit()
-                }
+            // Left column: clock (if the sport has one). MLB omits clock — column collapses.
+            if let clockText = play.clock?.displayValue, !clockText.isEmpty {
+                Text(clockText)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+                    .frame(width: 44, alignment: .leading)
             }
-            .frame(width: 44, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 2) {
                 if let text = play.text {
