@@ -49,6 +49,11 @@ struct ESPNFetchJob: AsyncScheduledJob {
         Self.logger.info("Fetching ESPN live scores")
         let espnResult = await Integrator.getESPNLiveScore(context.application.client)
 
+        // Fire per-event play-by-play enrichment (NBA/NFL/NHL/MLB).
+        // Side-effect only: writes to Redis at PBP-{eventID}. Must run against the fresh
+        // `espnResult` because `lastPlayScoreboardID` is lost when games are rebuilt downstream.
+        await enrichWithPlays(from: espnResult, context: context, isDebug: isDebug)
+
         let latestLiveResult = try await context.application.redis.get(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug), asJSON: LiveScore.self)
 
         // Load ESPN-ID → TheSportsDB-ID mapping for team ID translation
@@ -94,6 +99,23 @@ struct ESPNFetchJob: AsyncScheduledJob {
             }
         }
 
+        // Same pattern for WNBA — ESPN-only league sharing the basketball bucket
+        if let wnbaScoreboard = try? await Integrator.getESPNScoreboard(for: .wnba, context.application.client),
+           let wnbaLiveEvent = LiveEvent(events: wnbaScoreboard, league: .wnba) {
+            if let existing = newResult?.nba {
+                newResult = newResult.map { result in
+                    LiveScore(nba: LiveEvent(events: existing.events + wnbaLiveEvent.events), mlb: result.mlb, soccer: result.soccer, nfl: result.nfl, nhl: result.nhl, golf: result.golf, tennis: result.tennis, racing: result.racing)
+                }
+            } else {
+                newResult = newResult.map { result in
+                    LiveScore(nba: wnbaLiveEvent, mlb: result.mlb, soccer: result.soccer, nfl: result.nfl, nhl: result.nhl, golf: result.golf, tennis: result.tennis, racing: result.racing)
+                }
+                if newResult == nil {
+                    newResult = LiveScore(nba: wnbaLiveEvent)
+                }
+            }
+        }
+
         // Detect newly started games and send push-to-start notifications
         if let newResult {
             await sendPushToStartForNewGames(
@@ -121,6 +143,257 @@ struct ESPNFetchJob: AsyncScheduledJob {
                     Self.logger.info("Schedule updated with ESPN live data")
                 }
             }
+        }
+    }
+
+    // MARK: - Play-by-Play Enrichment (NBA / NFL / NHL / MLB)
+
+    private struct PBPCandidate {
+        let game: Game
+        let sport: String      // "basketball" | "baseball" | "football" | "hockey"
+        let league: String     // "nba" | "mlb" | "nfl" | "nhl"
+        /// TheSportsDB event ID for the same game, resolved via schedule matching.
+        /// When present, plays are cached under this key so iOS clients (which carry
+        /// TSDB IDs after the schedule merge) hit the cache on /plays/:eventID.
+        let tsdbEventID: String?
+    }
+
+    /// Enriches live NBA/NFL/NHL/MLB games with full play-by-play data from ESPN's
+    /// `/summary?event={id}` endpoint, writing per-event `CachedPlays` to Redis.
+    ///
+    /// Conditional on `lastPlay.id` from the scoreboard — if the cached ID already matches,
+    /// we skip the ESPN call entirely. Bounded at 6 concurrent fetches to keep ESPN load low.
+    private func enrichWithPlays(
+        from liveScore: LiveScore,
+        context: Queues.QueueContext,
+        isDebug: Bool
+    ) async {
+        // The iOS client carries TheSportsDB event IDs after the schedule merge, while
+        // espnResult carries ESPN IDs. Load the schedule to bridge them.
+        let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
+        let schedule: LiveScore? = try? await context.application.redis.get(scheduleKey, asJSON: LiveScore.self)
+
+        var candidates: [PBPCandidate] = []
+        for game in liveScore.nba?.events ?? [] where shouldEnrichPBP(game) {
+            candidates.append(PBPCandidate(
+                game: game, sport: "basketball", league: "nba",
+                tsdbEventID: findTSDBEventID(for: game, in: schedule?.nba?.events)
+            ))
+        }
+        for game in liveScore.nfl?.events ?? [] where shouldEnrichPBP(game) {
+            candidates.append(PBPCandidate(
+                game: game, sport: "football", league: "nfl",
+                tsdbEventID: findTSDBEventID(for: game, in: schedule?.nfl?.events)
+            ))
+        }
+        for game in liveScore.nhl?.events ?? [] where shouldEnrichPBP(game) {
+            candidates.append(PBPCandidate(
+                game: game, sport: "hockey", league: "nhl",
+                tsdbEventID: findTSDBEventID(for: game, in: schedule?.nhl?.events)
+            ))
+        }
+        for game in liveScore.mlb?.events ?? [] where shouldEnrichPBP(game) {
+            candidates.append(PBPCandidate(
+                game: game, sport: "baseball", league: "mlb",
+                tsdbEventID: findTSDBEventID(for: game, in: schedule?.mlb?.events)
+            ))
+        }
+
+        guard !candidates.isEmpty else { return }
+
+        // Merge new [tsdbID → espnID/sport/league] into the persistent ESPN-Event-Map so the
+        // /plays/:eventID on-demand path can resolve a client-supplied TSDB ID back to ESPN.
+        await updateEventIDMap(candidates: candidates, context: context, isDebug: isDebug)
+
+        var fetched = 0
+        var skipped = 0
+        var failed = 0
+
+        await withTaskGroup(of: PBPResult.self) { group in
+            let maxConcurrent = 6
+            var iterator = candidates.makeIterator()
+            var inFlight = 0
+
+            func addNext() {
+                guard let candidate = iterator.next() else { return }
+                inFlight += 1
+                group.addTask { [self] in
+                    await processPBPCandidate(candidate, context: context, isDebug: isDebug)
+                }
+            }
+
+            for _ in 0..<min(maxConcurrent, candidates.count) { addNext() }
+
+            while let result = await group.next() {
+                inFlight -= 1
+                switch result {
+                case .fetched: fetched += 1
+                case .skipped: skipped += 1
+                case .failed:  failed  += 1
+                }
+                addNext()
+            }
+        }
+
+        Self.logger.info("PBP enrichment: fetched \(fetched), skipped \(skipped) (unchanged lastPlay.id), failed \(failed)")
+    }
+
+    /// Whether a game should be considered for PBP enrichment.
+    /// Live in-progress games always qualify. Completed games qualify once (to capture the
+    /// full final PBP) — callers must additionally check the Redis cache to avoid re-fetching.
+    private func shouldEnrichPBP(_ game: Game) -> Bool {
+        guard game.idEvent != nil else { return false }
+        if game.strStatus == "in" { return true }
+        if game.strStatus == "post" && game.isCompleted == true { return true }
+        return false
+    }
+
+    private enum PBPResult {
+        case fetched
+        case skipped
+        case failed
+    }
+
+    /// Matches an ESPN game to a scheduled (TSDB) game by team names + day.
+    /// Returns the schedule game's `idEvent` (TSDB ID) when a match is found.
+    private func findTSDBEventID(for espnGame: Game, in scheduleEvents: [Game]?) -> String? {
+        guard let scheduleEvents, !scheduleEvents.isEmpty else { return nil }
+        let espnDay = dayString(from: espnGame)
+        let espnHome = normalizeTeamName(espnGame.strHomeTeam)
+        let espnAway = normalizeTeamName(espnGame.strAwayTeam)
+        for scheduleGame in scheduleEvents {
+            let scheduleDay = dayString(from: scheduleGame)
+            guard espnDay == scheduleDay else { continue }
+            let scheduleHome = normalizeTeamName(scheduleGame.strHomeTeam)
+            let scheduleAway = normalizeTeamName(scheduleGame.strAwayTeam)
+            if scheduleHome == espnHome && scheduleAway == espnAway {
+                return scheduleGame.idEvent
+            }
+        }
+        return nil
+    }
+
+    /// Merges a per-candidate [tsdbID → EventIDMapping] dictionary into the persistent
+    /// `ESPN-Event-Map` Redis key so the /plays/:eventID route can do on-demand lookups.
+    private func updateEventIDMap(
+        candidates: [PBPCandidate],
+        context: Queues.QueueContext,
+        isDebug: Bool
+    ) async {
+        var additions: [String: ESPNEventMapping] = [:]
+        for candidate in candidates {
+            guard let tsdbID = candidate.tsdbEventID,
+                  let espnID = candidate.game.idEvent else { continue }
+            additions[tsdbID] = ESPNEventMapping(
+                espnEventID: espnID, sport: candidate.sport, league: candidate.league
+            )
+        }
+        guard !additions.isEmpty else { return }
+        let mapKey = RedisEndpoint.ESPN.espnEventMap.getValue(isDebug: isDebug)
+        var existing: [String: ESPNEventMapping] = (try? await context.application.redis.get(
+            mapKey, asJSON: [String: ESPNEventMapping].self
+        )) ?? [:]
+        for (k, v) in additions { existing[k] = v }
+        try? await context.application.redis.set(mapKey, toJSON: existing)
+    }
+
+    private func processPBPCandidate(
+        _ candidate: PBPCandidate,
+        context: Queues.QueueContext,
+        isDebug: Bool
+    ) async -> PBPResult {
+        guard let espnEventID = candidate.game.idEvent else { return .failed }
+        // Prefer the TSDB key (what iOS clients send). Fall back to ESPN ID if no match.
+        let primaryKey: RedisKey
+        let secondaryKey: RedisKey?
+        if let tsdbID = candidate.tsdbEventID {
+            primaryKey = RedisEndpoint.ESPN.playByPlay(tsdbID).getValue(isDebug: isDebug)
+            secondaryKey = RedisEndpoint.ESPN.playByPlay(espnEventID).getValue(isDebug: isDebug)
+        } else {
+            primaryKey = RedisEndpoint.ESPN.playByPlay(espnEventID).getValue(isDebug: isDebug)
+            secondaryKey = nil
+        }
+
+        let cached = try? await context.application.redis.get(primaryKey, asJSON: CachedPlays.self)
+
+        let isFinal = (candidate.game.strStatus == "post" && candidate.game.isCompleted == true)
+
+        // Skip path: the cached snapshot matches the current scoreboard lastPlay.id
+        // AND its finality state matches. This is the common case during live play when
+        // nothing has changed between :15 ticks.
+        if let cached,
+           let currentLastPlayID = candidate.game.lastPlayScoreboardID,
+           cached.lastPlayId == currentLastPlayID,
+           cached.isFinal == isFinal {
+            return .skipped
+        }
+
+        do {
+            let summary = try await ESPNNetworking.getPlayByPlaySummary(
+                req: context.application.client,
+                sport: candidate.sport,
+                league: candidate.league,
+                eventId: espnEventID
+            )
+            let plays = summary.plays ?? []
+            let clientFacingID = candidate.tsdbEventID ?? espnEventID
+            let payload = CachedPlays(
+                eventID: clientFacingID,
+                lastPlayId: plays.last?.id ?? candidate.game.lastPlayScoreboardID ?? "",
+                plays: plays,
+                isFinal: isFinal,
+                fetchedAt: Date()
+            )
+            if isFinal {
+                // Final state: persist to the SQLite archive (durable, no TTL) and flush the
+                // hot Redis keys so we don't double-store the same blob. Falls back to a Redis
+                // 24h TTL if the archive isn't available for some reason.
+                if let archive = context.application.pbpArchive {
+                    do {
+                        try await archive.upsert(
+                            cached: payload,
+                            espnEventID: espnEventID,
+                            tsdbEventID: candidate.tsdbEventID,
+                            sport: candidate.sport,
+                            league: candidate.league
+                        )
+                        _ = try? await context.application.redis.delete(primaryKey).get()
+                        if let secondaryKey {
+                            _ = try? await context.application.redis.delete(secondaryKey).get()
+                        }
+                    } catch {
+                        Self.logger.warning("PBP archive upsert failed — falling back to Redis TTL", metadata: [
+                            "eventID": "\(espnEventID)", "error": "\(error)"
+                        ])
+                        try await context.application.redis.setex(
+                            primaryKey, toJSON: payload, expirationInSeconds: 60 * 60 * 24
+                        )
+                    }
+                } else {
+                    try await context.application.redis.setex(
+                        primaryKey, toJSON: payload, expirationInSeconds: 60 * 60 * 24
+                    )
+                    if let secondaryKey {
+                        try? await context.application.redis.setex(
+                            secondaryKey, toJSON: payload, expirationInSeconds: 60 * 60 * 24
+                        )
+                    }
+                }
+            } else {
+                // Live: no TTL, overwritten next tick when `lastPlay.id` changes.
+                try await context.application.redis.set(primaryKey, toJSON: payload)
+                if let secondaryKey {
+                    try? await context.application.redis.set(secondaryKey, toJSON: payload)
+                }
+            }
+            return .fetched
+        } catch {
+            Self.logger.debug("PBP fetch failed", metadata: [
+                "sport": "\(candidate.sport)",
+                "eventID": "\(espnEventID)",
+                "error": "\(error)"
+            ])
+            return .failed
         }
     }
 
@@ -556,6 +829,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 awaySeed: espnGame.awaySeed ?? scheduleGame.awaySeed,
                 homeInjuries: scheduleGame.homeInjuries ?? espnGame.homeInjuries,
                 awayInjuries: scheduleGame.awayInjuries ?? espnGame.awayInjuries,
+                raceTiming: scheduleGame.raceTiming ?? espnGame.raceTiming,
                 playoff: espnGame.playoff ?? scheduleGame.playoff
             )
         }
