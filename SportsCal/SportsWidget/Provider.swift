@@ -177,20 +177,24 @@ class Provider: AppIntentTimelineProvider {
         SimpleEntry(date: Date(), configuration: configuration, game: sampleGames, images: sampleImages, teams: teams)
     }
 
-    func getImagesFor(homeTeam: Team, awayTeam: Team) async throws -> [String: Data] {
+    /// Fetches badge images for a resolved home/away team pair. The returned dict is keyed by
+    /// the *game's* original team IDs (`lookupHomeID`/`lookupAwayID`) so widget views — which
+    /// still look up by `game.idHomeTeam` — find the image even when a collision-safe Team
+    /// resolution pointed at a different `idTeam`.
+    func getImagesFor(homeTeam: Team, awayTeam: Team, lookupHomeID: String, lookupAwayID: String) async throws -> [String: Data] {
         guard let homeImageURL = homeTeam.strTeamBadge,
-              let homeID = homeTeam.idTeam,
+              let homeCacheID = homeTeam.idTeam,
               let awayImageURL = awayTeam.strTeamBadge,
-              let awayID = awayTeam.idTeam else {
+              let awayCacheID = awayTeam.idTeam else {
             return [:]
         }
 
-        // Use cached images when available
+        // Use cached images when available (cache key is the resolved team's ID)
         let cache = WidgetImageCache.shared
-        async let homeImage = cache.getImage(for: homeID, imageURL: homeImageURL)
-        async let awayImage = cache.getImage(for: awayID, imageURL: awayImageURL)
+        async let homeImage = cache.getImage(for: homeCacheID, imageURL: homeImageURL)
+        async let awayImage = cache.getImage(for: awayCacheID, imageURL: awayImageURL)
 
-        return [homeID: try await homeImage, awayID: try await awayImage]
+        return [lookupHomeID: try await homeImage, lookupAwayID: try await awayImage]
     }
 
     func timeline(for configuration: SportsWidgetIntent, in context: Context) async -> Timeline<SimpleEntry> {
@@ -298,9 +302,11 @@ class Provider: AppIntentTimelineProvider {
         let teamGames = games.filter { !$0.isIndividualSport }.prefix(Self.maxImageGames)
         AppLogger.widget.info("[timeline] fetching images for \(teamGames.count) team games, mem=\(widgetMemoryMB())")
         for game in teamGames {
-            if let homeTeam = Team.getTeamInfoFrom(teams: teams, teamID: game.idHomeTeam),
-               let awayTeam = Team.getTeamInfoFrom(teams: teams, teamID: game.idAwayTeam),
-               let images = try? await getImagesFor(homeTeam: homeTeam, awayTeam: awayTeam) {
+            if let homeID = game.idHomeTeam,
+               let awayID = game.idAwayTeam,
+               let homeTeam = Team.getTeamInfoFrom(teams: teams, teamID: homeID, teamName: game.strHomeTeam),
+               let awayTeam = Team.getTeamInfoFrom(teams: teams, teamID: awayID, teamName: game.strAwayTeam),
+               let images = try? await getImagesFor(homeTeam: homeTeam, awayTeam: awayTeam, lookupHomeID: homeID, lookupAwayID: awayID) {
                 let totalBytes = images.values.reduce(0) { $0 + $1.count }
                 AppLogger.widget.info("[timeline] fetched image pair: \(totalBytes) bytes, mem=\(widgetMemoryMB())")
                 allImages.merge(images, uniquingKeysWith: { $1 })

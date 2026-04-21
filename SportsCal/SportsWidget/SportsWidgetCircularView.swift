@@ -27,7 +27,7 @@ struct SportsWidgetCircularView: View {
                             .font(.system(size: 7, weight: .semibold))
                             .lineLimit(2)
                             .multilineTextAlignment(.center)
-                    } else if let homeTeamID = game.idHomeTeam, let homeTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: homeTeamID), let awayTeamID = game.idAwayTeam, let awayTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: awayTeamID) {
+                    } else if let homeTeamID = game.idHomeTeam, let homeTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: homeTeamID, teamName: game.strHomeTeam), let awayTeamID = game.idAwayTeam, let awayTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: awayTeamID, teamName: game.strAwayTeam) {
                         HStack(spacing: 2) {
                             TinyWidgetTeamView(shortName: awayTeam.strTeamShort, longName: String(awayTeam.strTeam?.prefix(3) ?? "") , isAway: true, data: entry.images?[awayTeamID])
                             TinyWidgetTeamView(shortName: homeTeam.strTeamShort, longName: String(homeTeam.strTeam?.prefix(3) ?? "") , isAway: false, data: entry.images?[homeTeamID])

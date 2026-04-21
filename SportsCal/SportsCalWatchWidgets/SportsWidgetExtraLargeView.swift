@@ -129,8 +129,7 @@ struct SportsWidgetExtraLargeView: View {
     }
 
     private func abbreviation(teamID: String?, name: String) -> String {
-        if let id = teamID,
-           let team = Team.getTeamInfoFrom(teams: entry.teams, teamID: id),
+        if let team = Team.getTeamInfoFrom(teams: entry.teams, teamID: teamID, teamName: name),
            let short = team.strTeamShort {
             return short
         }
