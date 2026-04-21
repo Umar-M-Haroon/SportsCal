@@ -254,8 +254,10 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                     if var racingGames = schedule.racing?.events {
                         let circuitsKey = RedisEndpoint.ESPN.f1Circuits.getValue(isDebug: isDebug)
                         let standingsKey = RedisEndpoint.ESPN.f1Standings.getValue(isDebug: isDebug)
+                        let raceTimingKey = RedisEndpoint.ESPN.f1RaceTiming.getValue(isDebug: isDebug)
                         let cachedCircuits = try? await context.application.redis.get(circuitsKey, asJSON: [String: F1CircuitInfo].self)
                         let cachedStandings = try? await context.application.redis.get(standingsKey, asJSON: F1Standings.self)
+                        let cachedRaceTiming = try? await context.application.redis.get(raceTimingKey, asJSON: F1RaceTiming.self)
                         if let circuits = cachedCircuits, !circuits.isEmpty {
                             for i in racingGames.indices {
                                 let game = racingGames[i]
@@ -298,6 +300,36 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                             schedule.racing = LiveEvent(events: racingGames)
                         }
                         schedule.f1Standings = cachedStandings
+
+                        // Attach cached race timing to the matching game (most recent race)
+                        if let timing = cachedRaceTiming, var racingGames = schedule.racing?.events {
+                            for i in racingGames.indices {
+                                let game = racingGames[i]
+                                let raceName = game.strHomeTeam.lowercased()
+                                let venue = game.venueName?.lowercased() ?? ""
+                                if let circuit = game.circuitInfo,
+                                   raceName.contains(circuit.country.lowercased())
+                                    || raceName.contains(circuit.locality.lowercased())
+                                    || venue.contains(circuit.country.lowercased())
+                                    || venue.contains(circuit.locality.lowercased()) {
+                                    racingGames[i] = Game(
+                                        idLiveScore: game.idLiveScore, idEvent: game.idEvent,
+                                        idLeague: game.idLeague,
+                                        strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam,
+                                        intHomeScore: game.intHomeScore, intAwayScore: game.intAwayScore,
+                                        strStatus: game.strStatus, strProgress: game.strProgress,
+                                        strTimestamp: game.strTimestamp, lastPlay: game.lastPlay,
+                                        isCompleted: game.isCompleted, isoDate: game.isoDate,
+                                        leaderboardEntries: game.leaderboardEntries,
+                                        sessions: game.sessions, venueName: game.venueName,
+                                        circuitInfo: game.circuitInfo,
+                                        raceTiming: timing
+                                    )
+                                    break
+                                }
+                            }
+                            schedule.racing = LiveEvent(events: racingGames)
+                        }
                     }
                     Self.logger.info("Schedule loaded", metadata: ["sport": "racing", "events": "\(schedule.racing?.events.count ?? 0)", "constructors": "\(f1ConstructorMap.count)", "timingCompetitions": "\(f1TimingMap.count)"])
                 default:

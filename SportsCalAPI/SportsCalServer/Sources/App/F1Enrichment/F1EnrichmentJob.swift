@@ -35,16 +35,34 @@ struct F1EnrichmentJob: AsyncScheduledJob {
 
         Self.logger.info("Fetching F1 enrichment data")
 
-        // Fetch all three data sources concurrently (3 requests total)
+        // Fetch all four data sources concurrently
         async let circuitsTask = JolpicaNetworking.getCircuits(client: client, season: currentYear)
         async let driverStandingsTask = JolpicaNetworking.getDriverStandings(client: client, season: currentYear)
         async let constructorStandingsTask = JolpicaNetworking.getConstructorStandings(client: client, season: currentYear)
         async let circuitImagesTask = OpenF1Networking.getCircuitImages(client: client, year: currentYear)
+        async let sessionsTask = OpenF1Networking.getRaceSessions(client: client, year: currentYear)
 
         let circuits = await circuitsTask
         let driverStandings = await driverStandingsTask
         let constructorStandings = await constructorStandingsTask
         let circuitImages = await circuitImagesTask
+        let sessions = await sessionsTask
+
+        // Fetch telemetry for the most recent completed Race session. That's the one
+        // users are most likely to dig into; older races keep the existing standings
+        // view without per-lap detail to keep payload and API calls bounded.
+        let now = Date()
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let recentRaceTiming: F1RaceTiming? = await {
+            for session in sessions where session.session_name == "Race" {
+                guard let dateEnd = session.date_end,
+                      let end = iso.date(from: dateEnd) ?? ISO8601DateFormatter().date(from: dateEnd),
+                      end < now else { continue }
+                return await OpenF1Networking.getRaceTiming(client: client, session: session)
+            }
+            return nil
+        }()
 
         // Store circuits (with images merged in)
         var enrichedCircuits = circuits
@@ -73,19 +91,31 @@ struct F1EnrichmentJob: AsyncScheduledJob {
         // Save to Redis
         let circuitsKey = RedisEndpoint.ESPN.f1Circuits.getValue(isDebug: isDebug)
         let standingsKey = RedisEndpoint.ESPN.f1Standings.getValue(isDebug: isDebug)
+        let raceTimingKey = RedisEndpoint.ESPN.f1RaceTiming.getValue(isDebug: isDebug)
         try await redis.set(circuitsKey, toJSON: enrichedCircuits)
         try await redis.set(standingsKey, toJSON: standings)
+        if let recentRaceTiming {
+            try await redis.set(raceTimingKey, toJSON: recentRaceTiming)
+        }
         try await redis.set(lastUpdateKey, toJSON: Date())
 
         // Also update the main schedule to attach circuit info + standings
         let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
         if var schedule = try? await redis.get(scheduleKey, asJSON: LiveScore.self) {
             schedule.f1Standings = standings
-            if var racingEvents = schedule.racing?.events, !enrichedCircuits.isEmpty {
+            if var racingEvents = schedule.racing?.events {
                 for i in racingEvents.indices {
                     let game = racingEvents[i]
-                    if let circuitInfo = findCircuitForGame(game, circuits: enrichedCircuits) {
-                        racingEvents[i] = gameWithCircuitInfo(game, circuitInfo: circuitInfo)
+                    let circuitInfo = enrichedCircuits.isEmpty ? nil : findCircuitForGame(game, circuits: enrichedCircuits)
+                    let timingForGame = recentRaceTiming.flatMap { timing in
+                        raceTimingMatchesGame(timing: timing, game: game, sessions: sessions) ? timing : nil
+                    }
+                    if circuitInfo != nil || timingForGame != nil {
+                        racingEvents[i] = gameWithEnrichment(
+                            game,
+                            circuitInfo: circuitInfo ?? game.circuitInfo,
+                            raceTiming: timingForGame ?? game.raceTiming
+                        )
                     }
                 }
                 schedule.racing = LiveEvent(events: racingEvents)
@@ -98,8 +128,27 @@ struct F1EnrichmentJob: AsyncScheduledJob {
             "circuits": "\(enrichedCircuits.count)",
             "circuitImages": "\(enrichedCircuits.values.filter { $0.circuitImageURL != nil }.count)",
             "driverStandings": "\(driverStandings.count)",
-            "constructorStandings": "\(constructorStandings.count)"
+            "constructorStandings": "\(constructorStandings.count)",
+            "raceTimingDrivers": "\(recentRaceTiming?.drivers.count ?? 0)"
         ])
+    }
+
+    /// Matches a telemetry session to a schedule Game by comparing session country/location
+    /// against the race name. Sessions list includes country_name and location — use both.
+    private func raceTimingMatchesGame(timing: F1RaceTiming, game: Game, sessions: [OpenF1Networking.Session]) -> Bool {
+        guard let session = sessions.first(where: { $0.session_key == timing.sessionKey }) else { return false }
+        let raceName = game.strHomeTeam.lowercased()
+        let venue = game.venueName?.lowercased() ?? ""
+        if let country = session.country_name?.lowercased(), raceName.contains(country) || venue.contains(country) {
+            return true
+        }
+        if let location = session.location?.lowercased(), raceName.contains(location) || venue.contains(location) {
+            return true
+        }
+        if let circuit = session.circuit_short_name?.lowercased(), venue.contains(circuit) {
+            return true
+        }
+        return false
     }
 
     /// Fuzzy-matches race names between Jolpica and OpenF1.
@@ -131,8 +180,8 @@ struct F1EnrichmentJob: AsyncScheduledJob {
         return nil
     }
 
-    /// Creates a new Game with circuit info attached.
-    private func gameWithCircuitInfo(_ game: Game, circuitInfo: F1CircuitInfo) -> Game {
+    /// Creates a new Game with circuit info and/or race timing attached.
+    private func gameWithEnrichment(_ game: Game, circuitInfo: F1CircuitInfo?, raceTiming: F1RaceTiming?) -> Game {
         Game(
             idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: game.strSport,
             idLeague: game.idLeague, strLeague: game.strLeague,
@@ -151,7 +200,14 @@ struct F1EnrichmentJob: AsyncScheduledJob {
             venueName: game.venueName,
             homeTeamColor: game.homeTeamColor, awayTeamColor: game.awayTeamColor,
             homeRecord: game.homeRecord, awayRecord: game.awayRecord,
-            circuitInfo: circuitInfo
+            circuitInfo: circuitInfo,
+            golfCourseInfo: game.golfCourseInfo,
+            legDisplay: game.legDisplay, aggregateScore: game.aggregateScore,
+            homeSeed: game.homeSeed, awaySeed: game.awaySeed,
+            tournamentName: game.tournamentName,
+            homeInjuries: game.homeInjuries, awayInjuries: game.awayInjuries,
+            raceTiming: raceTiming,
+            playoff: game.playoff
         )
     }
 }

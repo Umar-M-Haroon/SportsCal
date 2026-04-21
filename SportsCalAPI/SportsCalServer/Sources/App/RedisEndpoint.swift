@@ -60,6 +60,7 @@ enum RedisEndpoint {
         case f1Standings
         case f1Circuits
         case f1CircuitImages
+        case f1RaceTiming
         case f1EnrichmentLastUpdate
         case golfEnrichment
         case golfEnrichmentLastUpdate
@@ -95,6 +96,8 @@ enum RedisEndpoint {
                 return "F1 Circuits"
             case .f1CircuitImages:
                 return "F1 Circuit Images"
+            case .f1RaceTiming:
+                return "F1 Race Timing"
             case .f1EnrichmentLastUpdate:
                 return "F1 Enrichment Last Update"
             case .golfEnrichment:
@@ -141,6 +144,8 @@ enum RedisEndpoint {
                 return "debug-F1 Circuits"
             case .f1CircuitImages:
                 return "debug-F1 Circuit Images"
+            case .f1RaceTiming:
+                return "debug-F1 Race Timing"
             case .f1EnrichmentLastUpdate:
                 return "debug-F1 Enrichment Last Update"
             case .golfEnrichment:
