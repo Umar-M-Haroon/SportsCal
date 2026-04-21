@@ -68,6 +68,13 @@ struct SportsWidgetLargeView: View {
             }
             .padding(.horizontal, 4)
 
+            // Interactive sport filter tabs (iOS only, allSports mode)
+            #if os(iOS)
+            if entry.configuration.sport == .allSports {
+                WidgetSportTabBar(compact: false)
+            }
+            #endif
+
             // Multi-game grid (2x3 = 6 games)
             if let games = entry.game, !games.isEmpty {
                 let displayGames = Array(games.prefix(6))
@@ -123,6 +130,12 @@ struct LargeCompactGameCell: View {
             && game.intHomeScore != nil && game.intAwayScore != nil
     }
 
+    private var isGameCompleted: Bool {
+        if game.isCompleted == true { return true }
+        guard let status = game.strStatus?.lowercased() else { return false }
+        return status == "ft" || status == "aet"
+    }
+
     var body: some View {
         VStack(spacing: 4) {
             // Sport icon header
@@ -132,12 +145,12 @@ struct LargeCompactGameCell: View {
                     .foregroundColor(sportType.widgetColor)
                 Spacer()
                 // Time or status
-                if let status = game.strStatus, !status.isEmpty, status != "NS" {
+                if let statusText = game.displayStatus {
                     HStack(spacing: 3) {
                         Circle()
                             .fill(Color.red)
                             .frame(width: 5, height: 5)
-                        Text(game.strProgress ?? status)
+                        Text(statusText)
                             .font(.system(size: 9))
                             .foregroundColor(.orange)
                     }
@@ -160,13 +173,32 @@ struct LargeCompactGameCell: View {
 
             // Teams row with scores
             HStack(spacing: 6) {
-                teamColumn(teamID: game.idAwayTeam, teamName: game.strAwayTeam, score: game.intAwayScore, isWinning: isAwayWinning())
+                teamColumn(teamID: game.idAwayTeam, teamName: game.strAwayTeam, score: game.intAwayScore, isWinning: isAwayWinning(), seed: game.awaySeed, record: game.awayRecord)
 
                 Text("vs")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
 
-                teamColumn(teamID: game.idHomeTeam, teamName: game.strHomeTeam, score: game.intHomeScore, isWinning: isHomeWinning())
+                teamColumn(teamID: game.idHomeTeam, teamName: game.strHomeTeam, score: game.intHomeScore, isWinning: isHomeWinning(), seed: game.homeSeed, record: game.homeRecord)
+            }
+
+            if let agg = game.aggregateScore {
+                Text(agg)
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+            }
+
+            // Line scores for completed games only (live scores would be stale)
+            if isGameCompleted, let homeLine = game.homeLinescores, let awayLine = game.awayLinescores, !homeLine.isEmpty {
+                HStack(spacing: 6) {
+                    Text(awayLine.map { "\(Int($0))" }.joined(separator: "|"))
+                        .font(.system(size: 7))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(homeLine.map { "\(Int($0))" }.joined(separator: "|"))
+                        .font(.system(size: 7))
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .padding(6)
@@ -176,7 +208,7 @@ struct LargeCompactGameCell: View {
     }
 
     @ViewBuilder
-    private func teamColumn(teamID: String?, teamName: String, score: String?, isWinning: Bool) -> some View {
+    private func teamColumn(teamID: String?, teamName: String, score: String?, isWinning: Bool, seed: Int? = nil, record: String? = nil) -> some View {
         VStack(spacing: 2) {
             if let id = teamID, let data = images?[id], let image = widgetImage(from: data) {
                 image
@@ -191,9 +223,22 @@ struct LargeCompactGameCell: View {
                     .foregroundColor(.secondary)
             }
 
-            Text(getTeamAbbrev(teamID: teamID, teamName: teamName))
-                .font(.system(size: 11, weight: .medium))
-                .lineLimit(1)
+            HStack(spacing: 1) {
+                if let seed {
+                    Text("(\(seed))")
+                        .font(.system(size: 8))
+                        .foregroundColor(.secondary)
+                }
+                Text(getTeamAbbrev(teamID: teamID, teamName: teamName))
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+            }
+
+            if let record, !record.isEmpty {
+                Text(record)
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+            }
 
             if let scoreStr = score, let scoreInt = Int(scoreStr) {
                 Text("\(scoreInt)")
@@ -204,8 +249,7 @@ struct LargeCompactGameCell: View {
     }
 
     private func getTeamAbbrev(teamID: String?, teamName: String) -> String {
-        if let id = teamID,
-           let team = Team.getTeamInfoFrom(teams: teams, teamID: id),
+        if let team = Team.getTeamInfoFrom(teams: teams, teamID: teamID, teamName: teamName),
            let shortName = team.strTeamShort {
             return shortName
         }

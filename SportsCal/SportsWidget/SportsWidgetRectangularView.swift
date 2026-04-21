@@ -33,8 +33,8 @@ struct SportsWidgetRectangularView: View {
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
-                    if let progress = game.strProgress {
-                        Text(progress)
+                    if let statusText = game.displayStatus {
+                        Text(statusText)
                             .font(.system(size: 10, weight: .semibold))
                     } else if let date = game.standardDate {
                         Text(date.formatted(date: .abbreviated, time: .shortened))
@@ -62,7 +62,7 @@ struct SportsWidgetRectangularView: View {
                     if let next = entry.game?.dropFirst().first, !isLive(next) {
                         nextGameLine(next)
                     }
-                } else if let homeTeamID = game.idHomeTeam, let homeTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: homeTeamID), let awayTeamID = game.idAwayTeam, let awayTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: awayTeamID) {
+                } else if let homeTeamID = game.idHomeTeam, let homeTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: homeTeamID, teamName: game.strHomeTeam), let awayTeamID = game.idAwayTeam, let awayTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: awayTeamID, teamName: game.strAwayTeam) {
                     RectangularWidgetTeamView(longName: awayTeam.strTeam, isAway: true, data: entry.images?[awayTeamID])
                     RectangularWidgetTeamView(longName: homeTeam.strTeam, isAway: false, data: entry.images?[homeTeamID])
                     if let date = game.standardDate {
@@ -102,8 +102,7 @@ struct SportsWidgetRectangularView: View {
     }
 
     private func abbreviation(teamID: String?, name: String) -> String {
-        if let id = teamID,
-           let team = Team.getTeamInfoFrom(teams: entry.teams, teamID: id),
+        if let team = Team.getTeamInfoFrom(teams: entry.teams, teamID: teamID, teamName: name),
            let short = team.strTeamShort {
             return short
         }

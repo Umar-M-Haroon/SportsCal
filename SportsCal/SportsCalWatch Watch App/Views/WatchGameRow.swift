@@ -63,7 +63,7 @@ struct WatchGameRow: View {
                 Text(game.intHomeScore ?? "0")
                     .font(.system(size: 13, weight: .semibold))
             }
-            if let progress = game.strProgress ?? game.strStatus {
+            if let progress = game.displayStatus {
                 Text(progress)
                     .font(.system(size: 10))
                     .foregroundStyle(.green)
@@ -132,8 +132,7 @@ struct WatchGameRow: View {
     }
 
     private func abbreviation(teamID: String?, name: String) -> String {
-        if let id = teamID,
-           let team = Team.getTeamInfoFrom(teams: teams, teamID: id),
+        if let team = Team.getTeamInfoFrom(teams: teams, teamID: teamID, teamName: name),
            let short = team.strTeamShort {
             return short
         }

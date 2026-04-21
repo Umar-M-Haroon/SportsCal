@@ -52,12 +52,12 @@ struct RaceScoreView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                if game.circuitInfo != nil && game.strProgress != nil {
+                if game.circuitInfo != nil && game.displayStatus != nil {
                     Text("·")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                if let progress = game.strProgress {
+                if let progress = game.displayStatus {
                     Text(progress)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
@@ -105,7 +105,7 @@ struct RaceScoreView: View {
                     }
                 }
             } else if let date = game.standardDate {
-                Text(date.formatted(.dateTime.weekday(.wide).month().day().hour().minute()))
+                GameTimeLabel(date: date, includeDate: true)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }

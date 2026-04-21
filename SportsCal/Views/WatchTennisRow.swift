@@ -18,7 +18,7 @@ struct WatchTennisRow: View {
                     Image(systemName: "tennis.racket")
                         .font(.system(size: 12))
                         .foregroundStyle(.yellow)
-                    if let progress = game.strProgress ?? game.strStatus {
+                    if let progress = game.displayStatus {
                         Text(progress)
                             .font(.system(size: 10))
                             .foregroundStyle(isLive ? .green : .secondary)

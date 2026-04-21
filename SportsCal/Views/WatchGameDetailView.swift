@@ -127,7 +127,7 @@ struct WatchGameDetailView: View {
                 }
                 Spacer()
                 VStack(spacing: 2) {
-                    if let progress = game.strProgress ?? game.strStatus {
+                    if let progress = game.displayStatus {
                         Text(progress)
                             .font(.system(size: 11))
                             .foregroundStyle(isLive ? .green : .secondary)
@@ -287,8 +287,7 @@ struct WatchGameDetailView: View {
     }
 
     private func abbreviation(teamID: String?, name: String) -> String {
-        if let id = teamID,
-           let team = Team.getTeamInfoFrom(teams: teams, teamID: id),
+        if let team = Team.getTeamInfoFrom(teams: teams, teamID: teamID, teamName: name),
            let short = team.strTeamShort {
             return short
         }

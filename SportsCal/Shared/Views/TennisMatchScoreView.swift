@@ -40,7 +40,7 @@ struct TennisMatchScoreView: View {
                     Image(systemName: sport.systemImage)
                         .foregroundColor(sport.color)
                 }
-                if let progress = game.strProgress {
+                if let progress = game.displayStatus {
                     Text(progress)
                         .font(.caption)
                         .foregroundColor(.secondary)

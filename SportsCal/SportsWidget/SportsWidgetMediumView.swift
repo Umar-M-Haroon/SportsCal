@@ -69,6 +69,13 @@ struct SportsWidgetMediumView: View {
             }
             .padding(.horizontal, 4)
 
+            // Interactive sport filter tabs (iOS only, allSports mode)
+            #if os(iOS)
+            if entry.configuration.sport == .allSports {
+                WidgetSportTabBar(compact: true)
+            }
+            #endif
+
             // Compact multi-game grid (2x2 = 4 games)
             if let games = entry.game, !games.isEmpty {
                 let displayGames = Array(games.prefix(4))
@@ -134,18 +141,18 @@ struct CompactGameCell: View {
             VStack(alignment: .leading, spacing: 2) {
                 // Teams row
                 HStack(spacing: 4) {
-                    compactTeamView(teamID: game.idAwayTeam, teamName: game.strAwayTeam, score: game.intAwayScore)
+                    compactTeamView(teamID: game.idAwayTeam, teamName: game.strAwayTeam, score: game.intAwayScore, seed: game.awaySeed, record: game.awayRecord)
                     Text("@")
                         .font(.system(size: 8))
                         .foregroundColor(.secondary)
-                    compactTeamView(teamID: game.idHomeTeam, teamName: game.strHomeTeam, score: game.intHomeScore)
+                    compactTeamView(teamID: game.idHomeTeam, teamName: game.strHomeTeam, score: game.intHomeScore, seed: game.homeSeed, record: game.homeRecord)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 // Time or status + follow button
                 HStack(spacing: 4) {
-                    if let status = game.strStatus, !status.isEmpty, status != "NS" {
-                        Text(game.strProgress ?? status)
+                    if let statusText = game.displayStatus {
+                        Text(statusText)
                             .font(.system(size: 9))
                             .foregroundColor(.orange)
                     } else if let gameDate = game.standardDate {
@@ -165,6 +172,12 @@ struct CompactGameCell: View {
                     }
                     #endif
                 }
+
+                if let agg = game.aggregateScore {
+                    Text(agg)
+                        .font(.system(size: 8))
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .padding(4)
@@ -174,7 +187,7 @@ struct CompactGameCell: View {
     }
 
     @ViewBuilder
-    private func compactTeamView(teamID: String?, teamName: String, score: String?) -> some View {
+    private func compactTeamView(teamID: String?, teamName: String, score: String?, seed: Int? = nil, record: String? = nil) -> some View {
         HStack(spacing: 2) {
             if let id = teamID, let data = images?[id], let image = widgetImage(from: data) {
                 image
@@ -183,9 +196,21 @@ struct CompactGameCell: View {
                     .frame(width: 12, height: 12)
             }
 
+            if let seed {
+                Text("(\(seed))")
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+            }
+
             Text(getTeamAbbrev(teamID: teamID, teamName: teamName))
                 .font(.system(size: 10, weight: .medium))
                 .lineLimit(1)
+
+            if let record, !record.isEmpty {
+                Text(record)
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+            }
 
             if let scoreStr = score, let scoreInt = Int(scoreStr) {
                 Text("\(scoreInt)")
@@ -195,8 +220,7 @@ struct CompactGameCell: View {
     }
 
     private func getTeamAbbrev(teamID: String?, teamName: String) -> String {
-        if let id = teamID,
-           let team = Team.getTeamInfoFrom(teams: teams, teamID: id),
+        if let team = Team.getTeamInfoFrom(teams: teams, teamID: teamID, teamName: teamName),
            let shortName = team.strTeamShort {
             return shortName
         }

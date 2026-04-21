@@ -62,8 +62,8 @@ struct WidgetTournamentCell: View {
 
     @ViewBuilder
     private var statusView: some View {
-        if let status = game.strStatus, !status.isEmpty, status != "NS" {
-            Text(game.strProgress ?? status)
+        if let statusText = game.displayStatus {
+            Text(statusText)
                 .font(.system(size: compact ? 8 : 9))
                 .foregroundColor(.orange)
         } else if let gameDate = game.standardDate {

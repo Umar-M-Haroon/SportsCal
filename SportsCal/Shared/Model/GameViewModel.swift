@@ -179,12 +179,13 @@ public class GameViewModel: NSObject {
         if appStorage.shouldShowMLB, let events = currentLiveInfo?.mlb?.events, !events.isEmpty {
             sports.append(.mlb)
         }
-        if appStorage.shouldShowNBA, let events = currentLiveInfo?.nba?.events, !events.isEmpty {
+        if (appStorage.shouldShowNBA || appStorage.shouldShowWNBA), let events = currentLiveInfo?.nba?.events, !events.isEmpty {
             let filtered = events.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
-                return league.isBasketball && !appStorage.hiddenCompetitions.contains(league.leagueName)
+                if !league.isBasketball || appStorage.hiddenCompetitions.contains(league.leagueName) { return false }
+                return league == .wnba ? appStorage.shouldShowWNBA : appStorage.shouldShowNBA
             }
             if !filtered.isEmpty { sports.append(.basketball) }
         }
@@ -377,7 +378,7 @@ public class GameViewModel: NSObject {
                 return league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
             }
             if let soccerGames {
-                games.append(contentsOf: soccerGames)
+                games.append(contentsOf: applyFavoritesFilter(soccerGames, favoritesOnly: appStorage.favoritesOnlySoccer))
             }
         }
         if appStorage.shouldShowMLB {
@@ -389,10 +390,10 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let baseballGames {
-                games.append(contentsOf: baseballGames)
+                games.append(contentsOf: applyFavoritesFilter(baseballGames, favoritesOnly: appStorage.favoritesOnlyMLB))
             }
         }
-        if appStorage.shouldShowNBA {
+        if appStorage.shouldShowNBA || appStorage.shouldShowWNBA {
             var basketballGames = currentLiveInfo?.nba?.events
             basketballGames?.removeAll(where: { game in
                 guard let leagueString = game.idLeague,
@@ -400,10 +401,11 @@ public class GameViewModel: NSObject {
                       let league = Leagues(rawValue: intLeague) else {
                     return true
                 }
-                return !league.isBasketball || appStorage.hiddenCompetitions.contains(league.leagueName)
+                if !league.isBasketball || appStorage.hiddenCompetitions.contains(league.leagueName) { return true }
+                return league == .wnba ? !appStorage.shouldShowWNBA : !appStorage.shouldShowNBA
             })
             if let basketballGames {
-                games.append(contentsOf: basketballGames)
+                games.append(contentsOf: applyFavoritesFilter(basketballGames, favoritesOnly: appStorage.favoritesOnlyNBA))
             }
         }
         if appStorage.shouldShowNFL {
@@ -415,7 +417,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let nflGames {
-                games.append(contentsOf: nflGames)
+                games.append(contentsOf: applyFavoritesFilter(nflGames, favoritesOnly: appStorage.favoritesOnlyNFL))
             }
         }
         if appStorage.shouldShowNHL {
@@ -427,7 +429,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let nhlGames {
-                games.append(contentsOf: nhlGames)
+                games.append(contentsOf: applyFavoritesFilter(nhlGames, favoritesOnly: appStorage.favoritesOnlyNHL))
             }
         }
         if appStorage.shouldShowGolf {
@@ -439,7 +441,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let golfGames {
-                games.append(contentsOf: golfGames)
+                games.append(contentsOf: applyFavoritesFilter(golfGames, favoritesOnly: appStorage.favoritesOnlyGolf))
             }
         }
         if appStorage.shouldShowTennis {
@@ -451,7 +453,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let tennisGames {
-                games.append(contentsOf: tennisGames)
+                games.append(contentsOf: applyFavoritesFilter(tennisGames, favoritesOnly: appStorage.favoritesOnlyTennis))
             }
         }
         if appStorage.shouldShowRacing {
@@ -463,7 +465,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let racingGames {
-                games.append(contentsOf: racingGames)
+                games.append(contentsOf: applyFavoritesFilter(racingGames, favoritesOnly: appStorage.favoritesOnlyRacing))
             }
         }
         return Array(OrderedSet(games))
@@ -960,13 +962,14 @@ public class GameViewModel: NSObject {
             let games = gamesDict[.mlb] ?? []
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyMLB))
         }
-        if appStorage.shouldShowNBA {
+        if appStorage.shouldShowNBA || appStorage.shouldShowWNBA {
             if let basketballGames = gamesDict[.basketball] {
                 let filtered = basketballGames.filter { game in
                     guard let leagueString = game.idLeague,
                           let intLeague = Int(leagueString),
                           let league = Leagues(rawValue: intLeague) else { return false }
-                    return league.isBasketball && !appStorage.hiddenCompetitions.contains(league.leagueName)
+                    if !league.isBasketball || appStorage.hiddenCompetitions.contains(league.leagueName) { return false }
+                    return league == .wnba ? appStorage.shouldShowWNBA : appStorage.shouldShowNBA
                 }
                 allGames.append(contentsOf: applyFavoritesFilter(filtered, favoritesOnly: appStorage.favoritesOnlyNBA))
             }

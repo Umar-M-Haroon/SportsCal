@@ -51,10 +51,12 @@ struct RaceDetailView: View {
                 if hasSessions {
                     gapRibbonSection
                     sessionLeaderboard
+                    raceTimingSection
                     weekendSchedule
                 } else {
                     gapRibbonSection
                     legacyLeaderboard
+                    raceTimingSection
                 }
                 standingsSection
             }
@@ -138,7 +140,7 @@ struct RaceDetailView: View {
                 }
             }
 
-            if let progress = game.strProgress {
+            if let progress = game.displayStatus {
                 Text(progress)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -232,7 +234,7 @@ struct RaceDetailView: View {
                 .foregroundColor(.secondary)
             Spacer()
             if let date = game.standardDate {
-                Text(date.formatted(.dateTime.month().day().year().hour().minute()))
+                GameTimeLabel(date: date, includeDate: true)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -437,7 +439,7 @@ struct RaceDetailView: View {
                             Text(session.sessionName)
                                 .font(.subheadline)
                             if let sessionDate = parseSessionDate(session.date) {
-                                Text(sessionDate.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute()))
+                                GameTimeLabel(date: sessionDate, includeDate: true)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -569,6 +571,102 @@ struct RaceDetailView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Race Timing (laps / tires / pit stops)
+    @ViewBuilder
+    private var raceTimingSection: some View {
+        if let timing = game.raceTiming, !timing.drivers.isEmpty {
+            let leaders = Array(timing.drivers.prefix(10))
+            let maxLap = timing.drivers.map { $0.totalLaps }.max() ?? 0
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("\(timing.sessionType) Pace")
+                        .font(.headline)
+                    Spacer()
+                    if let fastest = timing.drivers.compactMap({ $0.fastestLapTime }).min() {
+                        Text("Fastest: \(formatLapTime(fastest))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                VStack(spacing: 10) {
+                    ForEach(leaders, id: \.driverNumber) { driver in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                Text(driver.nameAcronym.isEmpty ? driver.name : driver.nameAcronym)
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .frame(width: 44, alignment: .leading)
+                                if let fastest = driver.fastestLapTime {
+                                    Text(formatLapTime(fastest))
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 64, alignment: .leading)
+                                }
+                                Text("\(driver.pitStops.count) stop\(driver.pitStops.count == 1 ? "" : "s")")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("\(driver.totalLaps) laps")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            stintBar(stints: driver.stints, maxLap: maxLap)
+                        }
+                    }
+                }
+
+                if timing.drivers.count > leaders.count {
+                    Text("+\(timing.drivers.count - leaders.count) more drivers")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding()
+            .background(Color.secondaryGroupedBackground)
+            .cornerRadius(12)
+        }
+    }
+
+    @ViewBuilder
+    private func stintBar(stints: [F1Stint], maxLap: Int) -> some View {
+        GeometryReader { geo in
+            HStack(spacing: 1) {
+                ForEach(stints, id: \.stintNumber) { stint in
+                    let laps = max(0, stint.lapEnd - stint.lapStart + 1)
+                    let width = maxLap > 0 ? geo.size.width * CGFloat(laps) / CGFloat(maxLap) : 0
+                    Rectangle()
+                        .fill(tireColor(stint.compound))
+                        .frame(width: width, height: 8)
+                        .overlay(
+                            Text(stint.compound.prefix(1))
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(.white)
+                        )
+                }
+            }
+        }
+        .frame(height: 8)
+        .cornerRadius(2)
+    }
+
+    private func tireColor(_ compound: String) -> Color {
+        switch compound.uppercased() {
+        case "SOFT": return .red
+        case "MEDIUM": return .yellow
+        case "HARD": return Color(white: 0.85)
+        case "INTERMEDIATE": return .green
+        case "WET": return .blue
+        default: return .gray
+        }
+    }
+
+    private func formatLapTime(_ seconds: Double) -> String {
+        let mins = Int(seconds) / 60
+        let secs = seconds.truncatingRemainder(dividingBy: 60)
+        return String(format: "%d:%06.3f", mins, secs)
     }
 
     // MARK: - Championship Standings

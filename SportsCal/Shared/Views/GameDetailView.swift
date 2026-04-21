@@ -32,6 +32,10 @@ struct GameDetailView: View {
     @State private var standingsLoading = true
     @State private var standingsErrorMessage: String?
 
+    @State private var plays: [Play] = []
+    @State private var playsLoading = false
+    @State private var playsAvailable = true
+
     private var league: Leagues? {
         guard let id = game.idLeague, let intID = Int(id) else { return nil }
         return Leagues(rawValue: intID)
@@ -53,6 +57,7 @@ struct GameDetailView: View {
                 boxScoreSection
                 momentumChartSection
                 keyPlayersSection
+                playByPlaySection
                 injuriesSection
                 headToHeadSection
                 #if os(iOS)
@@ -69,6 +74,12 @@ struct GameDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .refreshable {
+            if let eventID = game.idEvent, supportsPlayByPlay {
+                await loadPlays(eventID: eventID)
+            }
+            await loadStandings()
+        }
         .task {
             await loadStandings()
             if !game.isIndividualSport,
@@ -117,8 +128,8 @@ struct GameDetailView: View {
                     .frame(maxWidth: .infinity)
             }
 
-            if let progress = game.strProgress {
-                Text(progress)
+            if let statusText = game.displayStatus {
+                Text(statusText)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -159,8 +170,8 @@ struct GameDetailView: View {
                         .font(.system(size: 36, weight: home > away ? .heavy : .regular))
                         .foregroundColor(home > away ? .primary : .secondary)
                 }
-                if let status = game.strStatus {
-                    Text(status)
+                if let statusText = game.displayStatus {
+                    Text(statusText)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -175,7 +186,7 @@ struct GameDetailView: View {
                     .fontWeight(.semibold)
             }
         } else {
-            Text(game.strStatus ?? "TBD")
+            Text(game.displayStatus ?? "TBD")
                 .font(.headline)
                 .foregroundColor(.secondary)
         }
@@ -535,7 +546,8 @@ struct GameDetailView: View {
             MomentumChartView(
                 game: game,
                 homeTeamName: homeTeam.strTeamShort ?? homeTeam.strTeam ?? game.strHomeTeam,
-                awayTeamName: awayTeam.strTeamShort ?? awayTeam.strTeam ?? game.strAwayTeam
+                awayTeamName: awayTeam.strTeamShort ?? awayTeam.strTeam ?? game.strAwayTeam,
+                plays: plays
             )
         }
     }
@@ -935,6 +947,162 @@ struct GameDetailView: View {
         return CalendarRepresentable(eventStore: eventStore, event: event)
     }
     #endif
+
+    // MARK: - Play-by-Play
+
+    private var supportsPlayByPlay: Bool {
+        switch sportType {
+        case .basketball, .nfl, .hockey, .mlb: return true
+        default: return false
+        }
+    }
+
+    @ViewBuilder
+    private var playByPlaySection: some View {
+        if supportsPlayByPlay, let eventID = game.idEvent {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Play-by-Play")
+                        .font(.headline)
+                    Spacer()
+                    if playsLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else if !plays.isEmpty {
+                        Text("\(plays.count) plays")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                if !playsAvailable && plays.isEmpty {
+                    Text("Play-by-play not available yet")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 8)
+                } else if plays.isEmpty && !playsLoading {
+                    Text("Loading plays…")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 8)
+                } else {
+                    LazyVStack(alignment: .leading, spacing: 8) {
+                        ForEach(Array(plays.reversed().prefix(50).enumerated()), id: \.offset) { _, play in
+                            playRow(play)
+                        }
+                        if plays.count > 50 {
+                            Text("Showing latest 50 of \(plays.count) plays")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.top, 4)
+                        }
+                    }
+                }
+            }
+            .padding()
+            .background(Color.secondaryGroupedBackground)
+            .cornerRadius(12)
+            .task(id: eventID) {
+                await loadPlays(eventID: eventID)
+            }
+            .onChange(of: game.lastPlay) { _, _ in
+                Task { await loadPlays(eventID: eventID) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func playRow(_ play: Play) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                if let period = play.period?.number {
+                    Text(periodAbbreviation(period))
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                }
+                if let clockText = play.clock?.displayValue, !clockText.isEmpty {
+                    Text(clockText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                }
+            }
+            .frame(width: 44, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 2) {
+                if let text = play.text {
+                    Text(text)
+                        .font(.caption)
+                        .foregroundColor(play.scoringPlay == true ? .primary : .secondary)
+                        .fontWeight(play.scoringPlay == true ? .semibold : .regular)
+                }
+                if play.scoringPlay == true,
+                   let away = play.awayScore, let home = play.homeScore {
+                    Text("\(away) – \(home)")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.accentColor)
+                        .monospacedDigit()
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func periodAbbreviation(_ period: Int) -> String {
+        switch sportType {
+        case .basketball, .nfl: return "Q\(period)"
+        case .hockey: return period > 3 ? (period == 4 ? "OT" : "SO") : "P\(period)"
+        case .mlb: return "\(period)"
+        default: return "\(period)"
+        }
+    }
+
+    private func loadPlays(eventID: String) async {
+        playsLoading = true
+        defer { playsLoading = false }
+        do {
+            let cached = try await NetworkHandler.fetchPlayByPlay(
+                eventID: eventID,
+                sport: pbpSportPath,
+                league: pbpLeagueSlug,
+                debug: viewModel.appStorage.debugMode
+            )
+            plays = cached.plays
+            playsAvailable = true
+        } catch is NetworkHandler.PlayByPlayNotAvailable {
+            plays = []
+            playsAvailable = false
+        } catch {
+            // Silent failure — keep any plays we already have.
+            playsAvailable = plays.isEmpty == false
+        }
+    }
+
+    private var pbpSportPath: String? {
+        switch sportType {
+        case .basketball: return "basketball"
+        case .nfl:        return "football"
+        case .hockey:     return "hockey"
+        case .mlb:        return "baseball"
+        default:          return nil
+        }
+    }
+
+    private var pbpLeagueSlug: String? {
+        switch sportType {
+        case .basketball: return "nba"
+        case .nfl:        return "nfl"
+        case .hockey:     return "nhl"
+        case .mlb:        return "mlb"
+        default:          return nil
+        }
+    }
 
     private func loadStandings() async {
         guard !game.isIndividualSport else {

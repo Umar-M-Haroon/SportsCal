@@ -75,7 +75,7 @@ struct MenuBarLabel: View {
                 }
             }
 
-            if let progress = game.strProgress {
+            if let progress = game.displayStatus {
                 Text(progress)
                     .font(.caption2)
                     .foregroundStyle(.secondary)

@@ -27,7 +27,7 @@ struct WatchRaceDetailView: View {
                     Text(game.strHomeTeam)
                         .font(.system(size: 14, weight: .semibold))
                         .multilineTextAlignment(.center)
-                    if let progress = game.strProgress ?? game.strStatus {
+                    if let progress = game.displayStatus {
                         Text(progress)
                             .font(.system(size: 11))
                             .foregroundStyle(isLive ? .green : .secondary)

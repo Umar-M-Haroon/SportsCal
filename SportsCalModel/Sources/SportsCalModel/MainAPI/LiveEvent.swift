@@ -152,13 +152,17 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     )
                 }
 
+                // ESPN's shortDetail for pre-game is a hardcoded "M/d - h:mm a TZ" in
+                // Eastern Time — useless on-device since we format standardDate locally.
+                let eventState = event.status?.type.state
+                let progressDetail = eventState == "pre" ? nil : event.status?.type.shortDetail
                 return [Game(
                     idLiveScore: event.id, idEvent: event.id, strSport: sportType.rawValue,
                     idLeague: leagueID, idHomeTeam: homeTeam.id, idAwayTeam: awayTeam.id,
                     strHomeTeam: homeTeam.displayName, strAwayTeam: awayTeam.displayName,
                     strHomeTeamBadge: homeTeam.logo, strAwayTeamBadge: awayTeam.logo,
                     intHomeScore: home.score, intAwayScore: away.score,
-                    strStatus: event.status?.type.state, strProgress: event.status?.type.shortDetail,
+                    strStatus: eventState, strProgress: progressDetail,
                     strTimestamp: event.date,
                     lastPlay: competition.situation?.lastPlay?.text,
                     homeLinescores: hLinescores?.isEmpty == true ? nil : hLinescores,
@@ -172,7 +176,8 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     aggregateScore: aggregateScore,
                     homeSeed: homeSeed,
                     awaySeed: awaySeed,
-                    playoff: playoff
+                    playoff: playoff,
+                    lastPlayScoreboardID: competition.situation?.lastPlay?.id
                 )]
             }
 
@@ -187,14 +192,18 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         let awayName = away.athlete?.displayName ?? away.team?.displayName ?? "TBD"
                         let hLinescores = home.linescores?.compactMap { $0.value }
                         let aLinescores = away.linescores?.compactMap { $0.value }
+                        let tennisState = competition.status?.type.state ?? event.status?.type.state
+                        let tennisProgress = tennisState == "pre"
+                            ? nil
+                            : (competition.status?.type.shortDetail ?? event.status?.type.shortDetail)
                         return Game(
                             idLiveScore: competition.id, idEvent: competition.id, strSport: sportType.rawValue,
                             idLeague: leagueID, idHomeTeam: home.id, idAwayTeam: away.id,
                             strHomeTeam: homeName, strAwayTeam: awayName,
                             strHomeTeamBadge: home.athlete?.headshot, strAwayTeamBadge: away.athlete?.headshot,
                             intHomeScore: home.score, intAwayScore: away.score,
-                            strStatus: competition.status?.type.state ?? event.status?.type.state,
-                            strProgress: competition.status?.type.shortDetail ?? event.status?.type.shortDetail,
+                            strStatus: tennisState,
+                            strProgress: tennisProgress,
                             strTimestamp: competition.date,
                             homeLinescores: hLinescores?.isEmpty == true ? nil : hLinescores,
                             awayLinescores: aLinescores?.isEmpty == true ? nil : aLinescores,
@@ -249,10 +258,11 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                             gap: gap.isEmpty ? nil : gap
                         )
                     }
+                    let sessionState = competition.status?.type.state
                     return EventSession(
                         sessionType: sessionType, sessionName: sessionName,
-                        status: competition.status?.type.state,
-                        progress: competition.status?.type.shortDetail,
+                        status: sessionState,
+                        progress: sessionState == "pre" ? nil : competition.status?.type.shortDetail,
                         date: competition.date,
                         leaderboard: sessionLeaderboard
                     )
@@ -285,7 +295,6 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 }.joined(separator: "\n")
 
                 let venueName = competitions.first?.venue?.fullName
-                let progress = primarySession.progress ?? event.status?.type.shortDetail
 
                 // For F1, use the primary session status (not event-level) because ESPN
                 // marks the entire event as "post"/"completed" after each practice session.
@@ -302,6 +311,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     // Sessions have happened but race hasn't — show as upcoming
                     primaryStatus = "pre"
                 }
+                let progress = primaryStatus == "pre"
+                    ? nil
+                    : (primarySession.progress ?? event.status?.type.shortDetail)
 
                 return [Game(
                     idLiveScore: event.id, idEvent: event.id, strSport: sportType.rawValue,
@@ -324,7 +336,10 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 let leader = competition.competitors?.first
                 let leaderName = leader?.athlete?.displayName ?? "TBD"
                 let leaderScore = leader?.score
-                let progress = competition.status?.type.shortDetail ?? event.status?.type.shortDetail
+                let golfState = competition.status?.type.state ?? event.status?.type.state
+                let progress = golfState == "pre"
+                    ? nil
+                    : (competition.status?.type.shortDetail ?? event.status?.type.shortDetail)
                 let competitors = Array((competition.competitors ?? []).prefix(30))
 
                 // Extract course hole pars from the first competitor's first round hole data
@@ -562,7 +577,7 @@ public struct PlayoffContext: Codable, Equatable, Hashable {
 
 // MARK: - Event
 public struct Game: Identifiable, Equatable, Hashable {
-    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, playoff: PlayoffContext? = nil) {
+    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil) {
         self.idLiveScore = idLiveScore
         self.idEvent = idEvent
         self._strSport = strSport
@@ -601,7 +616,9 @@ public struct Game: Identifiable, Equatable, Hashable {
         self.tournamentName = tournamentName
         self.homeInjuries = homeInjuries
         self.awayInjuries = awayInjuries
+        self.raceTiming = raceTiming
         self.playoff = playoff
+        self.lastPlayScoreboardID = lastPlayScoreboardID
         // Pre-compute date from strTimestamp if isoDate not provided
         if let isoDate {
             self.isoDate = isoDate
@@ -663,7 +680,13 @@ public struct Game: Identifiable, Equatable, Hashable {
     public let tournamentName: String?
     public let homeInjuries: [InjuryReport]?
     public let awayInjuries: [InjuryReport]?
+    public let raceTiming: F1RaceTiming?
     public let playoff: PlayoffContext?
+
+    /// Transient scoreboard play ID (`competition.situation.lastPlay.id`) used server-side to
+    /// decide when to re-fetch play-by-play from ESPN's summary endpoint. Not persisted to Redis
+    /// or sent to clients — absent from Codable keys on purpose.
+    public let lastPlayScoreboardID: String?
 
     // MARK: - Computed Properties (derived from idLeague)
     // Private storage for backward compatibility when decoding old data
@@ -701,6 +724,7 @@ extension Game: Codable {
         case circuitInfo, golfCourseInfo, legDisplay, aggregateScore
         case homeSeed, awaySeed, tournamentName
         case homeInjuries, awayInjuries
+        case raceTiming
         case playoff
         // Computed properties - decoded for backward compatibility, not encoded
         case strSport, strLeague
@@ -756,7 +780,10 @@ extension Game: Codable {
         tournamentName = try container.decodeIfPresent(String.self, forKey: .tournamentName)
         homeInjuries = try container.decodeIfPresent([InjuryReport].self, forKey: .homeInjuries)
         awayInjuries = try container.decodeIfPresent([InjuryReport].self, forKey: .awayInjuries)
+        raceTiming = try container.decodeIfPresent(F1RaceTiming.self, forKey: .raceTiming)
         playoff = try container.decodeIfPresent(PlayoffContext.self, forKey: .playoff)
+        // Transient server-side field, not persisted
+        lastPlayScoreboardID = nil
         // Decode for backward compatibility with old cached data
         _strSport = try container.decodeIfPresent(String.self, forKey: .strSport)
         _strLeague = try container.decodeIfPresent(String.self, forKey: .strLeague)
@@ -823,6 +850,7 @@ extension Game: Codable {
         try container.encodeIfPresent(tournamentName, forKey: .tournamentName)
         try container.encodeIfPresent(homeInjuries, forKey: .homeInjuries)
         try container.encodeIfPresent(awayInjuries, forKey: .awayInjuries)
+        try container.encodeIfPresent(raceTiming, forKey: .raceTiming)
         try container.encodeIfPresent(playoff, forKey: .playoff)
         // Note: strSport and strLeague are not encoded - they're computed from idLeague
         // Deprecated fields are not encoded: strPlayer, idPlayer, intEventScore,

@@ -17,6 +17,8 @@ struct WatchGameDetailView: View {
 
     @State private var isTracking = false
     @State private var crownOffset: Double = 0
+    @State private var plays: [Play] = []
+    @State private var playsAvailable = true
 
     var body: some View {
         ScrollView {
@@ -62,6 +64,11 @@ struct WatchGameDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
+                // Play-by-Play (latest 10 plays for NBA/NFL/NHL/MLB)
+                if supportsPlayByPlay, !plays.isEmpty {
+                    playByPlayCompact
+                }
+
                 // Stat Leaders
                 if let homeLeaders = game.homeLeaders, let awayLeaders = game.awayLeaders {
                     leadersView(homeLeaders: homeLeaders, awayLeaders: awayLeaders)
@@ -97,6 +104,88 @@ struct WatchGameDetailView: View {
                 isTracking = ids.contains(eventID)
             }
         }
+        .task(id: game.idEvent) {
+            await loadPlays()
+        }
+        .onChange(of: game.lastPlay) { _, _ in
+            Task { await loadPlays() }
+        }
+    }
+
+    // MARK: - Play-by-Play
+
+    private var supportsPlayByPlay: Bool {
+        switch game.sportType {
+        case .basketball, .nfl, .hockey, .mlb: return true
+        default: return false
+        }
+    }
+
+    @ViewBuilder
+    private var playByPlayCompact: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Play-by-Play")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+            ForEach(Array(plays.reversed().prefix(10).enumerated()), id: \.offset) { _, play in
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
+                        if let period = play.period?.number {
+                            Text(periodAbbreviation(period))
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        if let clock = play.clock?.displayValue, !clock.isEmpty {
+                            Text(clock)
+                                .font(.system(size: 8, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if let text = play.text {
+                        Text(text)
+                            .font(.system(size: 10))
+                            .lineLimit(2)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func periodAbbreviation(_ period: Int) -> String {
+        switch game.sportType {
+        case .basketball, .nfl: return "Q\(period)"
+        case .hockey: return period > 3 ? (period == 4 ? "OT" : "SO") : "P\(period)"
+        case .mlb: return "\(period)"
+        default: return "\(period)"
+        }
+    }
+
+    private func loadPlays() async {
+        guard supportsPlayByPlay, let eventID = game.idEvent else { return }
+        let sportPath: String?
+        let leagueSlug: String?
+        switch game.sportType {
+        case .basketball: (sportPath, leagueSlug) = ("basketball", "nba")
+        case .nfl:        (sportPath, leagueSlug) = ("football", "nfl")
+        case .hockey:     (sportPath, leagueSlug) = ("hockey", "nhl")
+        case .mlb:        (sportPath, leagueSlug) = ("baseball", "mlb")
+        default:          (sportPath, leagueSlug) = (nil, nil)
+        }
+        do {
+            let cached = try await NetworkHandler.fetchPlayByPlay(
+                eventID: eventID,
+                sport: sportPath,
+                league: leagueSlug
+            )
+            plays = cached.plays
+            playsAvailable = true
+        } catch is NetworkHandler.PlayByPlayNotAvailable {
+            plays = []
+            playsAvailable = false
+        } catch {
+            // Keep any existing plays
+        }
     }
 
     private func toggleTracking() {
@@ -127,7 +216,7 @@ struct WatchGameDetailView: View {
                 }
                 Spacer()
                 VStack(spacing: 2) {
-                    if let progress = game.strProgress ?? game.strStatus {
+                    if let progress = game.displayStatus {
                         Text(progress)
                             .font(.system(size: 11))
                             .foregroundStyle(isLive ? .green : .secondary)
@@ -287,8 +376,7 @@ struct WatchGameDetailView: View {
     }
 
     private func abbreviation(teamID: String?, name: String) -> String {
-        if let id = teamID,
-           let team = Team.getTeamInfoFrom(teams: teams, teamID: id),
+        if let team = Team.getTeamInfoFrom(teams: teams, teamID: teamID, teamName: name),
            let short = team.strTeamShort {
             return short
         }

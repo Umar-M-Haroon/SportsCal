@@ -84,6 +84,7 @@ struct SportsWidgetInlineView: View {
         if let gameDate = game.standardDate {
             let formatter = DateFormatter()
             formatter.dateFormat = "h:mm a"
+            formatter.timeZone = .current
             timeString = " \(formatter.string(from: gameDate))"
         }
         return "\(game.strHomeTeam)\(timeString)"
@@ -118,6 +119,7 @@ struct SportsWidgetInlineView: View {
         if let gameDate = game.standardDate {
             let formatter = DateFormatter()
             formatter.dateFormat = "h:mm a"
+            formatter.timeZone = .current
             timeString = formatter.string(from: gameDate)
         }
 
@@ -125,8 +127,7 @@ struct SportsWidgetInlineView: View {
     }
 
     private func getTeamAbbreviation(teamID: String?, teamName: String) -> String {
-        if let id = teamID,
-           let team = Team.getTeamInfoFrom(teams: entry.teams, teamID: id),
+        if let team = Team.getTeamInfoFrom(teams: entry.teams, teamID: teamID, teamName: teamName),
            let shortName = team.strTeamShort {
             return shortName
         }

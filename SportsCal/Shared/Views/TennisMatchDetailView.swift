@@ -120,8 +120,8 @@ struct TennisMatchDetailView: View {
                             .font(.system(size: 32, weight: awayWinsSets > homeWinsSets ? .heavy : .regular))
                             .foregroundColor(awayWinsSets > homeWinsSets ? .primary : .secondary)
                     }
-                    if let status = game.strStatus {
-                        Text(status)
+                    if let statusText = game.displayStatus {
+                        Text(statusText)
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -136,7 +136,7 @@ struct TennisMatchDetailView: View {
                 .frame(maxWidth: .infinity)
             }
 
-            if let progress = game.strProgress {
+            if let progress = game.displayStatus {
                 Text(progress)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -161,7 +161,7 @@ struct TennisMatchDetailView: View {
             }
             Spacer()
             if let date = game.standardDate {
-                Text(date.formatted(.dateTime.month().day().year().hour().minute()))
+                GameTimeLabel(date: date, includeDate: true)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

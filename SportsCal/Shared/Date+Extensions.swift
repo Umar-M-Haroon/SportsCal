@@ -50,11 +50,13 @@ extension Date{
     func formatToTime() -> String {
         DateFormatters.dateFormatter.dateStyle = .none
         DateFormatters.dateFormatter.timeStyle = .short
+        DateFormatters.dateFormatter.timeZone = .current
         return DateFormatters.dateFormatter.string(from: self)
     }
-    
+
     func formatToDate(dateFormat: String) -> String? {
         DateFormatters.dateFormatter.dateFormat = dateFormat
+        DateFormatters.dateFormatter.timeZone = .current
         return DateFormatters.dateFormatter.string(from: self)
     }
     

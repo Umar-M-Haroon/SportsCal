@@ -122,7 +122,7 @@ struct TournamentDetailView: View {
                 }
             }
 
-            if let progress = game.strProgress {
+            if let progress = game.displayStatus {
                 Text(progress)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
