@@ -879,10 +879,53 @@ struct AdminController: RouteCollection {
                 message: "GolfEnrichmentJob executed successfully. Golf course info and round details enriched.",
                 jobName: jobName
             )
+        case "F1EnrichmentJob":
+            let context = QueueContext(
+                queueName: .default,
+                configuration: .init(),
+                application: req.application,
+                logger: req.logger,
+                on: req.eventLoop
+            )
+
+            let isDebug = req.application.environment == .development
+            let lastUpdateKey = RedisEndpoint.ESPN.f1EnrichmentLastUpdate.getValue(isDebug: isDebug)
+            _ = try? await req.redis.delete(lastUpdateKey)
+
+            let job = F1EnrichmentJob()
+            try await job.run(context: context)
+
+            return TriggerJobResponse(
+                success: true,
+                message: "F1EnrichmentJob executed successfully. Standings, circuits, and race timing refreshed.",
+                jobName: jobName
+            )
+        case "InjuriesEnrichmentJob":
+            let context = QueueContext(
+                queueName: .default,
+                configuration: .init(),
+                application: req.application,
+                logger: req.logger,
+                on: req.eventLoop
+            )
+
+            // Clear the staleness key so the job actually runs when triggered manually
+            let isDebug = req.application.environment == .development
+            let lastUpdateKey = RedisEndpoint.ESPN.injuriesLastUpdate.getValue(isDebug: isDebug)
+            _ = try? await req.redis.delete(lastUpdateKey)
+
+            let job = InjuriesEnrichmentJob()
+            try await job.run(context: context)
+
+            return TriggerJobResponse(
+                success: true,
+                message: "InjuriesEnrichmentJob executed successfully. Injury reports fetched from ESPN and attached to schedule.",
+                jobName: jobName
+            )
         default:
             return TriggerJobResponse(
                 success: false,
-                message: "Job '\(jobName)' not recognized. Available jobs: ESPNTeamFetchJob, ScheduleUpdateJob, ESPNFetchJob, GolfEnrichmentJob",
+                message: "Job '\(jobName)' not recognized. Available jobs: ESPNTeamFetchJob, ScheduleUpdateJob, ESPNFetchJob, GolfEnrichmentJob, F1EnrichmentJob, InjuriesEnrichmentJob",
                 jobName: jobName
             )
         }
