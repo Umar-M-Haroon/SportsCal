@@ -14,6 +14,7 @@ import SportsCalModel
 struct StatScatterView: View {
     let sport: SportType
     @Environment(Favorites.self) private var favorites
+    @Environment(UserDefaultStorage.self) private var storage
 
     @State private var viewModel = TeamStatsViewModel()
     @State private var selectedLeagueID: Int?
@@ -62,7 +63,7 @@ struct StatScatterView: View {
                             selectedLeagueID = newValue
                             xStat = ""
                             yStat = ""
-                            Task { await viewModel.load(leagueID: newValue) }
+                            Task { await viewModel.load(leagueID: newValue, debug: storage.debugMode) }
                         }
                     )) {
                         ForEach(leagueOptions, id: \.id) { option in
@@ -96,7 +97,7 @@ struct StatScatterView: View {
             .background(Color.secondaryGroupedBackground)
             .cornerRadius(12)
             .task {
-                await viewModel.load(leagueID: activeLeagueID)
+                await viewModel.load(leagueID: activeLeagueID, debug: storage.debugMode)
             }
             .onChange(of: viewModel.availableStats) { _, stats in
                 if xStat.isEmpty, stats.count >= 2 {

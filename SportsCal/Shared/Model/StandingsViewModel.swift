@@ -12,44 +12,16 @@ import SportsCalModel
 @MainActor
 @Observable
 class StandingsViewModel {
-    var snapshots: [StandingsHistoryDay] = []
+    var snapshots: [NetworkHandler.StandingsHistoryDay] = []
     var isLoading = false
     var error: String?
 
-    struct StandingsHistoryDay: Codable, Identifiable {
-        var id: String { date }
-        let date: String
-        let leagueID: Int
-        let entries: [StandingsHistoryEntry]
-    }
-
-    struct StandingsHistoryEntry: Codable {
-        let teamID: String?
-        let teamName: String
-        let teamAbbreviation: String?
-        let teamColor: String?
-        let teamLogo: String?
-        let position: Int
-        let division: String?
-        let wins: Int?
-        let losses: Int?
-        let points: Int?
-    }
-
-    func loadHistory(leagueID: Int, days: Int = 30) async {
+    func loadHistory(leagueID: Int, days: Int = 30, debug: Bool = false) async {
         isLoading = true
         error = nil
 
         do {
-            let baseURL = NetworkHandler.baseURL(debug: false)
-            guard let url = URL(string: "\(baseURL)/standings/\(leagueID)/history?days=\(days)") else {
-                error = "Invalid URL"
-                isLoading = false
-                return
-            }
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let decoded = try JSONDecoder().decode([StandingsHistoryDay].self, from: data)
-            snapshots = decoded
+            snapshots = try await NetworkHandler.getStandingsHistory(leagueID: leagueID, days: days, debug: debug)
         } catch {
             self.error = error.localizedDescription
         }

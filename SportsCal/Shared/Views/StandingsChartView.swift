@@ -15,6 +15,7 @@ import SportsCalModel
 struct StandingsChartView: View {
     let sport: SportType
     @Environment(Favorites.self) private var favorites
+    @Environment(UserDefaultStorage.self) private var storage
 
     @State private var viewModel = StandingsViewModel()
     @State private var selectedLeagueID: Int?
@@ -59,7 +60,7 @@ struct StandingsChartView: View {
                         get: { activeLeagueID },
                         set: { newValue in
                             selectedLeagueID = newValue
-                            Task { await viewModel.loadHistory(leagueID: newValue) }
+                            Task { await viewModel.loadHistory(leagueID: newValue, debug: storage.debugMode) }
                         }
                     )) {
                         ForEach(leagueOptions, id: \.id) { option in
@@ -99,7 +100,7 @@ struct StandingsChartView: View {
             .background(Color.secondaryGroupedBackground)
             .cornerRadius(12)
             .task {
-                await viewModel.loadHistory(leagueID: activeLeagueID)
+                await viewModel.loadHistory(leagueID: activeLeagueID, debug: storage.debugMode)
             }
         }
     }

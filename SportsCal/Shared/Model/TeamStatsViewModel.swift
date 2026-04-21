@@ -12,39 +12,17 @@ import SportsCalModel
 @MainActor
 @Observable
 class TeamStatsViewModel {
-    var teams: [TeamStatEntry] = []
+    var teams: [NetworkHandler.TeamStatEntry] = []
     var availableStats: [String] = []
     var isLoading = false
     var error: String?
 
-    struct TeamStatEntry: Codable, Identifiable {
-        var id: String { teamName }
-        let teamName: String
-        let teamAbbreviation: String
-        let teamColor: String
-        let teamLogo: String
-        let division: String
-        let stats: [String: String]
-
-        func statValue(_ name: String) -> Double? {
-            guard let str = stats[name] else { return nil }
-            return Double(str)
-        }
-    }
-
-    func load(leagueID: Int) async {
+    func load(leagueID: Int, debug: Bool = false) async {
         isLoading = true
         error = nil
 
         do {
-            let baseURL = NetworkHandler.baseURL(debug: false)
-            guard let url = URL(string: "\(baseURL)/stats/\(leagueID)/teams") else {
-                error = "Invalid URL"
-                isLoading = false
-                return
-            }
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let decoded = try JSONDecoder().decode([TeamStatEntry].self, from: data)
+            let decoded = try await NetworkHandler.getTeamStats(leagueID: leagueID, debug: debug)
             teams = decoded
 
             // Collect all available stat names

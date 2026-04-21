@@ -258,6 +258,61 @@ struct NetworkHandler {
         return try decoder.decode(Standing.self, from: data)
     }
 
+    struct StandingsHistoryDay: Codable, Identifiable {
+        var id: String { date }
+        let date: String
+        let leagueID: Int
+        let entries: [StandingsHistoryEntry]
+    }
+
+    struct StandingsHistoryEntry: Codable {
+        let teamID: String?
+        let teamName: String
+        let teamAbbreviation: String?
+        let teamColor: String?
+        let teamLogo: String?
+        let position: Int
+        let division: String?
+        let wins: Int?
+        let losses: Int?
+        let points: Int?
+    }
+
+    struct TeamStatEntry: Codable, Identifiable {
+        var id: String { teamName }
+        let teamName: String
+        let teamAbbreviation: String
+        let teamColor: String
+        let teamLogo: String
+        let division: String
+        let stats: [String: String]
+
+        func statValue(_ name: String) -> Double? {
+            guard let str = stats[name] else { return nil }
+            return Double(str)
+        }
+    }
+
+    static func getStandingsHistory(leagueID: Int, days: Int = 30, debug: Bool = false) async throws -> [StandingsHistoryDay] {
+        let urlString = "\(baseURL(debug: debug))/standings/\(leagueID)/history?days=\(days)"
+        let url = URL(string: urlString)!
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+        }
+        return try JSONDecoder().decode([StandingsHistoryDay].self, from: data)
+    }
+
+    static func getTeamStats(leagueID: Int, debug: Bool = false) async throws -> [TeamStatEntry] {
+        let urlString = "\(baseURL(debug: debug))/stats/\(leagueID)/teams"
+        let url = URL(string: urlString)!
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+        }
+        return try JSONDecoder().decode([TeamStatEntry].self, from: data)
+    }
+
     static func registerPushToStart(token: String, favorites: [String], eventIDs: [String] = [], debug: Bool = false) async throws {
         let urlString = "\(baseURL(debug: debug))/pushToStart/register"
         let url = URL(string: urlString)!
