@@ -10,4 +10,5 @@ import Foundation
 enum NetworkError: Error {
     case invalidLeague
     case invalidData
+    case cooledDown(until: Date)
 }

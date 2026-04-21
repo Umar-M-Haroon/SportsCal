@@ -13,6 +13,32 @@ import Logging
 class ESPNNetworking {
     private static let logger = Logger(label: "com.sportscal.espn")
 
+    // Per-league cool-down to avoid hammering ESPN on 429/5xx or transport failures.
+    // Single-process, in-memory — cleared on restart (which is fine: we'd recheck anyway).
+    private static let cooldownQueue = DispatchQueue(label: "com.sportscal.espn.cooldown")
+    private static var cooldownUntil: [Leagues: Date] = [:]
+    private static let cooldownInterval: TimeInterval = 5 * 60
+
+    private static func cooledDownUntil(_ league: Leagues) -> Date? {
+        cooldownQueue.sync {
+            guard let until = cooldownUntil[league], until > Date() else {
+                if cooldownUntil[league] != nil { cooldownUntil[league] = nil }
+                return nil
+            }
+            return until
+        }
+    }
+
+    private static func markCooldown(_ league: Leagues, reason: String) {
+        let until = Date().addingTimeInterval(cooldownInterval)
+        cooldownQueue.sync { cooldownUntil[league] = until }
+        logger.warning("ESPN league cooled down", metadata: [
+            "league": "\(league)",
+            "until":  "\(until)",
+            "reason": "\(reason)"
+        ])
+    }
+
     @available(*, deprecated, message: "use league lookup")
     static func getScoreboard<Output: Decodable>(req: some Client, DecodeType: Output.Type, scoreType: SportType) async throws -> Output {
         let urlString = "http://site.api.espn.com/apis/site/v2/sports/"
@@ -35,6 +61,9 @@ class ESPNNetworking {
     }
 
     static func getScoreboard<Output: Decodable>(req: some Client, DecodeType: Output.Type, league: Leagues, dates: Int? = nil) async throws -> Output {
+        if let until = cooledDownUntil(league) {
+            throw NetworkError.cooledDown(until: until)
+        }
         if let espnSlug = league.espnSlug {
             let urlString = "http://site.api.espn.com/apis/site/v2/sports"
             let scoreboard = "scoreboard"
@@ -50,8 +79,15 @@ class ESPNNetworking {
                     uri.query! += "&dates=\(year)"
                 }
                 let response = try await req.get(uri)
+                if response.status.code == 429 || response.status.code >= 500 {
+                    markCooldown(league, reason: "http \(response.status.code)")
+                    throw NetworkError.cooledDown(until: Date().addingTimeInterval(cooldownInterval))
+                }
                 return try response.content.decode(DecodeType.self)
+            } catch let error as NetworkError {
+                throw error
             } catch {
+                markCooldown(league, reason: "\(error)")
                 logger.error("ESPN scoreboard fetch failed", metadata: [
                     "league": "\(league)",
                     "url": "\(fullString)",
