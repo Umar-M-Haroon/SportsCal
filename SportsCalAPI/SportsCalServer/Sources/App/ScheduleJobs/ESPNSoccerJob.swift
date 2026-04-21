@@ -18,17 +18,25 @@ struct ESPNSoccerJob: AsyncScheduledJob {
 
     func run(context: Queues.QueueContext) async throws {
         let isDebug = context.application.environment == .development
-        let endpoint = RedisEndpoint.ESPN.allSoccerScoreboards.getValue(isDebug: isDebug)
+        let ttlKey = RedisEndpoint.ESPN.allSoccerScoreboards.getValue(isDebug: isDebug)
+        let latestKey = RedisEndpoint.ESPN.latestSoccerScoreboards.getValue(isDebug: isDebug)
 
-        // On first run after startup, ignore stale cache and fetch all leagues
         let soccerScoreboards: [Leagues: Scoreboard]?
         if Self.isFirstRun {
             Self.isFirstRun = false
-            _ = try? await context.application.redis.delete(endpoint)
-            soccerScoreboards = nil
-            Self.logger.info("First run after startup — fetching all soccer leagues")
+            if let seeded = try? await context.application.redis.get(latestKey, asJSON: [Leagues: Scoreboard].self) {
+                soccerScoreboards = seeded
+                Self.logger.info("First run after startup — seeded from latestSoccerScoreboards (\(seeded.count) leagues cached)")
+            } else {
+                soccerScoreboards = nil
+                Self.logger.info("First run after startup — no cached scoreboards, fetching all soccer leagues")
+            }
         } else {
-            soccerScoreboards = try await context.application.redis.get(endpoint, asJSON: [Leagues: Scoreboard].self)
+            if let cached = try await context.application.redis.get(ttlKey, asJSON: [Leagues: Scoreboard].self) {
+                soccerScoreboards = cached
+            } else {
+                soccerScoreboards = try? await context.application.redis.get(latestKey, asJSON: [Leagues: Scoreboard].self)
+            }
         }
         let leaguesToFetch = getActiveLeagues(soccerScoreboards: soccerScoreboards)
         Self.logger.info("Fetching soccer leagues", metadata: ["leagues": "\(leaguesToFetch)"])
@@ -60,10 +68,11 @@ struct ESPNSoccerJob: AsyncScheduledJob {
                 return s1
             })
         }
-        if leaguesToFetch == Leagues.allCases.filter({$0.isSoccer}) {
-            try await context.application.redis.setex(RedisEndpoint.ESPN.allSoccerScoreboards.getValue(isDebug: context.application.environment == .development), toJSON: espnInfo, expirationInSeconds: 60 * 15)
-        }
-        try await context.application.redis.set(RedisEndpoint.ESPN.latestSoccerScoreboards.getValue(isDebug: context.application.environment == .development), toJSON: espnInfo)
+        // Always refresh the TTL — espnInfo already includes cached scoreboards for skipped
+        // leagues via the merge above, so a full snapshot is written every run. Without this,
+        // selective-refetch runs would let the key expire and the next tick would cold-fanout.
+        try await context.application.redis.setex(ttlKey, toJSON: espnInfo, expirationInSeconds: 60 * 15)
+        try await context.application.redis.set(latestKey, toJSON: espnInfo)
     }
     
     func getActiveLeagues(soccerScoreboards: [Leagues: Scoreboard]?) -> [Leagues] {
@@ -72,20 +81,14 @@ struct ESPNSoccerJob: AsyncScheduledJob {
         let formatter = DateFormatters.backupISOFormatter
         formatter.timeZone = .init(secondsFromGMT: 0)
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm'Z'"
-        let calendar = Calendar.current
         if let soccerBoards = soccerScoreboards {
             for (league, scoreboard) in soccerBoards {
 
                 let date = Date()
                 let hasAnyUpcomingEvents = scoreboard.events.contains(where: { game in
                     guard let gameDate = formatter.date(from: game.date) else { return false }
-                    let components = calendar.dateComponents([.day, .hour, .month, .year, .minute], from: date, to: gameDate)
-                    let isValidTime = components.day ?? -1 == 0 &&
-                    components.hour ?? -1 == 0 &&
-                    components.month ?? -1 == 0 &&
-                    components.year ?? -1 == 0 &&
-                    components.minute ?? -1 <= 1
-                    return isValidTime
+                    let minutesUntil = gameDate.timeIntervalSince(date) / 60
+                    return minutesUntil >= -1 && minutesUntil <= 5
                 })
                 let hasLiveEvents = scoreboard.events.contains(where: { game in
                     guard let status = game.status else { return false }
