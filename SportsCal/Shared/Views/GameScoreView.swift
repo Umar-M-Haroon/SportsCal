@@ -28,23 +28,81 @@ struct GameScoreView: View {
     private let activitiesEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
     #endif
 
-    private var topLeaderStat: String? {
-        var parts: [String] = []
-        if let leader = game.awayLeaders?.first {
-            let abbrev = abbreviatedName(leader.playerName)
-            parts.append("\(abbrev) \(leader.displayValue)")
+    private struct InfoSnippet: Identifiable, Equatable {
+        let id: String
+        let icon: String?
+        let text: String
+    }
+
+    private var infoSnippets: [InfoSnippet] {
+        var snippets: [InfoSnippet] = []
+
+        // Last play — biased on live games (duplicated so it lands twice per cycle)
+        if let raw = game.lastPlay?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !raw.isEmpty {
+            let play = InfoSnippet(id: "lastPlay", icon: "quote.bubble.fill", text: raw)
+            snippets.append(play)
+            if isLive {
+                snippets.append(InfoSnippet(id: "lastPlay.repeat", icon: play.icon, text: play.text))
+            }
         }
-        if let leader = game.homeLeaders?.first {
-            let abbrev = abbreviatedName(leader.playerName)
-            parts.append("\(abbrev) \(leader.displayValue)")
+
+        // Leaders paired by category (up to 3)
+        for pair in leaderPairsByCategory().prefix(3) {
+            let away = "\(abbreviatedName(pair.away.playerName)) \(pair.away.displayValue)"
+            let home = "\(abbreviatedName(pair.home.playerName)) \(pair.home.displayValue)"
+            let text = "\(pair.home.categoryDisplay): \(away) · \(home)"
+            snippets.append(InfoSnippet(id: "leader.\(pair.category)", icon: "chart.bar.fill", text: text))
         }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+
+        // Venue
+        if let venue = game.venueName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !venue.isEmpty {
+            snippets.append(InfoSnippet(id: "venue", icon: "mappin.and.ellipse", text: venue))
+        }
+
+        return snippets
+    }
+
+    private func leaderPairsByCategory() -> [(category: String, home: GameLeader, away: GameLeader)] {
+        guard let home = game.homeLeaders, let away = game.awayLeaders else { return [] }
+        var result: [(String, GameLeader, GameLeader)] = []
+        for h in home {
+            if let a = away.first(where: { $0.category == h.category }) {
+                result.append((h.category, h, a))
+            }
+        }
+        return result
     }
 
     private func abbreviatedName(_ name: String) -> String {
         let parts = name.split(separator: " ")
         guard parts.count >= 2 else { return name }
         return "\(parts[0].prefix(1)). \(parts.last!)"
+    }
+
+    @ViewBuilder
+    private var rotatingInfoLine: some View {
+        let snippets = infoSnippets
+        if !snippets.isEmpty {
+            TimelineView(.periodic(from: .now, by: 4.0)) { context in
+                let tick = Int(context.date.timeIntervalSinceReferenceDate / 4.0)
+                let snippet = snippets[((tick % snippets.count) + snippets.count) % snippets.count]
+                HStack(spacing: 4) {
+                    if let icon = snippet.icon {
+                        Image(systemName: icon)
+                            .font(.caption2)
+                    }
+                    Text(snippet.text)
+                        .font(.caption2)
+                        .lineLimit(1)
+                        .contentTransition(.opacity)
+                }
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity)
+                .animation(.easeInOut(duration: 0.35), value: snippet.id)
+            }
+        }
     }
 
     var body: some View {
@@ -69,11 +127,8 @@ struct GameScoreView: View {
                                     .fill(.red)
                                     .frame(width: 6, height: 6)
                             }
-                            if let unformatted = game.strProgress {
-                                Text(unformatted)
-                                    .foregroundColor(isLive ? .red : .secondary)
-                            } else {
-                                Text(game.strStatus ?? "")
+                            if let statusText = game.displayStatus {
+                                Text(statusText)
                                     .foregroundColor(isLive ? .red : .secondary)
                             }
                         }
@@ -92,14 +147,8 @@ struct GameScoreView: View {
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
 
-                // Leader stats for live games
-                if isLive, let topStat = topLeaderStat {
-                    Text(topStat)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity)
-                }
+                // Rotating info: last play (weighted on live), leader categories, venue
+                rotatingInfoLine
 
                 if game.playoff != nil {
                     PlayoffPill(
