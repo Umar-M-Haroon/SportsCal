@@ -10,11 +10,15 @@ import Charts
 import SportsCalModel
 
 /// Swift Charts line chart showing cumulative score progression period-by-period.
-/// Two lines colored with team hex colors, shaded area between them showing lead.
+/// Two lines colored with team hex colors. When play-by-play is available, plots a point
+/// per scoring play using a continuous X axis (period + fraction-elapsed); otherwise
+/// falls back to one point per period boundary derived from linescores.
 struct MomentumChartView: View {
     let game: Game
     let homeTeamName: String
     let awayTeamName: String
+    /// Full play-by-play when available. When empty, chart draws from linescores only.
+    var plays: [Play] = []
 
     private var homeColor: Color {
         if let hex = game.homeTeamColor {
@@ -32,76 +36,185 @@ struct MomentumChartView: View {
 
     private struct ScorePoint: Identifiable {
         let id = UUID()
-        let period: String
-        let periodIndex: Int
+        let x: Double         // continuous: integer part = period index (0-based), fractional = elapsed
         let cumulativeScore: Double
         let team: String
     }
 
-    private var dataPoints: [ScorePoint] {
+    /// Total number of periods covered by the chart (used for axis labels and rule marks).
+    private var periodCount: Int {
+        if !plays.isEmpty {
+            return max(plays.compactMap { $0.period?.number }.max() ?? 0, 1)
+        }
+        return max(game.homeLinescores?.count ?? 0, game.awayLinescores?.count ?? 0)
+    }
+
+    /// Expected length of a regulation period (in seconds) for clock-based X positioning.
+    /// Overtime/extra periods fall back to linear index since lengths vary by league/season.
+    private func periodLengthSeconds(period: Int) -> Double? {
+        guard let sport = game.sportType else { return nil }
+        switch sport {
+        case .basketball: return period <= 4 ? 12 * 60 : 5 * 60   // OT is 5 min
+        case .nfl:        return period <= 4 ? 15 * 60 : 10 * 60  // OT is 10 min
+        case .hockey:     return period <= 3 ? 20 * 60 : 5 * 60   // OT is 5 min
+        default:          return nil                               // MLB has no clock
+        }
+    }
+
+    /// Parses ESPN clock strings like "11:42" or "3:08" into seconds remaining.
+    private func parseClockSeconds(_ text: String) -> Double? {
+        let parts = text.split(separator: ":")
+        guard parts.count == 2,
+              let min = Double(parts[0]), let sec = Double(parts[1]) else { return nil }
+        return min * 60 + sec
+    }
+
+    /// Score points sourced from the play-by-play. One point per scoring play per team plus
+    /// a start (0, 0) origin, using continuous X = (period-1) + elapsed-fraction.
+    private var playBasedPoints: [ScorePoint] {
+        guard !plays.isEmpty else { return [] }
+
+        // Pre-compute play ordering within each period for clockless sports (MLB).
+        var playsByPeriod: [Int: [Play]] = [:]
+        for play in plays {
+            let p = play.period?.number ?? 1
+            playsByPeriod[p, default: []].append(play)
+        }
+
+        var points: [ScorePoint] = [
+            ScorePoint(x: 0, cumulativeScore: 0, team: homeTeamName),
+            ScorePoint(x: 0, cumulativeScore: 0, team: awayTeamName)
+        ]
+
+        for (period, periodPlays) in playsByPeriod {
+            let total = max(periodPlays.count, 1)
+            for (index, play) in periodPlays.enumerated() {
+                guard play.scoringPlay == true,
+                      let home = play.homeScore, let away = play.awayScore else { continue }
+
+                // Prefer clock-based X; fall back to play-index when the sport has no clock.
+                let fraction: Double = {
+                    if let text = play.clock?.displayValue,
+                       let remaining = parseClockSeconds(text),
+                       let length = periodLengthSeconds(period: period), length > 0 {
+                        let elapsed = max(0, min(length, length - remaining))
+                        return elapsed / length
+                    }
+                    return Double(index) / Double(total)
+                }()
+
+                let x = Double(period - 1) + fraction
+                points.append(ScorePoint(x: x, cumulativeScore: Double(home), team: homeTeamName))
+                points.append(ScorePoint(x: x, cumulativeScore: Double(away), team: awayTeamName))
+            }
+        }
+
+        // Ensure the line extends to the current final score.
+        if let homeTotal = Int(game.intHomeScore ?? ""),
+           let awayTotal = Int(game.intAwayScore ?? "") {
+            let endX = Double(periodCount)
+            points.append(ScorePoint(x: endX, cumulativeScore: Double(homeTotal), team: homeTeamName))
+            points.append(ScorePoint(x: endX, cumulativeScore: Double(awayTotal), team: awayTeamName))
+        }
+
+        return points.sorted { $0.x < $1.x }
+    }
+
+    /// Fallback path: one point per period boundary, derived from linescores.
+    private var linescoreBasedPoints: [ScorePoint] {
         guard let homeLs = game.homeLinescores, let awayLs = game.awayLinescores,
               !homeLs.isEmpty, !awayLs.isEmpty else { return [] }
 
-        let periodCount = max(homeLs.count, awayLs.count)
-        let labels = game.periodLabels(count: periodCount)
-        var points: [ScorePoint] = []
-
-        // Start at 0
-        points.append(ScorePoint(period: "Start", periodIndex: 0, cumulativeScore: 0, team: homeTeamName))
-        points.append(ScorePoint(period: "Start", periodIndex: 0, cumulativeScore: 0, team: awayTeamName))
+        var points: [ScorePoint] = [
+            ScorePoint(x: 0, cumulativeScore: 0, team: homeTeamName),
+            ScorePoint(x: 0, cumulativeScore: 0, team: awayTeamName)
+        ]
 
         var homeCum: Double = 0
         var awayCum: Double = 0
-
-        for i in 0..<periodCount {
-            let label = i < labels.count ? labels[i] : "\(i + 1)"
+        let count = max(homeLs.count, awayLs.count)
+        for i in 0..<count {
             if i < homeLs.count { homeCum += homeLs[i] }
             if i < awayLs.count { awayCum += awayLs[i] }
-            points.append(ScorePoint(period: label, periodIndex: i + 1, cumulativeScore: homeCum, team: homeTeamName))
-            points.append(ScorePoint(period: label, periodIndex: i + 1, cumulativeScore: awayCum, team: awayTeamName))
+            let x = Double(i + 1)
+            points.append(ScorePoint(x: x, cumulativeScore: homeCum, team: homeTeamName))
+            points.append(ScorePoint(x: x, cumulativeScore: awayCum, team: awayTeamName))
         }
-
         return points
+    }
+
+    private var dataPoints: [ScorePoint] {
+        let pbp = playBasedPoints
+        return pbp.isEmpty ? linescoreBasedPoints : pbp
     }
 
     var body: some View {
         let points = dataPoints
+        let usingPBP = !playBasedPoints.isEmpty
         if points.count >= 4 {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Score Momentum")
-                    .font(.headline)
+                HStack {
+                    Text("Score Momentum")
+                        .font(.headline)
+                    Spacer()
+                    if usingPBP {
+                        Text("By Play")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.15), in: Capsule())
+                    }
+                }
 
-                Chart(points) { point in
-                    LineMark(
-                        x: .value("Period", point.periodIndex),
-                        y: .value("Score", point.cumulativeScore)
-                    )
-                    .foregroundStyle(by: .value("Team", point.team))
-                    .interpolationMethod(.catmullRom)
-                    .lineStyle(StrokeStyle(lineWidth: 2.5))
+                let periodLabels = game.periodLabels(count: periodCount)
 
-                    PointMark(
-                        x: .value("Period", point.periodIndex),
-                        y: .value("Score", point.cumulativeScore)
-                    )
-                    .foregroundStyle(by: .value("Team", point.team))
-                    .symbolSize(20)
+                Chart {
+                    ForEach(points) { point in
+                        LineMark(
+                            x: .value("Period", point.x),
+                            y: .value("Score", point.cumulativeScore)
+                        )
+                        .foregroundStyle(by: .value("Team", point.team))
+                        .interpolationMethod(usingPBP ? .stepEnd : .catmullRom)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5))
+
+                        // Only draw point markers when we have few enough points to be readable.
+                        if !usingPBP || points.count <= 40 {
+                            PointMark(
+                                x: .value("Period", point.x),
+                                y: .value("Score", point.cumulativeScore)
+                            )
+                            .foregroundStyle(by: .value("Team", point.team))
+                            .symbolSize(usingPBP ? 12 : 20)
+                        }
+                    }
+
+                    // Vertical gridlines at each quarter/period boundary.
+                    ForEach(0...periodCount, id: \.self) { boundary in
+                        RuleMark(x: .value("Boundary", Double(boundary)))
+                            .foregroundStyle(Color.secondary.opacity(0.15))
+                            .lineStyle(StrokeStyle(lineWidth: 1))
+                    }
                 }
                 .chartForegroundStyleScale([
                     homeTeamName: homeColor,
                     awayTeamName: awayColor
                 ])
                 .chartXAxis {
-                    AxisMarks(values: .automatic) { value in
-                        if let idx = value.as(Int.self) {
-                            let allLabels = ["Start"] + game.periodLabels(count: max((game.homeLinescores?.count ?? 0), (game.awayLinescores?.count ?? 0)))
-                            if idx < allLabels.count {
-                                AxisValueLabel { Text(allLabels[idx]).font(.caption2) }
+                    // Tick centered in each period (at period-1 + 0.5) with the period label.
+                    AxisMarks(values: (0..<periodCount).map { Double($0) + 0.5 }) { value in
+                        if let x = value.as(Double.self) {
+                            let periodIndex = Int(x)
+                            if periodIndex < periodLabels.count {
+                                AxisValueLabel(centered: true) {
+                                    Text(periodLabels[periodIndex]).font(.caption2)
+                                }
                             }
                         }
-                        AxisGridLine()
                     }
                 }
+                .chartXScale(domain: 0...Double(periodCount))
                 .chartYAxis {
                     AxisMarks(position: .leading)
                 }
