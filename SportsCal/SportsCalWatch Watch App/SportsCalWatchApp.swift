@@ -19,6 +19,11 @@ struct SportsCalWatchApp: App {
             viewModel.loadPreferencesFromLocal()
             Task { await viewModel.fetchSchedule() }
         }
+        CloudSyncManager.shared.startSync()
+        CloudSyncManager.shared.onRemoteUpdate = { [viewModel] in
+            viewModel.loadPreferencesFromLocal()
+            Task { await viewModel.fetchSchedule() }
+        }
     }
 
     var body: some Scene {
