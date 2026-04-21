@@ -17,7 +17,7 @@ struct MiniSubscriptionPage: View {
                 .bold()
             MiniFeatureView(featureName: "Ad-Free Experience", featureDescription: "Remove all ads", imageName: "eye.slash.fill", color: .purple)
             MiniFeatureView(featureName: "Push Notifications", featureDescription: "Get notified about games", imageName: "app.badge.fill", color: .red)
-            MiniFeatureView(featureName: "Calendar Integration", featureDescription: "Extended calendar access", imageName: "calendar.circle.fill", color: .blue)
+            MiniFeatureView(featureName: "Pro Settings", featureDescription: "Customize event visibility and countdowns", imageName: "slider.horizontal.3", color: .blue)
             Button {
                 subscriptionPresented = true
             } label: {

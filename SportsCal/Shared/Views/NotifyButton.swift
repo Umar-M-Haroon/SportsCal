@@ -13,6 +13,7 @@ import SportsCalModel
 import UserNotifications
 
 struct NotifyButton: View {
+    @Environment(SubscriptionManager.self) private var subscriptionManager
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var sheetType: SheetType?
     var game: Game
@@ -89,6 +90,10 @@ struct NotifyButton: View {
     }
 
     private func scheduleNotification(duration: NotificationDuration) {
+        guard subscriptionManager.isPro else {
+            shouldShowSportsCalProAlert = true
+            return
+        }
         guard let gameDate = game.standardDate else { return }
 
         if scheduledNotifications.contains(duration) {
