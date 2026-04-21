@@ -1,0 +1,26 @@
+# iOS/Watch app (not needed for server)
+SportsCal/
+
+# Admin dashboard source (built assets are in SportsCalAPI/SportsCalServer/Public/)
+SportsCalAdmin/
+
+# Git
+.git/
+.gitignore
+
+# Build artifacts
+.build/
+.swiftpm/
+node_modules/
+
+# IDE
+*.xcodeproj
+*.xcworkspace
+.vscode/
+
+# Deploy configs (don't include in Docker context)
+deploy/
+
+# Secrets (mounted separately)
+*.p8
+.env*

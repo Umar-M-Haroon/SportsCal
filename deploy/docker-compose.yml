@@ -1,0 +1,62 @@
+services:
+  app:
+    build:
+      context: ./repo
+      dockerfile: ../Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      PBP_ARCHIVE_PATH: /app/pbp_data/pbp_archive.sqlite
+    volumes:
+      # Mount APNS key file (place your .p8 file next to this compose file)
+      - ./AuthKey.p8:/app/AuthKey.p8:ro
+      # Durable SQLite archive for finalized play-by-play data.
+      - pbp_data:/app/pbp_data
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    networks:
+      - internal
+
+volumes:
+  redis_data:
+  caddy_data:
+  caddy_config:
+  pbp_data:
+
+networks:
+  internal:
+    driver: bridge
