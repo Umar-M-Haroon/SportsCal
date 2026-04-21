@@ -50,7 +50,7 @@ enum SpotlightIndexer {
 
     /// Indexes upcoming games in CoreSpotlight.
     /// Call after schedule data refreshes or sport filters change.
-    static func indexGames(_ games: [Game], favorites: Set<String> = []) {
+    static func indexGames(_ games: [Game], favorites: Set<String> = [], suggestedTeams: Set<String> = []) {
         let items: [CSSearchableItem] = games.compactMap { game in
             guard let eventID = game.idEvent else { return nil }
 
@@ -110,6 +110,8 @@ enum SpotlightIndexer {
             // Boost favorites in ranking
             if favorites.contains(game.strHomeTeam) || favorites.contains(game.strAwayTeam) {
                 attributes.rankingHint = NSNumber(value: 1)
+            } else if suggestedTeams.contains(game.strHomeTeam) || suggestedTeams.contains(game.strAwayTeam) {
+                attributes.rankingHint = NSNumber(value: 0.75)
             }
 
             #if canImport(UIKit)

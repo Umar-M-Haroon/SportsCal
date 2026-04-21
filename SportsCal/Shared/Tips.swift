@@ -42,3 +42,20 @@ struct SportFilterTip: Tip {
         Image(systemName: "line.3.horizontal.decrease.circle")
     }
 }
+
+struct FavoriteTeamSuggestionTip: Tip {
+    @Parameter static var suggestedTeamName: String = ""
+
+    var title: Text {
+        Text("Add \(Self.suggestedTeamName) to Favorites?")
+    }
+    var message: Text? {
+        Text("You check their games often. Add them for quicker access.")
+    }
+    var image: Image? {
+        Image(systemName: "star.badge.plus")
+    }
+    var rules: [Rule] {
+        #Rule(Self.$suggestedTeamName) { $0 != "" }
+    }
+}
