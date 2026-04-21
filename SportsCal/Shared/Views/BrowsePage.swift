@@ -161,21 +161,21 @@ struct BrowseSportView: View {
                 .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
             }
 
-            // Standings movement chart (team sports only)
-            Section {
-                StandingsChartView(sport: sport)
-                    .environment(favorites)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-            }
+            // DISABLED: Standings movement chart
+//            Section {
+//                StandingsChartView(sport: sport)
+//                    .environment(favorites)
+//                    .listRowInsets(EdgeInsets())
+//                    .listRowBackground(Color.clear)
+//            }
 
-            // XY Stat Scatter Plot (team sports only)
-            Section {
-                StatScatterView(sport: sport)
-                    .environment(favorites)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-            }
+            // DISABLED: XY Stat Scatter Plot
+//            Section {
+//                StatScatterView(sport: sport)
+//                    .environment(favorites)
+//                    .listRowInsets(EdgeInsets())
+//                    .listRowBackground(Color.clear)
+//            }
 
             switch timeFilter {
             case .upcoming:
@@ -221,7 +221,7 @@ struct BrowseSportView: View {
 
                 if browseVM.recentGames.isEmpty {
                     Section {
-                        emptyState
+                        pastEmptyState
                     }
                     .listRowBackground(Color.clear)
                 }
@@ -394,6 +394,24 @@ struct BrowseSportView: View {
                 .foregroundColor(.secondary)
             Text("No games found for \(sport.displayName)")
                 .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+    }
+
+    private var pastEmptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.largeTitle)
+                .foregroundColor(.secondary)
+            Text("No recent results for \(sport.displayName)")
+                .foregroundColor(.secondary)
+            if storage.hidePastEvents {
+                Text("Past events are hidden in Settings. Turn off \"Hide past events\" to see recent results.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
