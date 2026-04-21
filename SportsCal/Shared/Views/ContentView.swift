@@ -59,6 +59,7 @@ struct ContentView: View {
     @State private var sheetType: SheetType? = nil
 
     @State var shouldShowSportsCalProAlert: Bool = false
+    @State private var showPaywall: Bool = false
 
     @State var teamString: String? = ""
 
@@ -82,7 +83,8 @@ struct ContentView: View {
                 viewModel.getInfo()
             })
             .alert("Scoreline Pro", isPresented: $shouldShowSportsCalProAlert) {
-                Button("OK", role: .cancel) { }
+                Button("Subscribe") { sheetType = .paywall }
+                Button("Cancel", role: .cancel) { }
             } message: {
                 Text("This feature requires Scoreline Pro")
             }
@@ -117,10 +119,11 @@ struct ContentView: View {
                         .environment(favorites)
                         .presentationDetents([.medium, .large])
                 case .paywall:
-                    NavigationStack {
-                                    Text("Cancel")
-                    }
+                    SubscriptionSheet(subscriptionPresented: $showPaywall)
                 }
+            }
+            .onChange(of: showPaywall) { _, newValue in
+                if !newValue { sheetType = nil }
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
                 if newPhase == .active {
@@ -202,6 +205,20 @@ struct ContentView: View {
             }
             .tag(1)
             #endif
+
+            // Experimental — disabled. Re-enable to explore the timeline-style day view.
+            // NavigationStack {
+            //     DayTimelineView(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert)
+            //         .environment(viewModel)
+            //         .environment(storage)
+            //         .environment(favorites)
+            //         .navigationTitle("Timeline")
+            //         .toolbar { settingsToolbarItem }
+            // }
+            // .tabItem {
+            //     Label("Timeline", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+            // }
+            // .tag(3)
 
             NavigationStack {
                 BrowsePage()
