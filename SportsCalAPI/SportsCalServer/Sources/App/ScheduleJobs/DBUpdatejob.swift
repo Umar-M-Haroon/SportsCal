@@ -155,8 +155,8 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
 
         for league in Leagues.allCases {
             do {
-                // Skip NCAA Tournament in TheSportsDB loop — handled separately via ESPN below
-                if league == .ncaaMBBTournament { continue }
+                // Skip ESPN-only leagues here — handled separately via ESPN below
+                if league == .ncaaMBBTournament || league == .wnba { continue }
 
                 if let response = try await SportsDBNetworking.getTeamInfoForLeague(app: context.application, DecodeType: Teams.self, league: league.rawValue) {
                     apiTeams.append(contentsOf: response.teams)
@@ -331,6 +331,23 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
             }
         } catch {
             Self.logger.warning("NCAA Tournament schedule fetch failed: \(error)")
+        }
+
+        // Fetch WNBA games (ESPN-only, no TheSportsDB)
+        do {
+            if let scoreboard = try await Integrator.getESPNScoreboard(for: .wnba, context.application.client) as Scoreboard? {
+                if let liveEvent = LiveEvent(events: scoreboard, league: .wnba) {
+                    if schedule.nba == nil {
+                        schedule.nba = liveEvent
+                    } else {
+                        schedule.nba?.events += liveEvent.events
+                    }
+                    allGames.append(contentsOf: liveEvent.events)
+                    Self.logger.info("WNBA schedule loaded", metadata: ["events": "\(liveEvent.events.count)"])
+                }
+            }
+        } catch {
+            Self.logger.warning("WNBA schedule fetch failed: \(error)")
         }
 
         // Enrich schedule with ESPN scoreboard data (records, leaders, linescores, venue, etc.)
