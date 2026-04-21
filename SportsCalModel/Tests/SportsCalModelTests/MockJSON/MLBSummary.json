@@ -1,0 +1,103 @@
+{
+  "plays": [
+    {
+      "id": "401472105-1",
+      "text": "Mookie Betts grounded out to shortstop",
+      "scoringPlay": false,
+      "awayScore": 0,
+      "homeScore": 0,
+      "period": { "number": 1 },
+      "type": { "id": "5", "text": "Groundout" }
+    },
+    {
+      "id": "401472105-2",
+      "text": "Freddie Freeman walked",
+      "scoringPlay": false,
+      "awayScore": 0,
+      "homeScore": 0,
+      "period": { "number": 1 },
+      "type": { "id": "2", "text": "Walk" }
+    },
+    {
+      "id": "401472105-3",
+      "text": "Shohei Ohtani homered to right on a 2-2 slider (412 ft, exit velocity 108.3 mph), Freeman scored",
+      "scoringPlay": true,
+      "awayScore": 0,
+      "homeScore": 2,
+      "period": { "number": 1 },
+      "type": { "id": "3", "text": "Home Run" }
+    },
+    {
+      "id": "401472105-4",
+      "text": "Will Smith struck out swinging",
+      "scoringPlay": false,
+      "awayScore": 0,
+      "homeScore": 2,
+      "period": { "number": 1 },
+      "type": { "id": "6", "text": "Strikeout" }
+    },
+    {
+      "id": "401472105-5",
+      "text": "Max Muncy doubled to left",
+      "scoringPlay": false,
+      "awayScore": 0,
+      "homeScore": 2,
+      "period": { "number": 1 },
+      "type": { "id": "10", "text": "Double" }
+    },
+    {
+      "id": "401472105-6",
+      "text": "Teoscar Hernandez singled to center, Muncy scored",
+      "scoringPlay": true,
+      "awayScore": 0,
+      "homeScore": 3,
+      "period": { "number": 1 },
+      "type": { "id": "9", "text": "Single" }
+    },
+    {
+      "id": "401472105-7",
+      "text": "Fernando Tatis Jr. struck out looking",
+      "scoringPlay": false,
+      "awayScore": 0,
+      "homeScore": 3,
+      "period": { "number": 2 },
+      "type": { "id": "6", "text": "Strikeout" }
+    },
+    {
+      "id": "401472105-8",
+      "text": "Manny Machado singled to left",
+      "scoringPlay": false,
+      "awayScore": 0,
+      "homeScore": 3,
+      "period": { "number": 3 },
+      "type": { "id": "9", "text": "Single" }
+    },
+    {
+      "id": "401472105-9",
+      "text": "Juan Soto hit a sacrifice fly to center, Machado scored",
+      "scoringPlay": true,
+      "awayScore": 1,
+      "homeScore": 3,
+      "period": { "number": 3 },
+      "type": { "id": "8", "text": "Sac Fly" }
+    },
+    {
+      "id": "401472105-10",
+      "text": "Xander Bogaerts grounded into double play",
+      "scoringPlay": false,
+      "awayScore": 1,
+      "homeScore": 3,
+      "period": { "number": 4 },
+      "type": { "id": "5", "text": "Grounded into DP" }
+    },
+    {
+      "id": "401472105-11",
+      "text": "End of game",
+      "scoringPlay": false,
+      "awayScore": 2,
+      "homeScore": 4,
+      "period": { "number": 9 },
+      "type": { "id": "412", "text": "End of Game" }
+    }
+  ]
+}

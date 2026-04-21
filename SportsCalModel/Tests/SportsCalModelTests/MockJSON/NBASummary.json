@@ -1,0 +1,114 @@
+{
+  "plays": [
+    {
+      "id": "401705123001",
+      "text": "LeBron James makes 24-foot three point jumper",
+      "scoringPlay": true,
+      "awayScore": 3,
+      "homeScore": 0,
+      "clock": { "displayValue": "11:42" },
+      "period": { "number": 1 },
+      "type": { "id": "131", "text": "Three Point Jumper" }
+    },
+    {
+      "id": "401705123002",
+      "text": "Jayson Tatum misses 14-foot pullup jumper",
+      "scoringPlay": false,
+      "awayScore": 3,
+      "homeScore": 0,
+      "clock": { "displayValue": "11:18" },
+      "period": { "number": 1 },
+      "type": { "id": "110", "text": "Missed Jumper" }
+    },
+    {
+      "id": "401705123003",
+      "text": "Jaylen Brown defensive rebound",
+      "scoringPlay": false,
+      "awayScore": 3,
+      "homeScore": 0,
+      "clock": { "displayValue": "11:15" },
+      "period": { "number": 1 },
+      "type": { "id": "156", "text": "Defensive Rebound" }
+    },
+    {
+      "id": "401705123004",
+      "text": "Jaylen Brown makes 23-foot three point jumper (Jayson Tatum assists)",
+      "scoringPlay": true,
+      "awayScore": 3,
+      "homeScore": 3,
+      "clock": { "displayValue": "10:58" },
+      "period": { "number": 1 },
+      "type": { "id": "131", "text": "Three Point Jumper" }
+    },
+    {
+      "id": "401705123005",
+      "text": "Stephen Curry makes 28-foot three point jumper",
+      "scoringPlay": true,
+      "awayScore": 6,
+      "homeScore": 3,
+      "clock": { "displayValue": "10:42" },
+      "period": { "number": 1 },
+      "type": { "id": "131", "text": "Three Point Jumper" }
+    },
+    {
+      "id": "401705123006",
+      "text": "Full timeout",
+      "scoringPlay": false,
+      "awayScore": 6,
+      "homeScore": 3,
+      "clock": { "displayValue": "10:30" },
+      "period": { "number": 1 },
+      "type": { "id": "16", "text": "Full Timeout" }
+    },
+    {
+      "id": "401705123007",
+      "text": "Anthony Davis offensive rebound",
+      "scoringPlay": false,
+      "awayScore": 6,
+      "homeScore": 3,
+      "clock": { "displayValue": "10:10" },
+      "period": { "number": 1 },
+      "type": { "id": "155", "text": "Offensive Rebound" }
+    },
+    {
+      "id": "401705123008",
+      "text": "Anthony Davis makes two point tip shot",
+      "scoringPlay": true,
+      "awayScore": 6,
+      "homeScore": 5,
+      "clock": { "displayValue": "10:09" },
+      "period": { "number": 1 },
+      "type": { "id": "119", "text": "Tip Shot" }
+    },
+    {
+      "id": "401705123009",
+      "text": "Kristaps Porzingis makes 22-foot jumper",
+      "scoringPlay": true,
+      "awayScore": 8,
+      "homeScore": 5,
+      "clock": { "displayValue": "9:47" },
+      "period": { "number": 2 },
+      "type": { "id": "110", "text": "Jumper" }
+    },
+    {
+      "id": "401705123010",
+      "text": "Anthony Davis makes free throw 1 of 2",
+      "scoringPlay": true,
+      "awayScore": 8,
+      "homeScore": 6,
+      "clock": { "displayValue": "9:32" },
+      "period": { "number": 2 },
+      "type": { "id": "132", "text": "Free Throw" }
+    },
+    {
+      "id": "401705123011",
+      "text": "End of game",
+      "scoringPlay": false,
+      "awayScore": 112,
+      "homeScore": 108,
+      "clock": { "displayValue": "0:00" },
+      "period": { "number": 4 },
+      "type": { "id": "412", "text": "End Game" }
+    }
+  ]
+}

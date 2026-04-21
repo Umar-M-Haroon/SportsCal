@@ -67,6 +67,8 @@ enum RedisEndpoint {
         case injuriesLastUpdate
         case postseasonWindow
         case postseasonWindowLastUpdate
+        case playByPlay(String) // "PBP-{eventID}" — per-game ESPN play-by-play cache
+        case espnEventMap       // "ESPN-Event-Map" — TSDB eventID → ESPN eventID + sport/league
         public var value: RedisKey {
             switch self {
             case .latestLiveInfo:
@@ -107,6 +109,10 @@ enum RedisEndpoint {
                 return "Postseason Window"
             case .postseasonWindowLastUpdate:
                 return "Postseason Window Last Update"
+            case .playByPlay(let eventID):
+                return RedisKey("PBP-\(eventID)")
+            case .espnEventMap:
+                return "ESPN-Event-Map"
             }
         }
         public var debugValue: RedisKey {
@@ -149,6 +155,10 @@ enum RedisEndpoint {
                 return "debug-Postseason Window"
             case .postseasonWindowLastUpdate:
                 return "debug-Postseason Window Last Update"
+            case .playByPlay(let eventID):
+                return RedisKey("debug-PBP-\(eventID)")
+            case .espnEventMap:
+                return "debug-ESPN-Event-Map"
             }
         }
         public func getValue(isDebug: Bool = false) -> RedisKey {

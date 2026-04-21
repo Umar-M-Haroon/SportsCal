@@ -168,6 +168,33 @@ struct NetworkHandler {
         let teams: [Team]
     }
     
+    /// Error thrown when the server has no play-by-play data for a given event yet.
+    /// Callers should treat this as an empty/loading state rather than a hard failure.
+    struct PlayByPlayNotAvailable: Error {}
+
+    /// Fetches the cached ESPN play-by-play array for a specific event (NBA/NFL/NHL/MLB).
+    /// Throws `PlayByPlayNotAvailable` on 404 — the server hasn't captured plays yet for this event.
+    static func fetchPlayByPlay(
+        eventID: String,
+        sport: String? = nil,
+        league: String? = nil,
+        debug: Bool = false
+    ) async throws -> CachedPlays {
+        var components = URLComponents(string: "\(baseURL(debug: debug))/plays/\(eventID)")!
+        var queryItems: [URLQueryItem] = []
+        if let sport { queryItems.append(URLQueryItem(name: "sport", value: sport)) }
+        if let league { queryItems.append(URLQueryItem(name: "league", value: league)) }
+        if !queryItems.isEmpty { components.queryItems = queryItems }
+        let url = components.url!
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            if httpResponse.statusCode == 404 { throw PlayByPlayNotAvailable() }
+        }
+        let decoder = JSONDecoder()
+        return try decoder.decode(CachedPlays.self, from: data)
+    }
+
     static func getTeams(debug: Bool = false) async throws -> [Team] {
         let urlString = "\(baseURL(debug: debug))/teams"
         let url = URL(string: urlString)!

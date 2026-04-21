@@ -121,35 +121,73 @@ struct WatchGameDetailView: View {
         }
     }
 
+    /// A period's worth of plays — wrapper struct so ForEach can use its `Identifiable`
+    /// overload (tuples won't work there).
+    private struct PeriodGroup: Identifiable {
+        let id: Int
+        let plays: [Play]
+    }
+
+    /// Plays grouped by period, with the periods in descending order so the most recent
+    /// period is at the top. Within each period, plays run chronologically (first → last).
+    private var playsGroupedByPeriod: [PeriodGroup] {
+        let groups = Dictionary(grouping: plays, by: { $0.period?.number ?? 0 })
+        return groups
+            .map { PeriodGroup(id: $0.key, plays: $0.value) }
+            .sorted { $0.id > $1.id }
+    }
+
     @ViewBuilder
     private var playByPlayCompact: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Play-by-Play")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-            ForEach(Array(plays.reversed().prefix(10).enumerated()), id: \.offset) { _, play in
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 4) {
-                        if let period = play.period?.number {
-                            Text(periodAbbreviation(period))
-                                .font(.system(size: 8, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                        if let clock = play.clock?.displayValue, !clock.isEmpty {
-                            Text(clock)
-                                .font(.system(size: 8, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    if let text = play.text {
-                        Text(text)
-                            .font(.system(size: 10))
-                            .lineLimit(2)
-                    }
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Play-by-Play")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(plays.count)")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(playsGroupedByPeriod) { group in
+                periodGroupRow(group)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func periodGroupRow(_ group: PeriodGroup) -> some View {
+        Text(periodAbbreviation(group.id))
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(.primary)
+            .padding(.top, 2)
+        ForEach(Array(group.plays.enumerated()), id: \.offset) { _, play in
+            watchPlayRow(play)
+        }
+    }
+
+    @ViewBuilder
+    private func watchPlayRow(_ play: Play) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            if let clock = play.clock?.displayValue, !clock.isEmpty {
+                Text(clock)
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            if let text = play.text {
+                Text(text)
+                    .font(.system(size: 10))
+                    .foregroundStyle(play.scoringPlay == true ? .primary : .secondary)
+                    .fontWeight(play.scoringPlay == true ? .semibold : .regular)
+            }
+            if play.scoringPlay == true,
+               let away = play.awayScore, let home = play.homeScore {
+                Text("\(away)–\(home)")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
     }
 
     private func periodAbbreviation(_ period: Int) -> String {

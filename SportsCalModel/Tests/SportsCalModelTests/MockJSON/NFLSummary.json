@@ -1,0 +1,94 @@
+{
+  "plays": [
+    {
+      "id": "401547433-1-1",
+      "text": "Patrick Mahomes pass complete short right to Travis Kelce for 12 yards",
+      "scoringPlay": false,
+      "awayScore": 0,
+      "homeScore": 0,
+      "clock": { "displayValue": "15:00" },
+      "period": { "number": 1 },
+      "type": { "id": "24", "text": "Pass Reception" }
+    },
+    {
+      "id": "401547433-1-2",
+      "text": "Isiah Pacheco rush middle for 5 yards",
+      "scoringPlay": false,
+      "awayScore": 0,
+      "homeScore": 0,
+      "clock": { "displayValue": "13:45" },
+      "period": { "number": 1 },
+      "type": { "id": "3", "text": "Rush" }
+    },
+    {
+      "id": "401547433-1-3",
+      "text": "Patrick Mahomes pass complete deep middle to Rashee Rice for 32 yards, TOUCHDOWN",
+      "scoringPlay": true,
+      "awayScore": 0,
+      "homeScore": 7,
+      "clock": { "displayValue": "11:30" },
+      "period": { "number": 1 },
+      "type": { "id": "67", "text": "Passing Touchdown" }
+    },
+    {
+      "id": "401547433-1-4",
+      "text": "Harrison Butker extra point is GOOD",
+      "scoringPlay": true,
+      "awayScore": 0,
+      "homeScore": 7,
+      "clock": { "displayValue": "11:30" },
+      "period": { "number": 1 },
+      "type": { "id": "45", "text": "Extra Point" }
+    },
+    {
+      "id": "401547433-2-1",
+      "text": "Jalen Hurts pass incomplete deep left intended for AJ Brown",
+      "scoringPlay": false,
+      "awayScore": 0,
+      "homeScore": 7,
+      "clock": { "displayValue": "9:55" },
+      "period": { "number": 2 },
+      "type": { "id": "23", "text": "Pass Incompletion" }
+    },
+    {
+      "id": "401547433-2-2",
+      "text": "Jake Elliott 48 yard field goal is GOOD",
+      "scoringPlay": true,
+      "awayScore": 3,
+      "homeScore": 7,
+      "clock": { "displayValue": "6:12" },
+      "period": { "number": 2 },
+      "type": { "id": "59", "text": "Field Goal Good" }
+    },
+    {
+      "id": "401547433-3-1",
+      "text": "Two-minute warning",
+      "scoringPlay": false,
+      "awayScore": 3,
+      "homeScore": 7,
+      "clock": { "displayValue": "2:00" },
+      "period": { "number": 3 },
+      "type": { "id": "40", "text": "Two-Minute Warning" }
+    },
+    {
+      "id": "401547433-4-1",
+      "text": "Patrick Mahomes 8 yard rush, TOUCHDOWN",
+      "scoringPlay": true,
+      "awayScore": 3,
+      "homeScore": 14,
+      "clock": { "displayValue": "3:04" },
+      "period": { "number": 4 },
+      "type": { "id": "68", "text": "Rushing Touchdown" }
+    },
+    {
+      "id": "401547433-4-2",
+      "text": "End of game",
+      "scoringPlay": false,
+      "awayScore": 10,
+      "homeScore": 17,
+      "clock": { "displayValue": "0:00" },
+      "period": { "number": 4 },
+      "type": { "id": "412", "text": "End of Game" }
+    }
+  ]
+}

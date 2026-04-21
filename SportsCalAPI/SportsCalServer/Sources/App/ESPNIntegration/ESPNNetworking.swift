@@ -294,6 +294,32 @@ class ESPNNetworking {
         return timingMap
     }
 
+    // MARK: - Play-by-Play Summary (NBA / NFL / NHL / MLB)
+
+    /// Fetches the full play-by-play array from ESPN's per-event summary endpoint.
+    /// Returns only the fields we consume (`plays[]`) — the full summary has many more.
+    static func getPlayByPlaySummary(
+        req: some Client,
+        sport: String,
+        league: String,
+        eventId: String
+    ) async throws -> ESPNSummaryResponse {
+        let urlString = "https://site.api.espn.com/apis/site/v2/sports/\(sport)/\(league)/summary?event=\(eventId)"
+        do {
+            let response = try await req.get(URI(string: urlString))
+            return try response.content.decode(ESPNSummaryResponse.self)
+        } catch {
+            logger.error("ESPN play-by-play summary fetch failed", metadata: [
+                "sport": "\(sport)",
+                "league": "\(league)",
+                "eventId": "\(eventId)",
+                "url": "\(urlString)",
+                "error": "\(error)"
+            ])
+            throw error
+        }
+    }
+
     // MARK: - Golf Summary (per-event detail with hole-by-hole data)
 
     /// Fetches detailed golf tournament summary including course info, hole-by-hole scores, and round stats.

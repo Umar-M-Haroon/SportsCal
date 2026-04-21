@@ -119,6 +119,76 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return encodeResult(res: teams)
     }
 
+    //MARK: - Play-by-Play (per-event)
+    // Three-tier lookup: (1) Redis hot cache for live/in-progress games, (2) SQLite archive
+    // for finalized games, (3) on-demand ESPN fetch using the `ESPN-Event-Map` or query params.
+    routes.get("plays", ":eventID") { req async throws -> String in
+        guard let eventID = req.parameters.get("eventID"), !eventID.isEmpty else {
+            throw Abort(.badRequest)
+        }
+        let isDebug = req.application.environment == .development
+        let key = RedisEndpoint.ESPN.playByPlay(eventID).getValue(isDebug: isDebug)
+
+        // Tier 1: Redis hot cache.
+        if let cached = try await req.application.redis.get(key, asJSON: CachedPlays.self) {
+            return encodeResult(res: cached)
+        }
+
+        // Tier 2: SQLite archive (finalized games).
+        if let archive = req.application.pbpArchive,
+           let archived = try? await archive.lookup(eventID: eventID) {
+            return encodeResult(res: archived)
+        }
+
+        // Cache miss: try to resolve TSDB → ESPN via the enrichment map, then optionally
+        // fall back to client-supplied sport/league.
+        let mapKey = RedisEndpoint.ESPN.espnEventMap.getValue(isDebug: isDebug)
+        let eventMap: [String: ESPNEventMapping] = (try? await req.application.redis.get(
+            mapKey, asJSON: [String: ESPNEventMapping].self
+        )) ?? [:]
+
+        let resolvedESPNID: String
+        let resolvedSport: String
+        let resolvedLeague: String
+        if let mapping = eventMap[eventID] {
+            resolvedESPNID = mapping.espnEventID
+            resolvedSport = mapping.sport
+            resolvedLeague = mapping.league
+        } else if let sport = try? req.query.get(String.self, at: "sport"),
+                  let league = try? req.query.get(String.self, at: "league"),
+                  !sport.isEmpty, !league.isEmpty {
+            // No mapping yet — the client-supplied eventID has to already be an ESPN ID
+            // (scheduled enrichment hasn't run for this game). Try ESPN directly.
+            resolvedESPNID = eventID
+            resolvedSport = sport
+            resolvedLeague = league
+        } else {
+            throw Abort(.notFound)
+        }
+
+        do {
+            let summary = try await ESPNNetworking.getPlayByPlaySummary(
+                req: req.client, sport: resolvedSport, league: resolvedLeague, eventId: resolvedESPNID
+            )
+            let plays = summary.plays ?? []
+            guard !plays.isEmpty else { throw Abort(.notFound) }
+            let payload = CachedPlays(
+                eventID: eventID,
+                lastPlayId: plays.last?.id ?? "",
+                plays: plays,
+                isFinal: false,
+                fetchedAt: Date()
+            )
+            // Write under the client-facing key so subsequent requests hit cache.
+            try? await req.application.redis.set(key, toJSON: payload)
+            req.logger.info("PBP on-demand fetch succeeded for \(eventID) → ESPN \(resolvedESPNID) (\(plays.count) plays)")
+            return encodeResult(res: payload)
+        } catch {
+            req.logger.warning("PBP on-demand fetch failed for \(eventID): \(error)")
+            throw Abort(.notFound)
+        }
+    }
+
     //MARK: - Live Websocket
     routes.webSocket("ws") { req, ws async in
         let isDebug = req.application.environment == .development

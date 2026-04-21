@@ -50,6 +50,17 @@ public func configure(_ app: Application) async throws {
         app.logger.warning("⚠️ SportsDB_API_KEY not set — TheSportsDB v2 API calls will fail (400)")
     }
 
+    // Open the SQLite play-by-play archive. Path override via PBP_ARCHIVE_PATH env var —
+    // defaults to `pbp_archive.sqlite` alongside the other working-directory artifacts.
+    do {
+        let defaultPath = app.directory.workingDirectory + "pbp_archive.sqlite"
+        let archivePath = Environment.get("PBP_ARCHIVE_PATH") ?? defaultPath
+        app.pbpArchive = try await PBPArchive.bootstrap(path: archivePath)
+        app.logger.info("📦 PBP archive opened at \(archivePath)")
+    } catch {
+        app.logger.error("⚠️ PBP archive failed to open — historical plays won't persist: \(error)")
+    }
+
     // Skip scheduled jobs during testing to avoid external API calls
     if app.environment != .testing {
         let scheduleUpdateJob = ScheduleUpdateJob()
