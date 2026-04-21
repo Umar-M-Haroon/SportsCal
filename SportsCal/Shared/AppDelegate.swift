@@ -9,12 +9,27 @@ import Foundation
 import Sentry
 import UserNotifications
 import os
+#if os(iOS)
+import GoogleMobileAds
+#endif
 
 #if os(iOS)
 import UIKit
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+
+        // Initialize Google Mobile Ads SDK
+        #if DEBUG
+        // Mark all simulators and this device as test devices so we always get test ads,
+        // even if the production ad unit ID is configured. Prevents AdMob account flagging
+        // from accidental clicks during development.
+        MobileAds.shared.requestConfiguration.testDeviceIdentifiers = [
+            "kGADSimulatorID" as String,
+            "2153b390d99b5b3d68e57f2a1c16c0c1"
+        ]
+        #endif
+        MobileAds.shared.start()
 
         // Request notification permissions
         requestNotificationAuthorization()
