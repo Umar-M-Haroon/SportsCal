@@ -20,7 +20,7 @@ public enum SportType: String, CaseIterable {
         switch league {
         case .nfl:
             self = .nfl
-        case .nba, .ncaaMBBTournament:
+        case .nba, .ncaaMBBTournament, .wnba:
             self = .basketball
         case .nhl:
             self = .hockey

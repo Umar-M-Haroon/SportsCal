@@ -40,13 +40,14 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     case formula1 = 4370
 
     case ncaaMBBTournament = 100
+    case wnba = 101
 
     public var isSoccer: Bool {
-        return ![Leagues.nfl, Leagues.nba, Leagues.nhl, Leagues.mlb, Leagues.pga, Leagues.atp, Leagues.wta, Leagues.formula1, Leagues.ncaaMBBTournament].contains(self)
+        return ![Leagues.nfl, Leagues.nba, Leagues.nhl, Leagues.mlb, Leagues.pga, Leagues.atp, Leagues.wta, Leagues.formula1, Leagues.ncaaMBBTournament, Leagues.wnba].contains(self)
     }
 
     public var isBasketball: Bool {
-        return [Leagues.nba, Leagues.ncaaMBBTournament].contains(self)
+        return [Leagues.nba, Leagues.ncaaMBBTournament, Leagues.wnba].contains(self)
     }
 
     public var isGolf: Bool {
@@ -121,6 +122,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             self = .formula1
         case "mens-college-basketball":
             self = .ncaaMBBTournament
+        case "wnba":
+            self = .wnba
         default:
             return nil
         }
@@ -186,6 +189,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "f1"
         case .ncaaMBBTournament:
             return "mens-college-basketball"
+        case .wnba:
+            return "wnba"
         default:
             return nil
         }
@@ -250,7 +255,9 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         case .formula1:
             return "Formula 1"
         case .ncaaMBBTournament:
-            return "NCAA Tournament"
+            return "March Madness"
+        case .wnba:
+            return "WNBA"
         }
     }
 
@@ -260,7 +267,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "soccer"
         case .nfl:
             return "football"
-        case .nba, .ncaaMBBTournament:
+        case .nba, .ncaaMBBTournament, .wnba:
             return "basketball"
         case .nhl:
             return "hockey"
@@ -277,14 +284,35 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
 
     /// ESPN CDN logo URL for this league (light mode)
     public var logoURL: URL? {
+        if let direct = directLogoURL { return URL(string: direct) }
         guard let id = espnLogoID else { return nil }
         return URL(string: "https://a.espncdn.com/i/leaguelogos/soccer/500/\(id).png")
     }
 
     /// ESPN CDN logo URL for this league (dark mode)
     public var darkLogoURL: URL? {
+        if let direct = directDarkLogoURL { return URL(string: direct) }
         guard let id = espnLogoID else { return nil }
         return URL(string: "https://a.espncdn.com/i/leaguelogos/soccer/500-dark/\(id).png")
+    }
+
+    /// Direct logo URLs for non-soccer leagues
+    private var directLogoURL: String? {
+        switch self {
+        case .nba: return "https://a.espncdn.com/i/teamlogos/leagues/500/nba.png"
+        case .ncaaMBBTournament: return "https://a.espncdn.com/i/teamlogos/ncaa/500/2.png"
+        case .wnba: return "https://a.espncdn.com/i/teamlogos/leagues/500/wnba.png"
+        default: return nil
+        }
+    }
+
+    private var directDarkLogoURL: String? {
+        switch self {
+        case .nba: return "https://a.espncdn.com/i/teamlogos/leagues/500-dark/nba.png"
+        case .ncaaMBBTournament: return "https://a.espncdn.com/i/teamlogos/ncaa/500/2.png"
+        case .wnba: return "https://a.espncdn.com/i/teamlogos/leagues/500-dark/wnba.png"
+        default: return nil
+        }
     }
 
     /// ESPN internal league ID used for logo URLs (only soccer leagues)
@@ -310,7 +338,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         case .Copa_America: return "83"
         case .UEFA_Conference_League: return "20296"
         case .Womens_World_Cup: return "60"
-        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament: return nil
+        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament, .wnba: return nil
         }
     }
 

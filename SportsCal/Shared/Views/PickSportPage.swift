@@ -69,6 +69,14 @@ struct PickSportPage: View {
 //                        appStorage.shouldShowMLB = false
 //                    }
                 }
+                Toggle(isOn: $bindableAppStorage.shouldShowWNBA) {
+                    Label {
+                        Text("WNBA")
+                    } icon: {
+                        Image(systemName: "basketball.fill")
+                            .modifier(SportsTint(sport: .basketball))
+                    }
+                }
                 Toggle(isOn: $bindableAppStorage.shouldShowMLB) {
                     Label {
                       Text("MLB")
@@ -152,7 +160,7 @@ struct PickSportPage: View {
                     viewModel.getInfo()
                 }, label: {
                     Text("Continue")
-                        .disabled(!(appStorage.shouldShowSoccer || appStorage.shouldShowMLB || appStorage.shouldShowNBA || appStorage.shouldShowNFL || appStorage.shouldShowNHL || appStorage.shouldShowGolf || appStorage.shouldShowTennis || appStorage.shouldShowRacing))
+                        .disabled(!(appStorage.shouldShowSoccer || appStorage.shouldShowMLB || appStorage.shouldShowNBA || appStorage.shouldShowWNBA || appStorage.shouldShowNFL || appStorage.shouldShowNHL || appStorage.shouldShowGolf || appStorage.shouldShowTennis || appStorage.shouldShowRacing))
                 })
                 .frame(maxWidth: .infinity,alignment: .center)
                 .buttonStyle(.bordered)

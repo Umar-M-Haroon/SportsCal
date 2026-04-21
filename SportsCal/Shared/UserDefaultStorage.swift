@@ -19,6 +19,7 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("shouldShowGolf") var shouldShowGolf: Bool = false
     @ObservationIgnored @AppStorage("shouldShowTennis") var shouldShowTennis: Bool = false
     @ObservationIgnored @AppStorage("shouldShowRacing") var shouldShowRacing: Bool = false
+    @ObservationIgnored @AppStorage("shouldShowWNBA") var shouldShowWNBA: Bool = false
     @ObservationIgnored @AppStorage("favoritesOnlyNBA") var favoritesOnlyNBA: Bool = false
     @ObservationIgnored @AppStorage("favoritesOnlyNFL") var favoritesOnlyNFL: Bool = false
     @ObservationIgnored @AppStorage("favoritesOnlyNHL") var favoritesOnlyNHL: Bool = false
@@ -163,6 +164,7 @@ class UserDefaultStorage {
         defaults?.set(shouldShowGolf, forKey: "shouldShowGolf")
         defaults?.set(shouldShowTennis, forKey: "shouldShowTennis")
         defaults?.set(shouldShowRacing, forKey: "shouldShowRacing")
+        defaults?.set(shouldShowWNBA, forKey: "shouldShowWNBA")
         defaults?.set(favoritesOnlyNBA, forKey: "favoritesOnlyNBA")
         defaults?.set(favoritesOnlyNFL, forKey: "favoritesOnlyNFL")
         defaults?.set(favoritesOnlyNHL, forKey: "favoritesOnlyNHL")
