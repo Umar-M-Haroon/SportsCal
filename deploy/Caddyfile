@@ -1,3 +1,27 @@
-sportscal.com {
+(common_headers) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options    "nosniff"
+        Referrer-Policy           "no-referrer"
+        -Server
+        -Via
+    }
+}
+
+api.sportscal.app {
+    import common_headers
+
+    @admin path /admin /admin/* /admin/assets/*
+    respond @admin 404
+
+    reverse_proxy app:8080
+}
+
+sportscal.app {
+    import common_headers
+
+    @admin path /admin /admin/* /admin/assets/*
+    respond @admin 404
+
     reverse_proxy app:8080
 }
