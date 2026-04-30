@@ -1,7 +1,7 @@
 # ================================
 # Build stage
 # ================================
-FROM swift:5.9-jammy AS build
+FROM swift:6.0-jammy AS build
 
 WORKDIR /build
 
@@ -25,7 +25,7 @@ RUN swift build -c release
 # ================================
 # Runtime stage
 # ================================
-FROM swift:5.9-jammy-slim
+FROM swift:6.0-jammy-slim
 
 RUN apt-get update && apt-get install -y \
     ca-certificates \
@@ -42,6 +42,12 @@ COPY --from=build /build/SportsCalAPI/SportsCalServer/.build/release/Run .
 
 # Copy static files (admin dashboard)
 COPY SportsCalAPI/SportsCalServer/Public/ Public/
+
+# Pre-create the PBP data dir so the named volume inherits vapor ownership when
+# Docker initializes a fresh volume from the image. Without this, the volume
+# mountpoint is created by the daemon as root:root and the vapor user can't
+# write the SQLite archive.
+RUN mkdir -p /app/pbp_data
 
 # Set ownership
 RUN chown -R vapor:vapor /app
