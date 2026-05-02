@@ -865,7 +865,7 @@ struct DayPage: View {
                 .environment(viewModel)
                 .environment(favorites)
         } else if let homeTeam = gwt.homeTeam, let awayTeam = gwt.awayTeam {
-            GameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+            AdaptiveGameDetail(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
                 .environment(viewModel)
                 .environment(favorites)
         }
@@ -952,7 +952,7 @@ struct DayPage: View {
                     .environment(viewModel)
                     .environment(favorites)
             } else if let (homeTeam, awayTeam) = viewModel.getTeams(for: game) {
-                GameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                AdaptiveGameDetail(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
                     .environment(viewModel)
                     .environment(favorites)
             } else {

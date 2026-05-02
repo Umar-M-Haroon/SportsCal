@@ -224,7 +224,7 @@ struct DebugLiveActivityTestView: View {
         serverStatusError = nil
         Task {
             do {
-                let status = try await NetworkHandler.getDeviceRegistrationStatus(tokenPrefix: prefix, debug: appStorage.debugMode)
+                let status = try await NetworkHandler.getDeviceRegistrationStatus(tokenPrefix: prefix)
                 serverStatus = status
             } catch {
                 serverStatusError = error.localizedDescription

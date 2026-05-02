@@ -27,7 +27,10 @@ final class SportsCalTests: XCTestCase {
     func testStableLeagueGameCounts() async throws {
         let result: LiveScore
         do {
-            result = try await NetworkHandler.handleCall(debug: true)
+            // Tests bypass .auto and force .dev so CI hits the staging server.
+            NetworkHandler.currentEnvironment = .dev
+            NetworkHandler.resolvedEnvironment = .dev
+            result = try await NetworkHandler.handleCall()
         } catch {
             throw XCTSkip("Network unavailable: \(error.localizedDescription)")
         }

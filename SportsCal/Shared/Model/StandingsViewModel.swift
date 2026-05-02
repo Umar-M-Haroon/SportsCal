@@ -16,12 +16,12 @@ class StandingsViewModel {
     var isLoading = false
     var error: String?
 
-    func loadHistory(leagueID: Int, days: Int = 30, debug: Bool = false) async {
+    func loadHistory(leagueID: Int, days: Int = 30) async {
         isLoading = true
         error = nil
 
         do {
-            snapshots = try await NetworkHandler.getStandingsHistory(leagueID: leagueID, days: days, debug: debug)
+            snapshots = try await NetworkHandler.getStandingsHistory(leagueID: leagueID, days: days)
         } catch {
             self.error = error.localizedDescription
         }

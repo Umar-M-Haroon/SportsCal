@@ -116,7 +116,7 @@ struct WatchGameDetailView: View {
 
     private var supportsPlayByPlay: Bool {
         switch game.sportType {
-        case .basketball, .nfl, .hockey, .mlb: return true
+        case .basketball, .nfl, .hockey, .mlb, .soccer: return true
         default: return false
         }
     }
@@ -195,6 +195,15 @@ struct WatchGameDetailView: View {
         case .basketball, .nfl: return "Q\(period)"
         case .hockey: return period > 3 ? (period == 4 ? "OT" : "SO") : "P\(period)"
         case .mlb: return "\(period)"
+        case .soccer:
+            switch period {
+            case 1: return "1H"
+            case 2: return "2H"
+            case 3: return "ET1"
+            case 4: return "ET2"
+            case 5: return "PEN"
+            default: return "\(period)"
+            }
         default: return "\(period)"
         }
     }
@@ -208,6 +217,9 @@ struct WatchGameDetailView: View {
         case .nfl:        (sportPath, leagueSlug) = ("football", "nfl")
         case .hockey:     (sportPath, leagueSlug) = ("hockey", "nhl")
         case .mlb:        (sportPath, leagueSlug) = ("baseball", "mlb")
+        case .soccer:
+            let soccerLeague = game.idLeague.flatMap { Int($0) }.flatMap { Leagues(rawValue: $0) }?.espnSlug
+            (sportPath, leagueSlug) = ("soccer", soccerLeague)
         default:          (sportPath, leagueSlug) = (nil, nil)
         }
         do {

@@ -60,7 +60,7 @@ struct StandingsChartView: View {
                         get: { activeLeagueID },
                         set: { newValue in
                             selectedLeagueID = newValue
-                            Task { await viewModel.loadHistory(leagueID: newValue, debug: storage.debugMode) }
+                            Task { await viewModel.loadHistory(leagueID: newValue) }
                         }
                     )) {
                         ForEach(leagueOptions, id: \.id) { option in
@@ -100,7 +100,7 @@ struct StandingsChartView: View {
             .background(Color.secondaryGroupedBackground)
             .cornerRadius(12)
             .task {
-                await viewModel.loadHistory(leagueID: activeLeagueID, debug: storage.debugMode)
+                await viewModel.loadHistory(leagueID: activeLeagueID)
             }
         }
     }

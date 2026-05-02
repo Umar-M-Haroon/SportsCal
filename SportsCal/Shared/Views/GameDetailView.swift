@@ -13,6 +13,82 @@ import EventKit
 import EventKitUI
 #endif
 
+/// Persisted choice for the game detail presentation.
+/// When `true`, callers render `FocusGameDetailView`; otherwise the classic detail view.
+/// Lives on `GameDetailView` as a static key so both views share the same storage.
+extension GameDetailView {
+    static let focusModeKey = "gameDetail.focusMode"
+}
+
+// MARK: - Sections loader model
+//
+// Shared async-loaded state for `GameDetailSections` (standings + plays).
+// Lives in a reference-type model so `.refreshable` can await concrete loads
+// instead of round-tripping through a trigger-binding.
+
+@Observable
+@MainActor
+final class GameDetailSectionsModel {
+    var standing: Standing?
+    var standingsLoading = true
+    var standingsErrorMessage: String?
+
+    var plays: [Play] = []
+    var playsLoading = false
+    var playsAvailable = true
+    var selectedPeriod: Int?
+
+    func loadStandings(leagueID: String?, isIndividualSport: Bool) async {
+        guard !isIndividualSport else {
+            standingsLoading = false
+            return
+        }
+        guard let leagueID else {
+            standingsLoading = false
+            standingsErrorMessage = "League information missing for this game"
+            return
+        }
+        do {
+            standing = try await NetworkHandler.getStandings(for: leagueID)
+            standingsLoading = false
+            standingsErrorMessage = nil
+        } catch let urlError as URLError {
+            standingsLoading = false
+            switch urlError.code {
+            case .notConnectedToInternet, .networkConnectionLost:
+                standingsErrorMessage = "No internet connection"
+            case .timedOut:
+                standingsErrorMessage = "Request timed out"
+            default:
+                standingsErrorMessage = "Unable to load standings"
+            }
+        } catch {
+            standingsLoading = false
+            standingsErrorMessage = "Unable to load standings"
+        }
+    }
+
+    func loadPlays(eventID: String, sport: String?, league: String?) async {
+        playsLoading = true
+        defer { playsLoading = false }
+        do {
+            let cached = try await NetworkHandler.fetchPlayByPlay(
+                eventID: eventID, sport: sport, league: league
+            )
+            plays = cached.plays
+            playsAvailable = true
+        } catch is NetworkHandler.PlayByPlayNotAvailable {
+            plays = []
+            playsAvailable = false
+        } catch {
+            // Silent failure — keep any plays we already have.
+            playsAvailable = plays.isEmpty == false
+        }
+    }
+}
+
+// MARK: - GameDetailView (classic hero)
+
 struct GameDetailView: View {
     let game: Game
     let homeTeam: Team
@@ -25,17 +101,10 @@ struct GameDetailView: View {
     @Environment(NativeAdManager.self) private var adManager
     @Environment(SubscriptionManager.self) private var subscriptionManager
     #endif
+    @AppStorage(GameDetailView.focusModeKey) private var useFocusMode = false
     @State private var shouldShowSportsCalProAlert = false
     @State private var sheetType: SheetType?
-
-    @State private var standing: Standing?
-    @State private var standingsLoading = true
-    @State private var standingsErrorMessage: String?
-
-    @State private var plays: [Play] = []
-    @State private var playsLoading = false
-    @State private var playsAvailable = true
-    @State private var selectedPeriod: Int? = nil
+    @State private var sectionsModel = GameDetailSectionsModel()
 
     private var league: Leagues? {
         guard let id = game.idLeague, let intID = Int(id) else { return nil }
@@ -49,25 +118,27 @@ struct GameDetailView: View {
 
     // MARK: - Body
     var body: some View {
+        if useFocusMode {
+            FocusGameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+        } else {
+            classicBody
+        }
+    }
+
+    private var classicBody: some View {
         ScrollView {
             VStack(spacing: 24) {
                 gameHeader
                 gameInfo
                 actionsRow
-                playoffSeriesSection
-                boxScoreSection
-                momentumChartSection
-                keyPlayersSection
-                playByPlaySection
-                injuriesSection
-                headToHeadSection
-                #if os(iOS)
-                if !subscriptionManager.isPro && AdConfiguration.isEnabled,
-                   let ad = adManager.adForSlot(0) {
-                    NativeAdCardView(nativeAd: ad)
-                }
-                #endif
-                standingsSection
+                GameDetailSections(
+                    game: game,
+                    homeTeam: homeTeam,
+                    awayTeam: awayTeam,
+                    league: league,
+                    sportType: sportType,
+                    model: sectionsModel
+                )
             }
             .padding()
         }
@@ -75,21 +146,18 @@ struct GameDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .refreshable {
-            if let eventID = game.idEvent, supportsPlayByPlay {
-                await loadPlays(eventID: eventID)
-            }
-            await loadStandings()
-        }
-        .task {
-            await loadStandings()
-            if !game.isIndividualSport,
-               !favorites.contains(game),
-               let sportType {
-                engagementTracker.recordView(team: game.strHomeTeam, sport: sportType)
-                engagementTracker.recordView(team: game.strAwayTeam, sport: sportType)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    useFocusMode.toggle()
+                } label: {
+                    Image(systemName: "rectangle.portrait.and.arrow.forward")
+                        .accessibilityLabel("Switch to Focus view")
+                }
             }
         }
+        .refreshable { await refreshSections() }
+        .task { await initialLoad() }
         .sheet(item: $sheetType) { sheet in
             switch sheet {
             case .calendar(let eventGame):
@@ -106,7 +174,63 @@ struct GameDetailView: View {
         }
     }
 
-    // MARK: - Game Header
+    private func refreshSections() async {
+        if let eventID = game.idEvent, supportsPlayByPlay {
+            await sectionsModel.loadPlays(
+                eventID: eventID,
+                sport: pbpSportPath,
+                league: pbpLeagueSlug
+            )
+        }
+        await sectionsModel.loadStandings(
+            leagueID: game.idLeague,
+            isIndividualSport: game.isIndividualSport
+        )
+    }
+
+    private func initialLoad() async {
+        await sectionsModel.loadStandings(
+            leagueID: game.idLeague,
+            isIndividualSport: game.isIndividualSport
+        )
+        if !game.isIndividualSport,
+           !favorites.contains(game),
+           let sportType {
+            engagementTracker.recordView(team: game.strHomeTeam, sport: sportType)
+            engagementTracker.recordView(team: game.strAwayTeam, sport: sportType)
+        }
+    }
+
+    private var supportsPlayByPlay: Bool {
+        switch sportType {
+        case .basketball, .nfl, .hockey, .mlb, .soccer: return true
+        default: return false
+        }
+    }
+
+    private var pbpSportPath: String? {
+        switch sportType {
+        case .basketball: return "basketball"
+        case .nfl:        return "football"
+        case .hockey:     return "hockey"
+        case .mlb:        return "baseball"
+        case .soccer:     return "soccer"
+        default:          return nil
+        }
+    }
+
+    private var pbpLeagueSlug: String? {
+        switch sportType {
+        case .basketball: return "nba"
+        case .nfl:        return "nfl"
+        case .hockey:     return "nhl"
+        case .mlb:        return "mlb"
+        case .soccer:     return league?.espnSlug
+        default:          return nil
+        }
+    }
+
+    // MARK: - Classic hero
     private var gameHeader: some View {
         VStack(spacing: 12) {
             HStack(alignment: .top) {
@@ -231,7 +355,6 @@ struct GameDetailView: View {
         return URL(string: urlString)
     }
 
-    // MARK: - Game Info
     private var gameInfo: some View {
         HStack(spacing: 12) {
             if let sport = sportType {
@@ -253,7 +376,6 @@ struct GameDetailView: View {
         .padding(.horizontal, 4)
     }
 
-    // MARK: - Actions Row
     private var actionsRow: some View {
         HStack(spacing: 16) {
             Menu {
@@ -312,7 +434,6 @@ struct GameDetailView: View {
         .cornerRadius(12)
     }
 
-    // MARK: - Auto-Follow Action
     #if canImport(ActivityKit) && os(iOS)
     @ViewBuilder
     private var autoFollowAction: some View {
@@ -343,12 +464,603 @@ struct GameDetailView: View {
     }
     #endif
 
-    // MARK: - Playoff Series
+    #if os(iOS)
+    private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
+        let eventStore = EKEventStore()
+        let event = EKEvent(eventStore: eventStore)
+        let separator = (game.playoff?.isNeutralSite == true) ? " vs " : " @ "
+        event.title = "\(game.strAwayTeam)\(separator)\(game.strHomeTeam)"
+        if let gameDate = game.standardDate {
+            event.startDate = gameDate
+            event.endDate = gameDate.afterHoursFromNow(hours: 2)
+        }
+        return CalendarRepresentable(eventStore: eventStore, event: event)
+    }
+    #endif
+}
+
+// MARK: - Focus Game Detail View
+//
+// Editorial "one game at a time" treatment. Serif system font, huge scores,
+// leader/winner gets italic emphasis + full color; trailer is roman + dimmed.
+// Renders the same detailed sections (box score, play-by-play, standings, …)
+// below the hero so the Focus view is feature-complete.
+
+struct FocusGameDetailView: View {
+    let game: Game
+    let homeTeam: Team
+    let awayTeam: Team
+
+    @Environment(GameViewModel.self) private var viewModel
+    @Environment(Favorites.self) private var favorites
+    @Environment(EngagementTracker.self) private var engagementTracker
+    @AppStorage(GameDetailView.focusModeKey) private var useFocusMode = false
+    @State private var sectionsModel = GameDetailSectionsModel()
+
+    private enum GameState { case live, upcoming, final }
+
+    private var league: Leagues? {
+        guard let id = game.idLeague, let intID = Int(id) else { return nil }
+        return Leagues(rawValue: intID)
+    }
+
+    private var sportType: SportType? {
+        guard let league else { return nil }
+        return SportType(league: league)
+    }
+
+    private var state: GameState {
+        if game.strStatus == "in" { return .live }
+        if isGameCompleted(game) { return .final }
+        return .upcoming
+    }
+
+    private var homeScore: Int? { Int(game.intHomeScore ?? "") }
+    private var awayScore: Int? { Int(game.intAwayScore ?? "") }
+
+    private var homeLeads: Bool {
+        guard let h = homeScore, let a = awayScore else { return false }
+        return h > a
+    }
+    private var awayLeads: Bool {
+        guard let h = homeScore, let a = awayScore else { return false }
+        return a > h
+    }
+
+    private var isHomeFavorite: Bool { favorites.teams.contains(game.strHomeTeam) }
+    private var isAwayFavorite: Bool { favorites.teams.contains(game.strAwayTeam) }
+
+    private var homeDisplayName: String { homeTeam.strTeam ?? game.strHomeTeam }
+    private var awayDisplayName: String { awayTeam.strTeam ?? game.strAwayTeam }
+    private var homeShort: String { homeTeam.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased() }
+    private var awayShort: String { awayTeam.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased() }
+
+    private var supportsPlayByPlay: Bool {
+        switch sportType {
+        case .basketball, .nfl, .hockey, .mlb, .soccer: return true
+        default: return false
+        }
+    }
+
+    private var pbpSportPath: String? {
+        switch sportType {
+        case .basketball: return "basketball"
+        case .nfl:        return "football"
+        case .hockey:     return "hockey"
+        case .mlb:        return "baseball"
+        case .soccer:     return "soccer"
+        default:          return nil
+        }
+    }
+
+    private var pbpLeagueSlug: String? {
+        switch sportType {
+        case .basketball: return "nba"
+        case .nfl:        return "nfl"
+        case .hockey:     return "nhl"
+        case .mlb:        return "mlb"
+        case .soccer:     return league?.espnSlug
+        default:          return nil
+        }
+    }
+
+    // MARK: Body
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                metaLine
+                    .padding(.horizontal, 24)
+                    .padding(.top, 4)
+
+                Group {
+                    switch state {
+                    case .live:     liveHero
+                    case .upcoming: upcomingHero
+                    case .final:    finalHero
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+
+                momentsSection
+                    .padding(.horizontal, 24)
+                    .padding(.top, 24)
+
+                sectionsDivider
+                    .padding(.horizontal, 24)
+                    .padding(.top, 32)
+                    .padding(.bottom, 20)
+
+                GameDetailSections(
+                    game: game,
+                    homeTeam: homeTeam,
+                    awayTeam: awayTeam,
+                    league: league,
+                    sportType: sportType,
+                    model: sectionsModel
+                )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 48)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        #if os(iOS)
+        .background(Color(.systemBackground))
+        #else
+        .background(Color(nsColor: .windowBackgroundColor))
+        #endif
+        .navigationTitle("")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    useFocusMode.toggle()
+                } label: {
+                    Image(systemName: "list.bullet.rectangle.portrait")
+                        .accessibilityLabel("Switch to list view")
+                }
+            }
+        }
+        .refreshable { await refreshSections() }
+        .task { await initialLoad() }
+    }
+
+    private func refreshSections() async {
+        if let eventID = game.idEvent, supportsPlayByPlay {
+            await sectionsModel.loadPlays(
+                eventID: eventID,
+                sport: pbpSportPath,
+                league: pbpLeagueSlug
+            )
+        }
+        await sectionsModel.loadStandings(
+            leagueID: game.idLeague,
+            isIndividualSport: game.isIndividualSport
+        )
+    }
+
+    private func initialLoad() async {
+        await sectionsModel.loadStandings(
+            leagueID: game.idLeague,
+            isIndividualSport: game.isIndividualSport
+        )
+        if !game.isIndividualSport,
+           !favorites.contains(game),
+           let sportType {
+            engagementTracker.recordView(team: game.strHomeTeam, sport: sportType)
+            engagementTracker.recordView(team: game.strAwayTeam, sport: sportType)
+        }
+    }
+
+    // MARK: Meta line
+
+    @ViewBuilder
+    private var metaLine: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            stateBadge
+            Spacer(minLength: 8)
+            Text(contextLine)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+    }
+
+    private var contextLine: String {
+        var parts: [String] = []
+        if let name = league?.leagueName { parts.append(name) }
+        if let venue = game.venueName { parts.append(venue) }
+        return parts.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private var stateBadge: some View {
+        switch state {
+        case .live:
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 7, height: 7)
+                Text("LIVE")
+                    .font(.footnote.weight(.semibold))
+                    .kerning(0.8)
+                if let status = game.displayStatus {
+                    Text("· \(status)")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        case .upcoming:
+            Text(upcomingBadgeText)
+                .font(.footnote.weight(.semibold))
+                .kerning(0.8)
+                .foregroundStyle(.secondary)
+        case .final:
+            Text(finalBadgeText)
+                .font(.footnote.weight(.semibold))
+                .kerning(0.8)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var upcomingBadgeText: String {
+        guard let date = game.standardDate else { return "UPCOMING" }
+        let now = Date()
+        if date < now { return "UPCOMING" }
+        let interval = date.timeIntervalSince(now)
+        let hours = Int(interval / 3600)
+        let minutes = Int(interval.truncatingRemainder(dividingBy: 3600) / 60)
+        if hours >= 24 {
+            let days = hours / 24
+            return "NEXT UP · in \(days)d"
+        }
+        if hours > 0 {
+            return "NEXT UP · in \(hours)h \(minutes)m"
+        }
+        if minutes > 0 {
+            return "NEXT UP · in \(minutes)m"
+        }
+        return "NEXT UP · soon"
+    }
+
+    private var finalBadgeText: String {
+        guard let date = game.standardDate else { return "FINAL" }
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "FINAL · today" }
+        if calendar.isDateInYesterday(date) { return "FINAL · yesterday" }
+        let days = calendar.dateComponents([.day], from: date, to: Date()).day ?? 0
+        if days > 0 && days < 7 { return "FINAL · \(days)d ago" }
+        return "FINAL · \(date.formatted(.dateTime.month(.abbreviated).day()))"
+    }
+
+    // MARK: Live hero
+
+    @ViewBuilder
+    private var liveHero: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            teamScoreRow(
+                name: awayDisplayName,
+                short: awayShort,
+                badgeURL: awayTeam.strTeamBadge,
+                score: awayScore,
+                isLeader: awayLeads,
+                isFavorite: isAwayFavorite
+            )
+
+            Rectangle()
+                .fill(Color.primary.opacity(0.15))
+                .frame(height: 1)
+
+            teamScoreRow(
+                name: homeDisplayName,
+                short: homeShort,
+                badgeURL: homeTeam.strTeamBadge,
+                score: homeScore,
+                isLeader: homeLeads,
+                isFavorite: isHomeFavorite
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func teamScoreRow(name: String, short: String, badgeURL: String?, score: Int?, isLeader: Bool, isFavorite: Bool) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            focusBadge(url: badgeURL, name: short, size: 42)
+
+            Text(name)
+                .font(.system(.title3, design: .serif))
+                .italicIf(isFavorite || isLeader)
+                .foregroundStyle(isLeader ? .primary : .secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let score {
+                Text("\(score)")
+                    .font(.system(size: 96, weight: .regular, design: .serif))
+                    .italicIf(isLeader)
+                    .foregroundStyle(isLeader ? .primary : Color.secondary)
+                    .monospacedDigit()
+            }
+        }
+    }
+
+    // MARK: Upcoming hero
+
+    @ViewBuilder
+    private var upcomingHero: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            focusTeamLine(name: awayDisplayName, isAccented: isAwayFavorite)
+            Text("at")
+                .font(.system(.footnote, design: .serif))
+                .kerning(4)
+                .foregroundStyle(.secondary)
+                .textCase(.lowercase)
+            focusTeamLine(name: homeDisplayName, isAccented: isHomeFavorite)
+
+            HStack(alignment: .center, spacing: 20) {
+                tipoffCard
+                if isHomeFavorite || isAwayFavorite {
+                    HStack(spacing: 6) {
+                        Image(systemName: "star.fill")
+                            .foregroundStyle(Color.yellow)
+                            .font(.caption)
+                        Text("your team plays")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    @ViewBuilder
+    private func focusTeamLine(name: String, isAccented: Bool) -> some View {
+        Text(name)
+            .font(.system(size: 56, weight: .regular, design: .serif))
+            .italicIf(isAccented)
+            .foregroundStyle(isAccented ? Color.accentColor : .primary)
+            .lineLimit(2)
+            .minimumScaleFactor(0.5)
+    }
+
+    @ViewBuilder
+    private var tipoffCard: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("TIPOFF")
+                .font(.caption2.weight(.semibold))
+                .kerning(1.2)
+                .foregroundStyle(.secondary)
+            if let date = game.standardDate {
+                Text(date.formatted(.dateTime.hour().minute()))
+                    .font(.system(.title2, design: .monospaced).weight(.semibold))
+                    .monospacedDigit()
+            } else {
+                Text("TBD")
+                    .font(.system(.title2, design: .monospaced).weight(.semibold))
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(0.35), lineWidth: 1.5)
+        )
+    }
+
+    // MARK: Final hero
+
+    @ViewBuilder
+    private var finalHero: some View {
+        let showLoserFirst = homeScore != nil && awayScore != nil
+        VStack(alignment: .leading, spacing: 4) {
+            if showLoserFirst {
+                if awayLeads {
+                    loserLine(name: homeShort, score: homeScore)
+                    lostToSeparator
+                    winnerLine(name: awayShort, score: awayScore)
+                } else if homeLeads {
+                    loserLine(name: awayShort, score: awayScore)
+                    lostToSeparator
+                    winnerLine(name: homeShort, score: homeScore)
+                } else {
+                    // Tie / draw — show both at equal weight.
+                    tieLine(name: awayShort, score: awayScore)
+                    Text("drew with")
+                        .font(.system(.callout, design: .serif).italic())
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 4)
+                    tieLine(name: homeShort, score: homeScore)
+                }
+            } else {
+                Text("Final")
+                    .font(.system(size: 64, weight: .regular, design: .serif))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func loserLine(name: String, score: Int?) -> some View {
+        HStack(alignment: .lastTextBaseline, spacing: 14) {
+            Text("\(score ?? 0)")
+                .font(.system(size: 96, weight: .regular, design: .serif))
+                .foregroundStyle(.tertiary)
+                .monospacedDigit()
+            Text(name)
+                .font(.system(size: 36, weight: .regular, design: .serif))
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    @ViewBuilder
+    private func winnerLine(name: String, score: Int?) -> some View {
+        HStack(alignment: .lastTextBaseline, spacing: 14) {
+            Text("\(score ?? 0)")
+                .font(.system(size: 120, weight: .regular, design: .serif))
+                .italic()
+                .monospacedDigit()
+            Text(name)
+                .font(.system(size: 40, weight: .regular, design: .serif))
+        }
+    }
+
+    @ViewBuilder
+    private func tieLine(name: String, score: Int?) -> some View {
+        HStack(alignment: .lastTextBaseline, spacing: 14) {
+            Text("\(score ?? 0)")
+                .font(.system(size: 108, weight: .regular, design: .serif))
+                .monospacedDigit()
+            Text(name)
+                .font(.system(size: 38, weight: .regular, design: .serif))
+        }
+    }
+
+    @ViewBuilder
+    private var lostToSeparator: some View {
+        Text("lost to")
+            .font(.system(.callout, design: .serif).italic())
+            .foregroundStyle(.secondary)
+            .padding(.vertical, 4)
+    }
+
+    // MARK: Moments
+
+    @ViewBuilder
+    private var momentsSection: some View {
+        if let lastPlay = game.lastPlay, !lastPlay.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(momentsLabel)
+                    .font(.caption.weight(.semibold))
+                    .kerning(1.2)
+                    .foregroundStyle(.secondary)
+                Text(lastPlay)
+                    .font(.callout)
+                    .foregroundStyle(.primary.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var momentsLabel: String {
+        switch sportType {
+        case .soccer:    return "GOALS"
+        case .basketball, .nfl, .mlb, .hockey: return "LAST PLAY"
+        case .golf, .tennis: return "LEADERBOARD"
+        case .racing:    return "STANDINGS"
+        default:         return "LATEST"
+        }
+    }
+
+    // MARK: Sections divider
+
+    @ViewBuilder
+    private var sectionsDivider: some View {
+        HStack(spacing: 10) {
+            Rectangle()
+                .fill(Color.primary.opacity(0.2))
+                .frame(height: 0.5)
+            Text("MORE")
+                .font(.caption2.weight(.semibold))
+                .kerning(1.4)
+                .foregroundStyle(.secondary)
+            Rectangle()
+                .fill(Color.primary.opacity(0.2))
+                .frame(height: 0.5)
+        }
+    }
+
+    // MARK: Badge
+
+    @ViewBuilder
+    private func focusBadge(url: String?, name: String, size: CGFloat) -> some View {
+        if let url, let imageURL = resolveBadgeURL(url) {
+            LazyImage(request: ImageRequest(url: imageURL, processors: [.resize(size: CGSize(width: size, height: size))])) { state in
+                if let image = state.image {
+                    image.resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: size, height: size)
+                } else {
+                    badgeInitials(name: name, size: size)
+                }
+            }
+        } else {
+            badgeInitials(name: name, size: size)
+        }
+    }
+
+    @ViewBuilder
+    private func badgeInitials(name: String, size: CGFloat) -> some View {
+        Circle()
+            .stroke(Color.primary.opacity(0.4), lineWidth: 1.5)
+            .frame(width: size, height: size)
+            .overlay(
+                Text(String(name.prefix(3)))
+                    .font(.system(size: size * 0.32, weight: .semibold, design: .serif))
+                    .foregroundStyle(.primary)
+            )
+    }
+
+    private func resolveBadgeURL(_ urlString: String) -> URL? {
+        if urlString.contains("thesportsdb.com") {
+            return URL(string: urlString + "/preview")
+        }
+        return URL(string: urlString)
+    }
+}
+
+// MARK: - GameDetailSections
+//
+// The box-score / momentum / key-players / play-by-play / injuries /
+// head-to-head / standings stack. Consumed by both the classic detail view
+// and the Focus view so both surfaces are feature-complete. Loading state
+// lives on `GameDetailSectionsModel`, owned by the enclosing view.
+
+struct GameDetailSections: View {
+    let game: Game
+    let homeTeam: Team
+    let awayTeam: Team
+    let league: Leagues?
+    let sportType: SportType?
+    let model: GameDetailSectionsModel
+
+    @Environment(GameViewModel.self) private var viewModel
+    #if os(iOS)
+    @Environment(NativeAdManager.self) private var adManager
+    @Environment(SubscriptionManager.self) private var subscriptionManager
+    #endif
+
+    var body: some View {
+        VStack(spacing: 24) {
+            playoffSeriesSection
+            boxScoreSection
+            momentumChartSection
+            keyPlayersSection
+            playByPlaySection
+            injuriesSection
+            headToHeadSection
+            #if os(iOS)
+            if !subscriptionManager.isPro && AdConfiguration.isEnabled,
+               let ad = adManager.adForSlot(0) {
+                NativeAdCardView(nativeAd: ad)
+            }
+            #endif
+            standingsSection
+        }
+    }
+
+    // MARK: Playoff series
+
     @ViewBuilder
     private var playoffSeriesSection: some View {
         if let playoff = game.playoff {
             playoffRichSection(playoff: playoff)
-        } else if let fallbackTitle = fallbackPlayoffTitle {
+        } else if let fallbackTitle = game.fallbackPostseasonTitle {
             playoffMinimalSection(title: fallbackTitle)
         }
     }
@@ -414,8 +1126,6 @@ struct GameDetailView: View {
         .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
     }
 
-    private var fallbackPlayoffTitle: String? { game.fallbackPostseasonTitle }
-
     @ViewBuilder
     private func seriesDots(homeWins: Int, awayWins: Int, bestOf: Int) -> some View {
         let played = homeWins + awayWins
@@ -429,8 +1139,6 @@ struct GameDetailView: View {
     }
 
     private func fillForSeriesDot(index: Int, homeWins: Int, awayWins: Int, played: Int) -> Color {
-        // Wins so far are ordered as opaque dots: away wins first, then home wins.
-        // Remaining dots (scheduled but unplayed) are shown dimmed.
         if index < awayWins {
             return Color(hex: game.awayTeamColor ?? "") ?? .accentColor
         }
@@ -453,7 +1161,8 @@ struct GameDetailView: View {
         return "\(awayShort) lead \(awayWins)-\(homeWins)"
     }
 
-    // MARK: - Box Score
+    // MARK: Box score
+
     @ViewBuilder
     private var boxScoreSection: some View {
         if let homeLs = game.homeLinescores, let awayLs = game.awayLinescores,
@@ -469,7 +1178,6 @@ struct GameDetailView: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     VStack(spacing: 6) {
-                        // Header row
                         HStack(spacing: 0) {
                             Text("")
                                 .frame(width: 60, alignment: .leading)
@@ -485,7 +1193,6 @@ struct GameDetailView: View {
 
                         Divider()
 
-                        // Away team row
                         HStack(spacing: 0) {
                             Text(awayTeam.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased())
                                 .frame(width: 60, alignment: .leading)
@@ -494,7 +1201,6 @@ struct GameDetailView: View {
                                 Text(formatLinescoreValue(score))
                                     .frame(width: 36, alignment: .center)
                             }
-                            // Pad if fewer periods than home
                             ForEach(0..<max(0, homeLs.count - awayLs.count), id: \.self) { _ in
                                 Text("-")
                                     .frame(width: 36, alignment: .center)
@@ -505,7 +1211,6 @@ struct GameDetailView: View {
                         }
                         .font(.caption)
 
-                        // Home team row
                         HStack(spacing: 0) {
                             Text(homeTeam.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased())
                                 .frame(width: 60, alignment: .leading)
@@ -514,7 +1219,6 @@ struct GameDetailView: View {
                                 Text(formatLinescoreValue(score))
                                     .frame(width: 36, alignment: .center)
                             }
-                            // Pad if fewer periods than away
                             ForEach(0..<max(0, awayLs.count - homeLs.count), id: \.self) { _ in
                                 Text("-")
                                     .frame(width: 36, alignment: .center)
@@ -538,7 +1242,8 @@ struct GameDetailView: View {
         value.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(value))" : "\(value)"
     }
 
-    // MARK: - Momentum Chart
+    // MARK: Momentum chart
+
     @ViewBuilder
     private var momentumChartSection: some View {
         if let homeLs = game.homeLinescores, let awayLs = game.awayLinescores,
@@ -548,12 +1253,13 @@ struct GameDetailView: View {
                 game: game,
                 homeTeamName: homeTeam.strTeamShort ?? homeTeam.strTeam ?? game.strHomeTeam,
                 awayTeamName: awayTeam.strTeamShort ?? awayTeam.strTeam ?? game.strAwayTeam,
-                plays: plays
+                plays: model.plays
             )
         }
     }
 
-    // MARK: - Key Players
+    // MARK: Key players
+
     @ViewBuilder
     private var keyPlayersSection: some View {
         if let homeLeaders = game.homeLeaders, let awayLeaders = game.awayLeaders,
@@ -573,7 +1279,6 @@ struct GameDetailView: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
 
                             HStack {
-                                // Away leader
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(pair.awayLeader.playerName)
                                         .font(.subheadline)
@@ -585,7 +1290,6 @@ struct GameDetailView: View {
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                                // Home leader
                                 VStack(alignment: .trailing, spacing: 2) {
                                     Text(pair.homeLeader.playerName)
                                         .font(.subheadline)
@@ -626,7 +1330,8 @@ struct GameDetailView: View {
         }
     }
 
-    // MARK: - Injuries
+    // MARK: Injuries
+
     @ViewBuilder
     private var injuriesSection: some View {
         let home = game.homeInjuries ?? []
@@ -720,7 +1425,8 @@ struct GameDetailView: View {
         return .secondary
     }
 
-    // MARK: - Head-to-Head
+    // MARK: Head-to-head
+
     private var headToHeadSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Head-to-Head")
@@ -821,7 +1527,8 @@ struct GameDetailView: View {
         return Record(homeWins: homeWins, awayWins: awayWins, draws: draws)
     }
 
-    // MARK: - Standings
+    // MARK: Standings
+
     @ViewBuilder
     private var standingsSection: some View {
         if !game.isIndividualSport {
@@ -829,14 +1536,14 @@ struct GameDetailView: View {
                 Text("Standings")
                     .font(.headline)
 
-                if standingsLoading {
+                if model.standingsLoading {
                     HStack {
                         Spacer()
                         ProgressView()
                         Spacer()
                     }
                     .padding(.vertical, 8)
-                } else if let children = standing?.standings.children, !children.isEmpty {
+                } else if let children = model.standing?.standings.children, !children.isEmpty {
                     ForEach(Array(children.enumerated()), id: \.offset) { _, child in
                         if let entries = child.standings?.entries, !entries.isEmpty {
                             standingsGroup(name: child.name, entries: entries)
@@ -844,13 +1551,18 @@ struct GameDetailView: View {
                     }
                 } else {
                     VStack(spacing: 8) {
-                        Text(standingsErrorMessage ?? "Standings not available")
+                        Text(model.standingsErrorMessage ?? "Standings not available")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         Button {
-                            standingsLoading = true
-                            standingsErrorMessage = nil
-                            Task { await loadStandings() }
+                            model.standingsLoading = true
+                            model.standingsErrorMessage = nil
+                            Task {
+                                await model.loadStandings(
+                                    leagueID: game.idLeague,
+                                    isIndividualSport: game.isIndividualSport
+                                )
+                            }
                         } label: {
                             Label("Retry", systemImage: "arrow.clockwise")
                                 .font(.subheadline)
@@ -875,7 +1587,6 @@ struct GameDetailView: View {
                     .foregroundColor(.secondary)
             }
 
-            // Header row
             HStack(spacing: 0) {
                 Text("#")
                     .frame(width: 24, alignment: .leading)
@@ -935,41 +1646,23 @@ struct GameDetailView: View {
                entry.team?.shortDisplayName == (awayTeam.strTeamShort ?? awayTeam.strTeam)
     }
 
-    #if os(iOS)
-    private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
-        let eventStore = EKEventStore()
-        let event = EKEvent(eventStore: eventStore)
-        let separator = (game.playoff?.isNeutralSite == true) ? " vs " : " @ "
-        event.title = "\(game.strAwayTeam)\(separator)\(game.strHomeTeam)"
-        if let gameDate = game.standardDate {
-            event.startDate = gameDate
-            event.endDate = gameDate.afterHoursFromNow(hours: 2)
-        }
-        return CalendarRepresentable(eventStore: eventStore, event: event)
-    }
-    #endif
-
-    // MARK: - Play-by-Play
+    // MARK: Play-by-play
 
     private var supportsPlayByPlay: Bool {
         switch sportType {
-        case .basketball, .nfl, .hockey, .mlb: return true
+        case .basketball, .nfl, .hockey, .mlb, .soccer: return true
         default: return false
         }
     }
 
-    /// Unique period numbers present in the plays list, sorted ascending.
-    /// Used to drive the period picker; latest period is auto-selected on first load.
     private var availablePeriods: [Int] {
-        let set = Set(plays.compactMap { $0.period?.number })
+        let set = Set(model.plays.compactMap { $0.period?.number })
         return set.sorted()
     }
 
-    /// Plays for the currently-selected period, in chronological order (first play of the
-    /// period first). Falls back to all plays if no period is available.
     private var playsInSelectedPeriod: [Play] {
-        guard let selectedPeriod else { return plays }
-        return plays.filter { $0.period?.number == selectedPeriod }
+        guard let selected = model.selectedPeriod else { return model.plays }
+        return model.plays.filter { $0.period?.number == selected }
     }
 
     @ViewBuilder
@@ -980,31 +1673,29 @@ struct GameDetailView: View {
                     Text("Play-by-Play")
                         .font(.headline)
                     Spacer()
-                    if playsLoading {
+                    if model.playsLoading {
                         ProgressView()
                             .controlSize(.small)
-                    } else if !plays.isEmpty {
-                        Text("\(plays.count) plays")
+                    } else if !model.plays.isEmpty {
+                        Text("\(model.plays.count) plays")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
 
-                if !playsAvailable && plays.isEmpty {
+                if !model.playsAvailable && model.plays.isEmpty {
                     Text("Play-by-play not available yet")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 8)
-                } else if plays.isEmpty && !playsLoading {
+                } else if model.plays.isEmpty && !model.playsLoading {
                     Text("Loading plays…")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 8)
                 } else {
-                    // Period picker — horizontal scrollable pill row so we can
-                    // handle sports with many periods (MLB innings) gracefully.
                     periodPicker
 
                     let visible = playsInSelectedPeriod
@@ -1027,19 +1718,27 @@ struct GameDetailView: View {
             .background(Color.secondaryGroupedBackground)
             .cornerRadius(12)
             .task(id: eventID) {
-                await loadPlays(eventID: eventID)
+                await model.loadPlays(
+                    eventID: eventID,
+                    sport: pbpSportPath,
+                    league: pbpLeagueSlug
+                )
             }
             .onChange(of: game.lastPlay) { _, _ in
-                Task { await loadPlays(eventID: eventID) }
+                Task {
+                    await model.loadPlays(
+                        eventID: eventID,
+                        sport: pbpSportPath,
+                        league: pbpLeagueSlug
+                    )
+                }
             }
-            .onChange(of: plays) { _, newPlays in
-                // Auto-select the latest period whenever plays refresh, preserving the
-                // user's pick if it still exists.
+            .onChange(of: model.plays) { _, newPlays in
                 let newAvailable = Set(newPlays.compactMap { $0.period?.number })
-                if let current = selectedPeriod, newAvailable.contains(current) {
+                if let current = model.selectedPeriod, newAvailable.contains(current) {
                     return
                 }
-                selectedPeriod = newAvailable.max()
+                model.selectedPeriod = newAvailable.max()
             }
         }
     }
@@ -1051,9 +1750,9 @@ struct GameDetailView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
                     ForEach(periods, id: \.self) { p in
-                        let isSelected = selectedPeriod == p
+                        let isSelected = model.selectedPeriod == p
                         Button {
-                            selectedPeriod = p
+                            model.selectedPeriod = p
                         } label: {
                             Text(periodAbbreviation(p))
                                 .font(.caption)
@@ -1077,7 +1776,6 @@ struct GameDetailView: View {
     @ViewBuilder
     private func playRow(_ play: Play) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            // Left column: clock (if the sport has one). MLB omits clock — column collapses.
             if let clockText = play.clock?.displayValue, !clockText.isEmpty {
                 Text(clockText)
                     .font(.caption2)
@@ -1112,28 +1810,16 @@ struct GameDetailView: View {
         case .basketball, .nfl: return "Q\(period)"
         case .hockey: return period > 3 ? (period == 4 ? "OT" : "SO") : "P\(period)"
         case .mlb: return "\(period)"
+        case .soccer:
+            switch period {
+            case 1: return "1H"
+            case 2: return "2H"
+            case 3: return "ET1"
+            case 4: return "ET2"
+            case 5: return "PEN"
+            default: return "\(period)"
+            }
         default: return "\(period)"
-        }
-    }
-
-    private func loadPlays(eventID: String) async {
-        playsLoading = true
-        defer { playsLoading = false }
-        do {
-            let cached = try await NetworkHandler.fetchPlayByPlay(
-                eventID: eventID,
-                sport: pbpSportPath,
-                league: pbpLeagueSlug,
-                debug: viewModel.appStorage.debugMode
-            )
-            plays = cached.plays
-            playsAvailable = true
-        } catch is NetworkHandler.PlayByPlayNotAvailable {
-            plays = []
-            playsAvailable = false
-        } catch {
-            // Silent failure — keep any plays we already have.
-            playsAvailable = plays.isEmpty == false
         }
     }
 
@@ -1143,6 +1829,7 @@ struct GameDetailView: View {
         case .nfl:        return "football"
         case .hockey:     return "hockey"
         case .mlb:        return "baseball"
+        case .soccer:     return "soccer"
         default:          return nil
         }
     }
@@ -1153,36 +1840,19 @@ struct GameDetailView: View {
         case .nfl:        return "nfl"
         case .hockey:     return "nhl"
         case .mlb:        return "mlb"
+        case .soccer:     return league?.espnSlug
         default:          return nil
         }
     }
+}
 
-    private func loadStandings() async {
-        guard !game.isIndividualSport else {
-            standingsLoading = false
-            return
-        }
-        guard let leagueID = game.idLeague else {
-            standingsLoading = false
-            standingsErrorMessage = "League information missing for this game"
-            return
-        }
-        do {
-            standing = try await NetworkHandler.getStandings(for: leagueID, debug: viewModel.appStorage.debugMode)
-            standingsLoading = false
-        } catch let urlError as URLError {
-            standingsLoading = false
-            switch urlError.code {
-            case .notConnectedToInternet, .networkConnectionLost:
-                standingsErrorMessage = "No internet connection"
-            case .timedOut:
-                standingsErrorMessage = "Request timed out"
-            default:
-                standingsErrorMessage = "Unable to load standings"
-            }
-        } catch {
-            standingsLoading = false
-            standingsErrorMessage = "Unable to load standings"
-        }
+// MARK: - Focus helpers
+
+private extension View {
+    /// Conditionally italicize. Named `italicIf` to avoid shadowing SwiftUI's
+    /// `Text.italic(_ isActive: Bool)` from iOS 16+.
+    @ViewBuilder
+    func italicIf(_ condition: Bool) -> some View {
+        if condition { self.italic() } else { self }
     }
 }

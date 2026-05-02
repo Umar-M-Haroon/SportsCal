@@ -28,11 +28,18 @@ struct DeveloperSettingsSection: View {
         Section("Developer") {
             Toggle("Debug Mode", isOn: $bindableAppStorage.debugMode)
             if appStorage.debugMode {
-                Toggle("Use Local Server", isOn: $bindableAppStorage.useLocalServer)
-                    .onChange(of: appStorage.useLocalServer) { _, newValue in
-                        NetworkHandler.useLocalServer = newValue
+                Picker("Server", selection: $bindableAppStorage.serverEnvironment) {
+                    ForEach(ServerEnvironment.allCases, id: \.self) { env in
+                        Text(env.displayName).tag(env)
                     }
+                }
+                .onChange(of: appStorage.serverEnvironment) { _, newValue in
+                    NetworkHandler.currentEnvironment = newValue
+                    Task { await NetworkHandler.refreshEnvironment() }
+                }
                 LocalServerStatusView()
+                APNsEnvironmentMismatchBanner()
+                PushDiagnosticsRow()
                 Toggle("Mock Pro Subscription", isOn: Binding(
                     get: { subscriptionManager.isPro },
                     set: { subscriptionManager.setMockPro($0) }
@@ -218,6 +225,15 @@ struct SettingsView: View {
                         .font(.headline)
                 }
                 DeveloperSettingsSection()
+                Section(header: Text("Appearance"), footer: Text("Classic is the original design. Ambient is a dark airport-board-style redesign (Direction E). EF Remix v2 is an experimental hand-written + monospace remix — switch any time to compare.")) {
+                    @Bindable var bindableAppStorage = appStorage
+                    Picker("Theme", selection: $bindableAppStorage.appTheme) {
+                        ForEach(AppTheme.allCases) { theme in
+                            Text(theme.displayName).tag(theme)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
                 NavigationLink("Scoreline Pro") {
                     PaywallView()
                 }
@@ -297,6 +313,7 @@ struct LocalServerStatusView: View {
     @Environment(LocalServerDiscovery.self) private var discovery
     @Environment(UserDefaultStorage.self) private var appStorage
     @State private var manualHost: String = ""
+    @State private var resolvedEnv: ServerEnvironment = NetworkHandler.resolvedEnvironment
 
     var body: some View {
         HStack {
@@ -322,7 +339,7 @@ struct LocalServerStatusView: View {
             Text("Active: ")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(NetworkHandler.baseURL(debug: appStorage.debugMode))
+            Text(activeLabel)
                 .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -338,6 +355,21 @@ struct LocalServerStatusView: View {
                 let trimmed = manualHost.trimmingCharacters(in: .whitespacesAndNewlines)
                 NetworkHandler.localServerHost = trimmed.isEmpty ? discovery.discoveredHost : trimmed
             }
+            .onReceive(NotificationCenter.default.publisher(for: .serverEnvironmentDidChange)) { _ in
+                resolvedEnv = NetworkHandler.resolvedEnvironment
+            }
+            .task {
+                // Trigger a fresh probe when the panel appears.
+                await NetworkHandler.refreshEnvironment()
+                resolvedEnv = NetworkHandler.resolvedEnvironment
+            }
+    }
+
+    private var activeLabel: String {
+        let prefix = appStorage.serverEnvironment == .auto
+            ? "Auto → \(resolvedEnv.displayName): "
+            : ""
+        return prefix + NetworkHandler.baseURL()
     }
 
     private var statusColor: Color {
@@ -350,6 +382,109 @@ struct LocalServerStatusView: View {
         if discovery.discoveredHost != nil { return "Connected" }
         if discovery.isSearching { return "Searching..." }
         return "Not Found"
+    }
+}
+
+/// Warns when the APNs environment baked into the build can't pair with the
+/// currently-selected server: debug builds use sandbox tokens, release builds
+/// use production tokens. A mismatch silently drops notifications.
+struct APNsEnvironmentMismatchBanner: View {
+    @State private var resolved: ServerEnvironment = NetworkHandler.resolvedEnvironment
+
+    private var isDebugBuild: Bool {
+        #if DEBUG
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    private var message: String? {
+        if isDebugBuild && resolved == .prod {
+            return "Debug build → Prod server: your sandbox APNs token won't pair with prod's production APNs key. Push-to-Start and Live Activities will appear to register, but no pushes will arrive."
+        }
+        if !isDebugBuild && resolved != .prod {
+            return "Release build → \(resolved.displayName): your production APNs token won't pair with the dev server's sandbox APNs key. Push-to-Start and Live Activities will appear to register, but no pushes will arrive."
+        }
+        return nil
+    }
+
+    var body: some View {
+        Group {
+            if let message {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.yellow)
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .serverEnvironmentDidChange)) { _ in
+            resolved = NetworkHandler.resolvedEnvironment
+        }
+    }
+}
+
+struct PushDiagnosticsRow: View {
+    @State private var diagnostics = PushRegistrationDiagnostics.shared
+
+    private static let timestampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .none
+        f.timeStyle = .medium
+        return f
+    }()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text("Push Diagnostics")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            HStack {
+                Text("Last registered:")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(registeredLabel)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+            HStack {
+                Text("Token:")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(diagnostics.lastTokenPrefix.map { "\($0)…" } ?? "—")
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+            HStack {
+                Text("Live Activities:")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(diagnostics.activeLiveActivities)")
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+            if let err = diagnostics.lastError {
+                Text(err)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+            }
+        }
+    }
+
+    private var registeredLabel: String {
+        guard let date = diagnostics.lastRegisteredAt,
+              let env = diagnostics.lastEnvironment else { return "Never" }
+        return "\(env.displayName) @ \(Self.timestampFormatter.string(from: date))"
     }
 }
 

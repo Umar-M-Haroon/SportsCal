@@ -168,12 +168,27 @@ struct ContentView: View {
         #else
         TabView(selection: $selectedTab) {
             NavigationStack {
-                DayPage(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, spotlightGameID: $spotlightGameID)
-                    .environment(viewModel)
-                    .environment(storage)
-                    .environment(favorites)
-                    .navigationTitle("Scoreline")
-                    .toolbar { settingsToolbarItem }
+                Group {
+                    switch storage.appTheme {
+                    case .ambient:
+                        AmbientDayPage()
+                            .environment(viewModel)
+                            .environment(storage)
+                            .environment(favorites)
+                    case .efRemix:
+                        EFRemixDayPage()
+                            .environment(viewModel)
+                            .environment(storage)
+                            .environment(favorites)
+                    case .classic:
+                        DayPage(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, spotlightGameID: $spotlightGameID)
+                            .environment(viewModel)
+                            .environment(storage)
+                            .environment(favorites)
+                    }
+                }
+                .navigationTitle("Scoreline")
+                .toolbar { settingsToolbarItem }
             }
             .tabItem {
                 Label("Games", systemImage: "sportscourt")
@@ -221,12 +236,27 @@ struct ContentView: View {
             // .tag(3)
 
             NavigationStack {
-                BrowsePage()
-                    .environment(viewModel)
-                    .environment(storage)
-                    .environment(favorites)
-                    .navigationTitle("Scoreline")
-                    .toolbar { settingsToolbarItem }
+                Group {
+                    switch storage.appTheme {
+                    case .ambient:
+                        AmbientBrowsePage()
+                            .environment(viewModel)
+                            .environment(storage)
+                            .environment(favorites)
+                    case .efRemix:
+                        EFRemixBrowsePage()
+                            .environment(viewModel)
+                            .environment(storage)
+                            .environment(favorites)
+                    case .classic:
+                        BrowsePage()
+                            .environment(viewModel)
+                            .environment(storage)
+                            .environment(favorites)
+                    }
+                }
+                .navigationTitle("Scoreline")
+                .toolbar { settingsToolbarItem }
             }
             .tabItem {
                 Label("Browse", systemImage: "rectangle.grid.2x2")

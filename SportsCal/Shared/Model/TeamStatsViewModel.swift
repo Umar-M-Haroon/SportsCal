@@ -17,12 +17,12 @@ class TeamStatsViewModel {
     var isLoading = false
     var error: String?
 
-    func load(leagueID: Int, debug: Bool = false) async {
+    func load(leagueID: Int) async {
         isLoading = true
         error = nil
 
         do {
-            let decoded = try await NetworkHandler.getTeamStats(leagueID: leagueID, debug: debug)
+            let decoded = try await NetworkHandler.getTeamStats(leagueID: leagueID)
             teams = decoded
 
             // Collect all available stat names

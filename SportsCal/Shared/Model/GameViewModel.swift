@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import SportsCalModel
 import OrderedCollections
+import Network
 #if canImport(ActivityKit) && os(iOS)
 import ActivityKit
 #endif
@@ -121,7 +122,11 @@ public class GameViewModel: NSObject {
     var isFetching: Bool { networkFetchTask != nil }
     private var networkFetchTask: Task<Void, Never>?
     private var wsReconnectAttempts = 0
-    private static let maxWSReconnectAttempts = 5
+    /// Tracks current network reachability so the WebSocket reconnect loop can pause
+    /// while offline and resume immediately when the path comes back, instead of
+    /// burning attempts against an unreachable host.
+    private nonisolated(unsafe) var pathMonitor: NWPathMonitor?
+    private var hasNetworkPath: Bool = true
     
     var currentPushToStartToken: String?
     var liveEvents: [Game] = []
@@ -551,14 +556,108 @@ public class GameViewModel: NSObject {
             self.networkState = .loaded
         }
         getInfo(backgroundRefresh: hasCachedData)
-        
+        observeServerEnvironmentChanges()
+        startPathMonitor()
+
         // Note: With @Observable, changes to appStorage properties are automatically tracked
         // No need for manual observation like the old objectWillChange.sink pattern
+    }
+
+    deinit {
+        pathMonitor?.cancel()
+    }
+
+    /// Watches network reachability so the WebSocket reconnect loop can wait while
+    /// offline and force-reconnect the moment the path is restored.
+    private func startPathMonitor() {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            let satisfied = path.status == .satisfied
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let wasOffline = !self.hasNetworkPath
+                self.hasNetworkPath = satisfied
+                if satisfied && wasOffline {
+                    if self.appStorage.debugMode {
+                        AppLogger.networking.info("Network path restored — forcing WebSocket reconnect")
+                    }
+                    self.wsReconnectAttempts = 0
+                    self.restartTimer?.invalidate()
+                    self.restartTimer = nil
+                    self.ensureWebSocketConnected()
+                }
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "com.sportscal.pathmonitor"))
+        self.pathMonitor = monitor
+    }
+
+    /// Listens for `.serverEnvironmentDidChange` and, on a switch, drops
+    /// live/schedule caches, reconnects the WebSocket, and re-registers every
+    /// push-to-start and Live Activity token against the new server.
+    private func observeServerEnvironmentChanges() {
+        NotificationCenter.default.addObserver(
+            forName: .serverEnvironmentDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            AppLogger.networking.info("Server environment changed → \(NetworkHandler.resolvedEnvironment.rawValue); re-fetching and re-registering")
+            // Drop WebSocket so it reconnects against the new host.
+            self.webSocketTask?.cancel()
+            self.webSocketTask = nil
+            self.getInfo(backgroundRefresh: false)
+            #if canImport(ActivityKit) && os(iOS)
+            Task { @MainActor in
+                self.sendPushToStartRegistration()
+                await self.reRegisterAllLiveActivities()
+            }
+            #endif
+        }
+    }
+
+    /// Re-posts each active Live Activity's push token to the newly-resolved server.
+    /// Gaps until the next update cycle are acceptable — this is a developer tool.
+    @MainActor
+    private func reRegisterAllLiveActivities() async {
+        #if canImport(ActivityKit) && os(iOS)
+        let activities = Activity<LiveSportActivityAttributes>.activities
+        var successes = 0
+        var lastTokenPrefix: String?
+        for activity in activities {
+            guard let tokenData = activity.pushToken else { continue }
+            let tokenString = tokenData.map { String(format: "%02x", $0) }.joined()
+            lastTokenPrefix = String(tokenString.prefix(12))
+            do {
+                try await NetworkHandler.subscribeToLiveActivityUpdate(
+                    token: tokenString,
+                    eventID: activity.attributes.eventID,
+                    homeTeam: activity.attributes.homeTeam,
+                    awayTeam: activity.attributes.awayTeam
+                )
+                successes += 1
+            } catch {
+                PushRegistrationDiagnostics.shared.recordFailure(
+                    env: NetworkHandler.resolvedEnvironment,
+                    tokenPrefix: lastTokenPrefix,
+                    error: "LA re-register failed: \(error.localizedDescription)"
+                )
+                AppLogger.liveActivity.error("LA re-register failed for \(activity.attributes.eventID): \(error.localizedDescription)")
+            }
+        }
+        if successes > 0 || !activities.isEmpty {
+            PushRegistrationDiagnostics.shared.recordSuccess(
+                env: NetworkHandler.resolvedEnvironment,
+                tokenPrefix: lastTokenPrefix ?? "—",
+                liveActivities: successes
+            )
+        }
+        #endif
     }
     
     private func handleLiveGames() async throws {
         AppLogger.networking.info("Getting live games")
-        var liveInfo = try await NetworkHandler.getLiveSnapshot(debug: appStorage.debugMode)
+        var liveInfo = try await NetworkHandler.getLiveSnapshot()
         // Merge live scores into schedule before filtering out completed games
         mergeLiveIntoSchedule(liveInfo)
         liveInfo.removeNonStarting()
@@ -580,7 +679,7 @@ public class GameViewModel: NSObject {
     
     private func handleTeams() async throws {
         AppLogger.networking.info("Getting teams")
-        async let teams = NetworkHandler.getTeams(debug: appStorage.debugMode)
+        async let teams = NetworkHandler.getTeams()
         self.teams = try await teams
         buildTeamLookupCaches()
         teamCache?.insert(self.teams, for: "teams")
@@ -645,7 +744,7 @@ public class GameViewModel: NSObject {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         wsReconnectAttempts = 0
-        webSocketTask = NetworkHandler.connectWebSocketForLive(session: webSocketSession!, debug: appStorage.debugMode)
+        webSocketTask = NetworkHandler.connectWebSocketForLive(session: webSocketSession!)
         webSocketTask?.resume()
         Task { @MainActor [weak self] in
             do {
@@ -659,23 +758,28 @@ public class GameViewModel: NSObject {
     }
 
     private func reconnectWebSocketOnly() {
-        guard wsReconnectAttempts < Self.maxWSReconnectAttempts else {
+        // While the network path is down, don't burn attempts — the path-monitor
+        // callback in `startPathMonitor` will reset attempts and force a reconnect
+        // the moment connectivity returns.
+        guard hasNetworkPath else {
             if appStorage.debugMode {
-                AppLogger.networking.notice("WebSocket max reconnect attempts (\(Self.maxWSReconnectAttempts)) reached, stopping")
+                AppLogger.networking.info("WebSocket reconnect deferred — network path unsatisfied")
             }
             return
         }
         wsReconnectAttempts += 1
-        let delay = min(Double(wsReconnectAttempts * wsReconnectAttempts) * 2, 60) // exponential backoff: 2, 8, 18, 32, 50s
+        // Quadratic backoff capped at 60s: 2, 8, 18, 32, 50, 60, 60... — keep retrying
+        // forever so a long outage doesn't permanently silence live updates.
+        let delay = min(Double(wsReconnectAttempts * wsReconnectAttempts) * 2, 60)
         if appStorage.debugMode {
-            AppLogger.networking.info("WebSocket reconnect attempt \(self.wsReconnectAttempts)/\(Self.maxWSReconnectAttempts) in \(delay)s")
+            AppLogger.networking.info("WebSocket reconnect attempt \(self.wsReconnectAttempts) in \(delay)s")
         }
         restartTimer?.invalidate()
         restartTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             self?.restartTimer = nil
             self?.webSocketTask?.cancel(with: .goingAway, reason: nil)
             self?.webSocketTask = nil
-            self?.webSocketTask = NetworkHandler.connectWebSocketForLive(session: self?.webSocketSession, debug: self?.appStorage.debugMode ?? false)
+            self?.webSocketTask = NetworkHandler.connectWebSocketForLive(session: self?.webSocketSession)
             self?.webSocketTask?.resume()
             Task { @MainActor [weak self] in
                 do {
@@ -719,7 +823,7 @@ public class GameViewModel: NSObject {
                     AppLogger.networking.info("Requesting schedule for \(sport.displayName)")
                     group.addTask {
                         do {
-                            return [sport: try await NetworkHandler.getScheduleFor(sport: sport, debug: self.appStorage.debugMode)]
+                            return [sport: try await NetworkHandler.getScheduleFor(sport: sport)]
                         } catch {
                             AppLogger.networking.error("Failed to fetch schedule for \(sport.displayName): \(error.localizedDescription)")
                             return [:]
@@ -757,6 +861,11 @@ public class GameViewModel: NSObject {
         }
         // Re-run after both teams and live data are available so live events render with team badges
         updateLiveData()
+        // Reconcile any running Live Activities against the freshly fetched REST snapshot,
+        // so activities catch up after the phone was offline without waiting for the next WS push.
+        #if canImport(ActivityKit) && os(iOS)
+        try? await updateLiveActivities()
+        #endif
         // Connect WebSocket only if there are live/upcoming games
         ensureWebSocketConnected()
 
@@ -1796,7 +1905,7 @@ extension GameViewModel {
                 }
                 AppLogger.liveActivity.info("Registering push token for event \(eventID) (\(homeTeam) vs \(awayTeam)): \(tokenString.prefix(12))...")
                 do {
-                    try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID, homeTeam: homeTeam, awayTeam: awayTeam, debug: isDebug)
+                    try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID, homeTeam: homeTeam, awayTeam: awayTeam)
                     if isDebug {
                         await MainActor.run {
                             AutoFollowLogger.shared.log("Server registered activity token OK (\(homeTeam) vs \(awayTeam))", level: .success)
@@ -1822,6 +1931,33 @@ extension GameViewModel {
             // Backfill badges for activities started via push-to-start, where the opponent
             // may not have been a favorite and thus never cached.
             cacheBadgesForActivity(homeTeam: activity.attributes.homeTeam, awayTeam: activity.attributes.awayTeam)
+        }
+    }
+
+    /// Re-POSTs the current pushToken for every active Live Activity to the server,
+    /// refreshing the Redis registration TTL. Call from foreground transitions and the
+    /// BGAppRefresh handler — without this, a quiet stretch (or a denied background grant)
+    /// can let the server-side registration expire and silence the activity.
+    func reRegisterAllActivityTokens() {
+        for activity in Activity<LiveSportActivityAttributes>.activities {
+            guard let tokenData = activity.pushToken else { continue }
+            let tokenString = tokenData.map { String(format: "%02x", $0) }.joined()
+            let eventID = activity.attributes.eventID
+            let homeTeam = activity.attributes.homeTeam
+            let awayTeam = activity.attributes.awayTeam
+            AppLogger.liveActivity.info("Re-registering activity token for \(eventID): \(tokenString.prefix(12))...")
+            Task.detached {
+                do {
+                    try await NetworkHandler.subscribeToLiveActivityUpdate(
+                        token: tokenString,
+                        eventID: eventID,
+                        homeTeam: homeTeam,
+                        awayTeam: awayTeam
+                    )
+                } catch {
+                    AppLogger.liveActivity.error("Failed to re-register activity token: \(error.localizedDescription)")
+                }
+            }
         }
     }
 
@@ -1860,16 +1996,26 @@ extension GameViewModel {
                 let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
                 let eventIDs = Array(appStorage.autoFollowEventIDs)
                 do {
-                    try await NetworkHandler.registerPushToStart(token: tokenString, favorites: favoritesList, eventIDs: eventIDs, debug: self.appStorage.debugMode)
+                    try await NetworkHandler.registerPushToStart(token: tokenString, favorites: favoritesList, eventIDs: eventIDs)
                     if appStorage.debugMode {
                         AutoFollowLogger.shared.log("Server registered push-to-start OK", level: .success)
                     }
                     AppLogger.liveActivity.info("Registered push-to-start token with \(favoritesList.count) favorites, \(eventIDs.count) auto-follow events")
+                    PushRegistrationDiagnostics.shared.recordSuccess(
+                        env: NetworkHandler.resolvedEnvironment,
+                        tokenPrefix: String(tokenString.prefix(12)),
+                        liveActivities: Activity<LiveSportActivityAttributes>.activities.count
+                    )
                 } catch {
                     if appStorage.debugMode {
                         AutoFollowLogger.shared.log("Server registration failed: \(error.localizedDescription)", level: .error)
                     }
                     AppLogger.liveActivity.error("Failed to register push-to-start: \(error.localizedDescription)")
+                    PushRegistrationDiagnostics.shared.recordFailure(
+                        env: NetworkHandler.resolvedEnvironment,
+                        tokenPrefix: String(tokenString.prefix(12)),
+                        error: error.localizedDescription
+                    )
                 }
             }
         }
@@ -1896,7 +2042,7 @@ extension GameViewModel {
             Task { @MainActor in
                 let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
                 let eventIDs = Array(appStorage.autoFollowEventIDs)
-                try? await NetworkHandler.registerPushToStart(token: cachedToken, favorites: favoritesList, eventIDs: eventIDs, debug: self.appStorage.debugMode)
+                try? await NetworkHandler.registerPushToStart(token: cachedToken, favorites: favoritesList, eventIDs: eventIDs)
                 if appStorage.debugMode {
                     AutoFollowLogger.shared.log("Re-registered push-to-start with \(favoritesList.count) favorites, \(eventIDs.count) events", level: .success)
                 }
@@ -1910,7 +2056,7 @@ extension GameViewModel {
                     self.currentPushToStartToken = tokenString
                     let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
                     let eventIDs = Array(appStorage.autoFollowEventIDs)
-                    try? await NetworkHandler.registerPushToStart(token: tokenString, favorites: favoritesList, eventIDs: eventIDs, debug: self.appStorage.debugMode)
+                    try? await NetworkHandler.registerPushToStart(token: tokenString, favorites: favoritesList, eventIDs: eventIDs)
                     AppLogger.liveActivity.info("Re-registered push-to-start with \(favoritesList.count) favorites, \(eventIDs.count) auto-follow events")
                     break
                 }
@@ -2013,27 +2159,15 @@ extension GameViewModel {
     }
 
     func updateLiveActivities() async throws {
-        // Build lookup by team names since event IDs may differ between schedule (TheSportsDB) and live data (ESPN)
-        var statesByTeams: [String: LiveSportActivityAttributes.ContentState] = [:]
-        var statesByEventID: [String: LiveSportActivityAttributes.ContentState] = [:]
-        for liveEvent in allLiveEvents {
-            let contentState = LiveSportActivityAttributes.ContentState(homeScore: Int(liveEvent.intHomeScore ?? "") ?? 0, awayScore: Int(liveEvent.intAwayScore ?? "") ?? 0, status: liveEvent.strStatus, progress: liveEvent.strProgress, lastPlay: nil)
-            if let eventID = liveEvent.idEvent {
-                statesByEventID[eventID] = contentState
-            }
-            // Key by lowercased team names for fuzzy matching
-            let teamKey = "\(liveEvent.strHomeTeam.lowercased())|\(liveEvent.strAwayTeam.lowercased())"
-            statesByTeams[teamKey] = contentState
-        }
+        let lookup = LiveActivityMatcher.buildLookup(from: allLiveEvents)
         for activity in Activity<LiveSportActivityAttributes>.activities {
-            let currentState = activity.contentState
-            let eventID = activity.attributes.eventID
-            // Try event ID first, fall back to team name matching
-            let newState = statesByEventID[eventID] ?? {
-                let teamKey = "\(activity.attributes.homeTeam.lowercased())|\(activity.attributes.awayTeam.lowercased())"
-                return statesByTeams[teamKey]
-            }()
-            if let newState, newState != currentState {
+            if let newState = LiveActivityMatcher.resolveUpdate(
+                eventID: activity.attributes.eventID,
+                homeTeam: activity.attributes.homeTeam,
+                awayTeam: activity.attributes.awayTeam,
+                currentState: activity.contentState,
+                in: lookup
+            ) {
                 await activity.update(using: newState)
             }
         }

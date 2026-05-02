@@ -74,7 +74,8 @@ struct SportsCalApp: App {
                 .environment(engagementTracker)
                 .onAppear {
                     appStorage.launches += 1
-                    NetworkHandler.useLocalServer = appStorage.useLocalServer
+                    NetworkHandler.currentEnvironment = appStorage.serverEnvironment
+                    Task { await NetworkHandler.refreshEnvironment() }
                     if isTestFlight {
                         appStorage.debugMode = true
                     }
@@ -104,6 +105,7 @@ struct SportsCalApp: App {
                 }
                 .onChange(of: serverDiscovery.discoveredHost) { _, newHost in
                     NetworkHandler.localServerHost = newHost
+                    Task { await NetworkHandler.refreshEnvironment() }
                 }
                 .environment(serverDiscovery)
                 .onReceive(NotificationCenter.default.publisher(for: .favoritesDidChange)) { _ in
@@ -153,6 +155,14 @@ struct SportsCalApp: App {
             if newPhase == .background {
                 #if os(iOS)
                 scheduleAppRefresh()
+                #endif
+            } else if newPhase == .active {
+                // Foregrounding: kick the WebSocket back to life if it gave up while backgrounded,
+                // and re-register Live Activity push tokens so the server's 12h TTL stays fresh
+                // even when BGAppRefresh hasn't fired in a while.
+                viewModel.ensureWebSocketConnected()
+                #if canImport(ActivityKit) && os(iOS)
+                viewModel.reRegisterAllActivityTokens()
                 #endif
             }
         }
@@ -233,9 +243,8 @@ extension Scene {
         self.backgroundTask(.appRefresh("com.KomodoLLC.SportsCal.updateGamesAndActivities")) {
             AppLogger.general.info("Running background task")
 #if canImport(ActivityKit) && os(iOS)
-            // Re-register current push tokens for all active Live Activities.
-            // Use the current token directly instead of awaiting the stream,
-            // which would block indefinitely and prevent other activities from being processed.
+            // Re-register current push tokens for all active Live Activities so the
+            // server-side Redis TTL stays fresh while we're backgrounded.
             for activity in Activity<LiveSportActivityAttributes>.activities {
                 if let tokenData = activity.pushToken {
                     let tokenString = tokenData.map { String(format: "%02x", $0) }.joined()

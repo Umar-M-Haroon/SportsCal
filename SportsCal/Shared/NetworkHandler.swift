@@ -20,6 +20,73 @@ enum ImageSize: String {
     case none = ""
 }
 
+/// Server target environment. `.auto` resolves dynamically to whichever of
+/// `.local`/`.dev`/`.prod` is reachable first.
+enum ServerEnvironment: String, CaseIterable, Codable {
+    case auto
+    case local
+    case dev
+    case prod
+
+    var displayName: String {
+        switch self {
+        case .auto:  return "Auto"
+        case .local: return "Local (Bonjour)"
+        case .dev:   return "Dev (Tailscale)"
+        case .prod:  return "Prod"
+        }
+    }
+
+    /// Whether this environment uses a development APNs push token pairing.
+    /// Relevant for diagnosing sandbox/production token mismatches.
+    var expectsSandboxAPNs: Bool {
+        switch self {
+        case .auto, .prod: return false
+        case .local, .dev: return true
+        }
+    }
+}
+
+extension Notification.Name {
+    /// Posted when the resolved server environment changes. Observers should
+    /// invalidate any server-specific caches and re-register push tokens.
+    static let serverEnvironmentDidChange = Notification.Name("serverEnvironmentDidChange")
+}
+
+/// Observable store for the last-known push registration outcome. Kept as a
+/// singleton (and in NetworkHandler.swift so every target sees it) so the
+/// view model can write and Settings can read without plumbing a new
+/// environment object through every target membership.
+@Observable
+final class PushRegistrationDiagnostics {
+    static let shared = PushRegistrationDiagnostics()
+
+    var lastEnvironment: ServerEnvironment?
+    var lastTokenPrefix: String?
+    var lastRegisteredAt: Date?
+    var lastError: String?
+    var activeLiveActivities: Int = 0
+
+    private init() {}
+
+    @MainActor
+    func recordSuccess(env: ServerEnvironment, tokenPrefix: String, liveActivities: Int) {
+        lastEnvironment = env
+        lastTokenPrefix = tokenPrefix
+        lastRegisteredAt = Date()
+        lastError = nil
+        activeLiveActivities = liveActivities
+    }
+
+    @MainActor
+    func recordFailure(env: ServerEnvironment, tokenPrefix: String?, error: String) {
+        lastEnvironment = env
+        lastTokenPrefix = tokenPrefix
+        lastRegisteredAt = Date()
+        lastError = error
+    }
+}
+
 /// Tracks API version requirements from server responses
 @Observable
 final class APIVersionChecker {
@@ -59,11 +126,86 @@ final class APIVersionChecker {
 
 struct NetworkHandler {
 
+    // MARK: - Environment state
+
+    /// App-group suite used to mirror the resolved environment for widgets.
+    private static let appGroupSuite = "group.Komodo.SportsCal"
+    private static let currentEnvKey = "serverEnvironment"
+    private static let resolvedEnvKey = "resolvedServerEnvironment"
+
+    /// User's selected environment (may be `.auto`). Reads from the app group
+    /// so widgets share the same value.
+    static var currentEnvironment: ServerEnvironment {
+        get {
+            let raw = UserDefaults(suiteName: appGroupSuite)?.string(forKey: currentEnvKey)
+                ?? UserDefaults.standard.string(forKey: currentEnvKey)
+                ?? ""
+            return ServerEnvironment(rawValue: raw) ?? .auto
+        }
+        set {
+            UserDefaults(suiteName: appGroupSuite)?.set(newValue.rawValue, forKey: currentEnvKey)
+            UserDefaults.standard.set(newValue.rawValue, forKey: currentEnvKey)
+        }
+    }
+
+    /// The actually-in-use environment after auto-resolution. Never `.auto`.
+    static var resolvedEnvironment: ServerEnvironment {
+        get {
+            let raw = UserDefaults(suiteName: appGroupSuite)?.string(forKey: resolvedEnvKey)
+                ?? UserDefaults.standard.string(forKey: resolvedEnvKey)
+                ?? ""
+            let parsed = ServerEnvironment(rawValue: raw) ?? .prod
+            return parsed == .auto ? .prod : parsed
+        }
+        set {
+            let toStore = newValue == .auto ? ServerEnvironment.prod : newValue
+            let previous = resolvedEnvironment
+            UserDefaults(suiteName: appGroupSuite)?.set(toStore.rawValue, forKey: resolvedEnvKey)
+            UserDefaults.standard.set(toStore.rawValue, forKey: resolvedEnvKey)
+            if previous != toStore {
+                NotificationCenter.default.post(name: .serverEnvironmentDidChange, object: toStore)
+            }
+        }
+    }
+
     /// Host discovered via Bonjour (e.g. "192.168.1.42:8080")
     static var localServerHost: String?
 
-    /// When true, prefer local Bonjour server over tunnel. Controlled by Settings toggle.
-    static var useLocalServer: Bool = true
+    /// Tailscale IP of the dev server (reachable only from your Tailscale network)
+    static let tailscaleHost = "100.68.255.93:8080"
+
+    /// Production host. Keep public so the Settings screen and parity tools can
+    /// display / probe it without re-deriving the URL shape.
+    static let prodHost = "api.sportscal.app"
+
+    // MARK: - URL building
+
+    /// Base URL for v2025 API endpoints.
+    static func baseURL() -> String {
+        switch resolvedEnvironment {
+        case .local:
+            if let host = localServerHost { return "http://\(host)/v2025" }
+            // Local was resolved but Bonjour dropped — fall through to Tailscale.
+            return "http://\(tailscaleHost)/v2025"
+        case .dev:
+            return "http://\(tailscaleHost)/v2025"
+        case .auto, .prod:
+            return "https://\(prodHost)/v2025"
+        }
+    }
+
+    /// Root server URL without version path (for WebSocket and admin).
+    static func rootURL() -> (http: String, ws: String) {
+        switch resolvedEnvironment {
+        case .local:
+            if let host = localServerHost { return ("http://\(host)", "ws://\(host)") }
+            return ("http://\(tailscaleHost)", "ws://\(tailscaleHost)")
+        case .dev:
+            return ("http://\(tailscaleHost)", "ws://\(tailscaleHost)")
+        case .auto, .prod:
+            return ("https://\(prodHost)", "wss://\(prodHost)")
+        }
+    }
 
     /// Build a URLRequest with the API key header attached.
     private static func authenticatedRequest(url: URL) -> URLRequest {
@@ -72,43 +214,60 @@ struct NetworkHandler {
         return request
     }
 
-    /// Tailscale IP of the dev server (reachable only from your Tailscale network)
-    private static let tailscaleHost = "100.68.255.93:8080"
+    // MARK: - Auto-resolve
 
-    /// Base URL for v2025 API endpoints.
-    /// Local ON:  Bonjour > Tailscale (stable local fallback)
-    /// Local OFF + debug: Tailscale
-    /// Local OFF + prod:  Cloudflare tunnel
-    static func baseURL(debug: Bool) -> String {
-        if useLocalServer {
-            if let local = localServerHost {
-                return "http://\(local)/v2025"
-            }
-            return "http://\(tailscaleHost)/v2025"
+    /// Probe a candidate env and mark the first reachable one as resolved. If
+    /// `currentEnvironment` is an explicit choice, that value is used directly.
+    /// Safe to call repeatedly; probing uses a 500 ms timeout per candidate.
+    static func refreshEnvironment() async {
+        let desired = currentEnvironment
+        if desired != .auto {
+            resolvedEnvironment = desired
+            return
         }
-        if debug {
-            return "http://\(tailscaleHost)/v2025"
+
+        if let host = localServerHost,
+           await probe(baseURL: "http://\(host)") {
+            resolvedEnvironment = .local
+            return
         }
-        return "https://api.sportscal.app/v2025"
+
+        if await probe(baseURL: "http://\(tailscaleHost)") {
+            resolvedEnvironment = .dev
+            return
+        }
+
+        resolvedEnvironment = .prod
     }
 
-    /// Root server URL without version path (for WebSocket and admin).
-    /// Same priority as baseURL.
-    private static func rootURL(debug: Bool) -> (http: String, ws: String) {
-        if useLocalServer {
-            if let local = localServerHost {
-                return ("http://\(local)", "ws://\(local)")
+    /// HEAD `/ping` with a short timeout; any HTTP response counts as reachable.
+    private static func probe(baseURL: String, timeoutSeconds: TimeInterval = 0.5) async -> Bool {
+        guard let url = URL(string: "\(baseURL)/ping") else { return false }
+        var request = URLRequest(url: url)
+        request.httpMethod = "HEAD"
+        request.timeoutInterval = timeoutSeconds
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = timeoutSeconds
+        config.timeoutIntervalForResource = timeoutSeconds
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
+        do {
+            let (_, response) = try await session.data(for: request)
+            if let http = response as? HTTPURLResponse {
+                // Any HTTP response — even 404/403 — proves the host answered.
+                return (100...599).contains(http.statusCode)
             }
-            return ("http://\(tailscaleHost)", "ws://\(tailscaleHost)")
+            return false
+        } catch {
+            return false
         }
-        if debug {
-            return ("http://\(tailscaleHost)", "ws://\(tailscaleHost)")
-        }
-        return ("https://api.sportscal.app", "wss://api.sportscal.app")
     }
 
-    static func handleCall(debug: Bool = false) async throws -> LiveScore {
-        let urlString = "\(baseURL(debug: debug))/schedules"
+    // MARK: - API calls
+
+    static func handleCall() async throws -> LiveScore {
+        let urlString = "\(baseURL())/schedules"
         let url = URL(string: urlString)!
         let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
@@ -117,9 +276,9 @@ struct NetworkHandler {
         let decoder = JSONDecoder()
         return try decoder.decode(LiveScore.self, from: data)
     }
-    
-    static func getScheduleFor(sport: SportType, debug: Bool = false) async throws -> LiveEvent {
-        let urlString = "\(baseURL(debug: debug))/sport/\(sport.rawValue)"
+
+    static func getScheduleFor(sport: SportType) async throws -> LiveEvent {
+        let urlString = "\(baseURL())/sport/\(sport.rawValue)"
         let url = URL(string: urlString)!
         let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
@@ -131,8 +290,8 @@ struct NetworkHandler {
 
     /// Lightweight combined schedule + teams fetch for widget extensions (30MB memory limit).
     /// Fetches pre-filtered, field-stripped games from the widget endpoint in a single request.
-    static func getWidgetScheduleFor(sports: [SportType], limit: Int = 6, favorites: [String] = [], debug: Bool = false) async throws -> (games: [Game], teams: [Team]) {
-        var components = URLComponents(string: "\(baseURL(debug: debug))/widget/schedule")!
+    static func getWidgetScheduleFor(sports: [SportType], limit: Int = 6, favorites: [String] = []) async throws -> (games: [Game], teams: [Team]) {
+        var components = URLComponents(string: "\(baseURL())/widget/schedule")!
         components.queryItems = [
             URLQueryItem(name: "sports", value: sports.map(\.rawValue).joined(separator: ",")),
             URLQueryItem(name: "limit", value: "\(limit)"),
@@ -157,8 +316,8 @@ struct NetworkHandler {
     }
 
     /// Convenience wrapper for single-sport widget fetch.
-    static func getWidgetScheduleFor(sport: SportType, limit: Int = 6, debug: Bool = false) async throws -> [Game] {
-        let result = try await getWidgetScheduleFor(sports: [sport], limit: limit, debug: debug)
+    static func getWidgetScheduleFor(sport: SportType, limit: Int = 6) async throws -> [Game] {
+        let result = try await getWidgetScheduleFor(sports: [sport], limit: limit)
         return result.games
     }
 
@@ -167,7 +326,7 @@ struct NetworkHandler {
         let games: [Game]
         let teams: [Team]
     }
-    
+
     /// Error thrown when the server has no play-by-play data for a given event yet.
     /// Callers should treat this as an empty/loading state rather than a hard failure.
     struct PlayByPlayNotAvailable: Error {}
@@ -177,10 +336,9 @@ struct NetworkHandler {
     static func fetchPlayByPlay(
         eventID: String,
         sport: String? = nil,
-        league: String? = nil,
-        debug: Bool = false
+        league: String? = nil
     ) async throws -> CachedPlays {
-        var components = URLComponents(string: "\(baseURL(debug: debug))/plays/\(eventID)")!
+        var components = URLComponents(string: "\(baseURL())/plays/\(eventID)")!
         var queryItems: [URLQueryItem] = []
         if let sport { queryItems.append(URLQueryItem(name: "sport", value: sport)) }
         if let league { queryItems.append(URLQueryItem(name: "league", value: league)) }
@@ -195,8 +353,8 @@ struct NetworkHandler {
         return try decoder.decode(CachedPlays.self, from: data)
     }
 
-    static func getTeams(debug: Bool = false) async throws -> [Team] {
-        let urlString = "\(baseURL(debug: debug))/teams"
+    static func getTeams() async throws -> [Team] {
+        let urlString = "\(baseURL())/teams"
         let url = URL(string: urlString)!
         let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
@@ -205,12 +363,12 @@ struct NetworkHandler {
         let decoder = JSONDecoder()
         return try decoder.decode([Team].self, from: data)
     }
-    
-    static func getLiveSnapshot(debug: Bool = false) async throws -> LiveScore {
+
+    static func getLiveSnapshot() async throws -> LiveScore {
         let isMockLive = ProcessInfo.processInfo.environment["mock-live"] != nil
 
         // Fetch real live data
-        let urlString = "\(baseURL(debug: debug))/live"
+        let urlString = "\(baseURL())/live"
         let url = URL(string: urlString)!
         var realLiveScore: LiveScore?
         do {
@@ -248,9 +406,9 @@ struct NetworkHandler {
             ])
         )
     }
-    
-    static func connectWebSocketForLive(session: URLSession? = nil, debug: Bool = false) -> URLSessionWebSocketTask {
-        let (_, wsBase) = rootURL(debug: debug)
+
+    static func connectWebSocketForLive(session: URLSession? = nil) -> URLSessionWebSocketTask {
+        let (_, wsBase) = rootURL()
         let urlPath = ProcessInfo.processInfo.environment["mock-live"] != nil ? "livedebug" : "ws"
         let urlString = "\(wsBase)/v2025/\(urlPath)"
         let url = URL(string: urlString)!
@@ -260,8 +418,8 @@ struct NetworkHandler {
         return task
     }
 
-    static func subscribeToLiveActivityUpdate(token: String, eventID: String, homeTeam: String? = nil, awayTeam: String? = nil, debug: Bool = false) async throws {
-        var components = URLComponents(string: "\(baseURL(debug: debug))/liveActivity/\(token)/\(eventID)")!
+    static func subscribeToLiveActivityUpdate(token: String, eventID: String, homeTeam: String? = nil, awayTeam: String? = nil) async throws {
+        var components = URLComponents(string: "\(baseURL())/liveActivity/\(token)/\(eventID)")!
         // Include team names so the server can match by name when event IDs differ
         var queryItems: [URLQueryItem] = []
         if let homeTeam { queryItems.append(URLQueryItem(name: "home", value: homeTeam)) }
@@ -273,9 +431,9 @@ struct NetworkHandler {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
     }
-    
-    static func getStandings(for leagueID: String, debug: Bool = false) async throws -> Standing {
-        let urlString = "\(baseURL(debug: debug))/standings/\(leagueID)"
+
+    static func getStandings(for leagueID: String) async throws -> Standing {
+        let urlString = "\(baseURL())/standings/\(leagueID)"
         let url = URL(string: urlString)!
         let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
@@ -320,8 +478,8 @@ struct NetworkHandler {
         }
     }
 
-    static func getStandingsHistory(leagueID: Int, days: Int = 30, debug: Bool = false) async throws -> [StandingsHistoryDay] {
-        let urlString = "\(baseURL(debug: debug))/standings/\(leagueID)/history?days=\(days)"
+    static func getStandingsHistory(leagueID: Int, days: Int = 30) async throws -> [StandingsHistoryDay] {
+        let urlString = "\(baseURL())/standings/\(leagueID)/history?days=\(days)"
         let url = URL(string: urlString)!
         let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
@@ -330,8 +488,8 @@ struct NetworkHandler {
         return try JSONDecoder().decode([StandingsHistoryDay].self, from: data)
     }
 
-    static func getTeamStats(leagueID: Int, debug: Bool = false) async throws -> [TeamStatEntry] {
-        let urlString = "\(baseURL(debug: debug))/stats/\(leagueID)/teams"
+    static func getTeamStats(leagueID: Int) async throws -> [TeamStatEntry] {
+        let urlString = "\(baseURL())/stats/\(leagueID)/teams"
         let url = URL(string: urlString)!
         let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
@@ -340,8 +498,8 @@ struct NetworkHandler {
         return try JSONDecoder().decode([TeamStatEntry].self, from: data)
     }
 
-    static func registerPushToStart(token: String, favorites: [String], eventIDs: [String] = [], debug: Bool = false) async throws {
-        let urlString = "\(baseURL(debug: debug))/pushToStart/register"
+    static func registerPushToStart(token: String, favorites: [String], eventIDs: [String] = []) async throws {
+        let urlString = "\(baseURL())/pushToStart/register"
         let url = URL(string: urlString)!
         var request = authenticatedRequest(url: url)
         request.httpMethod = "POST"
@@ -358,8 +516,8 @@ struct NetworkHandler {
     }
 
     /// Base URL for admin API endpoints (bypasses /v2025 versioning)
-    private static func adminBaseURL(debug: Bool) -> String {
-        rootURL(debug: debug).http
+    private static func adminBaseURL() -> String {
+        rootURL().http
     }
 
     struct DeviceRegistrationStatus: Decodable {
@@ -370,8 +528,8 @@ struct NetworkHandler {
         let apnsConfigured: Bool
     }
 
-    static func getDeviceRegistrationStatus(tokenPrefix: String, debug: Bool = false) async throws -> DeviceRegistrationStatus {
-        let urlString = "\(adminBaseURL(debug: debug))/api/admin/push-to-start/device-status?tokenPrefix=\(tokenPrefix)"
+    static func getDeviceRegistrationStatus(tokenPrefix: String) async throws -> DeviceRegistrationStatus {
+        let urlString = "\(adminBaseURL())/api/admin/push-to-start/device-status?tokenPrefix=\(tokenPrefix)"
         guard let url = URL(string: urlString) else { throw URLError(.badURL) }
         let (data, _) = try await URLSession.shared.data(from: url)
         return try JSONDecoder().decode(DeviceRegistrationStatus.self, from: data)
@@ -383,9 +541,9 @@ struct NetworkHandler {
         return data
     }
 
-    /// Triggers a debug push-to-start notification from the local dev server.
-    static func triggerDebugPushToStart(eventID: String, homeTeam: String, awayTeam: String, debug: Bool = true) async throws {
-        let urlString = "\(baseURL(debug: debug))/debug/trigger-push-to-start"
+    /// Triggers a debug push-to-start notification from the current dev server.
+    static func triggerDebugPushToStart(eventID: String, homeTeam: String, awayTeam: String) async throws {
+        let urlString = "\(baseURL())/debug/trigger-push-to-start"
         guard let url = URL(string: urlString) else { return }
         var request = authenticatedRequest(url: url)
         request.httpMethod = "POST"

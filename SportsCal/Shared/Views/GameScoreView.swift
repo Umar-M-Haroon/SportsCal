@@ -180,7 +180,7 @@ struct GameScoreView: View {
             content
         } else {
             NavigationLink {
-                GameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                AdaptiveGameDetail(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
                     .environment(viewModel)
                     .environment(favorites)
             } label: {

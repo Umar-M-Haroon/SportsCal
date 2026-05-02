@@ -41,8 +41,9 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("useRelativeValue") var useRelativeValue: Bool = false
     @ObservationIgnored @AppStorage("autoFollowFavorites") var autoFollowFavorites: Bool = true
     @ObservationIgnored @AppStorage("showSuggestedForYou") var showSuggestedForYou: Bool = true
-    @ObservationIgnored @AppStorage("useLocalServer") var useLocalServer: Bool = true
+    @ObservationIgnored @AppStorage("serverEnvironment") var serverEnvironment: ServerEnvironment = .auto
     @ObservationIgnored @AppStorage("sportOrder") var sportOrder: [String] = []
+    @ObservationIgnored @AppStorage("appTheme") var appTheme: AppTheme = .classic
 
     var orderedSports: [SportType] {
         let ordered = sportOrder.compactMap { SportType(rawValue: $0) }

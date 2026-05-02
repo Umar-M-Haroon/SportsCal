@@ -28,6 +28,11 @@ struct CalendarPage: View {
             navigateToDate: $navigateToDate,
             sportFilter: $sportFilter
         )
+        .conditionalModifier(
+            storage.appTheme == .ambient,
+            ifTrue: { $0.background(AmbientPalette.bg.ignoresSafeArea()).preferredColorScheme(.dark) },
+            ifFalse: { $0 }
+        )
         .safeAreaInset(edge: .top, spacing: 0) {
             SportChipFilterView(selectedFilter: $sportFilter, showSportPicker: $showSportPicker, browseSport: $browseSport)
                 .environment(storage)
