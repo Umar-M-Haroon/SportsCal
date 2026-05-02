@@ -1,0 +1,36 @@
+name: Server tests
+
+on:
+  push:
+    paths:
+      - "SportsCalAPI/**"
+      - "SportsCalModel/**"
+      - ".github/workflows/server-tests.yml"
+  pull_request:
+    paths:
+      - "SportsCalAPI/**"
+      - "SportsCalModel/**"
+      - ".github/workflows/server-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  unit-and-integration:
+    name: Unit + integration (in-memory fakes)
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: SportsCalAPI/SportsCalServer
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+      - name: Cache SPM build
+        uses: actions/cache@v4
+        with:
+          path: SportsCalAPI/SportsCalServer/.build
+          key: ${{ runner.os }}-spm-${{ hashFiles('SportsCalAPI/SportsCalServer/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+      - name: Run APNS + live-activity test suites
+        run: |
+          swift test \
+            --filter 'ContentStateDiffTests|TeamMatchingTests|DedupKeyTests|RegistrationCodableTests|APNSJobStateDiffTests|APNSJobErrorHandlingTests|ESPNFetchJobPushToStartTests'

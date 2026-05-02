@@ -1,0 +1,63 @@
+name: Nightly push-notification smoke
+
+# Nightly Docker-Redis smoke + sandbox-APNS E2E scenario runner. Separate from
+# the per-PR server-tests workflow so RediStack SCAN/TTL quirks (which the
+# in-memory fake deliberately doesn't replicate) get exercised against a real
+# Redis at least once a day. Informational — does not block merges.
+
+on:
+  schedule:
+    - cron: "17 8 * * *"  # 08:17 UTC daily
+  workflow_dispatch:
+
+jobs:
+  docker-redis-smoke:
+    name: Docker Redis smoke
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: SportsCalAPI/SportsCalServer
+    env:
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "5.10"
+      - name: Run full server test suite against real Redis
+        run: swift test
+
+  e2e-scenarios:
+    name: E2E vs staging sandbox APNS
+    runs-on: macos-14
+    if: ${{ vars.STAGING_E2E_ENABLED == 'true' }}
+    defaults:
+      run:
+        working-directory: SportsCalAPI/SportsCalServer
+    env:
+      E2E: "1"
+      STAGING_URL: ${{ vars.STAGING_URL }}
+      STAGING_ADMIN_KEY_HASH: ${{ secrets.STAGING_ADMIN_KEY_HASH }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+      - name: Run E2E scenarios
+        run: swift test --filter 'E2E'
+      - name: Notify Slack on failure
+        if: failure() && vars.SLACK_WEBHOOK_URL != ''
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"Nightly push-smoke E2E failed: ${{ github.run_id }}\"}" \
+            ${{ secrets.SLACK_WEBHOOK_URL }}
