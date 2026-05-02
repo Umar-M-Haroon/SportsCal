@@ -417,6 +417,35 @@ public struct LiveScore: Codable, Equatable {
             event.hasDoneStatus
         })
     }
+    /// Removes games still flagged as in-progress whose scheduled start was more than
+    /// `staleAfter` seconds before `now`. Handles the case where ESPN stopped returning a
+    /// game before we fetched its final state, leaving the cache pinned to a mid-game
+    /// snapshot. Matches the 8-hour "could still be live" heuristic used elsewhere.
+    @discardableResult
+    mutating public func removeStaleLiveGames(now: Date = Date(), staleAfter: TimeInterval = 8 * 60 * 60) -> Int {
+        let cutoff = now.addingTimeInterval(-staleAfter)
+        var removed = 0
+        func prune(_ event: inout LiveEvent?) {
+            guard event != nil else { return }
+            let before = event!.events.count
+            event!.events.removeAll { game in
+                guard !game.hasDoneStatus else { return false }
+                guard let gameDate = game.isoDate ?? game.getDate(dateFormatter: DateFormatter(), isoFormatter: ISO8601DateFormatter()) else { return false }
+                return gameDate < cutoff
+            }
+            removed += before - event!.events.count
+        }
+        prune(&nba)
+        prune(&mlb)
+        prune(&soccer)
+        prune(&nfl)
+        prune(&nhl)
+        prune(&golf)
+        prune(&tennis)
+        prune(&racing)
+        return removed
+    }
+
     mutating public func removeOtherInfo() {
         soccer?.events.removeAll(where: { event in
             guard let idLeague = event.idLeague,
