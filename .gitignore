@@ -1,6 +1,8 @@
 # Secrets
 Constants.swift
 .env
+.env.*
+!.env.*.example
 *.p8
 
 # macOS

@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Pre-push hook: build DocC catalogs and fail if any doc-link references
+# are unresolved (warnings emitted by docc). Skips the iOS app docs because
+# the Xcode build is too slow to gate every push on. Run with --no-verify
+# to bypass.
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+LOG_DIR="$(mktemp -d)"
+trap 'rm -rf "$LOG_DIR"' EXIT
+
+run_docc () {
+    local label="$1"
+    local dir="$2"
+    local target="$3"
+    local log="$LOG_DIR/$label.log"
+
+    echo "→ Building $label docs…"
+    if ! ( cd "$REPO_ROOT/$dir" && swift package generate-documentation --target "$target" ) > "$log" 2>&1; then
+        echo "❌ $label doc build failed:"
+        cat "$log"
+        return 1
+    fi
+
+    # Only inspect warnings emitted while docc is running (i.e. after the
+    # "Building documentation for" marker). Warnings from `swift build` —
+    # including SPM noise about third-party deps under .build/checkouts — fire
+    # earlier and are ignored.
+    local docc_warnings
+    docc_warnings=$(awk '/Building documentation for/{found=1} found && /^warning:/{print NR":"$0}' "$log")
+    if [ -n "$docc_warnings" ]; then
+        echo "❌ $label has DocC warnings:"
+        echo "$docc_warnings" | while IFS=: read -r lineno _; do
+            sed -n "${lineno},$((lineno+3))p" "$log"
+            echo "---"
+        done
+        return 1
+    fi
+}
+
+run_docc "SportsCalModel" "SportsCalModel" "SportsCalModel"
+run_docc "SportsCalServer" "SportsCalAPI/SportsCalServer" "App"
+
+echo "✅ DocC catalogs build clean"
