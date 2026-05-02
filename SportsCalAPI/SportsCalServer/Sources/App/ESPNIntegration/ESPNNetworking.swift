@@ -19,6 +19,13 @@ class ESPNNetworking {
     private static var cooldownUntil: [Leagues: Date] = [:]
     private static let cooldownInterval: TimeInterval = 5 * 60
 
+    // Global cool-down: any ESPN endpoint returning 429 trips this, halting all
+    // ESPN traffic across sports/leagues for the Retry-After window. 429 is the
+    // explicit rate-limit signal — 5xx stays per-league because it's typically
+    // per-endpoint flakiness rather than a quota issue.
+    private static var globalCooldownUntil: Date?
+    private static let defaultGlobalCooldown: TimeInterval = 60
+
     private static func cooledDownUntil(_ league: Leagues) -> Date? {
         cooldownQueue.sync {
             guard let until = cooldownUntil[league], until > Date() else {
@@ -39,6 +46,77 @@ class ESPNNetworking {
         ])
     }
 
+    private static func currentGlobalCooldown() -> Date? {
+        cooldownQueue.sync {
+            guard let until = globalCooldownUntil, until > Date() else {
+                if globalCooldownUntil != nil { globalCooldownUntil = nil }
+                return nil
+            }
+            return until
+        }
+    }
+
+    private static func markGlobalCooldown(reason: String, duration: TimeInterval) {
+        let until = Date().addingTimeInterval(duration)
+        cooldownQueue.sync {
+            // Extend only — never shorten an existing cooldown.
+            if let existing = globalCooldownUntil, existing > until { return }
+            globalCooldownUntil = until
+        }
+        logger.warning("ESPN global cooldown set", metadata: [
+            "until":    "\(until)",
+            "reason":   "\(reason)",
+            "duration": "\(Int(duration))s"
+        ])
+    }
+
+    /// Parses the `Retry-After` header (integer seconds form) into a clamped duration.
+    /// Returns nil if absent or unparseable; HTTP-date form is ignored (we don't see it from ESPN).
+    private static func retryAfterSeconds(from headers: HTTPHeaders) -> Int? {
+        guard let raw = headers.first(name: "Retry-After") else { return nil }
+        guard let seconds = Int(raw.trimmingCharacters(in: .whitespaces)) else { return nil }
+        return max(30, min(600, seconds))
+    }
+
+    /// Wraps `req.get` with the global 429 circuit breaker. All ESPN HTTP calls route
+    /// through this so a rate-limit response on any endpoint halts all ESPN traffic for
+    /// the cool-down window, rather than each endpoint independently hammering.
+    ///
+    /// Also retries once on transport-level errors (HTTP/2 stream reset, remote connection
+    /// closed). ESPN's edge periodically tears down HTTP/2 connections with in-flight
+    /// streams; retrying after a short delay lands on a fresh connection ~all of the time.
+    /// Does not retry once a response has arrived — 429/5xx paths are handled below.
+    private static func performGet(
+        _ req: some Client,
+        _ uri: URI,
+        beforeSend: (inout ClientRequest) throws -> Void = { _ in }
+    ) async throws -> ClientResponse {
+        if let until = currentGlobalCooldown() {
+            throw NetworkError.cooledDown(until: until)
+        }
+        let response: ClientResponse
+        do {
+            response = try await req.get(uri, beforeSend: beforeSend)
+        } catch {
+            logger.debug("ESPN GET transport error — retrying once", metadata: [
+                "uri":   "\(uri)",
+                "error": "\(error)"
+            ])
+            try await Task.sleep(nanoseconds: 200_000_000)
+            if let until = currentGlobalCooldown() {
+                // A concurrent request may have tripped the breaker during our sleep.
+                throw NetworkError.cooledDown(until: until)
+            }
+            response = try await req.get(uri, beforeSend: beforeSend)
+        }
+        if response.status.code == 429 {
+            let duration = TimeInterval(retryAfterSeconds(from: response.headers) ?? Int(defaultGlobalCooldown))
+            markGlobalCooldown(reason: "http 429", duration: duration)
+            throw NetworkError.cooledDown(until: Date().addingTimeInterval(duration))
+        }
+        return response
+    }
+
     @available(*, deprecated, message: "use league lookup")
     static func getScoreboard<Output: Decodable>(req: some Client, DecodeType: Output.Type, scoreType: SportType) async throws -> Output {
         let urlString = "http://site.api.espn.com/apis/site/v2/sports/"
@@ -46,7 +124,7 @@ class ESPNNetworking {
         let scoreboard = "/scoreboard"
         let fullString = urlString + sport + scoreboard
         do {
-            let response = try await req.get(URI(string: fullString)) { req in
+            let response = try await performGet(req, URI(string: fullString)) { req in
                 try req.query.encode(["limit" : 500])
             }
             return try response.content.decode(DecodeType.self)
@@ -78,8 +156,8 @@ class ESPNNetworking {
                     let year = Calendar.current.component(.year, from: Date())
                     uri.query! += "&dates=\(year)"
                 }
-                let response = try await req.get(uri)
-                if response.status.code == 429 || response.status.code >= 500 {
+                let response = try await performGet(req, uri)
+                if response.status.code >= 500 {
                     markCooldown(league, reason: "http \(response.status.code)")
                     throw NetworkError.cooledDown(until: Date().addingTimeInterval(cooldownInterval))
                 }
@@ -106,7 +184,7 @@ class ESPNNetworking {
             let sport = league.sport
             let fullString = [urlString, sport, espnSlug, scoreboard].joined(separator: "/")
             do {
-                let response = try await req.get(URI(string: fullString)) { req in
+                let response = try await performGet(req, URI(string: fullString)) { req in
                     try req.query.encode(["limit" : 500])
                 }
                 return try response.content.decode(DecodeType.self)
@@ -128,7 +206,7 @@ class ESPNNetworking {
             let sport = league.sport
             let fullString = [urlString, sport, espnSlug, "standings"].joined(separator: "/")
             do {
-                let response = try await req.get(URI(string: fullString))
+                let response = try await performGet(req, URI(string: fullString))
                 return try response.content.decode(DecodeType.self)
             } catch {
                 logger.error("ESPN standings fetch failed", metadata: [
@@ -150,7 +228,7 @@ class ESPNNetworking {
             let sport = league.sport
             let fullString = [urlString, sport, espnSlug, "leaders"].joined(separator: "/")
             do {
-                let response = try await req.get(URI(string: fullString))
+                let response = try await performGet(req, URI(string: fullString))
                 return try response.content.decode(DecodeType.self)
             } catch {
                 logger.error("ESPN leaders fetch failed", metadata: [
@@ -239,7 +317,7 @@ class ESPNNetworking {
         for competitor in competitors {
             let urlString = "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/events/\(event.id)/competitions/\(competition.id)/competitors/\(competitor.id)?lang=en&region=us"
             do {
-                let response = try await req.get(URI(string: urlString))
+                let response = try await performGet(req, URI(string: urlString))
                 let coreCompetitor = try response.content.decode(CoreCompetitor.self)
                 if let manufacturer = coreCompetitor.vehicle?.manufacturer, !manufacturer.isEmpty {
                     constructorMap[competitor.id] = manufacturer
@@ -291,7 +369,7 @@ class ESPNNetworking {
                     group.addTask {
                         let urlString = "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/events/\(item.eventId)/competitions/\(item.competitionId)/competitors/\(competitor.id)/statistics?lang=en&region=us"
                         do {
-                            let response = try await req.get(URI(string: urlString))
+                            let response = try await performGet(req, URI(string: urlString))
                             let stats = try response.content.decode(CoreStatistics.self)
                             // P1 shows total time, P2+ show gap behind leader
                             if let behind = stats.statValue(named: "behindTime"), behind != "+0.000" {
@@ -342,7 +420,7 @@ class ESPNNetworking {
     ) async throws -> ESPNSummaryResponse {
         let urlString = "https://site.api.espn.com/apis/site/v2/sports/\(sport)/\(league)/summary?event=\(eventId)"
         do {
-            let response = try await req.get(URI(string: urlString))
+            let response = try await performGet(req, URI(string: urlString))
             return try response.content.decode(ESPNSummaryResponse.self)
         } catch {
             logger.error("ESPN play-by-play summary fetch failed", metadata: [
@@ -362,7 +440,7 @@ class ESPNNetworking {
     static func getGolfSummary(req: some Client, eventId: String) async throws -> GolfSummaryResponse {
         let urlString = "http://site.api.espn.com/apis/site/v2/sports/golf/pga/summary?event=\(eventId)"
         do {
-            let response = try await req.get(URI(string: urlString))
+            let response = try await performGet(req, URI(string: urlString))
             return try response.content.decode(GolfSummaryResponse.self)
         } catch {
             logger.error("ESPN golf summary fetch failed", metadata: [

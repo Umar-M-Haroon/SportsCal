@@ -27,6 +27,7 @@ struct AdminController: RouteCollection {
         admin.get("push-to-start", "registrations", use: pushToStartRegistrations)
         admin.get("push-to-start", "diagnostics", use: pushToStartDiagnostics)
         admin.get("push-to-start", "device-status", use: pushToStartDeviceStatus)
+        admin.get("push", "metrics", use: pushMetrics)
 
         // Write endpoints
         admin.post("redis", "invalidate", ":key", use: invalidateKey)
@@ -1033,5 +1034,14 @@ struct AdminController: RouteCollection {
             return "{}"
         }
         return String(data: resultData, encoding: .utf8) ?? "{}"
+    }
+
+    // MARK: - Push Metrics
+
+    /// Live in-process counters for push / live-activity delivery health.
+    /// Not persisted — reset on server restart. Proper long-term telemetry
+    /// should go through swift-metrics if we ever need historical graphs.
+    func pushMetrics(req: Request) async throws -> PushMetrics.Snapshot {
+        await req.application.pushMetrics.snapshot()
     }
 }

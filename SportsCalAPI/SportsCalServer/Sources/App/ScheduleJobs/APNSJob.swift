@@ -7,32 +7,48 @@
 
 import Foundation
 import Queues
-import RediStack
 import SportsCalModel
-import VaporAPNS
-import APNSCore
-import NIOCore
 import Logging
 
 struct APNSJob: AsyncScheduledJob {
     private static let logger = Logger(label: "com.sportscal.apns-job")
 
     func run(context: Queues.QueueContext) async throws {
-        let isDebug = context.application.environment == .development
+        let app = context.application
+        let isDebug = app.environment == .development
+        guard app.storage[APNSConfiguredKey.self] == true else { return }
 
-        guard context.application.storage[APNSConfiguredKey.self] == true else { return }
+        try await APNSJob.runOnce(
+            kv: app.kv,
+            apns: app.apnsSending,
+            clock: app.appClock,
+            isDebug: isDebug,
+            logger: Self.logger,
+            metrics: app.pushMetrics
+        )
+    }
 
+    /// Extracted loop body so tests can exercise it without booting the queue runner.
+    /// Keeping the pipeline in a single function keeps the control flow readable.
+    /// `metrics` is optional so unit tests can skip metrics wiring when they
+    /// only care about behavior.
+    static func runOnce(
+        kv: KeyValueStore,
+        apns: APNSSending,
+        clock: AppClock,
+        isDebug: Bool,
+        logger: Logger,
+        metrics: PushMetrics? = nil
+    ) async throws {
         let keyPrefix = isDebug ? "debug-APNS-" : "APNS-"
+        let keys = try await kv.scanKeys(matching: "\(keyPrefix)*")
+        guard !keys.isEmpty else { return }
 
-        guard let keys = try await context.application.redis.send(command: "keys", with: ["\(keyPrefix)*".convertedToRESPValue()])
-            .array?
-            .compactMap({ $0.string })
-            .map({ RedisKey($0) }),
-              !keys.isEmpty else { return }
+        let liveScoreKey = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug).rawValue
+        let liveScore = try await kv.getJSON(liveScoreKey, as: LiveScore.self)
 
-        let liveScore = try await context.application.redis.get(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug), asJSON: LiveScore.self)
-
-        var events = liveScore?.mlb?.events ?? []
+        var events: [Game] = []
+        events.append(contentsOf: liveScore?.mlb?.events ?? [])
         events.append(contentsOf: liveScore?.nfl?.events ?? [])
         events.append(contentsOf: liveScore?.nba?.events ?? [])
         events.append(contentsOf: liveScore?.soccer?.events ?? [])
@@ -41,89 +57,117 @@ struct APNSJob: AsyncScheduledJob {
         events.append(contentsOf: liveScore?.tennis?.events ?? [])
         events.append(contentsOf: liveScore?.racing?.events ?? [])
 
-        let registrationValues = try await context.application.redis.mget(keys).get()
-        let apnsClient = isDebug
-            ? await context.application.apns.client(.development)
-            : await context.application.apns.client(.production)
+        let registrationValues = try await kv.mget(keys)
 
         for (index, key) in keys.enumerated() {
-            guard let rawValue = registrationValues[index].string else { continue }
+            guard let rawValue = registrationValues[index] else { continue }
 
-            // Parse registration — supports both new JSON format and legacy plain eventID
-            let registration: APNSRegistration
-            if let data = rawValue.data(using: .utf8),
-               let parsed = try? JSONDecoder().decode(APNSRegistration.self, from: data) {
-                registration = parsed
-            } else {
-                // Legacy format: plain event ID string
-                registration = APNSRegistration(eventID: rawValue, homeTeam: nil, awayTeam: nil)
-            }
-
-            // Match event: try event ID first, then fall back to team names
-            let event: Game?
-            if let found = events.first(where: { $0.idEvent == registration.eventID }) {
-                event = found
-            } else if let home = registration.homeTeam, let away = registration.awayTeam {
-                let homeLower = home.lowercased()
-                let awayLower = away.lowercased()
-                event = events.first(where: {
-                    $0.strHomeTeam.lowercased() == homeLower && $0.strAwayTeam.lowercased() == awayLower
-                })
-            } else {
-                event = nil
-            }
-
-            guard let event,
-                  let homeScore = Int(event.intHomeScore ?? ""),
+            let registration = decodeRegistration(from: rawValue)
+            guard let event = matchEvent(events: events, registration: registration) else { continue }
+            guard let homeScore = Int(event.intHomeScore ?? ""),
                   let awayScore = Int(event.intAwayScore ?? "") else { continue }
 
-            let tokenString = String(key.rawValue.split(separator: "-").last!)
+            let tokenString = tokenFromKey(key, prefix: keyPrefix)
+            let now = Int(clock.now.timeIntervalSince1970)
 
             if !event.hasDoneStatus {
-                let contentState = ContentState(homeScore: homeScore, awayScore: awayScore, status: event.strStatus, progress: event.strProgress)
-                let savedState = try await context.application.redis.get(RedisEndpoint.eventState(event.id).getValue(isDebug: isDebug), asJSON: ContentState.self)
-                if savedState != contentState {
-                    try await context.application.redis.setex(RedisEndpoint.eventState(event.id).getValue(isDebug: isDebug), toJSON: contentState, expirationInSeconds: 60 * 60 * 8).get()
-                    do {
-                        try await apnsClient.sendLiveActivityNotification(
-                            APNSLiveActivityNotification(
-                                expiration: .immediately,
-                                priority: .immediately,
-                                appID: "com.KomodoLLC.SportsCal",
-                                contentState: contentState,
-                                event: .update,
-                                timestamp: Int(Date().timeIntervalSince1970)
-                            ),
-                            deviceToken: tokenString
-                        )
-                    } catch {
-                        Self.logger.error("Failed to send APNS update for \(event.id): \(error)")
-                        if let apnsError = error as? APNSError, apnsError.reason == .unregistered {
-                            _ = try await context.application.redis.delete([key]).get()
-                        }
+                let contentState = ContentState(
+                    homeScore: homeScore,
+                    awayScore: awayScore,
+                    status: event.strStatus,
+                    progress: event.strProgress
+                )
+                let stateKey = RedisEndpoint.eventState(event.id).getValue(isDebug: isDebug).rawValue
+                let savedState = try await kv.getJSON(stateKey, as: ContentState.self)
+                guard savedState != contentState else { continue }
+                try await kv.setJSON(stateKey, value: contentState, ttl: 60 * 60 * 12)
+                do {
+                    _ = try await apns.sendLiveActivityUpdate(
+                        deviceToken: tokenString,
+                        appID: "com.KomodoLLC.SportsCal",
+                        contentState: contentState,
+                        isFinal: false,
+                        timestamp: now
+                    )
+                    await metrics?.recordSend(kind: .update)
+                    // Slide the registration TTL forward so an active activity never
+                    // expires mid-game even if the client can't run BGAppRefresh.
+                    _ = try? await kv.expire(key, ttl: 60 * 60 * 12)
+                } catch let sendError as APNSSendError {
+                    logger.error("Failed to send APNS update for \(event.id): \(sendError.reason.rawValue) \(sendError.underlying ?? "")")
+                    await metrics?.recordError(sendError.reason)
+                    if sendError.isStaleToken {
+                        _ = try await kv.delete([key])
+                        await metrics?.recordCleanup(reason: sendError.reason.rawValue)
                     }
+                } catch {
+                    logger.error("Failed to send APNS update for \(event.id): \(error)")
+                    await metrics?.recordError(.other)
                 }
             } else {
-                Self.logger.info("Ending live activity for game \(key)")
-                let contentState = ContentState(homeScore: homeScore, awayScore: awayScore, status: event.strStatus, progress: event.strProgress)
+                logger.info("Ending live activity for game \(key)")
+                let contentState = ContentState(
+                    homeScore: homeScore,
+                    awayScore: awayScore,
+                    status: event.strStatus,
+                    progress: event.strProgress
+                )
                 do {
-                    try await apnsClient.sendLiveActivityNotification(
-                        APNSLiveActivityNotification(
-                            expiration: .none,
-                            priority: .immediately,
-                            appID: "com.KomodoLLC.SportsCal",
-                            contentState: contentState,
-                            event: .end,
-                            timestamp: Int(Date().timeIntervalSince1970)
-                        ),
-                        deviceToken: tokenString
+                    _ = try await apns.sendLiveActivityUpdate(
+                        deviceToken: tokenString,
+                        appID: "com.KomodoLLC.SportsCal",
+                        contentState: contentState,
+                        isFinal: true,
+                        timestamp: now
                     )
+                    await metrics?.recordSend(kind: .end)
+                } catch let sendError as APNSSendError {
+                    logger.error("Failed to send APNS end for \(event.id): \(sendError.reason.rawValue) \(sendError.underlying ?? "")")
+                    await metrics?.recordError(sendError.reason)
                 } catch {
-                    Self.logger.error("Failed to send APNS end for \(event.id): \(error)")
+                    logger.error("Failed to send APNS end for \(event.id): \(error)")
+                    await metrics?.recordError(.other)
                 }
-                let contentStateToDelete = RedisEndpoint.eventState(event.id).getValue(isDebug: isDebug)
-                _ = try await context.application.redis.delete([key, contentStateToDelete]).get()
+                let stateKey = RedisEndpoint.eventState(event.id).getValue(isDebug: isDebug).rawValue
+                _ = try await kv.delete([key, stateKey])
             }
         }
+    }
+
+    // MARK: - Helpers (internal for unit tests)
+
+    /// Parses the Redis value into a registration. Supports both the JSON shape
+    /// (new) and a legacy plain-eventID string that pre-dates the JSON migration.
+    static func decodeRegistration(from rawValue: String) -> APNSRegistration {
+        if let data = rawValue.data(using: .utf8),
+           let parsed = try? JSONDecoder().decode(APNSRegistration.self, from: data) {
+            return parsed
+        }
+        return APNSRegistration(eventID: rawValue, homeTeam: nil, awayTeam: nil)
+    }
+
+    /// Match an event from the live scoreboard. Tries eventID first, then falls
+    /// back to case-insensitive team-name match. Kept pure for unit-testability.
+    static func matchEvent(events: [Game], registration: APNSRegistration) -> Game? {
+        if let found = events.first(where: { $0.idEvent == registration.eventID }) {
+            return found
+        }
+        if let home = registration.homeTeam, let away = registration.awayTeam {
+            let homeLower = home.lowercased()
+            let awayLower = away.lowercased()
+            return events.first(where: {
+                $0.strHomeTeam.lowercased() == homeLower && $0.strAwayTeam.lowercased() == awayLower
+            })
+        }
+        return nil
+    }
+
+    /// `APNS-abc123` → `abc123`; `debug-APNS-abc123` → `abc123`. The token itself
+    /// contains only hex digits so there's never a stray `-` inside to worry about.
+    static func tokenFromKey(_ key: String, prefix: String) -> String {
+        if key.hasPrefix(prefix) {
+            return String(key.dropFirst(prefix.count))
+        }
+        return key
     }
 }

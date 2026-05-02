@@ -9,7 +9,14 @@ func routes(_ app: Application) throws {
     // Register API version middleware globally
     app.middleware.use(APIVersionMiddleware())
 
-    // MARK: - Development-only routes (admin dashboard, log streaming)
+    // MARK: - Unauthenticated ping
+    // Cheap reachability probe used by the iOS app to auto-pick between local,
+    // dev (Tailscale), and prod servers. Must stay outside rate limiting and
+    // API-key middleware so HEAD requests from the env picker are free.
+    app.get("ping") { _ in "pong" }
+    app.on(.HEAD, "ping") { _ in HTTPStatus.ok }
+
+    // MARK: - Development-only routes (log streaming)
     if app.environment == .development {
         // Log Streaming WebSocket
         app.webSocket("ws", "logs") { req, ws async in
@@ -47,25 +54,38 @@ func routes(_ app: Application) throws {
             try? await ws.onClose.get()
             await LogBroadcaster.shared.removeSubscriber(ws)
         }
-
-        // Admin dashboard endpoints for monitoring and management
-        try app.register(collection: AdminController())
     }
 
+    // MARK: - Admin Routes
+    // Gated by ADMIN_API_KEY_HASH in every environment. AdminKeyMiddleware fails
+    // closed if the env var is unset, so registering these unconditionally is safe.
+    let adminRoutes = app.grouped(AdminKeyMiddleware())
+    try adminRoutes.register(collection: AdminController())
+    try adminRoutes.register(collection: ParityController())
+
     // MARK: - Versioned Routes (v2025)
-    // Use versioned routes for new clients. Legacy routes remain for backward compatibility.
-    let v2025 = app.grouped("v2025").grouped(APIKeyMiddleware())
+    // Rate limit runs before the API key check so unauthed floods get 429'd
+    // after the threshold instead of costing one Redis hit per 403.
+    let v2025 = app.grouped(RateLimitMiddleware(limit: 300, windowSeconds: 60, keyPrefix: "rl:v2025"))
+        .grouped("v2025")
+        .grouped(APIKeyMiddleware())
     registerAPIRoutes(on: v2025, app: app)
 
     // MARK: - Legacy Routes (unversioned)
     // Keep for backward compatibility with older app versions
-    let legacy = app.grouped(APIKeyMiddleware())
+    let legacy = app.grouped(RateLimitMiddleware(limit: 300, windowSeconds: 60, keyPrefix: "rl:legacy"))
+        .grouped(APIKeyMiddleware())
     registerAPIRoutes(on: legacy, app: app)
 }
 
 /// Registers all API routes on a given route builder.
 /// This allows the same routes to be registered under both versioned and legacy paths.
 private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
+    // Tighter limit for endpoints that mutate Redis state — the app API key is
+    // embedded in every binary and extractable, so a leaked key shouldn't be
+    // able to flood Redis with garbage registrations.
+    let writeRoutes = routes.grouped(RateLimitMiddleware(limit: 20, windowSeconds: 60, keyPrefix: "rl:write"))
+
     //MARK: - Schedules
     routes.get("schedules") { req async throws -> String in
         let schedule = try await req.application.redis.get(RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development), asJSON: LiveScore.self)
@@ -413,17 +433,17 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     }
 
     //MARK: - liveActivity
-    routes.get("liveActivity",":token",":eventID") { req async throws in
+    writeRoutes.get("liveActivity",":token",":eventID") { req async throws in
         let token = req.parameters.get("token")!
         let eventID = req.parameters.get("eventID")!
         let homeTeam = try? req.query.get(String.self, at: "home")
         let awayTeam = try? req.query.get(String.self, at: "away")
         let registration = APNSRegistration(eventID: eventID, homeTeam: homeTeam, awayTeam: awayTeam)
-        if req.application.environment == .development {
-            try await req.application.redis.setex("debug-APNS-\(token)", toJSON: registration, expirationInSeconds: 60 * 60 * 8).get()
-        } else {
-            try await req.application.redis.setex("APNS-\(token)", toJSON: registration, expirationInSeconds: 60 * 60 * 8).get()
-        }
+        let isDebug = req.application.environment == .development
+        let key = (isDebug ? "debug-APNS-" : "APNS-") + token
+        // 12h matches the iOS Live Activity max lifetime; APNSJob slides this forward
+        // on every successful update so an active activity never expires mid-game.
+        try await req.kv.setJSON(key, value: registration, ttl: 60 * 60 * 12)
         return HTTPStatus.ok
     }
 
@@ -642,21 +662,19 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     }
 
     //MARK: - Push-to-Start Registration
-    routes.post("pushToStart", "register") { req async throws -> HTTPStatus in
+    writeRoutes.post("pushToStart", "register") { req async throws -> HTTPStatus in
         let registration = try req.content.decode(PushToStartRegistration.self)
         let isDebug = req.application.environment == .development
-        let key = RedisEndpoint.pushToStart(registration.token).getValue(isDebug: isDebug)
-        try await req.application.redis.setex(key, toJSON: registration.favorites, expirationInSeconds: 60 * 60 * 24)
+        let key = RedisEndpoint.pushToStart(registration.token).getValue(isDebug: isDebug).rawValue
+        try await req.kv.setJSON(key, value: registration.favorites, ttl: 60 * 60 * 24)
 
-        // Store auto-follow event IDs if provided
+        let eventsKey = RedisEndpoint.pushToStartEvents(registration.token).getValue(isDebug: isDebug).rawValue
         if let eventIDs = registration.eventIDs, !eventIDs.isEmpty {
-            let eventsKey = RedisEndpoint.pushToStartEvents(registration.token).getValue(isDebug: isDebug)
-            try await req.application.redis.setex(eventsKey, toJSON: eventIDs, expirationInSeconds: 60 * 60 * 24)
+            try await req.kv.setJSON(eventsKey, value: eventIDs, ttl: 60 * 60 * 24)
             req.logger.info("Registered push-to-start token with \(registration.favorites.count) favorites, \(eventIDs.count) event IDs")
         } else {
             // Clear event IDs if none provided (user removed all auto-follows)
-            let eventsKey = RedisEndpoint.pushToStartEvents(registration.token).getValue(isDebug: isDebug)
-            _ = try? await req.application.redis.delete(eventsKey).get()
+            _ = try? await req.kv.delete([eventsKey])
             req.logger.info("Registered push-to-start token with \(registration.favorites.count) favorites")
         }
         return .ok

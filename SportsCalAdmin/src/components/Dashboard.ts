@@ -7,6 +7,7 @@ import { TeamsExplorer } from './TeamsExplorer'
 import { DebugTools } from './DebugTools'
 import { ServerControl } from './ServerControl'
 import { Logs } from './Logs'
+import { Parity } from './Parity'
 
 export class Dashboard {
   private currentView: string = ''
@@ -26,6 +27,7 @@ export class Dashboard {
     this.components.set('debug', new DebugTools())
     this.components.set('server', new ServerControl())
     this.components.set('logs', new Logs())
+    this.components.set('parity', new Parity())
 
     this.setupNavigation()
     this.showView('health')

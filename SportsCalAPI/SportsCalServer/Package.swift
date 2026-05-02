@@ -13,7 +13,9 @@ let package = Package(
         .package(url: "https://github.com/vapor/queues-redis-driver.git", from: "1.0.0"),
         .package(url: "https://github.com/vapor/sqlite-nio.git", from: "1.0.0"),
         .package(path: "../../SportsCalModel"),
-        .package(url: "https://github.com/vapor/apns.git", branch: "main")
+        .package(url: "https://github.com/vapor/apns.git", branch: "main"),
+        .package(url: "https://github.com/vapor/jwt.git", from: "4.0.0"),
+        .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.4.0")
     ],
     targets: [
         .target(
@@ -24,7 +26,8 @@ let package = Package(
                 .product(name: "Redis", package: "redis"),
                 .product(name: "SQLiteNIO", package: "sqlite-nio"),
                 .product(name: "SportsCalModel", package: "SportsCalModel"),
-                .product(name: "VaporAPNS", package: "apns")
+                .product(name: "VaporAPNS", package: "apns"),
+                .product(name: "JWT", package: "jwt")
             ],
             swiftSettings: [
                 // Enable better optimizations when building in Release configuration. Despite the use of

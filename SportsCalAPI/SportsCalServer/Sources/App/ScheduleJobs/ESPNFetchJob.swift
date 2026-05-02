@@ -19,13 +19,15 @@ struct ESPNFetchJob: AsyncScheduledJob {
     func run(context: Queues.QueueContext) async throws {
         let isDebug = context.application.environment == .development
 
-        // Only fetch live scores if there are games happening or starting soon
-        let shouldFetchLive = await Integrator.hasLiveOrUpcomingGames(
-            redis: context.application.redis,
-            isDebug: isDebug
-        )
+        // Prune any cached "in-progress" games whose scheduled start is >8h in the past.
+        // Runs every tick — including ticks where we skip the ESPN fetch — so a game that
+        // ended during an idle window doesn't stay pinned as live forever.
+        await pruneStaleCachedLiveGames(context: context, isDebug: isDebug)
 
-        if !shouldFetchLive {
+        // Compute the active-league set once. nil = cold start (both schedule sources
+        // empty) — treat as "fetch everything" so we populate cache for the next tick.
+        let active = await Integrator.activeLeagues(redis: context.application.redis, isDebug: isDebug)
+        if let active, active.isEmpty {
             Self.logger.info("No live or upcoming games — skipping ESPN live score fetch")
             return
         }
@@ -46,13 +48,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
             partialResult.events += next.events
         }
 
-        Self.logger.info("Fetching ESPN live scores")
-        let espnResult = await Integrator.getESPNLiveScore(context.application.client)
-
-        // Fire per-event play-by-play enrichment (NBA/NFL/NHL/MLB).
-        // Side-effect only: writes to Redis at PBP-{eventID}. Must run against the fresh
-        // `espnResult` because `lastPlayScoreboardID` is lost when games are rebuilt downstream.
-        await enrichWithPlays(from: espnResult, context: context, isDebug: isDebug)
+        Self.logger.info("Fetching ESPN live scores", metadata: [
+            "activeLeagues": "\(active?.count ?? -1)"  // -1 = cold start, fetch-all
+        ])
+        let espnResult = await Integrator.getESPNLiveScore(context.application.client, activeLeagues: active)
 
         let latestLiveResult = try await context.application.redis.get(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug), asJSON: LiveScore.self)
 
@@ -74,6 +73,13 @@ struct ESPNFetchJob: AsyncScheduledJob {
             newResult = espnResult
         }
 
+        // Per-event play-by-play enrichment runs against `newResult` (which has soccer/tennis
+        // merged in) BEFORE team ID translation strips `lastPlayScoreboardID` off rebuilt games.
+        // Side-effect only: writes to SQLite / Redis under PBP-{id}.
+        if let current = newResult {
+            await enrichWithPlays(from: current, context: context, isDebug: isDebug)
+        }
+
         // Translate ESPN team IDs to TheSportsDB IDs in all live games
         // This must happen BEFORE merging NCAA games, since ESPN IDs are per-sport
         // and NCAA team IDs can collide with NBA team IDs in the mapping
@@ -83,7 +89,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
         // Merge NCAA Tournament into basketball AFTER ID translation to avoid
         // NCAA ESPN IDs being incorrectly mapped to NBA TheSportsDB IDs
-        if let ncaaScoreboard = try? await Integrator.getESPNScoreboard(for: .ncaaMBBTournament, context.application.client),
+        let shouldFetchNCAA = active?.contains(.ncaaMBBTournament) ?? true
+        if shouldFetchNCAA,
+           let ncaaScoreboard = try? await Integrator.getESPNScoreboard(for: .ncaaMBBTournament, context.application.client),
            let ncaaLiveEvent = LiveEvent(events: ncaaScoreboard, league: .ncaaMBBTournament) {
             if let existing = newResult?.nba {
                 newResult = newResult.map { result in
@@ -100,7 +108,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
         }
 
         // Same pattern for WNBA — ESPN-only league sharing the basketball bucket
-        if let wnbaScoreboard = try? await Integrator.getESPNScoreboard(for: .wnba, context.application.client),
+        let shouldFetchWNBA = active?.contains(.wnba) ?? true
+        if shouldFetchWNBA,
+           let wnbaScoreboard = try? await Integrator.getESPNScoreboard(for: .wnba, context.application.client),
            let wnbaLiveEvent = LiveEvent(events: wnbaScoreboard, league: .wnba) {
             if let existing = newResult?.nba {
                 newResult = newResult.map { result in
@@ -143,6 +153,25 @@ struct ESPNFetchJob: AsyncScheduledJob {
                     Self.logger.info("Schedule updated with ESPN live data")
                 }
             }
+        }
+    }
+
+    // MARK: - Stale Cache Prune
+
+    private func pruneStaleCachedLiveGames(context: Queues.QueueContext, isDebug: Bool) async {
+        let liveKey = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug)
+        let fullKey = RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: isDebug)
+
+        guard var cached = try? await context.application.redis.get(liveKey, asJSON: LiveScore.self) else { return }
+        let removed = cached.removeStaleLiveGames()
+        guard removed > 0 else { return }
+
+        Self.logger.info("Pruned \(removed) stale in-progress game(s) from live cache")
+        try? await context.application.redis.set(liveKey, toJSON: cached)
+        // Mirror to the detailed (30-min TTL) key if it still exists, so consumers of
+        // /all-live-games see the prune too.
+        if let exists = try? await context.application.redis.exists(fullKey), exists > 0 {
+            try? await context.application.redis.set(fullKey, toJSON: cached)
         }
     }
 
@@ -196,6 +225,17 @@ struct ESPNFetchJob: AsyncScheduledJob {
             candidates.append(PBPCandidate(
                 game: game, sport: "baseball", league: "mlb",
                 tsdbEventID: findTSDBEventID(for: game, in: schedule?.mlb?.events)
+            ))
+        }
+        // Soccer spans many leagues — each game's ESPN slug comes from its `idLeague`
+        // (EPL → eng.1, La Liga → esp.1, etc. — see Leagues.espnSlug).
+        for game in liveScore.soccer?.events ?? [] where shouldEnrichPBP(game) {
+            guard let leagueID = game.idLeague, let leagueInt = Int(leagueID),
+                  let leagueEnum = Leagues(rawValue: leagueInt),
+                  let slug = leagueEnum.espnSlug else { continue }
+            candidates.append(PBPCandidate(
+                game: game, sport: "soccer", league: slug,
+                tsdbEventID: findTSDBEventID(for: game, in: schedule?.soccer?.events)
             ))
         }
 
@@ -471,19 +511,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
         context: Queues.QueueContext,
         isDebug: Bool
     ) async {
-        // Collect all current live games
-        let allNewGames = collectAllGames(from: newResult)
-        let allPreviousGames = collectAllGames(from: previousResult)
-
-        // Find games that are newly "in progress" (status == "in")
-        let previousIDs = Set(allPreviousGames.filter { !$0.hasDoneStatus && $0.strStatus == "in" }.compactMap(\.idEvent))
-        let newlyStarted = allNewGames.filter { game in
-            guard let eventID = game.idEvent,
-                  game.strStatus == "in",
-                  !previousIDs.contains(eventID) else { return false }
-            return true
-        }
-
+        let newlyStarted = Self.detectNewlyStartedGames(newResult: newResult, previousResult: previousResult)
         guard !newlyStarted.isEmpty else { return }
         Self.logger.info("Detected \(newlyStarted.count) newly started games for push-to-start")
 
@@ -492,28 +520,88 @@ struct ESPNFetchJob: AsyncScheduledJob {
             return
         }
 
-        // Scan all PushToStart-* registrations
-        let keyPattern = isDebug ? "debug-PushToStart-*" : "PushToStart-*"
-        guard let registrationKeys = try? await context.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
-            .array?
-            .compactMap({ $0.string })
-            .map({ RedisKey($0) }),
-              !registrationKeys.isEmpty else { return }
+        await Self.runPushToStartPhase(
+            newlyStarted: newlyStarted,
+            kv: context.application.kv,
+            apns: context.application.apnsSending,
+            clock: context.application.appClock,
+            isDebug: isDebug,
+            logger: Self.logger,
+            metrics: context.application.pushMetrics
+        )
+    }
 
-        let apnsClient = isDebug
-            ? await context.application.apns.client(.development)
-            : await context.application.apns.client(.production)
+    // MARK: - Testable helpers
+
+    /// Pure transition detection — a game is "newly started" when its `strStatus`
+    /// first flips to `"in"` between the previous tick and this one. Kept static
+    /// + pure so the branch is trivially unit-testable with two LiveScore inputs.
+    static func detectNewlyStartedGames(newResult: LiveScore, previousResult: LiveScore?) -> [Game] {
+        let allNewGames = collectAllGamesFromLiveScore(newResult)
+        let allPreviousGames = collectAllGamesFromLiveScore(previousResult)
+
+        let previousIDs = Set(
+            allPreviousGames
+                .filter { !$0.hasDoneStatus && $0.strStatus == "in" }
+                .compactMap(\.idEvent)
+        )
+        return allNewGames.filter { game in
+            guard let eventID = game.idEvent,
+                  game.strStatus == "in",
+                  !previousIDs.contains(eventID) else { return false }
+            return true
+        }
+    }
+
+    /// Static equivalent of `collectAllGames(from:)` — needed because the transition
+    /// detection logic is also static. Keeping them in lockstep matters: a divergence
+    /// here would break the push-to-start pipeline silently.
+    static func collectAllGamesFromLiveScore(_ liveScore: LiveScore?) -> [Game] {
+        guard let liveScore else { return [] }
+        var games: [Game] = []
+        games.append(contentsOf: liveScore.nba?.events ?? [])
+        games.append(contentsOf: liveScore.mlb?.events ?? [])
+        games.append(contentsOf: liveScore.soccer?.events ?? [])
+        games.append(contentsOf: liveScore.nfl?.events ?? [])
+        games.append(contentsOf: liveScore.nhl?.events ?? [])
+        games.append(contentsOf: liveScore.golf?.events ?? [])
+        games.append(contentsOf: liveScore.tennis?.events ?? [])
+        games.append(contentsOf: liveScore.racing?.events ?? [])
+        return games
+    }
+
+    /// Scans push-to-start registrations, matches newly-started games against
+    /// favorites and auto-follow event IDs, and dispatches pushes through the
+    /// APNSSending seam. Deduplicates via `SentPushToStart-{token}-{eventID}` keys.
+    static func runPushToStartPhase(
+        newlyStarted: [Game],
+        kv: KeyValueStore,
+        apns: APNSSending,
+        clock: AppClock,
+        isDebug: Bool,
+        logger: Logger,
+        metrics: PushMetrics? = nil
+    ) async {
         let keyPrefix = isDebug ? "debug-PushToStart-" : "PushToStart-"
+        let keyPattern = "\(keyPrefix)*"
+        let eventsKeyPrefix = isDebug ? "debug-PushToStartEvents-" : "PushToStartEvents-"
+        let eventsKeyPattern = "\(eventsKeyPrefix)*"
+
+        let allKeys = (try? await kv.scanKeys(matching: keyPattern)) ?? []
+        // Guard: scanKeys for `PushToStart-*` also matches `PushToStartEvents-*`
+        // because `*` is greedy. Filter those out to keep favorites handling pure.
+        let registrationKeys = allKeys.filter { !$0.hasPrefix(eventsKeyPrefix) }
 
         let newlyStartedIDs = Set(newlyStarted.compactMap(\.idEvent))
-        Self.logger.info("Scanning \(registrationKeys.count) push-to-start registrations")
+
+        if !registrationKeys.isEmpty {
+            logger.info("Scanning \(registrationKeys.count) push-to-start registrations")
+        }
 
         for registrationKey in registrationKeys {
-            guard let favorites = try? await context.application.redis.get(registrationKey, asJSON: [String].self) else { continue }
-
+            guard let favorites = try? await kv.getJSON(registrationKey, as: [String].self) else { continue }
             let favoritesSet = Set(favorites)
-            let token = String(registrationKey.rawValue.dropFirst(keyPrefix.count))
-            Self.logger.info("Registration \(token.prefix(8))... has \(favoritesSet.count) favorites")
+            let token = String(registrationKey.dropFirst(keyPrefix.count))
 
             for game in newlyStarted {
                 let homeTeam = game.strHomeTeam
@@ -521,71 +609,79 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 guard favoritesSet.contains(homeTeam) || favoritesSet.contains(awayTeam),
                       game.idEvent != nil else { continue }
 
-                Self.logger.info("Matching \(homeTeam) vs \(awayTeam) → token \(token.prefix(8))... (via favorites)")
-                try? await sendPushToStartNotification(
-                    game: game, token: token, context: context, apnsClient: apnsClient, isDebug: isDebug
+                logger.info("Matching \(homeTeam) vs \(awayTeam) → token \(token.prefix(8))... (via favorites)")
+                await sendPushToStartNotification(
+                    game: game,
+                    token: token,
+                    kv: kv,
+                    apns: apns,
+                    clock: clock,
+                    isDebug: isDebug,
+                    logger: logger,
+                    metrics: metrics
                 )
             }
         }
 
-        // Also check event-based auto-follow registrations
-        let eventsKeyPattern = isDebug ? "debug-PushToStartEvents-*" : "PushToStartEvents-*"
-        let eventsKeyPrefix = isDebug ? "debug-PushToStartEvents-" : "PushToStartEvents-"
-        if let eventRegistrationKeys = try? await context.application.redis.send(command: "keys", with: [eventsKeyPattern.convertedToRESPValue()])
-            .array?
-            .compactMap({ $0.string })
-            .map({ RedisKey($0) }),
-           !eventRegistrationKeys.isEmpty {
+        let eventRegistrationKeys = (try? await kv.scanKeys(matching: eventsKeyPattern)) ?? []
+        for registrationKey in eventRegistrationKeys {
+            guard let eventIDs = try? await kv.getJSON(registrationKey, as: [String].self) else { continue }
+            let token = String(registrationKey.dropFirst(eventsKeyPrefix.count))
+            let matchingIDs = Set(eventIDs).intersection(newlyStartedIDs)
+            if !matchingIDs.isEmpty {
+                logger.info("Event registration \(token.prefix(8))... has \(eventIDs.count) event IDs, \(matchingIDs.count) matches")
+            }
 
-            for registrationKey in eventRegistrationKeys {
-                guard let eventIDs = try? await context.application.redis.get(registrationKey, asJSON: [String].self) else { continue }
-
-                let token = String(registrationKey.rawValue.dropFirst(eventsKeyPrefix.count))
-                let matchingIDs = Set(eventIDs).intersection(newlyStartedIDs)
-                Self.logger.info("Event registration \(token.prefix(8))... has \(eventIDs.count) event IDs, \(matchingIDs.count) matches")
-
-                for game in newlyStarted {
-                    guard let eventID = game.idEvent,
-                          matchingIDs.contains(eventID) else { continue }
-
-                    Self.logger.info("Matching \(game.strHomeTeam) vs \(game.strAwayTeam) → token \(token.prefix(8))... (via eventID \(eventID))")
-                    try? await sendPushToStartNotification(
-                        game: game, token: token, context: context, apnsClient: apnsClient, isDebug: isDebug
-                    )
-                }
+            for game in newlyStarted {
+                guard let eventID = game.idEvent,
+                      matchingIDs.contains(eventID) else { continue }
+                logger.info("Matching \(game.strHomeTeam) vs \(game.strAwayTeam) → token \(token.prefix(8))... (via eventID \(eventID))")
+                await sendPushToStartNotification(
+                    game: game,
+                    token: token,
+                    kv: kv,
+                    apns: apns,
+                    clock: clock,
+                    isDebug: isDebug,
+                    logger: logger,
+                    metrics: metrics
+                )
             }
         }
     }
 
-    /// Sends a push-to-start APNS notification for a specific game to a specific token.
-    /// Deduplicates using SentPushToStart Redis keys.
-    private func sendPushToStartNotification(
+    /// Sends a push-to-start APNS notification, deduplicating via
+    /// `SentPushToStart-{token}-{eventID}` keys (8h TTL). Cleans up stale tokens
+    /// when APNS reports the token as dead.
+    static func sendPushToStartNotification(
         game: Game,
         token: String,
-        context: Queues.QueueContext,
-        apnsClient: some APNSClientProtocol,
-        isDebug: Bool
-    ) async throws {
+        kv: KeyValueStore,
+        apns: APNSSending,
+        clock: AppClock,
+        isDebug: Bool,
+        logger: Logger,
+        metrics: PushMetrics? = nil
+    ) async {
         guard let eventID = game.idEvent else { return }
         let homeTeam = game.strHomeTeam
         let awayTeam = game.strAwayTeam
 
-        // Check if we already sent this notification
-        let sentKey = RedisEndpoint.sentPushToStart(token, eventID).getValue(isDebug: isDebug)
-        let alreadySentCount = try? await context.application.redis.exists(sentKey)
-        guard alreadySentCount == 0 || alreadySentCount == nil else {
-            Self.logger.info("Already sent push-to-start for \(eventID) to \(token.prefix(8))... — skipping")
+        let sentKey = RedisEndpoint.sentPushToStart(token, eventID).getValue(isDebug: isDebug).rawValue
+        let alreadySent = (try? await kv.exists(sentKey)) ?? false
+        guard !alreadySent else {
+            logger.info("Already sent push-to-start for \(eventID) to \(token.prefix(8))... — skipping")
+            await metrics?.recordDedup(hit: true)
             return
         }
+        await metrics?.recordDedup(hit: false)
 
-        // Mark as sent (TTL 8 hours)
-        try? await context.application.redis.setex(sentKey, to: "1", expirationInSeconds: 60 * 60 * 8).get()
+        // Mark before send: if APNS returns a stale-token error, we'll clean it
+        // up along with the registration anyway. Marking after send would risk
+        // duplicates if the mark-write failed after a successful push.
+        try? await kv.setString(sentKey, value: "1", ttl: 60 * 60 * 8)
 
-        let attributes = LiveSportAttributes(
-            homeTeam: homeTeam,
-            awayTeam: awayTeam,
-            eventID: eventID
-        )
+        let attributes = LiveSportAttributes(homeTeam: homeTeam, awayTeam: awayTeam, eventID: eventID)
         let contentState = ContentState(
             homeScore: Int(game.intHomeScore ?? "") ?? 0,
             awayScore: Int(game.intAwayScore ?? "") ?? 0,
@@ -594,32 +690,30 @@ struct ESPNFetchJob: AsyncScheduledJob {
         )
 
         do {
-            let notification = APNSStartLiveActivityNotification(
-                expiration: .immediately,
-                priority: .immediately,
+            _ = try await apns.sendPushToStart(
+                deviceToken: token,
                 appID: "com.KomodoLLC.SportsCal",
-                contentState: contentState,
-                timestamp: Int(Date().timeIntervalSince1970),
                 attributes: attributes,
-                attributesType: "LiveSportActivityAttributes",
-                alert: APNSAlertNotificationContent(
-                    title: .raw("\(homeTeam) vs \(awayTeam)"),
-                    body: .raw("Game is starting now!")
-                )
+                contentState: contentState,
+                alertTitle: "\(homeTeam) vs \(awayTeam)",
+                alertBody: "Game is starting now!",
+                timestamp: Int(clock.now.timeIntervalSince1970)
             )
-            try await apnsClient.sendStartLiveActivityNotification(notification, deviceToken: token)
-            Self.logger.info("Sent push-to-start for \(homeTeam) vs \(awayTeam) to token \(token.prefix(8))...")
-        } catch {
-            Self.logger.error("Failed to send push-to-start for event \(eventID): \(error)")
-            // Clean up stale tokens so they don't keep failing
-            if let apnsError = error as? APNSError,
-               apnsError.reason == .badDeviceToken || apnsError.reason == .unregistered {
-                Self.logger.warning("Removing stale push-to-start token \(token.prefix(8))...")
+            logger.info("Sent push-to-start for \(homeTeam) vs \(awayTeam) to token \(token.prefix(8))...")
+            await metrics?.recordSend(kind: .start)
+        } catch let sendError as APNSSendError {
+            logger.error("Failed to send push-to-start for event \(eventID): \(sendError.reason.rawValue) \(sendError.underlying ?? "")")
+            await metrics?.recordError(sendError.reason)
+            if sendError.isStaleToken {
+                logger.warning("Removing stale push-to-start token \(token.prefix(8))...")
                 let keyPrefix = isDebug ? "debug-PushToStart-" : "PushToStart-"
                 let eventsKeyPrefix = isDebug ? "debug-PushToStartEvents-" : "PushToStartEvents-"
-                _ = try? await context.application.redis.delete([RedisKey(keyPrefix + token)]).get()
-                _ = try? await context.application.redis.delete([RedisKey(eventsKeyPrefix + token)]).get()
+                _ = try? await kv.delete([keyPrefix + token, eventsKeyPrefix + token])
+                await metrics?.recordCleanup(reason: sendError.reason.rawValue)
             }
+        } catch {
+            logger.error("Failed to send push-to-start for event \(eventID): \(error)")
+            await metrics?.recordError(.other)
         }
     }
 
@@ -753,7 +847,13 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
         var matchedESPNIDs = Set<String>()
 
-        let merged = schedule.events.map { scheduleGame -> Game in
+        // Days ESPN actively returned games for in this fetch. A cached entry
+        // with an ESPN-style id (`401…`) on one of these days that ESPN no
+        // longer reports is stale (rescheduled/removed upstream) and gets
+        // pruned — otherwise these stick in the cache indefinitely.
+        let espnReportedDays: Set<String> = Set(espn.events.map { dayString(from: $0) })
+
+        let merged: [Game] = schedule.events.compactMap { scheduleGame -> Game? in
             let day = dayString(from: scheduleGame)
             var espnMatch: Game?
 
@@ -785,7 +885,13 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 matchedESPNIDs.insert(match.id)
             }
 
-            guard let espnGame = espnMatch else { return scheduleGame }
+            guard let espnGame = espnMatch else {
+                if let id = scheduleGame.idEvent, id.hasPrefix("401"),
+                   espnReportedDays.contains(day) {
+                    return nil
+                }
+                return scheduleGame
+            }
 
             // Merge: ESPN dynamic fields onto schedule identity fields
             // Don't take ESPN scores for pre-game events (ESPN returns "0" which
