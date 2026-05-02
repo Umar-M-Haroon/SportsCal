@@ -1,68 +1,68 @@
 #!/usr/bin/env bash
-# setup-vps.sh — Run this on a fresh Ubuntu 22.04+ VPS (Hetzner CX22 or similar)
-# Usage: scp setup-vps.sh root@YOUR_VPS_IP: && ssh root@YOUR_VPS_IP ./setup-vps.sh
+# setup-vps.sh — Set up a fresh VPS and deploy SportsCal
+# Usage: ./deploy/setup-vps.sh
+# Requires: "hetzner" SSH config entry, .env.production in deploy/, APNS .p8 key in SportsCalAPI/SportsCalServer/
 set -euo pipefail
 
+HOST="hetzner"
 APP_DIR="/opt/sportscal"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+APNS_KEY=$(ls "${REPO_ROOT}/SportsCalAPI/SportsCalServer"/AuthKey_*.p8 2>/dev/null | head -1)
 
 echo "=== SportsCal VPS Setup ==="
-echo ""
 
-# 1. System updates
-echo "[1/4] Updating system packages..."
+# 1. Install Docker & configure firewall
+echo "[1/4] Installing Docker and configuring firewall..."
+ssh "${HOST}" bash -s <<'REMOTE'
+set -euo pipefail
 apt-get update -qq && apt-get upgrade -y -qq
 
-# 2. Install Docker
-if command -v docker &>/dev/null; then
-    echo "[2/4] Docker already installed: $(docker --version)"
-else
-    echo "[2/4] Installing Docker..."
+if ! command -v docker &>/dev/null; then
     curl -fsSL https://get.docker.com | sh
     systemctl enable docker
     systemctl start docker
 fi
 
-# Ensure Docker Compose plugin is available
-if docker compose version &>/dev/null; then
-    echo "       Docker Compose plugin: $(docker compose version)"
-else
-    echo "       Installing Docker Compose plugin..."
-    apt-get install -y -qq docker-compose-plugin
-fi
+docker compose version &>/dev/null || apt-get install -y -qq docker-compose-plugin
 
-# 3. Create app directory
-echo "[3/4] Setting up app directory at ${APP_DIR}..."
-mkdir -p "${APP_DIR}"
+mkdir -p /opt/sportscal
 
-# 4. Firewall (allow HTTP, HTTPS, SSH only)
-echo "[4/4] Configuring firewall..."
 if command -v ufw &>/dev/null; then
     ufw allow OpenSSH
     ufw allow 80/tcp
     ufw allow 443/tcp
     ufw --force enable
-    echo "       UFW enabled: SSH, HTTP, HTTPS allowed"
-else
-    echo "       UFW not found, skipping firewall setup"
 fi
+REMOTE
+
+# 2. Copy .env.production
+echo "[2/4] Copying .env.production..."
+if [ -f "${SCRIPT_DIR}/.env.production" ]; then
+    scp "${SCRIPT_DIR}/.env.production" "${HOST}:${APP_DIR}/.env.production"
+else
+    echo "  WARNING: deploy/.env.production not found!"
+    echo "  Copy the example and fill in your values:"
+    echo "    cp deploy/.env.production.example deploy/.env.production"
+    echo "  Then re-run this script."
+    exit 1
+fi
+
+# 3. Copy APNS key
+echo "[3/4] Copying APNS key..."
+if [ -n "${APNS_KEY}" ]; then
+    scp "${APNS_KEY}" "${HOST}:${APP_DIR}/AuthKey.p8"
+else
+    echo "  WARNING: No AuthKey_*.p8 found in SportsCalAPI/SportsCalServer/"
+    echo "  You'll need to manually copy it:"
+    echo "    scp /path/to/AuthKey.p8 hetzner:${APP_DIR}/AuthKey.p8"
+fi
+
+# 4. Deploy
+echo "[4/4] Running deploy..."
+"${SCRIPT_DIR}/deploy.sh"
 
 echo ""
 echo "=== Setup Complete ==="
-echo ""
-echo "Next steps:"
-echo ""
-echo "  1. Point sportscal.com DNS A record to this server's IP"
-echo ""
-echo "  2. From your local machine, deploy with:"
-echo "     ./deploy/deploy.sh YOUR_VPS_IP"
-echo ""
-echo "  3. On this server, create your env file:"
-echo "     cp ${APP_DIR}/.env.production.example ${APP_DIR}/.env.production"
-echo "     nano ${APP_DIR}/.env.production"
-echo ""
-echo "  4. Copy your APNS key file:"
-echo "     scp AuthKey_XXXXX.p8 root@THIS_IP:${APP_DIR}/AuthKey.p8"
-echo ""
-echo "  5. Start everything:"
-echo "     cd ${APP_DIR} && docker compose up -d"
-echo ""
+echo "Make sure sportscal.app and api.sportscal.app DNS A records point to your VPS IP."
+echo "Check: curl -H 'X-API-Key: YOUR_KEY' https://api.sportscal.app/v2025/schedules"
