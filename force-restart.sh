@@ -20,11 +20,46 @@ pkill -9 -f "Run" 2>/dev/null && echo "   Killed Run processes"
 
 echo ""
 
+# Make sure Redis is up — the server and cache flush both depend on it.
+echo "2. Checking Redis..."
+if ! command -v redis-cli >/dev/null 2>&1; then
+    echo "   ⚠️  redis-cli not found — install Redis (e.g. 'brew install redis') and re-run."
+    exit 1
+fi
+
+if redis-cli ping >/dev/null 2>&1; then
+    echo "   Redis already running"
+else
+    echo "   Redis not running — attempting to start..."
+    if command -v brew >/dev/null 2>&1; then
+        brew services start redis >/dev/null 2>&1
+        # Wait briefly for it to accept connections.
+        for i in 1 2 3 4 5; do
+            if redis-cli ping >/dev/null 2>&1; then
+                break
+            fi
+            sleep 1
+        done
+    fi
+
+    if redis-cli ping >/dev/null 2>&1; then
+        echo "   Redis started"
+    else
+        echo "   ❌ Could not start Redis. Start it manually:"
+        echo "        brew services start redis"
+        echo "      or:"
+        echo "        redis-server"
+        exit 1
+    fi
+fi
+
+echo ""
+
 # Flush dynamic caches so the next fetch cycle repopulates from ESPN / TheSportsDB.
 # Keeps: static team lookups, ESPN↔TSDB ID map, F1 circuit/image data, and all
 # push-notification state (PushToStart-*, SentPushToStart-*, EventState-*).
 # Wipes: every cached live/schedule/enrichment payload, both prod and debug keys.
-echo "2. Clearing dynamic Redis caches (keeping teams, ID map, F1 circuits, push state)..."
+echo "3. Clearing dynamic Redis caches (keeping teams, ID map, F1 circuits, push state)..."
 if command -v redis-cli >/dev/null 2>&1; then
     DYNAMIC_KEYS=(
       "Latest Full Live Info"
@@ -60,7 +95,7 @@ fi
 echo ""
 export SportsDB_API_KEY="929289"
 
-echo "3. Building server..."
+echo "4. Building server..."
 cd /Users/umar/Developer/SportsCalMonoRepo/SportsCalAPI/SportsCalServer
 swift build
 
@@ -68,7 +103,7 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "✅ Build successful!"
     echo ""
-    echo "4. Starting server..."
+    echo "5. Starting server..."
     echo "   Server will run on http://localhost:8080"
     echo "   Admin dashboard: http://localhost:8080/admin/"
     echo ""

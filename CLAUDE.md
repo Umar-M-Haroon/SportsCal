@@ -15,7 +15,15 @@ SportsCal is a multi-platform sports calendar app (iOS, watchOS) with a Vapor ba
 
 ## Build & Run
 
-The iOS app and Watch app are built and run through Xcode — open `SportsCal/SportsCal.xcodeproj`. Do not attempt to build or run the project from the command line; the user will handle building and running.
+The iOS app and Watch app are built and run through Xcode — open `SportsCal/SportsCal.xcodeproj`. Do not attempt to build the iOS app from the command line. **Use the Xcode MCP** when verifying iOS changes:
+
+- `mcp__xcode__XcodeListWindows` — discover the active workspace tab (returns a `tabIdentifier`).
+- `mcp__xcode__BuildProject` — compile the project; surfaces errors in the response.
+- `mcp__xcode__GetBuildLog` — pull warnings/errors from the most recent build.
+- `mcp__xcode__XcodeListNavigatorIssues` / `mcp__xcode__XcodeRefreshCodeIssuesInFile` — current diagnostics.
+- `mcp__xcode__RenderPreview` — render a SwiftUI `#Preview` for visual verification.
+
+Run-on-device and full UX testing are still owned by the user — use these tools to validate compile/correctness after edits.
 
 ### Shared Model Package
 ```bash
