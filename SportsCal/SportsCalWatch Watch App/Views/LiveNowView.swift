@@ -17,6 +17,15 @@ struct LiveNowView: View {
                 let favLive = viewModel.liveGames.filter { viewModel.isFavorite($0) }
                 let otherLive = viewModel.liveGames.filter { !viewModel.isFavorite($0) }
 
+                if favLive.isEmpty && otherLive.isEmpty {
+                    WatchEmptyState(
+                        symbol: "dot.radiowaves.left.and.right",
+                        title: "Nothing live",
+                        detail: "Your teams haven't tipped off yet."
+                    )
+                    .listRowBackground(Color.clear)
+                }
+
                 if !favLive.isEmpty {
                     Section("Favorites") {
                         ForEach(favLive, id: \.id) { game in

@@ -153,7 +153,7 @@ struct F1WeekendWidgetView: View {
             }
         }
         .padding(8)
-        .containerBackground(.fill.tertiary, for: .widget)
+        .containerBackground(for: .widget) { WidgetBackground() }
     }
 
     @ViewBuilder

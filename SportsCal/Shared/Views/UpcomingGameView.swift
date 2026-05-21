@@ -12,8 +12,6 @@ struct UpcomingGameView: View {
     var awayTeam: Team
     var game: Game!
     @Binding var showCountdown: Bool
-    @State var timeRemaining: TimeInterval = 0
-    var timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     @State var accessibilityLabel: String = "days: hours"
     @Environment(Favorites.self) private var favorites
     @Binding var shouldShowSportsCalProAlert: Bool
@@ -31,7 +29,10 @@ struct UpcomingGameView: View {
     }
 
     private var timeColor: Color {
-        isStartingSoon ? .orange : .secondary
+        // "Starting soon" = warning red so it pops; otherwise soft ink that
+        // matches the design system's ink hierarchy. Drops the legacy orange
+        // (which clashed with the Modern theme's sport accents).
+        isStartingSoon ? Color.appLive : Color.appInkSoft
     }
 
     var body: some View {
@@ -39,12 +40,26 @@ struct UpcomingGameView: View {
                 HStack {
                     IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: false, isAway: true, record: game.awayRecord, seed: game.awaySeed)
                     .frame(maxWidth: .infinity)
-                    VStack(alignment: .center, spacing: 8) {
+                    VStack(alignment: .center, spacing: 4) {
                         if let date = game.standardDate {
-                            GameTimeLabel(date: date)
-                                .font(.system(.subheadline, design: .monospaced))
-                                .fontWeight(.medium)
-                                .foregroundColor(timeColor)
+                            if isStartingSoon {
+                                HStack(spacing: 3) {
+                                    Circle()
+                                        .fill(Color.appLive)
+                                        .frame(width: 5, height: 5)
+                                    GameTimeLabel(date: date)
+                                        .font(.system(.subheadline, design: .monospaced).weight(.bold))
+                                        .foregroundStyle(timeColor)
+                                }
+                            } else {
+                                GameTimeLabel(date: date)
+                                    .font(.system(.subheadline, design: .monospaced).weight(.medium))
+                                    .foregroundStyle(timeColor)
+                            }
+                            Text("vs")
+                                .font(.system(.caption2, design: .monospaced))
+                                .tracking(1)
+                                .foregroundStyle(Color.appInkFaint)
                         }
                     }
                         .fixedSize(horizontal: true, vertical: false)
@@ -56,7 +71,7 @@ struct UpcomingGameView: View {
                 if isFavorite, let venue = game.venueName {
                     Text(venue)
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color.appInkFaint)
                         .frame(maxWidth: .infinity)
                 }
 

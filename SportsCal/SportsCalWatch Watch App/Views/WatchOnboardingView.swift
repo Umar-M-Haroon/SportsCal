@@ -19,11 +19,12 @@ struct WatchOnboardingView: View {
             ScrollView {
                 VStack(spacing: 12) {
                     Text("Pick Your Sports")
-                        .font(.headline)
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                        .foregroundStyle(WatchTokens.ink)
 
                     Text("Select the sports you follow")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(WatchTokens.inkSoft)
 
                     ForEach(SportType.allCases, id: \.self) { sport in
                         Button {
@@ -33,19 +34,31 @@ struct WatchOnboardingView: View {
                                 selectedSports.insert(sport)
                             }
                         } label: {
+                            let accent = WatchTokens.sport(sport)
+                            let isSelected = selectedSports.contains(sport)
                             HStack {
                                 Image(systemName: sport.widgetSystemImage)
-                                    .foregroundStyle(sport.widgetColor)
+                                    .foregroundStyle(accent)
                                     .frame(width: 24)
                                 Text(sport.capitalized)
-                                    .font(.system(size: 14))
+                                    .font(.system(size: 14, design: .rounded).weight(isSelected ? .semibold : .regular))
+                                    .foregroundStyle(WatchTokens.ink)
                                 Spacer()
-                                if selectedSports.contains(sport) {
+                                if isSelected {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(.green)
+                                        .foregroundStyle(accent)
                                 }
                             }
                             .padding(.vertical, 4)
+                            .padding(.horizontal, 6)
+                            .overlay(alignment: .leading) {
+                                if isSelected {
+                                    Rectangle()
+                                        .fill(accent)
+                                        .frame(width: 2)
+                                        .padding(.vertical, 2)
+                                }
+                            }
                         }
                         .buttonStyle(.plain)
                     }

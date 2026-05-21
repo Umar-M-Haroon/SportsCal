@@ -34,12 +34,11 @@ struct SportsWidgetLargeView: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     Text(displayDate.formatted(.dateTime.weekday(.abbreviated)))
-                        .font(.subheadline)
-                        .bold()
-                        .foregroundColor(.red)
+                        .font(.system(.subheadline, design: .rounded).weight(.heavy))
+                        .foregroundStyle(WidgetTokens.live)
                     Text(displayDate.formatted(.dateTime.month(.abbreviated).day(.twoDigits)))
-                        .font(.subheadline)
-                        .bold()
+                        .font(.system(.subheadline, design: .rounded).weight(.bold))
+                        .foregroundStyle(WidgetTokens.ink)
                 }
 
                 Button(intent: NavigateDayIntent(dayOffset: dayOffset + 1)) {
@@ -55,16 +54,18 @@ struct SportsWidgetLargeView: View {
 
                 if dayOffset != 0 {
                     Button(intent: NavigateDayIntent(dayOffset: 0)) {
-                        Text("Today")
-                            .font(.caption)
+                        Text("TODAY")
+                            .font(.system(.caption, design: .monospaced).weight(.bold))
+                            .tracking(1)
                     }
                     .buttonStyle(.plain)
-                    .foregroundColor(.blue)
+                    .foregroundStyle(WidgetTokens.live)
                 }
 
-                Text("Scoreboard")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                Text("SCOREBOARD")
+                    .font(.system(.caption, design: .monospaced).weight(.semibold))
+                    .tracking(1.5)
+                    .foregroundStyle(WidgetTokens.inkFaint)
             }
             .padding(.horizontal, 4)
 
@@ -88,12 +89,23 @@ struct SportsWidgetLargeView: View {
                 }
             } else {
                 Spacer()
-                Text("No upcoming games")
-                    .foregroundColor(.secondary)
+                VStack(spacing: 6) {
+                    Image(systemName: "sportscourt")
+                        .font(.system(size: 30, weight: .light))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(WidgetTokens.inkSoft)
+                    Text("No upcoming games")
+                        .font(.system(.subheadline, design: .rounded))
+                        .foregroundStyle(WidgetTokens.inkSoft)
+                }
+                .frame(maxWidth: .infinity)
                 Spacer()
             }
 
-            Spacer()
+            Spacer(minLength: 0)
+            WidgetUpdatedLabel(date: entry.date)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, 4)
         }
         .padding(8)
         .widgetURL(widgetDeepLink)
@@ -137,34 +149,35 @@ struct LargeCompactGameCell: View {
     }
 
     var body: some View {
+        let accent = WidgetTokens.sport(sportType)
         VStack(spacing: 4) {
             // Sport icon header
             HStack(spacing: 4) {
                 Image(systemName: sportType.widgetSystemImage)
                     .font(.system(size: 10))
-                    .foregroundColor(sportType.widgetColor)
+                    .foregroundStyle(accent)
                 Spacer()
                 // Time or status
                 if let statusText = game.displayStatus {
                     HStack(spacing: 3) {
                         Circle()
-                            .fill(Color.red)
+                            .fill(WidgetTokens.live)
                             .frame(width: 5, height: 5)
                         Text(statusText)
-                            .font(.system(size: 9))
-                            .foregroundColor(.orange)
+                            .font(.system(size: 9, design: .monospaced).weight(.semibold))
+                            .foregroundStyle(WidgetTokens.live)
                     }
                 } else if let gameDate = game.standardDate {
                     Text(gameDate.formatToTime() ?? "")
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(WidgetTokens.inkSoft)
                 }
                 #if os(iOS)
                 if isLive, let gameID = game.idEvent {
                     Button(intent: FollowGameIntent(gameID: gameID, homeTeam: game.strHomeTeam, awayTeam: game.strAwayTeam)) {
                         Image(systemName: "bell.badge")
                             .font(.system(size: 11))
-                            .foregroundColor(.blue)
+                            .foregroundStyle(accent)
                     }
                     .buttonStyle(.plain)
                 }
@@ -176,35 +189,42 @@ struct LargeCompactGameCell: View {
                 teamColumn(teamID: game.idAwayTeam, teamName: game.strAwayTeam, score: game.intAwayScore, isWinning: isAwayWinning(), seed: game.awaySeed, record: game.awayRecord)
 
                 Text("vs")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(WidgetTokens.inkFaint)
 
                 teamColumn(teamID: game.idHomeTeam, teamName: game.strHomeTeam, score: game.intHomeScore, isWinning: isHomeWinning(), seed: game.homeSeed, record: game.homeRecord)
             }
 
             if let agg = game.aggregateScore {
                 Text(agg)
-                    .font(.system(size: 8))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(WidgetTokens.inkFaint)
             }
 
             // Line scores for completed games only (live scores would be stale)
             if isGameCompleted, let homeLine = game.homeLinescores, let awayLine = game.awayLinescores, !homeLine.isEmpty {
                 HStack(spacing: 6) {
                     Text(awayLine.map { "\(Int($0))" }.joined(separator: "|"))
-                        .font(.system(size: 7))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 7, design: .monospaced))
+                        .foregroundStyle(WidgetTokens.inkFaint)
                     Spacer()
                     Text(homeLine.map { "\(Int($0))" }.joined(separator: "|"))
-                        .font(.system(size: 7))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 7, design: .monospaced))
+                        .foregroundStyle(WidgetTokens.inkFaint)
                 }
             }
         }
         .padding(6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(widgetCellBackground.opacity(0.5))
-        .cornerRadius(8)
+        .background(WidgetTokens.alt)
+        .clipShape(RoundedRectangle(cornerRadius: WidgetTokens.radiusSM, style: .continuous))
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(accent)
+                .frame(width: 2)
+                .clipShape(RoundedRectangle(cornerRadius: WidgetTokens.radiusSM, style: .continuous))
+                .allowsHitTesting(false)
+        }
     }
 
     @ViewBuilder
@@ -220,30 +240,32 @@ struct LargeCompactGameCell: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 20, height: 20)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(WidgetTokens.inkFaint)
             }
 
             HStack(spacing: 1) {
                 if let seed {
                     Text("(\(seed))")
-                        .font(.system(size: 8))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 8, design: .monospaced))
+                        .foregroundStyle(WidgetTokens.inkFaint)
                 }
                 Text(getTeamAbbrev(teamID: teamID, teamName: teamName))
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 11, design: .rounded).weight(.semibold))
                     .lineLimit(1)
+                    .foregroundStyle(WidgetTokens.ink)
             }
 
             if let record, !record.isEmpty {
                 Text(record)
-                    .font(.system(size: 8))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(WidgetTokens.inkFaint)
             }
 
             if let scoreStr = score, let scoreInt = Int(scoreStr) {
                 Text("\(scoreInt)")
-                    .font(.system(size: 14, weight: isWinning ? .bold : .regular))
-                    .foregroundColor(isWinning ? .primary : .secondary)
+                    .font(.system(size: 14, design: .rounded).weight(isWinning ? .heavy : .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(isWinning ? WidgetTokens.ink : WidgetTokens.inkSoft)
             }
         }
     }

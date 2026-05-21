@@ -20,8 +20,13 @@ struct WatchSettingsView: View {
                             get: { viewModel.enabledSports.contains(sport) },
                             set: { viewModel.toggleSport(sport, enabled: $0) }
                         )) {
-                            Label(sport.capitalized, systemImage: sport.widgetSystemImage)
-                                .foregroundStyle(sport.widgetColor)
+                            Label {
+                                Text(sport.capitalized)
+                                    .font(.system(.body, design: .rounded))
+                            } icon: {
+                                Image(systemName: sport.widgetSystemImage)
+                                    .foregroundStyle(WatchTokens.sport(sport))
+                            }
                         }
                     }
                 }
@@ -29,13 +34,19 @@ struct WatchSettingsView: View {
                 Section("Favorites") {
                     let favs = Array(viewModel.favoriteTeams).sorted()
                     if favs.isEmpty {
-                        Text("Add favorites on iPhone")
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
+                        HStack(spacing: 6) {
+                            Image(systemName: "iphone.gen3")
+                                .imageScale(.small)
+                                .foregroundStyle(WatchTokens.inkFaint)
+                            Text("Add favorites on iPhone")
+                                .foregroundStyle(WatchTokens.inkSoft)
+                                .font(.system(.caption, design: .rounded))
+                        }
                     }
                     ForEach(favs, id: \.self) { team in
                         Text(team)
-                            .font(.system(size: 13))
+                            .font(.system(size: 13, design: .rounded))
+                            .foregroundStyle(WatchTokens.ink)
                     }
                     .onDelete { indexSet in
                         for index in indexSet {

@@ -46,7 +46,7 @@ struct AdaptiveGameDetail: View {
         case .ambient:
             AmbientGameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
         case .efRemix:
-            EFRemixGameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+            ModernGameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
         case .classic:
             GameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
         }
@@ -133,8 +133,10 @@ struct AmbientGameDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        #if !os(macOS)
         .toolbarBackground(AmbientPalette.bg, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        #endif
         .refreshable { await refresh() }
         .task { await initialLoad() }
     }

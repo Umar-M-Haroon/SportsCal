@@ -22,22 +22,22 @@ struct WatchWidgetEntryView: View {
         switch family {
         case .accessoryCircular:
             SportsWidgetCircularView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                .containerBackground(for: .widget) { Color.clear }
         case .accessoryRectangular:
             SportsWidgetRectangularView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                .containerBackground(for: .widget) { Color.clear }
         case .accessoryInline:
             SportsWidgetInlineView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                .containerBackground(for: .widget) { Color.clear }
         case .accessoryCorner:
             SportsWidgetCornerView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                .containerBackground(for: .widget) { Color.clear }
         case .accessoryExtraLarge:
             SportsWidgetExtraLargeView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                .containerBackground(for: .widget) { Color.clear }
         default:
             SportsWidgetCircularView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                .containerBackground(for: .widget) { Color.clear }
         }
     }
 }

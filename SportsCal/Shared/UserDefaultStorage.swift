@@ -37,13 +37,15 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("hidePastGamesDuration") var hidePastGamesDuration: Durations = .oneWeek  // When enabled, show past week
     @ObservationIgnored @AppStorage("showStartTime") var showStartTime: Bool = true
     @ObservationIgnored @AppStorage("debugMode") var debugMode: Bool = false
+    @ObservationIgnored @AppStorage("showGameCountHUD") var showGameCountHUD: Bool = false
     @ObservationIgnored @AppStorage("hiddenCompetitions") var hiddenCompetitions: [String] = []
+    @ObservationIgnored @AppStorage("favoritesOnlyCompetitions") var favoritesOnlyCompetitions: [String] = []
     @ObservationIgnored @AppStorage("useRelativeValue") var useRelativeValue: Bool = false
     @ObservationIgnored @AppStorage("autoFollowFavorites") var autoFollowFavorites: Bool = true
     @ObservationIgnored @AppStorage("showSuggestedForYou") var showSuggestedForYou: Bool = true
     @ObservationIgnored @AppStorage("serverEnvironment") var serverEnvironment: ServerEnvironment = .auto
     @ObservationIgnored @AppStorage("sportOrder") var sportOrder: [String] = []
-    @ObservationIgnored @AppStorage("appTheme") var appTheme: AppTheme = .classic
+    @ObservationIgnored @AppStorage("appTheme") var appTheme: AppTheme = .efRemix
 
     var orderedSports: [SportType] {
         let ordered = sportOrder.compactMap { SportType(rawValue: $0) }
@@ -105,6 +107,17 @@ class UserDefaultStorage {
     // Stored property tracked by @Observable so chip filters react to changes
     var enabledSports: [SportType] = []
 
+    /// Tracked tick that bumps whenever a preference that views read inline
+    /// (e.g. `hiddenCompetitions`, `favoritesOnlyCompetitions`) changes — including
+    /// remotely from `CloudSyncManager`. Views that read those `@ObservationIgnored
+    /// @AppStorage` properties inline should reference `preferenceVersion` so they
+    /// re-evaluate on change.
+    private(set) var preferenceVersion: Int = 0
+
+    func bumpPreferenceVersion() {
+        preferenceVersion &+= 1
+    }
+
     // MARK: - Focus Filter
 
     /// Whether a Focus Filter is currently overriding sport preferences.
@@ -152,6 +165,7 @@ class UserDefaultStorage {
     func recomputeEnabledSports() {
         enabledSports = orderedSports.filter { effectiveShouldShow($0) }
         syncSportPrefsToAppGroup()
+        bumpPreferenceVersion()
     }
 
     /// Mirror sport preference flags to the shared app group so widgets can read them
@@ -175,13 +189,33 @@ class UserDefaultStorage {
         defaults?.set(favoritesOnlyTennis, forKey: "favoritesOnlyTennis")
         defaults?.set(favoritesOnlyRacing, forKey: "favoritesOnlyRacing")
         defaults?.set(hiddenCompetitions, forKey: "hiddenCompetitions")
+        defaults?.set(favoritesOnlyCompetitions, forKey: "favoritesOnlyCompetitions")
     }
 
     /// Sync just hiddenCompetitions to the shared app group (called from CompetitionView)
     func syncHiddenCompetitions() {
         let defaults = UserDefaults(suiteName: Self.suiteName)
         defaults?.set(hiddenCompetitions, forKey: "hiddenCompetitions")
+        defaults?.set(favoritesOnlyCompetitions, forKey: "favoritesOnlyCompetitions")
         defaults?.set(sportOrder, forKey: "sportOrder")
+        bumpPreferenceVersion()
+    }
+
+    func isFavoritesOnly(competition leagueName: String) -> Bool {
+        favoritesOnlyCompetitions.contains(leagueName)
+    }
+
+    func setFavoritesOnly(competition leagueName: String, value: Bool) {
+        if value {
+            if !favoritesOnlyCompetitions.contains(leagueName) {
+                favoritesOnlyCompetitions.append(leagueName)
+            }
+        } else {
+            favoritesOnlyCompetitions.removeAll { $0 == leagueName }
+        }
+        let defaults = UserDefaults(suiteName: Self.suiteName)
+        defaults?.set(favoritesOnlyCompetitions, forKey: "favoritesOnlyCompetitions")
+        bumpPreferenceVersion()
     }
 
     func toggleSport(_ sport: SportType, enabled: Bool) {

@@ -23,8 +23,9 @@ struct SportsWidgetCircularView: View {
                         let sportType = game.sportType ?? .golf
                         Image(systemName: sportType.widgetSystemImage)
                             .font(.system(size: 14))
+                            .widgetAccentable()
                         Text(game.strHomeTeam)
-                            .font(.system(size: 7, weight: .semibold))
+                            .font(.system(size: 7, design: .rounded).weight(.semibold))
                             .lineLimit(2)
                             .multilineTextAlignment(.center)
                     } else if let homeTeamID = game.idHomeTeam, let homeTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: homeTeamID, teamName: game.strHomeTeam), let awayTeamID = game.idAwayTeam, let awayTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: awayTeamID, teamName: game.strAwayTeam) {
@@ -33,13 +34,14 @@ struct SportsWidgetCircularView: View {
                             TinyWidgetTeamView(shortName: homeTeam.strTeamShort, longName: String(homeTeam.strTeam?.prefix(3) ?? "") , isAway: false, data: entry.images?[homeTeamID])
                         }
                         if let date = game.standardDate {
-                            if Calendar.current.isDateInToday(date) {
-                                Text(date.formatted(date: .omitted, time: .shortened))
-                                    .font(.system(size: 6, weight: .semibold))
-                            } else {
-                                Text(date.formatted(date: .abbreviated, time: .omitted))
-                                    .font(.system(size: 6, weight: .semibold))
+                            Group {
+                                if Calendar.current.isDateInToday(date) {
+                                    Text(date.formatted(date: .omitted, time: .shortened))
+                                } else {
+                                    Text(date.formatted(date: .abbreviated, time: .omitted))
+                                }
                             }
+                            .font(.system(size: 6, design: .monospaced).weight(.semibold))
                         }
                     }
                 }
@@ -57,22 +59,24 @@ struct SportsWidgetCircularView: View {
             let sportType = game.sportType ?? .golf
             Image(systemName: sportType.widgetSystemImage)
                 .font(.system(size: 14))
-                .foregroundStyle(sportType.widgetColor)
+                .widgetAccentable()
             if let leader = game.resolvedLeaderboard.first {
                 Text(leader.score)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 12, design: .rounded).weight(.heavy))
+                    .monospacedDigit()
             }
         } else {
-            // Team sport live: stacked scores with sport color
-            let sportType = game.sportType ?? .basketball
+            // Team sport live: stacked scores with accent divider
             VStack(spacing: 1) {
                 Text(game.intAwayScore ?? "0")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 16, design: .rounded).weight(.heavy))
+                    .monospacedDigit()
                 Rectangle()
                     .frame(width: 20, height: 1)
-                    .foregroundStyle(sportType.widgetColor)
+                    .widgetAccentable()
                 Text(game.intHomeScore ?? "0")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 16, design: .rounded).weight(.heavy))
+                    .monospacedDigit()
             }
         }
     }

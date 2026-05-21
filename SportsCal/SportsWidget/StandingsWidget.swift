@@ -287,7 +287,7 @@ struct StandingsWidgetView: View {
             }
         }
         .padding(8)
-        .containerBackground(.fill.tertiary, for: .widget)
+        .containerBackground(for: .widget) { WidgetBackground() }
     }
 
     @ViewBuilder

@@ -14,11 +14,13 @@ struct SportsWidgetInlineView: View {
     var body: some View {
         if let displayText = getDisplayText() {
             Text(displayText)
-                .font(.caption)
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .monospacedDigit()
+                .widgetAccentable()
         } else {
             Text("No upcoming games")
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(.system(.caption, design: .rounded))
+                .foregroundStyle(.secondary)
         }
     }
 

@@ -8,10 +8,10 @@
 import SwiftUI
 import SportsCalModel
 import TipKit
-#if canImport(ActivityKit) && os(iOS)
-import ActivityKit
 
-/// Statuses that mean a game is finished — auto-follow should not show
+/// Statuses that mean a game is finished — auto-follow should not show.
+/// Lives outside the iOS-only `ActivityKit` block so the helper is callable
+/// from `GameDetailView` and other files that compile on macOS too.
 let autoFollowCompletedStatuses: Set<String> = ["FT", "AOT", "Final", "Final/OT", "AP", "post"]
 
 /// Whether a game is completed (finished). Unlike `hasDoneStatus`, this does NOT
@@ -22,6 +22,9 @@ func isGameCompleted(_ game: Game) -> Bool {
     if let progress = game.strProgress, autoFollowCompletedStatuses.contains(progress) { return true }
     return false
 }
+
+#if canImport(ActivityKit) && os(iOS)
+import ActivityKit
 
 struct AutoFollowButton: View {
     var game: Game

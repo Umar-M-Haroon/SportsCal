@@ -17,8 +17,8 @@ struct FavoritesView: View {
                 let favGames = Array(viewModel.favoriteGames.prefix(10))
 
                 if favGames.isEmpty {
-                    ContentUnavailableView("No Favorites", systemImage: "star",
-                                          description: Text("Add favorites on iPhone"))
+                    WatchEmptyState.noFavorites
+                        .listRowBackground(Color.clear)
                 }
 
                 let grouped = Dictionary(grouping: favGames) { game -> String in

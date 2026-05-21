@@ -91,12 +91,14 @@ struct MenuBarContentView: View {
     private var header: some View {
         HStack {
             Text("Scoreline")
-                .font(.headline)
+                .font(.appHeadline)
+                .foregroundStyle(Color.appInk)
             Spacer()
             Button("Open App") {
                 NSApplication.shared.activate(ignoringOtherApps: true)
             }
             .buttonStyle(.link)
+            .font(.appCallout)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -106,7 +108,7 @@ struct MenuBarContentView: View {
 
     private var liveSection: some View {
         VStack(alignment: .leading, spacing: 4) {
-            sectionHeader("LIVE", count: viewModel.liveEventsWithTeams.count, color: .red)
+            sectionHeader("LIVE", count: viewModel.liveEventsWithTeams.count, color: Color.appLive)
 
             ForEach(viewModel.liveEventsWithTeams) { gwt in
                 gameRow(gwt, isLive: true)
@@ -121,7 +123,7 @@ struct MenuBarContentView: View {
             if !viewModel.liveEventsWithTeams.isEmpty {
                 Divider().padding(.horizontal, 12)
             }
-            sectionHeader("FAVORITES", color: .yellow)
+            sectionHeader("FAVORITES", color: Color.appStar)
 
             ForEach(viewModel.todayFavoriteGamesWithTeams) { gwt in
                 let isLive = viewModel.liveEvents.contains(where: { $0.id == gwt.game.id })
@@ -235,7 +237,7 @@ struct MenuBarContentView: View {
     private var upNextFavoriteRow: some View {
         if let nextFav = viewModel.nextFavoriteGame(after: Date(), favorites: favorites) {
             Divider().padding(.horizontal, 12)
-            sectionHeader("UP NEXT", color: .yellow)
+            sectionHeader("UP NEXT", color: Color.appStar)
 
             let game = nextFav.game
             HStack(spacing: 6) {
@@ -348,13 +350,13 @@ struct MenuBarContentView: View {
                 .fill(color)
                 .frame(width: 6, height: 6)
             Text(title)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+                .font(.appFootnote)
+                .tracking(2)
+                .foregroundStyle(color)
             if let count {
-                Text("(\(count))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("\(count)")
+                    .font(.system(.caption, design: .monospaced).weight(.bold))
+                    .foregroundStyle(Color.appInkSoft)
             }
         }
         .padding(.horizontal, 12)
@@ -450,14 +452,17 @@ struct MenuBarContentView: View {
     private func statusText(game: Game, isLive: Bool) -> some View {
         Group {
             if isLive, let progress = game.strProgress {
-                Text(progress)
-                    .foregroundStyle(.red)
+                HStack(spacing: 3) {
+                    Circle().fill(Color.appLive).frame(width: 4, height: 4)
+                    Text(progress)
+                        .foregroundStyle(Color.appLive)
+                }
             } else if let date = game.standardDate {
                 Text(Self.timeFormatter.string(from: date))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.appInkSoft)
             }
         }
-        .font(.caption2)
+        .font(.system(.caption2, design: .monospaced).weight(.medium))
     }
 }
 

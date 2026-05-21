@@ -35,12 +35,11 @@ struct SportsWidgetMediumView: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     Text(displayDate.formatted(.dateTime.weekday(.abbreviated)))
-                        .font(.caption)
-                        .bold()
-                        .foregroundColor(.red)
+                        .font(.system(.caption, design: .rounded).weight(.heavy))
+                        .foregroundStyle(WidgetTokens.live)
                     Text(displayDate.formatted(.dateTime.month(.abbreviated).day(.twoDigits)))
-                        .font(.caption)
-                        .bold()
+                        .font(.system(.caption, design: .rounded).weight(.bold))
+                        .foregroundStyle(WidgetTokens.ink)
                 }
 
                 Button(intent: NavigateDayIntent(dayOffset: dayOffset + 1)) {
@@ -56,16 +55,18 @@ struct SportsWidgetMediumView: View {
 
                 if dayOffset != 0 {
                     Button(intent: NavigateDayIntent(dayOffset: 0)) {
-                        Text("Today")
-                            .font(.system(size: 9))
+                        Text("TODAY")
+                            .font(.system(size: 9, design: .monospaced).weight(.bold))
+                            .tracking(1)
                     }
                     .buttonStyle(.plain)
-                    .foregroundColor(.blue)
+                    .foregroundStyle(WidgetTokens.live)
                 }
 
-                Text("Scoreboard")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                Text("SCOREBOARD")
+                    .font(.system(size: 10, design: .monospaced).weight(.semibold))
+                    .tracking(1.5)
+                    .foregroundStyle(WidgetTokens.inkFaint)
             }
             .padding(.horizontal, 4)
 
@@ -89,11 +90,21 @@ struct SportsWidgetMediumView: View {
                 }
             } else {
                 Spacer()
-                Text("No upcoming games")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                VStack(spacing: 4) {
+                    Image(systemName: "sportscourt")
+                        .font(.system(size: 22, weight: .light))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(WidgetTokens.inkSoft)
+                    Text("No upcoming games")
+                        .font(.system(.caption, design: .rounded))
+                        .foregroundStyle(WidgetTokens.inkSoft)
+                }
+                .frame(maxWidth: .infinity)
                 Spacer()
             }
+            WidgetUpdatedLabel(date: entry.date)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, 4)
         }
         .padding(8)
         .widgetURL(widgetDeepLink)
@@ -131,10 +142,11 @@ struct CompactGameCell: View {
     }
 
     var body: some View {
+        let accent = WidgetTokens.sport(sportType)
         HStack(alignment: .top, spacing: 4) {
             Image(systemName: sportType.widgetSystemImage)
                 .font(.system(size: 10))
-                .foregroundColor(sportType.widgetColor)
+                .foregroundStyle(accent)
                 .frame(width: 12)
                 .padding(.top, 2)
 
@@ -143,8 +155,8 @@ struct CompactGameCell: View {
                 HStack(spacing: 4) {
                     compactTeamView(teamID: game.idAwayTeam, teamName: game.strAwayTeam, score: game.intAwayScore, seed: game.awaySeed, record: game.awayRecord)
                     Text("@")
-                        .font(.system(size: 8))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 8, design: .monospaced))
+                        .foregroundStyle(WidgetTokens.inkFaint)
                     compactTeamView(teamID: game.idHomeTeam, teamName: game.strHomeTeam, score: game.intHomeScore, seed: game.homeSeed, record: game.homeRecord)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -152,13 +164,18 @@ struct CompactGameCell: View {
                 // Time or status + follow button
                 HStack(spacing: 4) {
                     if let statusText = game.displayStatus {
-                        Text(statusText)
-                            .font(.system(size: 9))
-                            .foregroundColor(.orange)
+                        HStack(spacing: 3) {
+                            if isLive {
+                                Circle().fill(WidgetTokens.live).frame(width: 4, height: 4)
+                            }
+                            Text(statusText)
+                                .font(.system(size: 9, design: .monospaced).weight(.semibold))
+                                .foregroundStyle(isLive ? WidgetTokens.live : WidgetTokens.inkSoft)
+                        }
                     } else if let gameDate = game.standardDate {
                         Text(gameDate.formatToTime() ?? "")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundStyle(WidgetTokens.inkSoft)
                     }
                     #if os(iOS)
                     if isLive, let gameID = game.idEvent {
@@ -166,7 +183,7 @@ struct CompactGameCell: View {
                         Button(intent: FollowGameIntent(gameID: gameID, homeTeam: game.strHomeTeam, awayTeam: game.strAwayTeam)) {
                             Image(systemName: "bell.badge")
                                 .font(.system(size: 10))
-                                .foregroundColor(.blue)
+                                .foregroundStyle(accent)
                         }
                         .buttonStyle(.plain)
                     }
@@ -175,15 +192,22 @@ struct CompactGameCell: View {
 
                 if let agg = game.aggregateScore {
                     Text(agg)
-                        .font(.system(size: 8))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 8, design: .monospaced))
+                        .foregroundStyle(WidgetTokens.inkFaint)
                 }
             }
         }
         .padding(4)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(widgetCellBackground.opacity(0.5))
-        .cornerRadius(6)
+        .background(WidgetTokens.alt)
+        .clipShape(RoundedRectangle(cornerRadius: WidgetTokens.radiusSM, style: .continuous))
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(accent)
+                .frame(width: 2)
+                .clipShape(RoundedRectangle(cornerRadius: WidgetTokens.radiusSM, style: .continuous))
+                .allowsHitTesting(false)
+        }
     }
 
     @ViewBuilder
@@ -198,23 +222,26 @@ struct CompactGameCell: View {
 
             if let seed {
                 Text("(\(seed))")
-                    .font(.system(size: 8))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(WidgetTokens.inkFaint)
             }
 
             Text(getTeamAbbrev(teamID: teamID, teamName: teamName))
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 10, design: .rounded).weight(.semibold))
                 .lineLimit(1)
+                .foregroundStyle(WidgetTokens.ink)
 
             if let record, !record.isEmpty {
                 Text(record)
-                    .font(.system(size: 8))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(WidgetTokens.inkFaint)
             }
 
             if let scoreStr = score, let scoreInt = Int(scoreStr) {
                 Text("\(scoreInt)")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 10, design: .rounded).weight(.heavy))
+                    .monospacedDigit()
+                    .foregroundStyle(WidgetTokens.ink)
             }
         }
     }

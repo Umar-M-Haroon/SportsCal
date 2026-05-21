@@ -39,7 +39,7 @@ struct WatchGameRow: View {
             if let sportType = game.sportType {
                 Image(systemName: sportType.widgetSystemImage)
                     .font(.system(size: 12))
-                    .foregroundStyle(sportType.widgetColor)
+                    .foregroundStyle(WatchTokens.sport(sportType))
                     .frame(width: 16)
             }
         }
@@ -51,22 +51,22 @@ struct WatchGameRow: View {
         VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 4) {
                 Text(awayAbbr)
-                    .font(.system(size: 13, weight: isFavorite && favoriteTeams.contains(game.strAwayTeam) ? .bold : .regular))
+                    .font(.system(size: 13, design: .rounded).weight(isFavorite && favoriteTeams.contains(game.strAwayTeam) ? .bold : .regular))
                 Spacer()
                 Text(game.intAwayScore ?? "0")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, design: .rounded).weight(.heavy))
+                    .monospacedDigit()
             }
             HStack(spacing: 4) {
                 Text(homeAbbr)
-                    .font(.system(size: 13, weight: isFavorite && favoriteTeams.contains(game.strHomeTeam) ? .bold : .regular))
+                    .font(.system(size: 13, design: .rounded).weight(isFavorite && favoriteTeams.contains(game.strHomeTeam) ? .bold : .regular))
                 Spacer()
                 Text(game.intHomeScore ?? "0")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, design: .rounded).weight(.heavy))
+                    .monospacedDigit()
             }
             if let progress = game.displayStatus {
-                Text(progress)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.green)
+                WatchLiveTag(period: progress)
             }
         }
     }
@@ -74,24 +74,32 @@ struct WatchGameRow: View {
     // MARK: - Final Score
 
     private var finalContent: some View {
-        VStack(alignment: .leading, spacing: 1) {
+        let homeWon = (Int(game.intHomeScore ?? "") ?? 0) > (Int(game.intAwayScore ?? "") ?? 0)
+        return VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 4) {
                 Text(awayAbbr)
-                    .font(.system(size: 13))
+                    .font(.system(size: 13, design: .rounded))
+                    .foregroundStyle(homeWon ? WatchTokens.inkSoft : WatchTokens.ink)
                 Spacer()
                 Text(game.intAwayScore ?? "0")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, design: .rounded).weight(.heavy))
+                    .monospacedDigit()
+                    .foregroundStyle(homeWon ? WatchTokens.inkSoft : WatchTokens.ink)
             }
             HStack(spacing: 4) {
                 Text(homeAbbr)
-                    .font(.system(size: 13))
+                    .font(.system(size: 13, design: .rounded))
+                    .foregroundStyle(homeWon ? WatchTokens.ink : WatchTokens.inkSoft)
                 Spacer()
                 Text(game.intHomeScore ?? "0")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, design: .rounded).weight(.heavy))
+                    .monospacedDigit()
+                    .foregroundStyle(homeWon ? WatchTokens.ink : WatchTokens.inkSoft)
             }
-            Text("Final")
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
+            Text("FINAL")
+                .font(.system(size: 9, design: .monospaced).weight(.semibold))
+                .tracking(1)
+                .foregroundStyle(WatchTokens.inkFaint)
         }
     }
 
@@ -99,12 +107,12 @@ struct WatchGameRow: View {
 
     private var upcomingContent: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text("\(awayAbbr) @ \(homeAbbr)")
-                .font(.system(size: 13, weight: isFavorite ? .semibold : .regular))
+            Text("\(awayAbbr) vs \(homeAbbr)")
+                .font(.system(size: 13, design: .rounded).weight(isFavorite ? .semibold : .regular))
             if let date = game.standardDate {
                 Text(date, style: .time)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(WatchTokens.inkSoft)
             }
         }
     }

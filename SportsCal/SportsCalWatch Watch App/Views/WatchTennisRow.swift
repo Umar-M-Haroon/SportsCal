@@ -12,25 +12,21 @@ struct WatchTennisRow: View {
     let game: Game
 
     var body: some View {
+        let accent = WatchTokens.sport(.tennis)
         NavigationLink(value: game) {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 4) {
                     Image(systemName: "tennis.racket")
                         .font(.system(size: 12))
-                        .foregroundStyle(.yellow)
+                        .foregroundStyle(accent)
                     if let progress = game.displayStatus {
                         Text(progress)
-                            .font(.system(size: 10))
-                            .foregroundStyle(isLive ? .green : .secondary)
+                            .font(.system(size: 10, design: .monospaced).weight(.semibold))
+                            .foregroundStyle(isLive ? WatchTokens.live : WatchTokens.inkSoft)
                     }
                     Spacer()
                     if isLive {
-                        Text("LIVE")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(.green, in: Capsule())
+                        WatchLiveTag(period: nil)
                     }
                 }
 
@@ -40,8 +36,8 @@ struct WatchTennisRow: View {
 
                 if !isLive, let date = game.standardDate {
                     Text(date, style: .time)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(WatchTokens.inkSoft)
                 }
             }
             .padding(.vertical, 4)
@@ -51,13 +47,16 @@ struct WatchTennisRow: View {
     private func playerRow(name: String, linescores: [Double]?) -> some View {
         HStack(spacing: 4) {
             Text(String(name.prefix(15)))
-                .font(.system(size: 11))
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(WatchTokens.ink)
                 .lineLimit(1)
             Spacer()
             if let scores = linescores {
                 ForEach(Array(scores.enumerated()), id: \.offset) { _, score in
                     Text("\(Int(score))")
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .font(.system(size: 11, design: .monospaced).weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(WatchTokens.ink)
                         .frame(width: 14)
                 }
             }

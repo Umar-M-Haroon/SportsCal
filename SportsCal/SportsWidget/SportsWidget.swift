@@ -146,7 +146,7 @@ struct SportsWidgetEntryView: View {
             default: SportsWidgetSmallView(entry: entry)
             }
         }
-        .containerBackground(.fill.tertiary, for: .widget)
+        .containerBackground(for: .widget) { WidgetBackground() }
     }
 }
 

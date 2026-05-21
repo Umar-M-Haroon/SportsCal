@@ -110,8 +110,10 @@ struct AmbientDayPage: View {
             }
         }
         .preferredColorScheme(.dark)
+        #if !os(macOS)
         .toolbarBackground(AmbientPalette.bg, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        #endif
     }
 
     // MARK: - Column header

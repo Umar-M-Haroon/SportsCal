@@ -19,7 +19,8 @@ struct TodayView: View {
                 let otherGames = today.filter { !viewModel.isFavorite($0) }
 
                 if today.isEmpty {
-                    ContentUnavailableView("No Games Today", systemImage: "calendar")
+                    WatchEmptyState.quietDay
+                        .listRowBackground(Color.clear)
                 }
 
                 if !favGames.isEmpty {

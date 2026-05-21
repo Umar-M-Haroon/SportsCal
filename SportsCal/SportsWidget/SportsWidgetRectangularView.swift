@@ -20,25 +20,26 @@ struct SportsWidgetRectangularView: View {
                     HStack(spacing: 4) {
                         Image(systemName: sportType.widgetSystemImage)
                             .font(.caption2)
+                            .widgetAccentable()
                         Text(game.strHomeTeam)
-                            .font(.subheadline)
+                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
                             .lineLimit(1)
                     }
                     if isLive(game), let leader = game.resolvedLeaderboard.first {
                         Text("Leader: \(leader.name) \(leader.score)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .font(.system(.caption2, design: .rounded))
+                            .foregroundStyle(.secondary)
                     } else if let leader = game.resolvedLeaderboard.first {
                         Text("\(leader.name) \(leader.score)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .font(.system(.caption2, design: .rounded))
+                            .foregroundStyle(.secondary)
                     }
                     if let statusText = game.displayStatus {
                         Text(statusText)
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 10, design: .monospaced).weight(.semibold))
                     } else if let date = game.standardDate {
                         Text(date.formatted(date: .abbreviated, time: .shortened))
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 10, design: .monospaced).weight(.semibold))
                     }
                 } else if isLive(game) {
                     // Live team sport: show scores
@@ -46,17 +47,18 @@ struct SportsWidgetRectangularView: View {
                     HStack(spacing: 4) {
                         Image(systemName: sportType.widgetSystemImage)
                             .font(.caption2)
-                            .foregroundStyle(sportType.widgetColor)
+                            .widgetAccentable()
                         let awayAbbr = abbreviation(teamID: game.idAwayTeam, name: game.strAwayTeam)
                         let homeAbbr = abbreviation(teamID: game.idHomeTeam, name: game.strHomeTeam)
                         Text("\(awayAbbr) \(game.intAwayScore ?? "0") - \(homeAbbr) \(game.intHomeScore ?? "0")")
-                            .font(.subheadline)
+                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            .monospacedDigit()
                             .lineLimit(1)
                     }
                     if let progress = game.strProgress ?? game.strStatus {
                         Text(progress)
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.secondary)
                     }
                     // Show next game if available
                     if let next = entry.game?.dropFirst().first, !isLive(next) {
@@ -67,7 +69,7 @@ struct SportsWidgetRectangularView: View {
                     RectangularWidgetTeamView(longName: homeTeam.strTeam, isAway: false, data: entry.images?[homeTeamID])
                     if let date = game.standardDate {
                         Text(date.formatted(date: .abbreviated, time: .shortened))
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 10, design: .monospaced).weight(.semibold))
                     }
                 }
             }
@@ -78,16 +80,16 @@ struct SportsWidgetRectangularView: View {
     private func nextGameLine(_ game: Game) -> some View {
         if game.isIndividualSport {
             Text("Next: \(game.strHomeTeam)")
-                .font(.system(size: 9))
-                .foregroundColor(.secondary)
+                .font(.system(size: 9, design: .rounded))
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
         } else {
             let awayAbbr = abbreviation(teamID: game.idAwayTeam, name: game.strAwayTeam)
             let homeAbbr = abbreviation(teamID: game.idHomeTeam, name: game.strHomeTeam)
             if let date = game.standardDate {
                 Text("Next: \(awayAbbr) @ \(homeAbbr) \(date.formatted(date: .omitted, time: .shortened))")
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 9, design: .rounded))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
         }

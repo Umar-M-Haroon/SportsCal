@@ -13,11 +13,12 @@ import WidgetKit
 struct CompetitionView: View {
     var league: Leagues
     @State var isShown: Bool = true
+    @State private var favoritesOnly: Bool = false
     @Environment(UserDefaultStorage.self) private var appStorage
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack {
+        VStack(alignment: .leading, spacing: 8) {
             Toggle(isOn: $isShown) {
                 HStack(spacing: 12) {
                     let logoURL = colorScheme == .dark ? league.darkLogoURL : league.logoURL
@@ -49,9 +50,22 @@ struct CompetitionView: View {
                 appStorage.syncHiddenCompetitions()
                 WidgetCenter.shared.reloadAllTimelines()
             }
+            if isShown {
+                Toggle(isOn: $favoritesOnly) {
+                    Label("Favorites only", systemImage: "star.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.leading, 40)
+                .onChange(of: favoritesOnly) { oldValue, newValue in
+                    appStorage.setFavoritesOnly(competition: league.leagueName, value: newValue)
+                    WidgetCenter.shared.reloadAllTimelines()
+                }
+            }
         }
         .onAppear {
             isShown = !appStorage.hiddenCompetitions.contains(league.leagueName)
+            favoritesOnly = appStorage.isFavoritesOnly(competition: league.leagueName)
         }
     }
 }

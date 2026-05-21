@@ -177,7 +177,7 @@ struct GolfLeaderboardWidgetView: View {
             Spacer()
         }
         .padding(8)
-        .containerBackground(.fill.tertiary, for: .widget)
+        .containerBackground(for: .widget) { WidgetBackground() }
     }
 
     @ViewBuilder

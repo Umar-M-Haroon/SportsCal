@@ -54,11 +54,13 @@ struct WatchGameDetailView: View {
                 // Last Play
                 if let lastPlay = game.lastPlay, !lastPlay.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Last Play")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                        Text("LAST PLAY")
+                            .font(.system(size: 10, design: .monospaced).weight(.bold))
+                            .tracking(1.5)
+                            .foregroundStyle(WatchTokens.inkFaint)
                         Text(lastPlay)
-                            .font(.system(size: 11))
+                            .font(.system(size: 11, design: .rounded))
+                            .foregroundStyle(WatchTokens.ink)
                             .lineLimit(3)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -254,36 +256,46 @@ struct WatchGameDetailView: View {
     // MARK: - Score Header
 
     private var scoreHeader: some View {
-        VStack(spacing: 8) {
-            HStack {
+        let homeWon = (Int(game.intHomeScore ?? "") ?? 0) > (Int(game.intAwayScore ?? "") ?? 0)
+        let awayWon = (Int(game.intAwayScore ?? "") ?? 0) > (Int(game.intHomeScore ?? "") ?? 0)
+        return VStack(spacing: 8) {
+            HStack(alignment: .top) {
                 VStack(spacing: 2) {
                     Text(awayAbbr)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 14, design: .rounded).weight(.semibold))
+                        .foregroundStyle(awayWon ? WatchTokens.ink : WatchTokens.inkSoft)
                     if isLive || game.isCompleted == true {
                         Text(game.intAwayScore ?? "0")
-                            .font(.system(size: 28, weight: .bold))
+                            .font(.system(size: 28, design: .rounded).weight(.heavy))
+                            .monospacedDigit()
+                            .foregroundStyle(awayWon ? WatchTokens.ink : WatchTokens.inkSoft)
                     }
                 }
                 Spacer()
-                VStack(spacing: 2) {
-                    if let progress = game.displayStatus {
+                VStack(spacing: 4) {
+                    if isLive {
+                        WatchLiveTag(period: game.displayStatus)
+                    } else if let progress = game.displayStatus {
                         Text(progress)
-                            .font(.system(size: 11))
-                            .foregroundStyle(isLive ? .green : .secondary)
+                            .font(.system(size: 11, design: .monospaced).weight(.semibold))
+                            .foregroundStyle(WatchTokens.inkFaint)
                     }
                     if let date = game.standardDate, !isLive && game.isCompleted != true {
                         Text(date, style: .time)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(WatchTokens.inkSoft)
                     }
                 }
                 Spacer()
                 VStack(spacing: 2) {
                     Text(homeAbbr)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 14, design: .rounded).weight(.semibold))
+                        .foregroundStyle(homeWon ? WatchTokens.ink : WatchTokens.inkSoft)
                     if isLive || game.isCompleted == true {
                         Text(game.intHomeScore ?? "0")
-                            .font(.system(size: 28, weight: .bold))
+                            .font(.system(size: 28, design: .rounded).weight(.heavy))
+                            .monospacedDigit()
+                            .foregroundStyle(homeWon ? WatchTokens.ink : WatchTokens.inkSoft)
                     }
                 }
             }

@@ -16,7 +16,7 @@ enum AppTheme: String, CaseIterable, Identifiable {
         switch self {
         case .classic: return "Classic"
         case .ambient: return "Ambient"
-        case .efRemix: return "EF Remix v2"
+        case .efRemix: return "Modern"
         }
     }
 }

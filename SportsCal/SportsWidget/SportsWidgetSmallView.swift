@@ -78,13 +78,23 @@ struct SportsWidgetSmallView: View {
                 Spacer()
             } else {
                 Spacer()
-                Text("No upcoming games")
-                    .foregroundColor(.secondary)
+                VStack(spacing: 6) {
+                    Image(systemName: "sportscourt")
+                        .font(.system(size: 24, weight: .light))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(WidgetTokens.inkSoft)
+                    Text("No upcoming games")
+                        .font(.system(.caption, design: .rounded))
+                        .foregroundStyle(WidgetTokens.inkSoft)
+                }
+                .frame(maxWidth: .infinity)
                 Spacer()
             }
             if hasMultipleGames {
                 Spacer()
             }
+            WidgetUpdatedLabel(date: entry.date)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding([.leading, .trailing, .bottom], 8)
         .widgetURL(smallWidgetURL)
