@@ -114,4 +114,87 @@ final class TeamMatchingTests: XCTestCase {
     func test_tokenFromKey_leavesKeyUnchangedWhenPrefixMissing() {
         XCTAssertEqual(APNSJob.tokenFromKey("abc123", prefix: "APNS-"), "abc123")
     }
+
+    // MARK: - alias-aware dedup
+
+    /// Fixture mirroring real TheSportsDB team rows for alias-resolution tests.
+    private func aliasFixtureTeams() -> [Team] {
+        [
+            Team(idTeam: "133739", strTeam: "Paris Saint-Germain", strTeamShort: "PSG", strAlternate: "Paris Saint-Germain, Paris SG", strTeamBadge: nil),
+            Team(idTeam: "133740", strTeam: "Bayern Munich", strTeamShort: "BAY", strAlternate: "FC Bayern München", strTeamBadge: nil),
+            Team(idTeam: "133741", strTeam: "Brighton & Hove Albion", strTeamShort: "BHA", strAlternate: "Brighton, BHA", strTeamBadge: nil),
+            Team(idTeam: "134404", strTeam: "Los Angeles Clippers", strTeamShort: "LAC", strAlternate: nil, strTeamBadge: nil),
+            Team(idTeam: "134403", strTeam: "Los Angeles Lakers", strTeamShort: "LAL", strAlternate: nil, strTeamBadge: nil),
+            Team(idTeam: "134300", strTeam: "Atlético Madrid", strTeamShort: "ATM", strAlternate: nil, strTeamBadge: nil),
+            Team(idTeam: "134301", strTeam: "Real Madrid", strTeamShort: "RMA", strAlternate: nil, strTeamBadge: nil)
+        ]
+    }
+
+    func test_PSGAndParisSaintGermain_produceSameDedupKey() {
+        let resolver = TeamAliasResolver(teams: aliasFixtureTeams())
+        let a = resolver.dedupKey(home: "PSG", away: "Bayern Munich", leagueID: "4480", day: "2026-05-06")
+        let b = resolver.dedupKey(home: "Paris Saint-Germain", away: "Bayern Munich", leagueID: "4480", day: "2026-05-06")
+        XCTAssertEqual(a, b)
+    }
+
+    func test_BrightonShortAndLong_produceSameDedupKey() {
+        let resolver = TeamAliasResolver(teams: aliasFixtureTeams())
+        let a = resolver.dedupKey(home: "Brighton", away: "Real Madrid", leagueID: "4328", day: "2026-05-06")
+        let b = resolver.dedupKey(home: "Brighton & Hove Albion", away: "Real Madrid", leagueID: "4328", day: "2026-05-06")
+        XCTAssertEqual(a, b)
+    }
+
+    func test_LAClippersAndLosAngelesClippers_produceSameDedupKey() {
+        let resolver = TeamAliasResolver(teams: aliasFixtureTeams())
+        let a = resolver.dedupKey(home: "LA Clippers", away: "Los Angeles Lakers", leagueID: "4387", day: "2026-05-06")
+        let b = resolver.dedupKey(home: "Los Angeles Clippers", away: "Los Angeles Lakers", leagueID: "4387", day: "2026-05-06")
+        XCTAssertEqual(a, b)
+    }
+
+    func test_unrelatedTeams_produceDifferentDedupKeys() {
+        let resolver = TeamAliasResolver(teams: aliasFixtureTeams())
+        let a = resolver.dedupKey(home: "Real Madrid", away: "Bayern Munich", leagueID: "4480", day: "2026-05-06")
+        let b = resolver.dedupKey(home: "Atlético Madrid", away: "Bayern Munich", leagueID: "4480", day: "2026-05-06")
+        XCTAssertNotEqual(a, b)
+    }
+
+    func test_curatedSeedEntry_unresolvedTeam_loggedAndSkipped() {
+        // Seed pointing to a team not in the cache must not crash construction.
+        let teams = [Team(idTeam: "1", strTeam: "Some Team", strTeamShort: nil, strAlternate: nil, strTeamBadge: nil)]
+        let bogus = ["fake alias": "Nonexistent Team"]
+        let resolver = TeamAliasResolver(teams: teams, curatedAliases: bogus)
+        // Real-team alias still works; bogus seed entry is a no-op.
+        let key = resolver.dedupKey(home: "Some Team", away: "Some Team", leagueID: "1", day: "2026-05-06")
+        XCTAssertTrue(key.contains("id:1"))
+    }
+
+    func test_diacriticInsensitive() {
+        let resolver = TeamAliasResolver(teams: aliasFixtureTeams())
+        let a = resolver.dedupKey(home: "Atlético Madrid", away: "Real Madrid", leagueID: "4335", day: "2026-05-06")
+        let b = resolver.dedupKey(home: "Atletico Madrid", away: "Real Madrid", leagueID: "4335", day: "2026-05-06")
+        XCTAssertEqual(a, b)
+    }
+
+    func test_homeAwaySwap_collapses() {
+        let resolver = TeamAliasResolver(teams: aliasFixtureTeams())
+        let a = resolver.dedupKey(home: "PSG", away: "Bayern Munich", leagueID: "4480", day: "2026-05-06")
+        let b = resolver.dedupKey(home: "Bayern Munich", away: "PSG", leagueID: "4480", day: "2026-05-06")
+        XCTAssertEqual(a, b)
+    }
+
+    func test_dedupKey_differsAcrossLeagues() {
+        let resolver = TeamAliasResolver(teams: aliasFixtureTeams())
+        let a = resolver.dedupKey(home: "Real Madrid", away: "Bayern Munich", leagueID: "4480", day: "2026-05-06")
+        let b = resolver.dedupKey(home: "Real Madrid", away: "Bayern Munich", leagueID: "4335", day: "2026-05-06")
+        XCTAssertNotEqual(a, b)
+    }
+
+    func test_unresolvedTeamName_stillProducesStableKey() {
+        // When the resolver doesn't know a team, both calls fall back to .name(normalized)
+        // and still collapse alias-equivalent unknown names.
+        let resolver = TeamAliasResolver(teams: aliasFixtureTeams())
+        let a = resolver.dedupKey(home: "Unknown FC", away: "Some Other Team", leagueID: "9999", day: "2026-05-06")
+        let b = resolver.dedupKey(home: "Unknown FC", away: "Some Other Team", leagueID: "9999", day: "2026-05-06")
+        XCTAssertEqual(a, b)
+    }
 }

@@ -40,9 +40,14 @@ struct APNSJob: AsyncScheduledJob {
         logger: Logger,
         metrics: PushMetrics? = nil
     ) async throws {
-        let keyPrefix = isDebug ? "debug-APNS-" : "APNS-"
-        let keys = try await kv.scanKeys(matching: "\(keyPrefix)*")
-        guard !keys.isEmpty else { return }
+        // Always iterate BOTH keyspaces regardless of the server's own
+        // environment: a single instance must dispatch sandbox tokens (Xcode
+        // dev devices) and production tokens (TestFlight / App Store) to their
+        // respective APNS gateways. The prefix is the load-bearing signal for
+        // which gateway to use.
+        let prodKeys = try await kv.scanKeys(matching: "APNS-*")
+        let sandboxKeys = try await kv.scanKeys(matching: "debug-APNS-*")
+        guard !prodKeys.isEmpty || !sandboxKeys.isEmpty else { return }
 
         let liveScoreKey = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug).rawValue
         let liveScore = try await kv.getJSON(liveScoreKey, as: LiveScore.self)
@@ -57,6 +62,48 @@ struct APNSJob: AsyncScheduledJob {
         events.append(contentsOf: liveScore?.tennis?.events ?? [])
         events.append(contentsOf: liveScore?.racing?.events ?? [])
 
+        try await dispatchBatch(
+            keys: prodKeys,
+            keyPrefix: "APNS-",
+            environment: .production,
+            events: events,
+            kv: kv,
+            apns: apns,
+            clock: clock,
+            isDebug: isDebug,
+            logger: logger,
+            metrics: metrics
+        )
+        try await dispatchBatch(
+            keys: sandboxKeys,
+            keyPrefix: "debug-APNS-",
+            environment: .sandbox,
+            events: events,
+            kv: kv,
+            apns: apns,
+            clock: clock,
+            isDebug: isDebug,
+            logger: logger,
+            metrics: metrics
+        )
+    }
+
+    /// Iterate one keyspace and dispatch its tokens through the matching APNS
+    /// gateway. Extracted so `runOnce` can run two passes — production and
+    /// sandbox — without duplicating the iteration logic.
+    private static func dispatchBatch(
+        keys: [String],
+        keyPrefix: String,
+        environment: APNSEnvironment,
+        events: [Game],
+        kv: KeyValueStore,
+        apns: APNSSending,
+        clock: AppClock,
+        isDebug: Bool,
+        logger: Logger,
+        metrics: PushMetrics?
+    ) async throws {
+        guard !keys.isEmpty else { return }
         let registrationValues = try await kv.mget(keys)
 
         for (index, key) in keys.enumerated() {
@@ -75,7 +122,8 @@ struct APNSJob: AsyncScheduledJob {
                     homeScore: homeScore,
                     awayScore: awayScore,
                     status: event.strStatus,
-                    progress: event.strProgress
+                    progress: event.strProgress,
+                    lastPlay: event.lastPlay
                 )
                 let stateKey = RedisEndpoint.eventState(event.id).getValue(isDebug: isDebug).rawValue
                 let savedState = try await kv.getJSON(stateKey, as: ContentState.self)
@@ -87,21 +135,22 @@ struct APNSJob: AsyncScheduledJob {
                         appID: "com.KomodoLLC.SportsCal",
                         contentState: contentState,
                         isFinal: false,
-                        timestamp: now
+                        timestamp: now,
+                        environment: environment
                     )
                     await metrics?.recordSend(kind: .update)
                     // Slide the registration TTL forward so an active activity never
                     // expires mid-game even if the client can't run BGAppRefresh.
                     _ = try? await kv.expire(key, ttl: 60 * 60 * 12)
                 } catch let sendError as APNSSendError {
-                    logger.error("Failed to send APNS update for \(event.id): \(sendError.reason.rawValue) \(sendError.underlying ?? "")")
+                    logger.error("Failed to send APNS update for \(event.id) [\(environment.rawValue)]: \(sendError.reason.rawValue) \(sendError.underlying ?? "")")
                     await metrics?.recordError(sendError.reason)
                     if sendError.isStaleToken {
                         _ = try await kv.delete([key])
                         await metrics?.recordCleanup(reason: sendError.reason.rawValue)
                     }
                 } catch {
-                    logger.error("Failed to send APNS update for \(event.id): \(error)")
+                    logger.error("Failed to send APNS update for \(event.id) [\(environment.rawValue)]: \(error)")
                     await metrics?.recordError(.other)
                 }
             } else {
@@ -110,7 +159,8 @@ struct APNSJob: AsyncScheduledJob {
                     homeScore: homeScore,
                     awayScore: awayScore,
                     status: event.strStatus,
-                    progress: event.strProgress
+                    progress: event.strProgress,
+                    lastPlay: event.lastPlay
                 )
                 do {
                     _ = try await apns.sendLiveActivityUpdate(
@@ -118,14 +168,15 @@ struct APNSJob: AsyncScheduledJob {
                         appID: "com.KomodoLLC.SportsCal",
                         contentState: contentState,
                         isFinal: true,
-                        timestamp: now
+                        timestamp: now,
+                        environment: environment
                     )
                     await metrics?.recordSend(kind: .end)
                 } catch let sendError as APNSSendError {
-                    logger.error("Failed to send APNS end for \(event.id): \(sendError.reason.rawValue) \(sendError.underlying ?? "")")
+                    logger.error("Failed to send APNS end for \(event.id) [\(environment.rawValue)]: \(sendError.reason.rawValue) \(sendError.underlying ?? "")")
                     await metrics?.recordError(sendError.reason)
                 } catch {
-                    logger.error("Failed to send APNS end for \(event.id): \(error)")
+                    logger.error("Failed to send APNS end for \(event.id) [\(environment.rawValue)]: \(error)")
                     await metrics?.recordError(.other)
                 }
                 let stateKey = RedisEndpoint.eventState(event.id).getValue(isDebug: isDebug).rawValue

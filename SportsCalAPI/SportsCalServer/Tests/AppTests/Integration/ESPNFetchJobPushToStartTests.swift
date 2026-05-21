@@ -200,18 +200,22 @@ final class ESPNFetchJobPushToStartTests: XCTestCase {
         XCTAssertNil(snapshot["PushToStartEvents-\(token)"])
     }
 
-    // MARK: - Debug-key prefix isolation
+    // MARK: - Multi-environment dispatch
 
-    func test_debugEnv_usesDebugPrefixedKeys() async throws {
-        let token = "t1"
-        try await kv.setJSON("debug-PushToStart-\(token)", value: ["Lakers"], ttl: nil)
-        // Put a prod-prefixed entry too — in debug mode the job should skip it.
-        try await kv.setJSON("PushToStart-other", value: ["Lakers"], ttl: nil)
+    /// A single server now serves both Xcode dev devices (sandbox tokens stored
+    /// under `debug-PushToStart-`) and TestFlight / App Store users (production
+    /// tokens under `PushToStart-`). The job must scan both keyspaces and
+    /// dispatch each token through the matching APNS gateway.
+    func test_dispatchesBothEnvironments_perTokenGateway() async throws {
+        try await kv.setJSON("PushToStart-prodToken", value: ["Lakers"], ttl: nil)
+        try await kv.setJSON("debug-PushToStart-sandboxToken", value: ["Lakers"], ttl: nil)
         let game = TestGameFactory.make(idEvent: "e1", strHomeTeam: "Lakers", strAwayTeam: "Warriors", strStatus: "in")
 
-        await runPhase(newlyStarted: [game], isDebug: true)
+        await runPhase(newlyStarted: [game])
 
-        XCTAssertEqual(apns.recorded.count, 1)
-        XCTAssertEqual(apns.recorded.first?.deviceToken, token)
+        XCTAssertEqual(apns.recorded.count, 2)
+        let byToken = Dictionary(uniqueKeysWithValues: apns.recorded.map { ($0.deviceToken, $0.environment) })
+        XCTAssertEqual(byToken["prodToken"], .production)
+        XCTAssertEqual(byToken["sandboxToken"], .sandbox)
     }
 }

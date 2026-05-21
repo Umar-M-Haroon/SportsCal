@@ -153,6 +153,36 @@ final class APNSJobStateDiffTests: XCTestCase {
         XCTAssertTrue(apns.recorded.isEmpty)
     }
 
+    // MARK: - Multi-environment dispatch
+
+    /// A single server must dispatch sandbox-token registrations through the
+    /// development APNS gateway and production-token registrations through the
+    /// production gateway. Without this, dev devices (whose tokens come from
+    /// the `aps-environment = development` entitlement) get `BadDeviceToken`
+    /// when the server is in `--env production`.
+    func test_dispatchesBothEnvironments_perTokenGateway() async throws {
+        // Use distinct events for each token to side-step the per-event state-
+        // diff dedup (which is per-event, not per-token, and would otherwise
+        // suppress the second token's push within the same cycle).
+        let prodToken = "prodToken"
+        let sandboxToken = "sandboxToken"
+        try await kv.setJSON("APNS-\(prodToken)", value: APNSRegistration(eventID: "ePROD"), ttl: nil)
+        try await kv.setJSON("debug-APNS-\(sandboxToken)", value: APNSRegistration(eventID: "eSANDBOX"), ttl: nil)
+
+        let prodGame = TestGameFactory.make(idEvent: "ePROD", strHomeTeam: "A", strAwayTeam: "B", intHomeScore: "10", intAwayScore: "3", strStatus: "in", strProgress: "2Q")
+        let sandboxGame = TestGameFactory.make(idEvent: "eSANDBOX", strHomeTeam: "C", strAwayTeam: "D", intHomeScore: "5", intAwayScore: "1", strStatus: "in", strProgress: "1Q")
+        try await seedLiveScore([prodGame, sandboxGame])
+        try await kv.setJSON(eventStateKey("ePROD"), value: ContentState(homeScore: 7, awayScore: 3, status: "in", progress: "2Q"), ttl: nil)
+        try await kv.setJSON(eventStateKey("eSANDBOX"), value: ContentState(homeScore: 0, awayScore: 0, status: "in", progress: "1Q"), ttl: nil)
+
+        try await runJob()
+
+        XCTAssertEqual(apns.recorded.count, 2)
+        let byToken = Dictionary(uniqueKeysWithValues: apns.recorded.map { ($0.deviceToken, $0.environment) })
+        XCTAssertEqual(byToken[prodToken], .production)
+        XCTAssertEqual(byToken[sandboxToken], .sandbox)
+    }
+
     // MARK: - TTL slide on update
 
     func test_successfulUpdate_slidesRegistrationTTLForward() async throws {

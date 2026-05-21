@@ -15,26 +15,62 @@ public struct ContentState: Codable, Hashable {
     var awayScore: Int
     var status: String?
     var progress: String?
+    var lastPlay: String? = nil
 }
 
 public struct LiveSportAttributes: Codable, Sendable {
     var homeTeam: String
     var awayTeam: String
     var eventID: String
+    /// Optional league-style short abbreviations (e.g. "PHI", "BOS") — when
+    /// available, the iOS widget uses these in the Dynamic Island compact and
+    /// minimal slots where raster team logos get tinted to silhouettes. Defaults
+    /// to nil so existing code paths and the iOS Codable decoder both stay happy.
+    var homeTeamShort: String? = nil
+    var awayTeamShort: String? = nil
+}
+
+/// Which APNS gateway a given device token belongs to. Sandbox tokens come
+/// from Xcode-built dev devices (development entitlement); production tokens
+/// come from TestFlight / App Store builds. The two are not interchangeable —
+/// a token sent to the wrong gateway returns `BadDeviceToken`.
+enum APNSEnvironment: String, Codable, Sendable {
+    case sandbox
+    case production
 }
 
 struct PushToStartRegistration: Codable, Content {
     var token: String
     var favorites: [String]
-    var eventIDs: [String]?
+    var eventIDs: [String]? = nil
+}
+
+/// Wire format for `POST /liveActivity` registration. The token lived in the URL
+/// path on a prior `GET /liveActivity/:token/:eventID` route; moving it into a
+/// POST body keeps the device token out of access logs (it's a capability —
+/// useless without the APNS auth key, but still user-identifying).
+struct LiveActivityRegistration: Codable, Content {
+    var token: String
+    var eventID: String
+    var homeTeam: String? = nil
+    var awayTeam: String? = nil
+}
+
+/// Wire format for the DELETE counterparts of the two POST routes above. Token
+/// in the body keeps it out of access logs, same as the POSTs.
+struct DeregisterRequest: Codable, Content {
+    var token: String
 }
 
 /// Stored in Redis for each APNS-{token} registration.
 /// Includes team names so the APNSJob can match by team even when event IDs differ.
+/// `environment` records which APNS gateway issued the token so jobs can route
+/// the push correctly even on a server that handles both sandbox and production.
 struct APNSRegistration: Codable {
     var eventID: String
-    var homeTeam: String?
-    var awayTeam: String?
+    var homeTeam: String? = nil
+    var awayTeam: String? = nil
+    var environment: APNSEnvironment? = nil
 }
 
 // MARK: - APNSClientProtocol extension for push-to-start
@@ -43,7 +79,8 @@ extension APNSClientProtocol {
     @inlinable
     public func sendStartLiveActivityNotification<Attributes: Encodable & Sendable, ContentState: Encodable & Sendable>(
         _ notification: APNSStartLiveActivityNotification<Attributes, ContentState>,
-        deviceToken: String
+        deviceToken: String,
+        collapseID: String? = nil
     ) async throws -> APNSResponse {
         let request = APNSRequest(
             message: notification,
@@ -53,7 +90,7 @@ extension APNSClientProtocol {
             priority: notification.priority,
             apnsID: notification.apnsID,
             topic: notification.topic,
-            collapseID: nil
+            collapseID: collapseID
         )
         return try await send(request)
     }

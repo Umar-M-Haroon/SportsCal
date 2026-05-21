@@ -15,6 +15,7 @@ final class MockAPNSClient: APNSSending, @unchecked Sendable {
         let alertTitle: String?
         let alertBody: String?
         let timestamp: Int
+        let environment: APNSEnvironment
     }
 
     private let lock = NSLock()
@@ -71,7 +72,8 @@ final class MockAPNSClient: APNSSending, @unchecked Sendable {
         appID: String,
         contentState: ContentState,
         isFinal: Bool,
-        timestamp: Int
+        timestamp: Int,
+        environment: APNSEnvironment
     ) async throws -> APNSSendResult {
         try consumeErrorIfAny(for: deviceToken)
         let record = RecordedSend(
@@ -82,7 +84,8 @@ final class MockAPNSClient: APNSSending, @unchecked Sendable {
             attributes: nil,
             alertTitle: nil,
             alertBody: nil,
-            timestamp: timestamp
+            timestamp: timestamp,
+            environment: environment
         )
         append(record)
         return APNSSendResult(
@@ -101,7 +104,8 @@ final class MockAPNSClient: APNSSending, @unchecked Sendable {
         contentState: ContentState,
         alertTitle: String,
         alertBody: String,
-        timestamp: Int
+        timestamp: Int,
+        environment: APNSEnvironment
     ) async throws -> APNSSendResult {
         try consumeErrorIfAny(for: deviceToken)
         let record = RecordedSend(
@@ -112,7 +116,8 @@ final class MockAPNSClient: APNSSending, @unchecked Sendable {
             attributes: attributes,
             alertTitle: alertTitle,
             alertBody: alertBody,
-            timestamp: timestamp
+            timestamp: timestamp,
+            environment: environment
         )
         append(record)
         return APNSSendResult(

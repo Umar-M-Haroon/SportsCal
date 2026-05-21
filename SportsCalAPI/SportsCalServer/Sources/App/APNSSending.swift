@@ -61,13 +61,18 @@ extension APNSSendError {
 /// Thin abstraction over the two APNS send shapes our code actually uses:
 /// live-activity update/end, and push-to-start. Tests swap in `MockAPNSClient`
 /// to record calls and simulate errors.
+///
+/// `environment` is per-call, not per-instance: a single server may serve both
+/// sandbox tokens (Xcode dev devices) and production tokens (TestFlight / App
+/// Store) at the same time, and each token must be sent to its own APNS gateway.
 protocol APNSSending: Sendable {
     func sendLiveActivityUpdate(
         deviceToken: String,
         appID: String,
         contentState: ContentState,
         isFinal: Bool,
-        timestamp: Int
+        timestamp: Int,
+        environment: APNSEnvironment
     ) async throws -> APNSSendResult
 
     func sendPushToStart(
@@ -77,12 +82,14 @@ protocol APNSSending: Sendable {
         contentState: ContentState,
         alertTitle: String,
         alertBody: String,
-        timestamp: Int
+        timestamp: Int,
+        environment: APNSEnvironment
     ) async throws -> APNSSendResult
 }
 
-/// Production implementation that delegates to `VaporAPNS`. Chooses between
-/// `.development` and `.production` APNS environments based on `Application.environment`.
+/// Production implementation that delegates to `VaporAPNS`. Picks the APNS
+/// gateway per call from the supplied `environment` so a single server can
+/// dispatch both sandbox and production tokens.
 final class VaporAPNSSending: APNSSending {
     let application: Application
 
@@ -90,11 +97,10 @@ final class VaporAPNSSending: APNSSending {
         self.application = application
     }
 
-    private var client: APNSGenericClient {
-        get async {
-            application.environment == .development
-                ? await application.apns.client(.development)
-                : await application.apns.client(.production)
+    private func client(for environment: APNSEnvironment) async -> APNSGenericClient {
+        switch environment {
+        case .sandbox: return await application.apns.client(.development)
+        case .production: return await application.apns.client(.production)
         }
     }
 
@@ -103,9 +109,10 @@ final class VaporAPNSSending: APNSSending {
         appID: String,
         contentState: ContentState,
         isFinal: Bool,
-        timestamp: Int
+        timestamp: Int,
+        environment: APNSEnvironment
     ) async throws -> APNSSendResult {
-        let client = await client
+        let client = await client(for: environment)
         let notification = APNSLiveActivityNotification(
             expiration: isFinal ? .none : .immediately,
             priority: .immediately,
@@ -135,9 +142,10 @@ final class VaporAPNSSending: APNSSending {
         contentState: ContentState,
         alertTitle: String,
         alertBody: String,
-        timestamp: Int
+        timestamp: Int,
+        environment: APNSEnvironment
     ) async throws -> APNSSendResult {
-        let client = await client
+        let client = await client(for: environment)
         let notification = APNSStartLiveActivityNotification(
             expiration: .immediately,
             priority: .immediately,
@@ -152,7 +160,13 @@ final class VaporAPNSSending: APNSSending {
             )
         )
         do {
-            try await client.sendStartLiveActivityNotification(notification, deviceToken: deviceToken)
+            // collapseID = eventID coalesces any APNS retry/redelivery into the
+            // same Live Activity instead of spawning a duplicate on the device.
+            try await client.sendStartLiveActivityNotification(
+                notification,
+                deviceToken: deviceToken,
+                collapseID: attributes.eventID
+            )
             return APNSSendResult(
                 kind: .start,
                 deviceToken: deviceToken,

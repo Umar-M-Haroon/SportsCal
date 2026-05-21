@@ -4,6 +4,18 @@ import VaporAPNS
 import APNSCore
 import RediStack
 
+/// Resolve which APNS gateway issued the device token in this request. The iOS
+/// client signals it via the `X-APNS-Env: sandbox|production` header so the
+/// hint stays out of URLs and access logs. Older clients that don't send the
+/// header fall back to the server's own environment for back-compat — this
+/// matches the prior single-environment behavior on a per-server basis.
+func resolveAPNSEnvironment(from req: Request) -> APNSEnvironment {
+    if let raw = req.headers.first(name: "X-APNS-Env"),
+       let env = APNSEnvironment(rawValue: raw) {
+        return env
+    }
+    return req.application.environment == .development ? .sandbox : .production
+}
 
 func routes(_ app: Application) throws {
     // Register API version middleware globally
@@ -305,35 +317,38 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
             }
 
             let body = try req.content.decode(DebugTriggerRequest.self)
-            let isDebug = req.application.environment == .development
-            let keyPrefix = isDebug ? "debug-PushToStart-" : "PushToStart-"
-            let keyPattern = "\(keyPrefix)*"
             let apnsConfigured = req.application.storage[APNSConfiguredKey.self] ?? false
+
+            // Iterate both prod and sandbox keyspaces so a single dev server can
+            // dispatch tests to both Xcode dev devices and TestFlight tokens.
+            let envSpecs: [(prefix: String, env: APNSEnvironment)] = [
+                ("PushToStart-", .production),
+                ("debug-PushToStart-", .sandbox),
+            ]
 
             // Build diagnostic trace
             var trace: [String] = []
             trace.append("env=\(req.application.environment.name)")
-            trace.append("keyPattern=\(keyPattern)")
             trace.append("apnsConfigured=\(apnsConfigured)")
             trace.append("triggerEventID=\(body.eventID)")
             trace.append("triggerHome=\(body.homeTeam)")
             trace.append("triggerAway=\(body.awayTeam)")
 
-            // Step 1: Find registration keys
-            let allKeys = (try? await req.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
-                .array?
-                .compactMap({ $0.string })) ?? []
-            trace.append("allKeysMatching=\(allKeys.count): \(allKeys)")
+            var allRegistrations: [(key: RedisKey, prefix: String, env: APNSEnvironment)] = []
+            for spec in envSpecs {
+                let pattern = "\(spec.prefix)*"
+                let scanned = (try? await req.application.redis.send(command: "keys", with: [pattern.convertedToRESPValue()])
+                    .array?
+                    .compactMap({ $0.string })) ?? []
+                let filtered = scanned
+                    .filter({ !$0.contains("Events-") && !$0.contains("SentPush") })
+                trace.append("\(spec.env.rawValue) keysMatching=\(filtered.count): \(filtered)")
+                allRegistrations.append(contentsOf: filtered.map { (RedisKey($0), spec.prefix, spec.env) })
+            }
+            trace.append("registrationKeys=\(allRegistrations.count)")
 
-            let registrationKeys = allKeys
-                .filter({ !$0.contains("Events-") && !$0.contains("SentPush") })
-                .map({ RedisKey($0) })
-            trace.append("registrationKeys=\(registrationKeys.count): \(registrationKeys.map(\.rawValue))")
-
-            guard !registrationKeys.isEmpty else {
+            guard !allRegistrations.isEmpty else {
                 let traceStr = trace.joined(separator: "\n")
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = .prettyPrinted
                 let result: [String: Any] = ["notified": 0, "tokens": [] as [String], "reason": "no_registrations", "trace": traceStr]
                 let data = try JSONSerialization.data(withJSONObject: result)
                 return String(data: data, encoding: .utf8)!
@@ -346,23 +361,22 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 return String(data: data, encoding: .utf8)!
             }
 
-            let apnsClient = req.application.environment == .development
-                ? await req.application.apns.client(.development)
-                : await req.application.apns.client(.production)
+            let prodClient = await req.application.apns.client(.production)
+            let sandboxClient = await req.application.apns.client(.development)
             var notifiedTokens: [String] = []
             var errors: [String] = []
 
-            for registrationKey in registrationKeys {
-                let token = String(registrationKey.rawValue.dropFirst(keyPrefix.count))
+            for entry in allRegistrations {
+                let token = String(entry.key.rawValue.dropFirst(entry.prefix.count))
 
-                let favorites = (try? await req.application.redis.get(registrationKey, asJSON: [String].self)) ?? []
+                let favorites = (try? await req.application.redis.get(entry.key, asJSON: [String].self)) ?? []
                 let favoritesMatch = favorites.contains(where: { $0 == body.homeTeam || $0 == body.awayTeam })
 
-                let eventsKey = RedisEndpoint.pushToStartEvents(token).getValue(isDebug: isDebug)
+                let eventsKey = RedisEndpoint.pushToStartEvents(token).getValue(isDebug: entry.env == .sandbox)
                 let eventIDs = (try? await req.application.redis.get(eventsKey, asJSON: [String].self)) ?? []
                 let eventMatch = eventIDs.contains(body.eventID)
 
-                trace.append("token=\(token.prefix(12))... favorites=\(favorites) eventIDs=\(eventIDs) favMatch=\(favoritesMatch) eventMatch=\(eventMatch)")
+                trace.append("token=\(token.prefix(12))... [\(entry.env.rawValue)] favorites=\(favorites) eventIDs=\(eventIDs) favMatch=\(favoritesMatch) eventMatch=\(eventMatch)")
 
                 guard favoritesMatch || eventMatch else { continue }
 
@@ -375,7 +389,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                     homeScore: 12,
                     awayScore: 9,
                     status: "in",
-                    progress: "4:20 - 1st"
+                    progress: "4:20 - 1st",
+                    lastPlay: nil
                 )
 
                 do {
@@ -392,21 +407,27 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                             body: .raw("Debug game is starting now!")
                         )
                     )
-                    try await apnsClient.sendStartLiveActivityNotification(notification, deviceToken: token)
+                    let client = entry.env == .sandbox ? sandboxClient : prodClient
+                    try await client.sendStartLiveActivityNotification(
+                        notification,
+                        deviceToken: token,
+                        collapseID: body.eventID
+                    )
                     notifiedTokens.append(String(token.prefix(12)) + "...")
-                    trace.append("SENT OK to \(token.prefix(12))...")
+                    trace.append("SENT OK to \(token.prefix(12))... [\(entry.env.rawValue)]")
                 } catch {
                     let errMsg = "\(error)"
-                    errors.append("\(token.prefix(12))...: \(errMsg)")
-                    trace.append("SEND FAILED \(token.prefix(12))...: \(errMsg)")
+                    errors.append("\(token.prefix(12))... [\(entry.env.rawValue)]: \(errMsg)")
+                    trace.append("SEND FAILED \(token.prefix(12))... [\(entry.env.rawValue)]: \(errMsg)")
                     if let apnsError = error as? APNSError,
                        apnsError.reason == .badDeviceToken || apnsError.reason == .unregistered {
-                        _ = try? await req.application.redis.delete([registrationKey]).get()
+                        _ = try? await req.application.redis.delete([entry.key]).get()
                         _ = try? await req.application.redis.delete([eventsKey]).get()
-                        trace.append("Removed stale token \(token.prefix(12))...")
+                        trace.append("Removed stale token \(token.prefix(12))... [\(entry.env.rawValue)]")
                     }
                 }
             }
+            let registrationKeys = allRegistrations
 
             let traceStr = trace.joined(separator: "\n")
             var result: [String: Any] = [
@@ -433,18 +454,33 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     }
 
     //MARK: - liveActivity
-    writeRoutes.get("liveActivity",":token",":eventID") { req async throws in
-        let token = req.parameters.get("token")!
-        let eventID = req.parameters.get("eventID")!
-        let homeTeam = try? req.query.get(String.self, at: "home")
-        let awayTeam = try? req.query.get(String.self, at: "away")
-        let registration = APNSRegistration(eventID: eventID, homeTeam: homeTeam, awayTeam: awayTeam)
-        let isDebug = req.application.environment == .development
-        let key = (isDebug ? "debug-APNS-" : "APNS-") + token
+    writeRoutes.post("liveActivity") { req async throws -> HTTPStatus in
+        let body = try req.content.decode(LiveActivityRegistration.self)
+        let environment = resolveAPNSEnvironment(from: req)
+        let registration = APNSRegistration(
+            eventID: body.eventID,
+            homeTeam: body.homeTeam,
+            awayTeam: body.awayTeam,
+            environment: environment
+        )
+        let key = (environment == .sandbox ? "debug-APNS-" : "APNS-") + body.token
         // 12h matches the iOS Live Activity max lifetime; APNSJob slides this forward
         // on every successful update so an active activity never expires mid-game.
         try await req.kv.setJSON(key, value: registration, ttl: 60 * 60 * 12)
-        return HTTPStatus.ok
+        return .ok
+    }
+
+    // Counterpart to the POST: drop the per-activity registration on the host
+    // the iOS client just left so APNSJob there stops dispatching updates. Used
+    // by the iOS env-flip handler — without this, two servers' Redis instances
+    // can each retain registrations for the same install and both will try to
+    // push, spawning duplicate Live Activities.
+    writeRoutes.delete("liveActivity") { req async throws -> HTTPStatus in
+        let body = try req.content.decode(DeregisterRequest.self)
+        let environment = resolveAPNSEnvironment(from: req)
+        let key = (environment == .sandbox ? "debug-APNS-" : "APNS-") + body.token
+        _ = try await req.kv.delete([key])
+        return .ok
     }
 
     //MARK: - livescore/sport
@@ -664,19 +700,40 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     //MARK: - Push-to-Start Registration
     writeRoutes.post("pushToStart", "register") { req async throws -> HTTPStatus in
         let registration = try req.content.decode(PushToStartRegistration.self)
-        let isDebug = req.application.environment == .development
-        let key = RedisEndpoint.pushToStart(registration.token).getValue(isDebug: isDebug).rawValue
+        let environment = resolveAPNSEnvironment(from: req)
+        let isSandbox = environment == .sandbox
+        let key = RedisEndpoint.pushToStart(registration.token).getValue(isDebug: isSandbox).rawValue
         try await req.kv.setJSON(key, value: registration.favorites, ttl: 60 * 60 * 24)
 
-        let eventsKey = RedisEndpoint.pushToStartEvents(registration.token).getValue(isDebug: isDebug).rawValue
+        let eventsKey = RedisEndpoint.pushToStartEvents(registration.token).getValue(isDebug: isSandbox).rawValue
         if let eventIDs = registration.eventIDs, !eventIDs.isEmpty {
             try await req.kv.setJSON(eventsKey, value: eventIDs, ttl: 60 * 60 * 24)
-            req.logger.info("Registered push-to-start token with \(registration.favorites.count) favorites, \(eventIDs.count) event IDs")
+            req.logger.info("Registered push-to-start token [\(environment.rawValue)] with \(registration.favorites.count) favorites, \(eventIDs.count) event IDs")
         } else {
             // Clear event IDs if none provided (user removed all auto-follows)
             _ = try? await req.kv.delete([eventsKey])
-            req.logger.info("Registered push-to-start token with \(registration.favorites.count) favorites")
+            req.logger.info("Registered push-to-start token [\(environment.rawValue)] with \(registration.favorites.count) favorites")
         }
+        return .ok
+    }
+
+    // Counterpart to the POST: clears every Redis key tied to this push-to-start
+    // token so the previous server stops considering this install a candidate.
+    // Wipes registration, event-IDs sidecar, and any per-event SentPushToStart
+    // dedup markers so a re-register on the same host fires fresh if needed.
+    writeRoutes.delete("pushToStart", "register") { req async throws -> HTTPStatus in
+        let body = try req.content.decode(DeregisterRequest.self)
+        let environment = resolveAPNSEnvironment(from: req)
+        let isSandbox = environment == .sandbox
+        let pushToStartKey = RedisEndpoint.pushToStart(body.token).getValue(isDebug: isSandbox).rawValue
+        let eventsKey = RedisEndpoint.pushToStartEvents(body.token).getValue(isDebug: isSandbox).rawValue
+        var keysToDelete = [pushToStartKey, eventsKey]
+        // SentPushToStart-{token}-{eventID} keys are per-event; scan to find them all.
+        let sentPattern = (isSandbox ? "debug-SentPushToStart-" : "SentPushToStart-") + body.token + "-*"
+        let sentKeys = (try? await req.kv.scanKeys(matching: sentPattern)) ?? []
+        keysToDelete.append(contentsOf: sentKeys)
+        let deleted = (try? await req.kv.delete(keysToDelete)) ?? 0
+        req.logger.info("Deregistered push-to-start token [\(environment.rawValue)] — removed \(deleted) keys (\(sentKeys.count) sent-markers)")
         return .ok
     }
 
