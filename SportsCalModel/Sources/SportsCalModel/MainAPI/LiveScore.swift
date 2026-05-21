@@ -375,6 +375,19 @@ public struct LiveScore: Codable, Equatable {
     public var racing: LiveEvent?
     public var f1Standings: F1Standings?
 
+    public func event(for sport: SportType) -> LiveEvent? {
+        switch sport {
+        case .basketball: return nba
+        case .mlb:        return mlb
+        case .soccer:     return soccer
+        case .nfl:        return nfl
+        case .hockey:     return nhl
+        case .golf:       return golf
+        case .tennis:     return tennis
+        case .racing:     return racing
+        }
+    }
+
     /// Merges two LiveScore objects, combining events per sport
     public func merging(with other: LiveScore?) -> LiveScore {
         guard let other else { return self }
