@@ -51,13 +51,71 @@ public class GameViewModel: NSObject {
     static let cacheSchemaVersion = 2
 
     /// Versioned base name for `Cache.saveToDisk(with:)` — no `.cache` suffix (it appends).
-    static func cacheStem(base: String) -> String {
+    /// `nonisolated` so background-task helpers (which run outside the main actor)
+    /// can build cache paths without hopping actors.
+    nonisolated static func cacheStem(base: String) -> String {
         "\(base)-v\(cacheSchemaVersion)"
     }
 
     /// Full filename including extension, used when reading directly or purging.
-    static func cacheFilename(base: String) -> String {
+    nonisolated static func cacheFilename(base: String) -> String {
         "\(cacheStem(base: base)).cache"
+    }
+
+    /// Snapshot of bundled baseline assets used when no on-disk cache exists yet.
+    /// Either side may be nil; callers handle each independently.
+    struct BundledBaseline {
+        let liveScore: LiveScore?
+        let teams: [Team]?
+    }
+
+    /// Loads bundled baseline JSON resources, if present in the app bundle. Both
+    /// `baseline-schedule.json` and `baseline-teams.json` are optional — first-launch
+    /// experience improves whenever a release ships with these resources baked in.
+    /// Generate fresh files at release-cut time via Scripts/refresh-baseline.sh.
+    static func loadBundledBaselineSnapshot() -> BundledBaseline? {
+        let bundle = Bundle.main
+        var liveScore: LiveScore?
+        var teams: [Team]?
+        if let url = bundle.url(forResource: "baseline-schedule", withExtension: "json"),
+           let data = try? Data(contentsOf: url) {
+            liveScore = try? NetworkHandler.sharedDecoder.decode(LiveScore.self, from: data)
+        }
+        if let url = bundle.url(forResource: "baseline-teams", withExtension: "json"),
+           let data = try? Data(contentsOf: url) {
+            teams = try? NetworkHandler.sharedDecoder.decode([Team].self, from: data)
+        }
+        if liveScore == nil && teams == nil { return nil }
+        return BundledBaseline(liveScore: liveScore, teams: teams)
+    }
+
+    /// Background-task-safe schedule + teams refresh. Hits the same endpoints the
+    /// foreground path uses, persists fresh `LiveScore` and `[Team]` snapshots to
+    /// the on-disk caches, and never touches `@Observable` state — so it's safe to
+    /// invoke from a `.backgroundTask(.appRefresh:)` handler where no view-model
+    /// instance is alive.
+    ///
+    /// On the next foreground launch, `init` reads these files at line ~556 and the
+    /// user sees today's schedule on the first frame, even after the app sat closed
+    /// for hours or days.
+    nonisolated static func refreshCachesInBackground() async {
+        do {
+            async let scheduleTask = NetworkHandler.handleCall()
+            async let teamsTask = NetworkHandler.getTeams()
+            let (snapshot, fetchedTeams) = try await (scheduleTask, teamsTask)
+
+            let games = Cache<String, LiveScore>()
+            games.insert(snapshot, for: "games")
+            try games.saveToDisk(with: cacheStem(base: "games"))
+
+            let teams = Cache<String, [Team]>()
+            teams.insert(fetchedTeams, for: "teams")
+            try teams.saveToDisk(with: cacheStem(base: "teams"))
+
+            AppLogger.networking.info("Background refresh: persisted \(fetchedTeams.count) teams + schedule snapshot")
+        } catch {
+            AppLogger.networking.error("Background refresh failed: \(error.localizedDescription)")
+        }
     }
 
     static func purgeLegacyCacheFiles() {
@@ -111,13 +169,28 @@ public class GameViewModel: NSObject {
     
     private var webSocketTask: URLSessionWebSocketTask?
     private var webSocketSession: URLSession?
+    /// Coalesces `updateLiveData()` invocations arriving within ~250 ms of each other.
+    /// During busy live windows several sports can each push within a few hundred ms,
+    /// and `updateLiveData()` does ~10 array recompositions per call; batching them
+    /// keeps the main thread free for scroll.
+    private var pendingLiveUpdate: Task<Void, Never>?
     private var gameCache: Cache<String, LiveScore>?
     private var teamCache: Cache<String, [Team]>?
     private var liveCache: Cache<String, LiveScore>?
     /// Cache for makeGameWithTeams() results, keyed by game ID
     private var gameWithTeamsCache: [String: GameWithTeams] = [:]
-    /// Cache for gamesWithTeams(for:) results, keyed by start-of-day Date
-    private var gamesWithTeamsDateCache: [Date: [GameWithTeams]] = [:]
+    /// Compound key for `gamesWithTeamsDateCache` so cached entries built under one
+    /// filter state survive when the user toggles to another and back. Filter-only
+    /// changes used to wipe every visible day's cached `[GameWithTeams]`.
+    private struct DateCacheKey: Hashable {
+        let date: Date
+        let filterHash: Int
+    }
+    /// Cache for gamesWithTeams(for:) results, keyed by (day, filterHash).
+    private var gamesWithTeamsDateCache: [DateCacheKey: [GameWithTeams]] = [:]
+    /// Snapshot of the current filter state's hash. Recomputed at each filterSports()
+    /// call; reads/writes against the date cache use this to scope entries.
+    private var currentFilterStateHash: Int = 0
     /// Whether a network fetch is currently in progress (visible to views for loading state).
     var isFetching: Bool { networkFetchTask != nil }
     private var networkFetchTask: Task<Void, Never>?
@@ -125,7 +198,7 @@ public class GameViewModel: NSObject {
     /// Tracks current network reachability so the WebSocket reconnect loop can pause
     /// while offline and resume immediately when the path comes back, instead of
     /// burning attempts against an unreachable host.
-    private nonisolated(unsafe) var pathMonitor: NWPathMonitor?
+    nonisolated(unsafe) private var pathMonitor: NWPathMonitor?
     private var hasNetworkPath: Bool = true
     
     var currentPushToStartToken: String?
@@ -167,6 +240,19 @@ public class GameViewModel: NSObject {
         if appStorage.debugMode {
             let elapsed = (CFAbsoluteTimeGetCurrent() - start) * 1000
             AppLogger.viewModel.debug("updateLiveData: \(String(format: "%.1f", elapsed))ms — live: \(computedLiveEvents.count), allLive: \(computedAllLiveEvents.count), today: \(computedTodayGames.count), todayFavs: \(computedTodayFavorites.count), sports: \(computedCurrentlyLiveSports.map(\.displayName))")
+        }
+    }
+
+    /// Debounced wrapper around `updateLiveData()`. A 250 ms window is short enough
+    /// that score updates still feel responsive (the next server tick lands well
+    /// within human reaction time) but long enough to collapse the 3–4 messages/sec
+    /// burst seen during multi-sport live windows.
+    private func scheduleLiveDataUpdate() {
+        pendingLiveUpdate?.cancel()
+        pendingLiveUpdate = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled else { return }
+            self?.updateLiveData()
         }
     }
 
@@ -521,9 +607,9 @@ public class GameViewModel: NSObject {
         var teamFileURL = folderURLs[0]
         teamFileURL.appendPathComponent(Self.cacheFilename(base: "teams"))
         do {
-            let data = try JSONDecoder().decode(Cache<String, LiveScore>.self, from: Data(contentsOf: gameFileURL))
+            let data = try NetworkHandler.sharedDecoder.decode(Cache<String, LiveScore>.self, from: Data(contentsOf: gameFileURL))
             self.gameCache = data
-            let teamData = try JSONDecoder().decode(Cache<String, [Team]>.self, from: Data(contentsOf: teamFileURL))
+            let teamData = try NetworkHandler.sharedDecoder.decode(Cache<String, [Team]>.self, from: Data(contentsOf: teamFileURL))
             self.teamCache = teamData
         } catch let error {
             self.gameCache = Cache<String, LiveScore>()
@@ -550,6 +636,19 @@ public class GameViewModel: NSObject {
         if let cacheTeams = teamCache?.value(for: "teams") {
             self.teams = cacheTeams
             buildTeamLookupCaches()
+        }
+        // First-launch fallback: if no disk cache exists yet, fall through to a
+        // bundled baseline snapshot so the very first app open still shows games
+        // instead of a spinner. Stale-by-design — getInfo() refreshes within seconds.
+        if !hasCachedData, let bundled = Self.loadBundledBaselineSnapshot() {
+            if let teams = bundled.teams, !teams.isEmpty {
+                self.teams = teams
+                buildTeamLookupCaches()
+            }
+            if let liveScore = bundled.liveScore {
+                setGames(result: liveScore)
+                hasCachedData = true
+            }
         }
         // If we loaded cached games, show them immediately instead of a loading spinner
         if hasCachedData {
@@ -593,28 +692,66 @@ public class GameViewModel: NSObject {
     }
 
     /// Listens for `.serverEnvironmentDidChange` and, on a switch, drops
-    /// live/schedule caches, reconnects the WebSocket, and re-registers every
-    /// push-to-start and Live Activity token against the new server.
+    /// live/schedule caches, reconnects the WebSocket, deregisters every
+    /// push-to-start and Live Activity token against the **previous** host,
+    /// and then re-registers against the new one.
+    ///
+    /// The deregister-before-register order is what stops duplicate Live
+    /// Activities: without it, both servers' Redis instances retain the same
+    /// install's registrations until TTL expiry, and each independently fires
+    /// push-to-start when a favorited team next goes live.
     private func observeServerEnvironmentChanges() {
         NotificationCenter.default.addObserver(
             forName: .serverEnvironmentDidChange,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
             guard let self else { return }
-            AppLogger.networking.info("Server environment changed → \(NetworkHandler.resolvedEnvironment.rawValue); re-fetching and re-registering")
+            let previousBaseURL = notification.userInfo?["previousBaseURL"] as? String
+            AppLogger.networking.info("Server environment changed → \(NetworkHandler.resolvedEnvironment.rawValue); re-fetching and re-registering (previous: \(previousBaseURL ?? "—"))")
             // Drop WebSocket so it reconnects against the new host.
             self.webSocketTask?.cancel()
             self.webSocketTask = nil
             self.getInfo(backgroundRefresh: false)
             #if canImport(ActivityKit) && os(iOS)
             Task { @MainActor in
+                if let previousBaseURL {
+                    await self.deregisterTokens(against: previousBaseURL)
+                }
                 self.sendPushToStartRegistration()
                 await self.reRegisterAllLiveActivities()
             }
             #endif
         }
     }
+
+    #if canImport(ActivityKit) && os(iOS)
+    /// Best-effort cleanup against the host we just left. Failures are logged
+    /// (the previous host may be unreachable — e.g. Mac asleep, Tailscale off)
+    /// but never block re-registration on the new host. Server TTLs are the
+    /// fallback if the deregister never reaches the previous server.
+    @MainActor
+    private func deregisterTokens(against previousBaseURL: String) async {
+        if let pts = currentPushToStartToken {
+            do {
+                try await NetworkHandler.deregisterPushToStart(token: pts, previousBaseURL: previousBaseURL)
+                AppLogger.liveActivity.info("Deregistered push-to-start token against \(previousBaseURL)")
+            } catch {
+                AppLogger.liveActivity.notice("Push-to-start deregister failed against \(previousBaseURL): \(error.localizedDescription)")
+            }
+        }
+        for activity in Activity<LiveSportActivityAttributes>.activities {
+            guard let tokenData = activity.pushToken else { continue }
+            let tokenString = tokenData.map { String(format: "%02x", $0) }.joined()
+            do {
+                try await NetworkHandler.deregisterLiveActivity(token: tokenString, previousBaseURL: previousBaseURL)
+                AppLogger.liveActivity.info("Deregistered activity token \(tokenString.prefix(12))... against \(previousBaseURL)")
+            } catch {
+                AppLogger.liveActivity.notice("Activity deregister failed against \(previousBaseURL): \(error.localizedDescription)")
+            }
+        }
+    }
+    #endif
 
     /// Re-posts each active Live Activity's push token to the newly-resolved server.
     /// Gaps until the next update cycle are acceptable — this is a developer tool.
@@ -815,33 +952,98 @@ public class GameViewModel: NSObject {
     }
     
     fileprivate func handleGames() async throws {
-        let groupResult = try await withThrowingTaskGroup(of: [SportType: LiveEvent].self) { group in
-            var events: [SportType: LiveEvent] = [:]
-            // Fetch all sports so the calendar can show everything
-            for sport in SportType.allCases {
-                if shouldAddTask(sport: sport) {
-                    AppLogger.networking.info("Requesting schedule for \(sport.displayName)")
-                    group.addTask {
-                        do {
-                            return [sport: try await NetworkHandler.getScheduleFor(sport: sport)]
-                        } catch {
-                            AppLogger.networking.error("Failed to fetch schedule for \(sport.displayName): \(error.localizedDescription)")
-                            return [:]
-                        }
-                    }
-                }
-            }
-            for try await schedule in group {
-                events.merge(schedule) { liveEvent1, liveEvent2 in
-                    liveEvent2
-                }
-            }
-            return LiveScore(nba: events[.basketball] ?? nil, mlb: events[.mlb] ?? nil, soccer: events[.soccer] ?? nil, nfl: events[.nfl] ?? nil, nhl: events[.hockey] ?? nil, golf: events[.golf] ?? nil, tennis: events[.tennis] ?? nil, racing: events[.racing] ?? nil)
-        }
-        
-        gameCache?.insert(groupResult, for: "games")
+        // Single aggregated fetch — server already returns the full LiveScore from one
+        // Redis-cached endpoint, so per-sport fan-out was redundant.
+        // NetworkHandler.handleCall is nonisolated, so the network + JSONDecoder run on
+        // the cooperative thread pool, not main.
+        AppLogger.networking.info("Requesting full schedule snapshot")
+        let snapshot = try await NetworkHandler.handleCall()
+
+        await applySnapshotIncrementally(snapshot)
+
+        gameCache?.insert(snapshot, for: "games")
         try gameCache?.saveToDisk(with: Self.cacheStem(base: "games"))
-        setGames(result: groupResult, skipLiveUpdate: true)
+    }
+
+    /// Order sports for incremental reveal: sports the user has favorites in render first,
+    /// then user-enabled sports, then disabled sports (still loaded so the calendar has data).
+    /// Favorite-sport detection scans the snapshot once — fast because we're walking arrays
+    /// we just decoded.
+    private func prioritizedSports(in snapshot: LiveScore) -> [SportType] {
+        let favoriteNames = favorites.teams
+        var favoriteSports: Set<SportType> = []
+        if !favoriteNames.isEmpty {
+            for sport in SportType.allCases {
+                guard let events = snapshot.event(for: sport)?.events else { continue }
+                let hasFavorite = events.contains { game in
+                    favoriteNames.contains(game.strHomeTeam) || favoriteNames.contains(game.strAwayTeam)
+                }
+                if hasFavorite { favoriteSports.insert(sport) }
+            }
+        }
+        let allCases = SportType.allCases
+        let withFav = allCases.filter { favoriteSports.contains($0) }
+        let enabled = allCases.filter { shouldAddTask(sport: $0) && !favoriteSports.contains($0) }
+        let disabled = allCases.filter { !shouldAddTask(sport: $0) && !favoriteSports.contains($0) }
+        return withFav + enabled + disabled
+    }
+
+    /// Reveals the freshly-fetched snapshot one sport at a time so SwiftUI can paint
+    /// favorites within the first frame after the response lands. Each iteration runs
+    /// a per-sport mutation, then yields so the run-loop commits a frame before the
+    /// next slice starts. A final filterSports(force:true) reconcile guarantees
+    /// end-state consistency with the legacy single-shot setGames path.
+    @MainActor
+    private func applySnapshotIncrementally(_ snapshot: LiveScore) async {
+        let order = prioritizedSports(in: snapshot)
+
+        // Reset team-resolution caches up front so per-slice GameWithTeams lookups
+        // pick up the new state immediately.
+        gameWithTeamsCache.removeAll()
+        gamesWithTeamsDateCache.removeAll()
+
+        var accumulated: [Game] = []
+        var firstSliceRendered = false
+
+        for sport in order {
+            let sportGames = snapshot.event(for: sport)?.events ?? []
+            accumulated.append(contentsOf: sportGames)
+            gamesDict[sport] = sportGames
+            totalGames = accumulated
+
+            // Recompute filteredGames + calendarGames against the growing gamesDict.
+            // Cheap because gamesDict is a per-sport map and getGamesFromUserPreferences
+            // already operates on it.
+            filteredGames = filterAndSortGamesFromUserPreferences(games: getGamesFromUserPreferences())
+            let allValidGames = (totalGames ?? []).filter { game in
+                guard let leagueString = game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let league = Leagues(rawValue: intLeague) else { return false }
+                if league.isSoccer {
+                    return !appStorage.hiddenCompetitions.contains(league.leagueName)
+                }
+                return true
+            }
+            calendarGames = allValidGames.sorted { ($0.standardDate ?? .now) < ($1.standardDate ?? .now) }
+
+            // F1 standings ride along with the racing slice
+            if sport == .racing, let standings = snapshot.f1Standings {
+                f1Standings = standings
+            }
+
+            if !firstSliceRendered {
+                networkState = .loaded
+                firstSliceRendered = true
+            }
+
+            // Let SwiftUI commit a frame before we move to the next sport.
+            await Task.yield()
+        }
+
+        // Final reconcile: rebuilds sport-counts cache, runs handleSearch / sortByDate /
+        // setFavorites / updateLiveData / widget snapshot / Spotlight indexing / intent
+        // donation. skipLiveUpdate=false so live-event-with-teams views see fresh data.
+        filterSports(force: true, skipLiveUpdate: false)
     }
     
     @objc
@@ -892,19 +1094,27 @@ public class GameViewModel: NSObject {
             switch webSocketMessage {
             case .string(let jsonString):
                 if let jsonData = jsonString.data(using: .utf8) {
-                    var newLiveInfo = try JSONDecoder().decode(LiveScore.self, from: jsonData)
+                    // Decode off-main via a child Task (inherits priority + cancellation,
+                    // unlike Task.detached). 1-2 MB LiveScore decodes ran on main before;
+                    // pushed every 5s during live games it was visibly stuttering scrolls.
+                    var newLiveInfo = try await Task(priority: .userInitiated) {
+                        try NetworkHandler.sharedDecoder.decode(LiveScore.self, from: jsonData)
+                    }.value
                     // Merge live scores (including completed games) into schedule before filtering
                     mergeLiveIntoSchedule(newLiveInfo)
                     newLiveInfo.removeNonStarting()
                     newLiveInfo.removeOtherInfo()
-                    withAnimation {
-                        if let currentLiveInfo = currentLiveInfo, currentLiveInfo != newLiveInfo {
-                            self.currentLiveInfo = newLiveInfo
-                        } else if currentLiveInfo == nil {
-                            self.currentLiveInfo = newLiveInfo
-                        }
-                        updateLiveData()
+                    // No withAnimation: this fires every ~5s during live games and used to
+                    // bundle all 10 batch-assigned @Observable mutations into a single SwiftUI
+                    // animation transaction, re-evaluating observer bodies mid-scroll and
+                    // visibly stuttering the list. Score-text updates don't visibly animate
+                    // inside List rows; @Observable still propagates the changes without it.
+                    if let currentLiveInfo = currentLiveInfo, currentLiveInfo != newLiveInfo {
+                        self.currentLiveInfo = newLiveInfo
+                    } else if currentLiveInfo == nil {
+                        self.currentLiveInfo = newLiveInfo
                     }
+                    scheduleLiveDataUpdate()
                     #if canImport(ActivityKit) && os(iOS)
                     Task { @MainActor in
                         try await updateLiveActivities()
@@ -945,14 +1155,24 @@ public class GameViewModel: NSObject {
         var changed = false
         for i in games.indices {
             let scheduled = games[i]
-            // Match by event ID first (reliable for F1/golf/tennis where team names change)
-            // Fall back to team names for backwards compatibility
+            // Match by event ID first (reliable for F1/golf/tennis where team names change).
+            // If scheduled has an idEvent but no live counterpart matches it, do NOT fall back
+            // to team-name matching: two games with the same matchup on different dates (e.g.
+            // today's completed Avs/Wild vs. Tuesday's scheduled Avs/Wild) would otherwise
+            // collide and overwrite the scheduled row with the wrong day's score.
             let live: Game
-            if let eventID = scheduled.idEvent, let match = liveByEventID[eventID] {
+            if let eventID = scheduled.idEvent {
+                guard let match = liveByEventID[eventID] else { continue }
                 live = match
             } else {
                 let key = "\(scheduled.strHomeTeam.lowercased())|\(scheduled.strAwayTeam.lowercased())|\(scheduled.idLeague ?? "")"
                 guard let match = liveByTeams[key] else { continue }
+                // Defense in depth: only merge if both games fall on the same calendar day.
+                if let scheduledDate = scheduled.standardDate,
+                   let liveDate = match.standardDate,
+                   !Calendar.current.isDate(scheduledDate, inSameDayAs: liveDate) {
+                    continue
+                }
                 live = match
             }
 
@@ -1107,8 +1327,18 @@ public class GameViewModel: NSObject {
     }
 
     private func applyFavoritesFilter(_ games: [Game], favoritesOnly: Bool) -> [Game] {
-        guard favoritesOnly else { return games }
-        return games.filter { favorites.matches($0) }
+        if favoritesOnly {
+            return games.filter { favorites.matches($0) }
+        }
+        let perLeague = appStorage.favoritesOnlyCompetitions
+        guard !perLeague.isEmpty else { return games }
+        return games.filter { game in
+            guard let leagueString = game.idLeague,
+                  let intLeague = Int(leagueString),
+                  let league = Leagues(rawValue: intLeague),
+                  perLeague.contains(league.leagueName) else { return true }
+            return favorites.matches(game)
+        }
     }
     
     func showGame(game: Game) -> Bool {
@@ -1256,9 +1486,43 @@ public class GameViewModel: NSObject {
         }
     }
     
+    /// Hash of every filter knob that affects which games getGamesFromUserPreferences()
+    /// returns. Used to scope `gamesWithTeamsDateCache` so cached `[GameWithTeams]`
+    /// entries built under one filter state survive when the user toggles a sport
+    /// filter and back.
+    private func computeFilterStateHash() -> Int {
+        var hasher = Hasher()
+        hasher.combine(appStorage.shouldShowSoccer)
+        hasher.combine(appStorage.shouldShowMLB)
+        hasher.combine(appStorage.shouldShowNBA)
+        hasher.combine(appStorage.shouldShowWNBA)
+        hasher.combine(appStorage.shouldShowNFL)
+        hasher.combine(appStorage.shouldShowNHL)
+        hasher.combine(appStorage.shouldShowGolf)
+        hasher.combine(appStorage.shouldShowTennis)
+        hasher.combine(appStorage.shouldShowRacing)
+        hasher.combine(appStorage.favoritesOnlyNBA)
+        hasher.combine(appStorage.favoritesOnlyNFL)
+        hasher.combine(appStorage.favoritesOnlyNHL)
+        hasher.combine(appStorage.favoritesOnlySoccer)
+        hasher.combine(appStorage.favoritesOnlyMLB)
+        hasher.combine(appStorage.favoritesOnlyGolf)
+        hasher.combine(appStorage.favoritesOnlyTennis)
+        hasher.combine(appStorage.favoritesOnlyRacing)
+        for comp in appStorage.hiddenCompetitions { hasher.combine(comp) }
+        for team in favorites.teams { hasher.combine(team) }
+        return hasher.finalize()
+    }
+
     func filterSports(searchString: String? = nil, force: Bool = false, skipLiveUpdate: Bool = false) {
-        // Invalidate date-keyed cache since filtered games are changing
-        gamesWithTeamsDateCache.removeAll()
+        // Refresh filter-state hash so subsequent reads/writes use the right scope.
+        currentFilterStateHash = computeFilterStateHash()
+        // Only purge the entire date cache when the underlying games actually changed
+        // (force == true). Filter-only changes don't need to wipe — entries built under
+        // the previous filter hash become unreachable but remain valid if the user toggles back.
+        if force {
+            gamesWithTeamsDateCache.removeAll()
+        }
 
         if appStorage.debugMode {
             AppLogger.viewModel.debug("Sports filter changed — NFL:\(self.appStorage.shouldShowNFL) NBA:\(self.appStorage.shouldShowNBA) NHL:\(self.appStorage.shouldShowNHL) Soccer:\(self.appStorage.shouldShowSoccer) MLB:\(self.appStorage.shouldShowMLB) Golf:\(self.appStorage.shouldShowGolf) Tennis:\(self.appStorage.shouldShowTennis) Racing:\(self.appStorage.shouldShowRacing)")
@@ -1421,7 +1685,8 @@ public class GameViewModel: NSObject {
         AppLogger.viewModel.info("Teams loaded: \(self.teams.count), teamsDict entries: \(self.teamsDict.count)")
 
         // Populate gamesWithTeams date cache as a byproduct of sortByDate
-        // This uses ALL user-pref games (not limited), keyed by start-of-day
+        // This uses ALL user-pref games (not limited), keyed by (start-of-day, filterHash)
+        // so toggling sport filters doesn't wipe entries built under other filter states.
         var dateCache: [Date: [GameWithTeams]] = [:]
         let calendar = Calendar.current
         let userPrefGames = getGamesFromUserPreferences()
@@ -1436,7 +1701,12 @@ public class GameViewModel: NSObject {
         for (key, games) in dateCache {
             dateCache[key] = games.sorted { ($0.game.standardDate ?? .distantPast) < ($1.game.standardDate ?? .distantPast) }
         }
-        gamesWithTeamsDateCache = dateCache
+        // Replace entries for the current filter hash; entries under other hashes survive.
+        let hash = currentFilterStateHash
+        gamesWithTeamsDateCache = gamesWithTeamsDateCache.filter { $0.key.filterHash != hash }
+        for (day, games) in dateCache {
+            gamesWithTeamsDateCache[DateCacheKey(date: day, filterHash: hash)] = games
+        }
 
         withAnimation {
             sortedGames = limitedSorted
@@ -1462,9 +1732,10 @@ public class GameViewModel: NSObject {
     func gamesWithTeams(for date: Date) -> [GameWithTeams] {
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: date)
+        let key = DateCacheKey(date: start, filterHash: currentFilterStateHash)
 
         // Check date cache first (populated by sortByDate)
-        if let cached = gamesWithTeamsDateCache[start] {
+        if let cached = gamesWithTeamsDateCache[key] {
             return cached
         }
 
@@ -1478,7 +1749,7 @@ public class GameViewModel: NSObject {
             }
             .sorted { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
             .compactMap { makeGameWithTeams($0) }
-        gamesWithTeamsDateCache[start] = result
+        gamesWithTeamsDateCache[key] = result
         return result
     }
 
@@ -1848,8 +2119,15 @@ extension GameViewModel: @preconcurrency URLSessionWebSocketDelegate {
 #if canImport(ActivityKit) && os(iOS)
 extension GameViewModel {
     func configureDataForLiveActivity(game: Game, homeTeam: Team, awayTeam: Team) async throws -> (attributes: LiveSportActivityAttributes, contentState: LiveSportActivityAttributes.ContentState) {
-        guard let homeTeamName = homeTeam.strTeamShort ?? homeTeam.strTeam,
-              let awayTeamName = awayTeam.strTeamShort ?? awayTeam.strTeam else { throw ModelErrors.unknownTeam(game) }
+        // Prefer the full team name over the short code. Short codes collide across
+        // sports (both Philadelphia 76ers and Philadelphia Flyers use "PHI"), and the
+        // widget reads the badge file by exact filename — so an activity attributed
+        // as "PHI" will pick up whichever Philly team's badge was cached last. Full
+        // team names like "Philadelphia Flyers" are unique and disambiguate cleanly.
+        guard let homeTeamName = homeTeam.strTeam ?? homeTeam.strTeamShort,
+              let awayTeamName = awayTeam.strTeam ?? awayTeam.strTeamShort else { throw ModelErrors.unknownTeam(game) }
+        let homeShort = homeTeam.strTeamShort
+        let awayShort = awayTeam.strTeamShort
 
         // Download and cache badge images independently (don't require both to succeed)
         if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") {
@@ -1863,15 +2141,43 @@ extension GameViewModel {
         }
 
         let initialContentState = LiveSportActivityAttributes.ContentState(homeScore: Int(game.intHomeScore ?? "") ?? 0, awayScore: Int(game.intAwayScore ?? "") ?? 0, status: game.strStatus, progress: game.strProgress, lastPlay: nil)
-        let activityAttributes = LiveSportActivityAttributes(homeTeam: homeTeamName, awayTeam: awayTeamName, eventID: game.idEvent ?? "")
+        let activityAttributes = LiveSportActivityAttributes(
+            homeTeam: homeTeamName,
+            awayTeam: awayTeamName,
+            eventID: game.idEvent ?? "",
+            homeTeamShort: homeShort,
+            awayTeamShort: awayShort
+        )
         return (activityAttributes, initialContentState)
     }
     func requestActivity(game: Game, homeTeam: Team, awayTeam: Team) {
         Task { @MainActor in
             do {
                 let (activityAttributes, initialContentState) = try await configureDataForLiveActivity(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
-                let activity: Activity<LiveSportActivityAttributes>
-                activity = try Activity.request(attributes: activityAttributes, contentState: initialContentState, pushType: .token)
+                // Use the modern ActivityContent API. relevanceScore matters when multiple
+                // activities are alive — iOS picks the highest-scored one for compact and
+                // surfaces others as minimal pills. Apple's WWDC samples use small values
+                // (e.g. 50, 100); the elapsed-seconds approach I tried earlier was orders
+                // of magnitude larger and may have been ignored or clamped.
+                //
+                // Use the game's start time to differentiate: more recently started ⇒
+                // higher relevance ⇒ promoted to compact, with the older one as minimal.
+                let staleDate = Date().addingTimeInterval(60 * 60 * 8) // 8h iOS max
+                let gameStart = game.standardDate ?? Date()
+                let elapsedMinutes = max(0, Date().timeIntervalSince(gameStart) / 60)
+                // Score in 0...100, decaying with elapsed minutes. A just-started game
+                // scores 100; one that's been live for 100+ minutes scores 0.
+                let relevance = max(0, 100 - elapsedMinutes)
+                let content = ActivityContent(
+                    state: initialContentState,
+                    staleDate: staleDate,
+                    relevanceScore: relevance
+                )
+                let activity = try Activity.request(
+                    attributes: activityAttributes,
+                    content: content,
+                    pushType: .token
+                )
 
                 if appStorage.debugMode {
                     AutoFollowLogger.shared.log("Live activity started, observing push token updates...", level: .success)
@@ -1930,7 +2236,40 @@ extension GameViewModel {
             observePushTokenUpdates(for: activity)
             // Backfill badges for activities started via push-to-start, where the opponent
             // may not have been a favorite and thus never cached.
-            cacheBadgesForActivity(homeTeam: activity.attributes.homeTeam, awayTeam: activity.attributes.awayTeam)
+            cacheBadgesForActivity(
+                eventID: activity.attributes.eventID,
+                homeTeam: activity.attributes.homeTeam,
+                awayTeam: activity.attributes.awayTeam
+            )
+        }
+    }
+
+    /// Long-running observer that hands every newly-spawned Live Activity off to
+    /// `observePushTokenUpdates` for token registration. Critical for the
+    /// background-launch case: when a push-to-start arrives, iOS wakes the app
+    /// process and creates the Activity, but the user never foregrounds. Without
+    /// this listener, the per-activity push token would only be POSTed to the
+    /// server once the user opened the app, and the activity would sit at its
+    /// initial state with no updates until then.
+    ///
+    /// Called once from `SportsCalApp.init()` so the subscription is alive
+    /// before iOS creates the push-to-start activity. The Task lives for the
+    /// whole process lifetime; iOS will stop scheduling us once the activity
+    /// stream is idle and the background-launch budget runs out.
+    func startActivityUpdatesListener() {
+        AppLogger.liveActivity.info("Starting Activity<>.activityUpdates listener for background push-to-start handling")
+        Task.detached(priority: .userInitiated) { [weak self] in
+            for await activity in Activity<LiveSportActivityAttributes>.activityUpdates {
+                AppLogger.liveActivity.info("[activityUpdates] new activity for event \(activity.attributes.eventID) — observing push token")
+                await MainActor.run {
+                    self?.observePushTokenUpdates(for: activity)
+                    self?.cacheBadgesForActivity(
+                        eventID: activity.attributes.eventID,
+                        homeTeam: activity.attributes.homeTeam,
+                        awayTeam: activity.attributes.awayTeam
+                    )
+                }
+            }
         }
     }
 
@@ -1961,14 +2300,52 @@ extension GameViewModel {
         }
     }
 
-    /// Resolves `homeTeam`/`awayTeam` attribute strings (which may be full or short names) back
-    /// to `Team` objects so their badges can be cached.
-    private func cacheBadgesForActivity(homeTeam: String, awayTeam: String) {
+    /// Resolves `homeTeam`/`awayTeam` attribute strings back to `Team` objects so their
+    /// badges can be cached.
+    ///
+    /// Prefers eventID-based resolution: looking the game up by `eventID` and using its
+    /// `getTeams(for:)` result eliminates the "Philly" ambiguity — a name lookup of "Philly"
+    /// could resolve to either the 76ers or the Flyers (whichever was indexed last), but the
+    /// game's own team IDs are unambiguous. Falls back to name lookup only when the activity's
+    /// eventID isn't in our current data set (e.g., a stale activity from a previous app run).
+    ///
+    /// Also writes a copy of the badge under the literal attribute string. The widget reads
+    /// the badge file by exact filename (`attributes.awayTeam`), so if the activity was
+    /// started with a name that isn't `strTeam`/`strTeamShort`, the literal-name copy
+    /// ensures the widget still finds an image instead of falling back to initials.
+    private func cacheBadgesForActivity(eventID: String, homeTeam: String, awayTeam: String) {
         Task {
             guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") else { return }
+
+            // Prefer eventID-based resolution — sport context disambiguates short names.
+            let allGames = (totalGames ?? []) + allLiveEvents
+            if !eventID.isEmpty,
+               let game = allGames.first(where: { $0.idEvent == eventID }),
+               let (resolvedHome, resolvedAway) = getTeams(for: game) {
+                await Self.writeBadge(name: homeTeam, team: resolvedHome, containerURL: containerURL)
+                await Self.writeBadge(name: awayTeam, team: resolvedAway, containerURL: containerURL)
+                return
+            }
+
+            // Fallback: name lookup. Ambiguous for shared shorthand like "Philly", but
+            // better than no badge at all.
             for name in [homeTeam, awayTeam] {
                 guard let team = teamByName[name] ?? teamsDictName[name]?.first else { continue }
-                await Self.downloadAndCacheBadge(team: team, containerURL: containerURL)
+                await Self.writeBadge(name: name, team: team, containerURL: containerURL)
+            }
+        }
+    }
+
+    /// Writes the team's badge under its canonical names AND a literal copy at `name`,
+    /// covering the case where the activity attribute string isn't a canonical name.
+    private static func writeBadge(name: String, team: Team, containerURL: URL) async {
+        await downloadAndCacheBadge(team: team, containerURL: containerURL)
+        let literalURL = containerURL.appendingPathComponent(name)
+        if !FileManager.default.fileExists(atPath: literalURL.path),
+           let canonicalName = team.strTeam ?? team.strTeamShort {
+            let canonicalURL = containerURL.appendingPathComponent(canonicalName)
+            if let data = try? Data(contentsOf: canonicalURL) {
+                try? data.write(to: literalURL)
             }
         }
     }
@@ -2082,6 +2459,35 @@ extension GameViewModel {
         }
     }
 
+    /// One-shot purge of every top-level file in the App Group container. Earlier
+    /// versions of `downloadAndCacheBadge` wrote each team's badge under every
+    /// alternate name, which caused cross-team file collisions on shared shorthand
+    /// like "Philly", "PHI", or "NY" — whichever team was cached last won. Existing
+    /// installs still have those polluted files on disk; this purges them once so
+    /// the new canonical-name-only caching can rewrite cleanly. Self-disables via
+    /// the `badgePurgeV3` UserDefaults flag.
+    static func purgeStaleAppGroupBadgesIfNeeded() {
+        let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
+        guard defaults?.bool(forKey: "badgePurgeV3") != true else { return }
+        if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") {
+            let fm = FileManager.default
+            if let contents = try? fm.contentsOfDirectory(
+                at: containerURL,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) {
+                for url in contents {
+                    let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+                    if !isDirectory {
+                        try? fm.removeItem(at: url)
+                    }
+                }
+            }
+        }
+        defaults?.set(true, forKey: "badgePurgeV3")
+        AppLogger.liveActivity.info("Purged stale App Group badge files (one-shot v3)")
+    }
+
     /// Pre-caches badge images for all favorite teams to the app group container.
     func preCacheFavoriteTeamBadges() {
         guard !favorites.teams.isEmpty else { return }
@@ -2089,9 +2495,14 @@ extension GameViewModel {
         Task {
             guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") else { return }
 
-            for teamName in favorites.teams {
-                guard let team = teamByName[teamName] else { continue }
-                await Self.downloadAndCacheBadge(team: team, containerURL: containerURL)
+            // Resolve teams on the main actor before fanning out — teamByName is main-isolated.
+            let teams = favorites.teams.compactMap { teamByName[$0] }
+            await withTaskGroup(of: Void.self) { group in
+                for team in teams {
+                    group.addTask {
+                        await Self.downloadAndCacheBadge(team: team, containerURL: containerURL)
+                    }
+                }
             }
         }
     }
@@ -2101,6 +2512,14 @@ extension GameViewModel {
     /// use full team names while locally-started activities use short names — caching under both
     /// ensures the widget finds the badge regardless of which path started the activity.
     static func downloadAndCacheBadge(team: Team, containerURL: URL) async {
+        // Only cache under canonical names (`strTeamShort`, `strTeam`). Alternates
+        // get shared between teams — e.g., both "Philadelphia 76ers" and
+        // "Philadelphia Flyers" list "Philly" as an alternate, so writing under
+        // alternates causes the second-cached team to overwrite the first and the
+        // wrong logo shows up in the widget. The activity-side path
+        // (`cacheBadgesForActivity`) writes a per-activity literal-name copy when
+        // the attribute string isn't canonical, which preserves Brighton-style
+        // recovery without the cross-sport collision.
         let fileNames = Set([team.strTeamShort, team.strTeam].compactMap { $0 }.filter { !$0.isEmpty })
         guard !fileNames.isEmpty else { return }
 

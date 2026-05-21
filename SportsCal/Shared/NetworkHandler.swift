@@ -126,6 +126,12 @@ final class APIVersionChecker {
 
 struct NetworkHandler {
 
+    /// Shared `JSONDecoder` instance reused across every decode in this file.
+    /// `JSONDecoder` is documented thread-safe for concurrent `decode` calls once
+    /// configured; allocating a fresh one per request was pointless overhead that
+    /// added up on the 27 MB /schedules cold path.
+    nonisolated(unsafe) static let sharedDecoder = JSONDecoder()
+
     // MARK: - Environment state
 
     /// App-group suite used to mirror the resolved environment for widgets.
@@ -159,11 +165,21 @@ struct NetworkHandler {
         }
         set {
             let toStore = newValue == .auto ? ServerEnvironment.prod : newValue
+            // Capture the *current* host before mutating so we can deregister
+            // tokens against the host we're about to leave. baseURL() depends on
+            // resolvedEnvironment (and on localServerHost for `.local`), so it
+            // must be read before the UserDefaults write.
+            let previousBaseURL = baseURL()
             let previous = resolvedEnvironment
             UserDefaults(suiteName: appGroupSuite)?.set(toStore.rawValue, forKey: resolvedEnvKey)
             UserDefaults.standard.set(toStore.rawValue, forKey: resolvedEnvKey)
             if previous != toStore {
-                NotificationCenter.default.post(name: .serverEnvironmentDidChange, object: toStore)
+                let userInfo: [String: Any] = [
+                    "previousBaseURL": previousBaseURL,
+                    "previousEnv": previous.rawValue,
+                    "newEnv": toStore.rawValue,
+                ]
+                NotificationCenter.default.post(name: .serverEnvironmentDidChange, object: toStore, userInfo: userInfo)
             }
         }
     }
@@ -273,7 +289,7 @@ struct NetworkHandler {
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
-        let decoder = JSONDecoder()
+        let decoder = Self.sharedDecoder
         return try decoder.decode(LiveScore.self, from: data)
     }
 
@@ -284,7 +300,7 @@ struct NetworkHandler {
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
-        let decoder = JSONDecoder()
+        let decoder = Self.sharedDecoder
         return try decoder.decode(LiveEvent.self, from: data)
     }
 
@@ -310,7 +326,7 @@ struct NetworkHandler {
             AppLogger.widget.info("[widgetFetch] response \(httpResponse.statusCode), \(data.count) bytes")
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
-        let decoded = try JSONDecoder().decode(WidgetResponse.self, from: data)
+        let decoded = try Self.sharedDecoder.decode(WidgetResponse.self, from: data)
         AppLogger.widget.info("[widgetFetch] decoded \(decoded.games.count) games, \(decoded.teams.count) teams")
         return (decoded.games, decoded.teams)
     }
@@ -349,7 +365,7 @@ struct NetworkHandler {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
             if httpResponse.statusCode == 404 { throw PlayByPlayNotAvailable() }
         }
-        let decoder = JSONDecoder()
+        let decoder = Self.sharedDecoder
         return try decoder.decode(CachedPlays.self, from: data)
     }
 
@@ -360,7 +376,7 @@ struct NetworkHandler {
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
-        let decoder = JSONDecoder()
+        let decoder = Self.sharedDecoder
         return try decoder.decode([Team].self, from: data)
     }
 
@@ -376,7 +392,7 @@ struct NetworkHandler {
             if let httpResponse = response as? HTTPURLResponse {
                 APIVersionChecker.shared.checkVersion(from: httpResponse)
             }
-            let decoder = JSONDecoder()
+            let decoder = Self.sharedDecoder
             realLiveScore = try decoder.decode(LiveScore.self, from: data)
         } catch {
             if !isMockLive { throw error }
@@ -419,17 +435,56 @@ struct NetworkHandler {
     }
 
     static func subscribeToLiveActivityUpdate(token: String, eventID: String, homeTeam: String? = nil, awayTeam: String? = nil) async throws {
-        var components = URLComponents(string: "\(baseURL())/liveActivity/\(token)/\(eventID)")!
-        // Include team names so the server can match by name when event IDs differ
-        var queryItems: [URLQueryItem] = []
-        if let homeTeam { queryItems.append(URLQueryItem(name: "home", value: homeTeam)) }
-        if let awayTeam { queryItems.append(URLQueryItem(name: "away", value: awayTeam)) }
-        if !queryItems.isEmpty { components.queryItems = queryItems }
-        let url = components.url!
-        let (_, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let url = URL(string: "\(baseURL())/liveActivity")!
+        var request = authenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Token + APNS-env hint travel in the body and a custom header,
+        // respectively, instead of in the URL — keeps both out of access logs.
+        request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+        var body: [String: Any] = ["token": token, "eventID": eventID]
+        if let homeTeam { body["homeTeam"] = homeTeam }
+        if let awayTeam { body["awayTeam"] = awayTeam }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (_, response) = try await URLSession.shared.data(for: request)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
+    }
+
+    /// DELETE companion to `subscribeToLiveActivityUpdate`. Posts to an explicit
+    /// `previousBaseURL` (carried in the `.serverEnvironmentDidChange` userInfo)
+    /// so the env-flip handler can target the host the device just left, even
+    /// though `resolvedEnvironment` already points at the new one. Failure is
+    /// non-fatal — the previous host may be unreachable (e.g. Mac asleep), and
+    /// the server-side TTL eventually frees the key.
+    static func deregisterLiveActivity(token: String, previousBaseURL: String) async throws {
+        guard let url = URL(string: "\(previousBaseURL)/liveActivity") else { return }
+        var request = authenticatedRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+        let body: [String: Any] = ["token": token]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        // Short timeout so an unreachable previous host doesn't block re-registration.
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 3
+        config.timeoutIntervalForResource = 3
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
+        _ = try await session.data(for: request)
+    }
+
+    /// "sandbox" for Xcode debug builds, "production" otherwise. Xcode debug
+    /// builds carry the `aps-environment = development` entitlement and receive
+    /// sandbox push tokens; archive builds (TestFlight / App Store) get
+    /// production tokens. The server uses this to pick the right APNS gateway.
+    private static var apnsEnvironmentHint: String {
+        #if DEBUG
+        return "sandbox"
+        #else
+        return "production"
+        #endif
     }
 
     static func getStandings(for leagueID: String) async throws -> Standing {
@@ -439,7 +494,7 @@ struct NetworkHandler {
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
-        let decoder = JSONDecoder()
+        let decoder = Self.sharedDecoder
         return try decoder.decode(Standing.self, from: data)
     }
 
@@ -485,7 +540,7 @@ struct NetworkHandler {
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
-        return try JSONDecoder().decode([StandingsHistoryDay].self, from: data)
+        return try Self.sharedDecoder.decode([StandingsHistoryDay].self, from: data)
     }
 
     static func getTeamStats(leagueID: Int) async throws -> [TeamStatEntry] {
@@ -495,7 +550,7 @@ struct NetworkHandler {
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
-        return try JSONDecoder().decode([TeamStatEntry].self, from: data)
+        return try Self.sharedDecoder.decode([TeamStatEntry].self, from: data)
     }
 
     static func registerPushToStart(token: String, favorites: [String], eventIDs: [String] = []) async throws {
@@ -504,6 +559,7 @@ struct NetworkHandler {
         var request = authenticatedRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
         var body: [String: Any] = ["token": token, "favorites": favorites]
         if !eventIDs.isEmpty {
             body["eventIDs"] = eventIDs
@@ -513,6 +569,24 @@ struct NetworkHandler {
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
+    }
+
+    /// DELETE companion to `registerPushToStart`. See `deregisterLiveActivity`
+    /// for why we accept an explicit base URL instead of going through `baseURL()`.
+    static func deregisterPushToStart(token: String, previousBaseURL: String) async throws {
+        guard let url = URL(string: "\(previousBaseURL)/pushToStart/register") else { return }
+        var request = authenticatedRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+        let body: [String: Any] = ["token": token]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 3
+        config.timeoutIntervalForResource = 3
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
+        _ = try await session.data(for: request)
     }
 
     /// Base URL for admin API endpoints (bypasses /v2025 versioning)
@@ -532,7 +606,7 @@ struct NetworkHandler {
         let urlString = "\(adminBaseURL())/api/admin/push-to-start/device-status?tokenPrefix=\(tokenPrefix)"
         guard let url = URL(string: urlString) else { throw URLError(.badURL) }
         let (data, _) = try await URLSession.shared.data(from: url)
-        return try JSONDecoder().decode(DeviceRegistrationStatus.self, from: data)
+        return try Self.sharedDecoder.decode(DeviceRegistrationStatus.self, from: data)
     }
 
     static func getImageFor(url: String, size: ImageSize) async throws -> Data {

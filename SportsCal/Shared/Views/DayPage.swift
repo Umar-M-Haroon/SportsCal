@@ -35,6 +35,26 @@ struct DayPage: View {
     @State private var showHiddenGames: Bool = false
     @State private var boardNavigationTarget: GameWithTeams?
 
+    // Memoization for `dayData`. A plain reference-type box held by @State keeps a
+    // stable identity across renders without SwiftUI observing its mutations — so
+    // writing the cache during a body read doesn't kick off another render cycle.
+    @State private var dayDataCacheBox = DayDataCacheBox()
+
+    private final class DayDataCacheBox {
+        var entry: (key: DayDataKey, value: DayData)?
+    }
+
+    private struct DayDataKey: Hashable {
+        let dayStart: Date
+        let gameCount: Int
+        let firstGameID: String?
+        let lastGameID: String?
+        let sportFilter: SportChipFilter
+        let favoritesHash: Int
+        let suggestedHash: Int
+        let orderedSportsHash: Int
+    }
+
     private var calendar: Calendar { Calendar.current }
 
     private var isToday: Bool {
@@ -74,9 +94,36 @@ struct DayPage: View {
         viewModel.gamesWithTeams(for: selectedDate)
     }
 
-    private var dayData: DayData {
+    private var dayDataKey: DayDataKey {
         let games = dayGames
-        let liveFilt = filteredLiveEvents
+        let suggested = engagementTracker.suggestedTeamNames(excluding: favorites.teams)
+        return DayDataKey(
+            dayStart: calendar.startOfDay(for: selectedDate),
+            gameCount: games.count,
+            firstGameID: games.first?.id,
+            lastGameID: games.last?.id,
+            sportFilter: sportFilter,
+            favoritesHash: favorites.teams.hashValue,
+            suggestedHash: suggested.hashValue,
+            orderedSportsHash: storage.orderedSports.hashValue
+        )
+    }
+
+    private var dayData: DayData {
+        let key = dayDataKey
+        if let entry = dayDataCacheBox.entry, entry.key == key {
+            return entry.value
+        }
+        let value = computeDayData()
+        dayDataCacheBox.entry = (key, value)
+        return value
+    }
+
+    // Computes the heavy partition over `dayGames`. Called on cache miss only.
+    // `isEmpty` here intentionally excludes the live-events check so this result
+    // stays valid through WebSocket pushes (which only invalidate `filteredLiveEvents`).
+    private func computeDayData() -> DayData {
+        let games = dayGames
         let suggestedTeamNames = engagementTracker.suggestedTeamNames(excluding: favorites.teams)
 
         var favs: [GameWithTeams] = []
@@ -115,7 +162,7 @@ struct DayPage: View {
             return (sport: sport, games: sorted)
         }
 
-        let empty = liveFilt.isEmpty && favs.isEmpty && suggested.isEmpty && otherBySport.isEmpty
+        let empty = favs.isEmpty && suggested.isEmpty && otherBySport.isEmpty
 
         return DayData(allGames: games, filteredFavorites: favs, suggestedGames: suggested, filteredOtherBySport: otherBySport, isEmpty: empty)
     }
@@ -204,7 +251,9 @@ struct DayPage: View {
     }
 
     private var isEmpty: Bool {
-        dayData.isEmpty
+        // `dayData.isEmpty` excludes the live-events check by design (see computeDayData)
+        // so the cache stays valid through WebSocket pushes. Combine the live check here.
+        dayData.isEmpty && filteredLiveEvents.isEmpty
     }
 
     private var totalCountForDay: Int {

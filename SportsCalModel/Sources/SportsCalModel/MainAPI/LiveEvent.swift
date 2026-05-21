@@ -575,6 +575,40 @@ public struct PlayoffContext: Codable, Equatable, Hashable {
     }
 }
 
+// Shared, lazily-initialized timestamp parsers. Decoding ~1000 games per /schedules
+// response used to allocate fresh formatters per game (>30 ms of work); hoisting them
+// here means each format is created once for the process lifetime.
+// `nonisolated(unsafe)` because Foundation's date formatters are documented as safe
+// for concurrent reads on iOS 7+ once configured, but the compiler can't prove it.
+fileprivate enum DateParsers {
+    nonisolated(unsafe) static let iso8601 = ISO8601DateFormatter()
+    static let dashedSeconds: DateFormatter = {
+        let df = DateFormatter()
+        df.timeZone = .init(secondsFromGMT: 0)
+        df.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        return df
+    }()
+    static let dashedNoSeconds: DateFormatter = {
+        let df = DateFormatter()
+        df.timeZone = .init(secondsFromGMT: 0)
+        df.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        return df
+    }()
+    static let dashedZ: DateFormatter = {
+        let df = DateFormatter()
+        df.timeZone = .init(secondsFromGMT: 0)
+        df.dateFormat = "yyyy-MM-dd'T'HH:mm'Z'"
+        return df
+    }()
+
+    static func parse(_ timestamp: String) -> Date? {
+        if let d = iso8601.date(from: timestamp) { return d }
+        if let d = dashedSeconds.date(from: timestamp) { return d }
+        if let d = dashedNoSeconds.date(from: timestamp) { return d }
+        return dashedZ.date(from: timestamp)
+    }
+}
+
 // MARK: - Event
 public struct Game: Identifiable, Equatable, Hashable {
     public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil) {
@@ -623,23 +657,7 @@ public struct Game: Identifiable, Equatable, Hashable {
         if let isoDate {
             self.isoDate = isoDate
         } else if let strTimestamp {
-            let iso = ISO8601DateFormatter()
-            let df = DateFormatter()
-            df.timeZone = .init(secondsFromGMT: 0)
-            df.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-            if let d = iso.date(from: strTimestamp) {
-                self.isoDate = d
-            } else if let d = df.date(from: strTimestamp) {
-                self.isoDate = d
-            } else {
-                df.dateFormat = "yyyy-MM-dd'T'HH:mm"
-                if let d = df.date(from: strTimestamp) {
-                    self.isoDate = d
-                } else {
-                    df.dateFormat = "yyyy-MM-dd'T'HH:mm'Z'"
-                    self.isoDate = df.date(from: strTimestamp)
-                }
-            }
+            self.isoDate = DateParsers.parse(strTimestamp)
         } else {
             self.isoDate = nil
         }
@@ -791,23 +809,7 @@ extension Game: Codable {
 
         // Pre-compute date from strTimestamp so standardDate never calls getDate() at runtime
         if isoDate == nil, let timestamp = strTimestamp {
-            let iso = ISO8601DateFormatter()
-            let df = DateFormatter()
-            df.timeZone = .init(secondsFromGMT: 0)
-            df.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-            if let d = iso.date(from: timestamp) {
-                isoDate = d
-            } else if let d = df.date(from: timestamp) {
-                isoDate = d
-            } else {
-                df.dateFormat = "yyyy-MM-dd'T'HH:mm"
-                if let d = df.date(from: timestamp) {
-                    isoDate = d
-                } else {
-                    df.dateFormat = "yyyy-MM-dd'T'HH:mm'Z'"
-                    isoDate = df.date(from: timestamp)
-                }
-            }
+            isoDate = DateParsers.parse(timestamp)
         }
     }
 
