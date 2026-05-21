@@ -27,30 +27,43 @@ struct MacSettingsView: View {
 
 private struct GeneralSettingsTab: View {
     var body: some View {
-        Form {
-            ProOptionsSettingsSection()
-            ScoresSettingsSection()
-            DateFormatSettingsSection()
+        NavigationStack {
+            Form {
+                ProOptionsSettingsSection()
+                ScoresSettingsSection()
+                DateFormatSettingsSection()
+            }
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
     }
 }
 
 private struct SportsSettingsTab: View {
     var body: some View {
-        Form {
-            SoccerCompetitionsSettingsSection()
+        NavigationStack {
+            Form {
+                SoccerCompetitionsSettingsSection()
+                BasketballCompetitionsSettingsSection()
+                FootballCompetitionsSettingsSection()
+                HockeyCompetitionsSettingsSection()
+                BaseballCompetitionsSettingsSection()
+                GolfCompetitionsSettingsSection()
+                TennisCompetitionsSettingsSection()
+                RacingCompetitionsSettingsSection()
+            }
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
     }
 }
 
 private struct AdvancedSettingsTab: View {
     var body: some View {
-        Form {
-            DeveloperSettingsSection()
+        NavigationStack {
+            Form {
+                DeveloperSettingsSection()
+            }
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
     }
 }
 #endif

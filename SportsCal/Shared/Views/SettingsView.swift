@@ -51,6 +51,20 @@ struct DeveloperSettingsSection: View {
                         AppLogger.general.error("Cache dump failed: \(error.localizedDescription)")
                     }
                 }
+                Toggle("Game count HUD", isOn: $bindableAppStorage.showGameCountHUD)
+                NavigationLink("Game count audit") {
+                    GameCountAuditView()
+                        .environment(viewModel)
+                        .environment(appStorage)
+                        .navigationTitle("Game count audit")
+                }
+                NavigationLink("Edge case gallery") {
+                    EdgeCaseGalleryView()
+                        .navigationTitle("Edge case gallery")
+                }
+                NavigationLink("iCloud Sync diagnostics") {
+                    CloudSyncDiagnosticsView()
+                }
                 #if os(iOS)
                 NavigationLink("Live Activity Testing") {
                     DebugLiveActivityTestView()
@@ -205,12 +219,151 @@ struct BasketballCompetitionsSettingsSection: View {
     }
 }
 
+struct FootballCompetitionsSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+    private var leagues: [Leagues] { [.nfl] }
+
+    var body: some View {
+        Section {
+            #if os(macOS)
+            DisclosureGroup("Visible football competitions") {
+                ForEach(leagues, id: \.self) { league in
+                    CompetitionView(league: league, isShown: !appStorage.hiddenCompetitions.contains(league.leagueName))
+                        .environment(appStorage)
+                }
+            }
+            #else
+            NavigationLink("Visible football competitions") {
+                CompetitionPage(competitions: leagues)
+                    .environment(appStorage)
+            }
+            #endif
+        }
+    }
+}
+
+struct HockeyCompetitionsSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+    private var leagues: [Leagues] { [.nhl] }
+
+    var body: some View {
+        Section {
+            #if os(macOS)
+            DisclosureGroup("Visible hockey competitions") {
+                ForEach(leagues, id: \.self) { league in
+                    CompetitionView(league: league, isShown: !appStorage.hiddenCompetitions.contains(league.leagueName))
+                        .environment(appStorage)
+                }
+            }
+            #else
+            NavigationLink("Visible hockey competitions") {
+                CompetitionPage(competitions: leagues)
+                    .environment(appStorage)
+            }
+            #endif
+        }
+    }
+}
+
+struct BaseballCompetitionsSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+    private var leagues: [Leagues] { [.mlb] }
+
+    var body: some View {
+        Section {
+            #if os(macOS)
+            DisclosureGroup("Visible baseball competitions") {
+                ForEach(leagues, id: \.self) { league in
+                    CompetitionView(league: league, isShown: !appStorage.hiddenCompetitions.contains(league.leagueName))
+                        .environment(appStorage)
+                }
+            }
+            #else
+            NavigationLink("Visible baseball competitions") {
+                CompetitionPage(competitions: leagues)
+                    .environment(appStorage)
+            }
+            #endif
+        }
+    }
+}
+
+struct GolfCompetitionsSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+    private var leagues: [Leagues] { Leagues.allCases.filter { $0.isGolf } }
+
+    var body: some View {
+        Section {
+            #if os(macOS)
+            DisclosureGroup("Visible golf competitions") {
+                ForEach(leagues, id: \.self) { league in
+                    CompetitionView(league: league, isShown: !appStorage.hiddenCompetitions.contains(league.leagueName))
+                        .environment(appStorage)
+                }
+            }
+            #else
+            NavigationLink("Visible golf competitions") {
+                CompetitionPage(competitions: leagues)
+                    .environment(appStorage)
+            }
+            #endif
+        }
+    }
+}
+
+struct TennisCompetitionsSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+    private var leagues: [Leagues] { Leagues.allCases.filter { $0.isTennis } }
+
+    var body: some View {
+        Section {
+            #if os(macOS)
+            DisclosureGroup("Visible tennis competitions") {
+                ForEach(leagues, id: \.self) { league in
+                    CompetitionView(league: league, isShown: !appStorage.hiddenCompetitions.contains(league.leagueName))
+                        .environment(appStorage)
+                }
+            }
+            #else
+            NavigationLink("Visible tennis competitions") {
+                CompetitionPage(competitions: leagues)
+                    .environment(appStorage)
+            }
+            #endif
+        }
+    }
+}
+
+struct RacingCompetitionsSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+    private var leagues: [Leagues] { Leagues.allCases.filter { $0.isRacing } }
+
+    var body: some View {
+        Section {
+            #if os(macOS)
+            DisclosureGroup("Visible racing competitions") {
+                ForEach(leagues, id: \.self) { league in
+                    CompetitionView(league: league, isShown: !appStorage.hiddenCompetitions.contains(league.leagueName))
+                        .environment(appStorage)
+                }
+            }
+            #else
+            NavigationLink("Visible racing competitions") {
+                CompetitionPage(competitions: leagues)
+                    .environment(appStorage)
+            }
+            #endif
+        }
+    }
+}
+
 // MARK: - iOS Settings View
 
 struct SettingsView: View {
     @Environment(UserDefaultStorage.self) private var appStorage
     @Binding var sheetType: SheetType?
     @Environment(GameViewModel.self) private var viewModel
+    @State private var showSportPicker: Bool = false
     var isTestFlight: Bool {
         guard let path = Bundle.main.appStoreReceiptURL?.path else {
             return false
@@ -225,7 +378,7 @@ struct SettingsView: View {
                         .font(.headline)
                 }
                 DeveloperSettingsSection()
-                Section(header: Text("Appearance"), footer: Text("Classic is the original design. Ambient is a dark airport-board-style redesign (Direction E). EF Remix v2 is an experimental hand-written + monospace remix — switch any time to compare.")) {
+                Section(header: Text("Appearance"), footer: Text("Classic is the original design. Ambient is a dark airport-board-style redesign. Modern is the new SF Pro–based system with adaptive sport palette, an adaptive Today screen, and a refreshed Browse and game detail. Switch any time to compare.")) {
                     @Bindable var bindableAppStorage = appStorage
                     Picker("Theme", selection: $bindableAppStorage.appTheme) {
                         ForEach(AppTheme.allCases) { theme in
@@ -233,6 +386,24 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                }
+                Section(header: Text("Sports"), footer: Text("Choose which sports to show, reorder them, and toggle favorites-only per sport.")) {
+                    Button {
+                        showSportPicker = true
+                    } label: {
+                        HStack {
+                            Label("Manage Sports", systemImage: "sportscourt")
+                            Spacer()
+                            Text(enabledSportsSummary)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.right")
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .foregroundStyle(.primary)
                 }
                 NavigationLink("Scoreline Pro") {
                     PaywallView()
@@ -272,7 +443,19 @@ struct SettingsView: View {
                     appStorage.debugMode = true
                 }
             }
+            .sheet(isPresented: $showSportPicker) {
+                SportPickerSheet()
+                    .environment(appStorage)
+                    .environment(viewModel)
+            }
         }
+    }
+
+    private var enabledSportsSummary: String {
+        let enabled = appStorage.enabledSports
+        if enabled.isEmpty { return "None" }
+        if enabled.count <= 3 { return enabled.map(\.displayName).joined(separator: ", ") }
+        return "\(enabled.count) sports"
     }
 
     func showAttributedString() -> AttributedString {

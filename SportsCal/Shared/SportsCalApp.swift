@@ -38,15 +38,35 @@ struct SportsCalApp: App {
     @State private var viewModel: GameViewModel
 
     init() {
+        // Touch TeamsManager.shared first so its disk-cached teams are loaded
+        // before Favorites' init runs — that lets the legacy-shape migration
+        // resolve as many name → ID entries as possible on the spot.
+        _ = TeamsManager.shared
         let storage = UserDefaultStorage()
         let favs = Favorites()
         let tracker = EngagementTracker()
         _appStorage = State(initialValue: storage)
         _favorites = State(initialValue: favs)
         _engagementTracker = State(initialValue: tracker)
+        #if canImport(ActivityKit) && os(iOS)
+        // One-shot purge of polluted App Group badge files from the
+        // alternate-name caching era. Must run before the view model
+        // starts caching badges so the new canonical-name files write cleanly.
+        GameViewModel.purgeStaleAppGroupBadgesIfNeeded()
+        #endif
         let vm = GameViewModel(appStorage: storage, favorites: favs)
         vm.engagementTracker = tracker
         _viewModel = State(initialValue: vm)
+        #if canImport(ActivityKit) && os(iOS)
+        // Subscribe to Activity<>.activityUpdates BEFORE iOS gets a chance to
+        // create a push-to-start activity in the background-launch case. Apple's
+        // docs are explicit: the system wakes our process when a push-to-start
+        // arrives so we can request the per-activity push token; if we wire the
+        // listener only from a foreground-only path (`getInfo()`), the wake
+        // window passes without us POSTing the token and the activity sits at
+        // its initial state with no updates until the user opens the app.
+        vm.startActivityUpdatesListener()
+        #endif
         try? Tips.configure()
         CloudSyncManager.shared.startSync(storage: storage, favorites: favs)
         SubscriptionManager.shared.configure()
@@ -76,6 +96,7 @@ struct SportsCalApp: App {
                     appStorage.launches += 1
                     NetworkHandler.currentEnvironment = appStorage.serverEnvironment
                     Task { await NetworkHandler.refreshEnvironment() }
+                    TeamsManager.shared.refreshIfStale()
                     if isTestFlight {
                         appStorage.debugMode = true
                     }
@@ -215,19 +236,34 @@ struct SportsCalApp: App {
                 .environment(viewModel)
                 .environment(engagementTracker)
                 .environment(serverDiscovery)
+                .environment(subscriptionManager)
         }
         #endif
     }
 
     #if os(iOS)
-    func scheduleAppRefresh() {
-        let request = BGAppRefreshTaskRequest(identifier: "com.KomodoLLC.SportsCal.updateGamesAndActivities")
+    nonisolated static let backgroundRefreshIdentifier = "com.KomodoLLC.SportsCal.updateGamesAndActivities"
+
+    /// Submit a BGAppRefreshTaskRequest. iOS treats `earliestBeginDate` as a hint —
+    /// the actual run depends on user activity, charging, and budget, but giving a
+    /// 4-hour floor avoids burning the system's quota on requests we don't need that
+    /// soon. Static + nonisolated so the .backgroundTask handler can re-queue itself
+    /// without hopping back to the main actor (BGTaskScheduler is thread-safe).
+    nonisolated static func scheduleAppRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: backgroundRefreshIdentifier)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 4 * 60 * 60)
         do {
             try BGTaskScheduler.shared.submit(request)
+            AppLogger.general.info("Background refresh scheduled for ≥ \(request.earliestBeginDate?.formatted() ?? "?")")
+        } catch BGTaskScheduler.Error.unavailable {
+            // Simulator and Mac Catalyst don't support BGTaskScheduler — log once and move on.
+            AppLogger.general.notice("Background refresh unavailable in this environment")
         } catch {
-            AppLogger.general.error("Background task scheduling failed: \(error.localizedDescription)")
+            AppLogger.general.error("Background refresh scheduling failed: \(error.localizedDescription)")
         }
     }
+
+    func scheduleAppRefresh() { Self.scheduleAppRefresh() }
     #endif
 }
 
@@ -240,8 +276,17 @@ extension Notification.Name {
 #if os(iOS)
 extension Scene {
     func backgroundTaskIfAvailable() -> some Scene {
-        self.backgroundTask(.appRefresh("com.KomodoLLC.SportsCal.updateGamesAndActivities")) {
+        self.backgroundTask(.appRefresh(SportsCalApp.backgroundRefreshIdentifier)) {
             AppLogger.general.info("Running background task")
+
+            // Always queue the next refresh first — if the body crashes or times out,
+            // we still want the chain to continue.
+            SportsCalApp.scheduleAppRefresh()
+
+            // Refresh schedule + teams disk caches so the next cold launch shows fresh
+            // games on the first frame, without the user waiting on the network.
+            await GameViewModel.refreshCachesInBackground()
+
 #if canImport(ActivityKit) && os(iOS)
             // Re-register current push tokens for all active Live Activities so the
             // server-side Redis TTL stays fresh while we're backgrounded.

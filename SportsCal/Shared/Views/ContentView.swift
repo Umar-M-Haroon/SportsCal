@@ -77,8 +77,40 @@ struct ContentView: View {
     @State private var sidebarSelection: MacSidebarItem? = .games
     #endif
 
+    /// True when we're showing cached data because the live feed is
+    /// unreachable. We have data (totalGames non-empty) AND the last
+    /// fetch failed.
+    private var showStaleBanner: Bool {
+        viewModel.networkState == .failed && (viewModel.totalGames?.isEmpty == false)
+    }
+
+    /// Label shown in the StaleDataBanner. GameViewModel doesn't yet
+    /// track a last-success timestamp, so we surface a generic "earlier"
+    /// rather than fabricating a number. Replace with a real elapsed
+    /// time when the model exposes one.
+    private var staleAgoLabel: String { "earlier" }
+
     var body: some View {
         mainNavigation
+            .safeAreaInset(edge: .top) {
+                if showStaleBanner {
+                    StaleDataBanner(
+                        lastUpdatedAgo: staleAgoLabel,
+                        retryAction: { viewModel.getInfo() }
+                    )
+                    .padding(.horizontal, .appSpace3)
+                    .padding(.top, 4)
+                    .background(Color.appBackground)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if storage.showGameCountHUD {
+                    GameCountHUD()
+                        .environment(viewModel)
+                        .environment(storage)
+                        .allowsHitTesting(true)
+                }
+            }
             .refreshable(action: {
                 viewModel.getInfo()
             })
@@ -134,6 +166,9 @@ struct ContentView: View {
             .onChange(of: storage.hiddenCompetitions) { _, _ in
                 viewModel.filterSports()
             }
+            .onReceive(NotificationCenter.default.publisher(for: CloudSyncManager.didApplyRemoteUpdateNotification)) { _ in
+                viewModel.filterSports()
+            }
             .onChange(of: storage.debugMode) { _, _ in
                 viewModel.updateLiveData()
             }
@@ -160,10 +195,20 @@ struct ContentView: View {
     @ViewBuilder
     private var mainNavigation: some View {
         #if os(macOS)
-        NavigationSplitView {
-            macSidebar
-        } detail: {
-            macDetail
+        Group {
+            switch storage.appTheme {
+            case .efRemix:
+                ModernMacWindow()
+                    .environment(viewModel)
+                    .environment(storage)
+                    .environment(favorites)
+            case .ambient, .classic:
+                NavigationSplitView {
+                    macSidebar
+                } detail: {
+                    macDetail
+                }
+            }
         }
         #else
         TabView(selection: $selectedTab) {
@@ -176,7 +221,7 @@ struct ContentView: View {
                             .environment(storage)
                             .environment(favorites)
                     case .efRemix:
-                        EFRemixDayPage()
+                        ModernDayPage()
                             .environment(viewModel)
                             .environment(storage)
                             .environment(favorites)
@@ -244,7 +289,7 @@ struct ContentView: View {
                             .environment(storage)
                             .environment(favorites)
                     case .efRemix:
-                        EFRemixBrowsePage()
+                        ModernBrowsePage()
                             .environment(viewModel)
                             .environment(storage)
                             .environment(favorites)
@@ -296,16 +341,22 @@ struct ContentView: View {
                 Text(sport.displayName)
             } icon: {
                 Image(systemName: sport.systemImage)
-                    .foregroundStyle(sport.color)
+                    .foregroundStyle(Color.app(sport))
             }
             Spacer()
             if let count = viewModel.liveGameCountsBySport[sport], count > 0 {
-                Text("\(count) live")
-                    .font(.caption2.bold())
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.red, in: Capsule())
+                HStack(spacing: 3) {
+                    Circle()
+                        .fill(Color.appLive)
+                        .frame(width: 5, height: 5)
+                    Text("\(count) LIVE")
+                        .font(.appFootnote)
+                        .tracking(1)
+                }
+                .foregroundStyle(Color.appLive)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.appLive.opacity(0.12), in: Capsule())
             }
         }
     }
@@ -315,11 +366,21 @@ struct ContentView: View {
         switch sidebarSelection {
         case .games, .none:
             NavigationStack {
-                DayPage(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, spotlightGameID: $spotlightGameID)
-                    .environment(viewModel)
-                    .environment(storage)
-                    .environment(favorites)
-                    .navigationTitle("Games")
+                Group {
+                    switch storage.appTheme {
+                    case .efRemix:
+                        ModernDayPage()
+                            .environment(viewModel)
+                            .environment(storage)
+                            .environment(favorites)
+                    case .ambient, .classic:
+                        DayPage(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, spotlightGameID: $spotlightGameID)
+                            .environment(viewModel)
+                            .environment(storage)
+                            .environment(favorites)
+                    }
+                }
+                .navigationTitle("Games")
             }
         case .sport(let sport):
             NavigationStack {

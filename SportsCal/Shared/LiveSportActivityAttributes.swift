@@ -24,5 +24,12 @@ struct LiveSportActivityAttributes: ActivityAttributes {
     var homeTeam: String
     var awayTeam: String
     var eventID: String
+    /// League-style short abbreviations (e.g. "PHI", "BOS", "NYY"). Optional for
+    /// backward compat with activities started before the field existed. The
+    /// Dynamic Island compact and minimal slots use these because raster team
+    /// logos get tinted to silhouettes there. Nil → widget falls back to first
+    /// 3 chars of the full name.
+    var homeTeamShort: String? = nil
+    var awayTeamShort: String? = nil
 }
 #endif
