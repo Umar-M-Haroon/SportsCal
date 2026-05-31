@@ -40,13 +40,24 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Set notification center delegate
         UNUserNotificationCenter.current().delegate = self
 
-        SentrySDK.start { options in
-            options.dsn = "https://02afdbcbf12d400f865620093257a781@o4505270524772352.ingest.sentry.io/4505282684321792"
-//            options.debug = true // Enabled debug when first installing is always helpful
-
-            // Set tracesSampleRate to 1.0 to capture 100% of transactions for performance monitoring.
-            // We recommend adjusting this value in production.
-            options.tracesSampleRate = 0.3
+        if !Constants.sentryDSN.isEmpty {
+            SentrySDK.start { options in
+                options.dsn = Constants.sentryDSN
+                options.tracesSampleRate = 0.05
+                options.beforeSend = { event in
+                    // Redact breadcrumbs that may carry device tokens or push payloads.
+                    event.breadcrumbs = event.breadcrumbs?.map { crumb in
+                        if let message = crumb.message,
+                           message.contains("token") || message.contains("notification") {
+                            crumb.message = "[REDACTED]"
+                        }
+                        return crumb
+                    }
+                    return event
+                }
+            }
+        } else {
+            AppLogger.general.error("Sentry DSN missing — crash reporting disabled for this build")
         }
 
         return true
@@ -71,7 +82,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let tokenString = deviceToken.map { String(format: "%02x", $0) }.joined()
-        AppLogger.notifications.info("Registered for remote notifications with token: \(tokenString)")
+        AppLogger.notifications.info("Registered for remote notifications with token: \(tokenString.prefix(12))…")
 
         // Store token in UserDefaults for later use
         UserDefaults(suiteName: "group.Komodo.SportsCal")?.set(tokenString, forKey: "apnsDeviceToken")
@@ -89,7 +100,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable : Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
         // Handle incoming push notification
-        AppLogger.notifications.info("Received remote notification: \(userInfo)")
+        AppLogger.notifications.info("Received remote notification for event: \(userInfo["eventID"] as? String ?? "unknown")")
 
         // Check if this is a Live Activity update
         if let eventID = userInfo["eventID"] as? String {
@@ -145,7 +156,7 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     // Handle notification tap
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let userInfo = response.notification.request.content.userInfo
-        AppLogger.notifications.info("User tapped notification: \(userInfo)")
+        AppLogger.notifications.info("User tapped notification for event: \(userInfo["eventID"] as? String ?? "unknown")")
 
         // Handle deep linking based on notification type
         if let eventID = userInfo["eventID"] as? String {
@@ -171,9 +182,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Set notification center delegate
         UNUserNotificationCenter.current().delegate = self
 
-        SentrySDK.start { options in
-            options.dsn = "https://02afdbcbf12d400f865620093257a781@o4505270524772352.ingest.sentry.io/4505282684321792"
-            options.tracesSampleRate = 0.3
+        if !Constants.sentryDSN.isEmpty {
+            SentrySDK.start { options in
+                options.dsn = Constants.sentryDSN
+                options.tracesSampleRate = 0.05
+                options.beforeSend = { event in
+                    // Redact breadcrumbs that may carry device tokens or push payloads.
+                    event.breadcrumbs = event.breadcrumbs?.map { crumb in
+                        if let message = crumb.message,
+                           message.contains("token") || message.contains("notification") {
+                            crumb.message = "[REDACTED]"
+                        }
+                        return crumb
+                    }
+                    return event
+                }
+            }
+        } else {
+            AppLogger.general.error("Sentry DSN missing — crash reporting disabled for this build")
         }
     }
 
@@ -194,7 +220,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func application(_ application: NSApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let tokenString = deviceToken.map { String(format: "%02x", $0) }.joined()
-        AppLogger.notifications.info("Registered for remote notifications with token: \(tokenString)")
+        AppLogger.notifications.info("Registered for remote notifications with token: \(tokenString.prefix(12))…")
         UserDefaults(suiteName: "group.Komodo.SportsCal")?.set(tokenString, forKey: "apnsDeviceToken")
     }
 
@@ -211,7 +237,7 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let userInfo = response.notification.request.content.userInfo
-        AppLogger.notifications.info("User tapped notification: \(userInfo)")
+        AppLogger.notifications.info("User tapped notification for event: \(userInfo["eventID"] as? String ?? "unknown")")
 
         if let eventID = userInfo["eventID"] as? String {
             NotificationCenter.default.post(name: NSNotification.Name("OpenGameFromNotification"), object: nil, userInfo: ["eventID": eventID])

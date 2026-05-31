@@ -20,9 +20,9 @@
 
 | ID | Item | Status | Effort | Notes |
 |----|------|--------|--------|-------|
-| A1 | **Privacy manifest** `PrivacyInfo.xcprivacy` (audit #03) | 🔴 | 1–2h | No file exists. Apple *will reject*. Need app-level manifest covering Sentry/AdMob/RevenueCat/UserDefaults + verify each SDK ships its own. |
+| A1 | **Privacy manifest** `PrivacyInfo.xcprivacy` (audit #03) | 🟢 | 1–2h | **DONE (Batch 2).** Authored small first-party manifest (UserDefaults CA92.1+1C8F.1; Device ID + Other collected, not-linked/not-tracking, App Functionality). Added to iOS app + widget (pbxproj) and watch app + watch widgets (synchronized folders). **Verified in build artifact**: present in `Scoreline.app` root + embedded `.appex`, valid plist. Watch bundles verify on a watch-scheme archive. |
 | A2 | **Release APS entitlement** = `development` (audit #04) | 🟢 | 2m | **DONE (Batch 1).** Release entitlements now `production`; Debug left `development`. Verify at archive time via `codesign -d --entitlements -`. |
-| A3 | **App Privacy nutrition labels** in App Store Connect (audit #12) | 🔴 | 30m | Must match manifest: Product Interaction (EngagementTracker), Device ID (AdMob), Purchase History (RevenueCat), Crash/Perf (Sentry). Plus privacy-policy URL. |
+| A3 | **App Privacy nutrition labels** in App Store Connect (audit #12) | 🟡 | 30m | *Manual web-console task (checklist in plan).* Declare: Device ID (collected/not-linked/not-tracking/App Functionality), Other Data (favorites), Crash+Performance (Sentry), Purchases (RevenueCat, linked). **Do NOT list EngagementTracker** (on-device → not collected; corrects April audit). "Used to track you" = none (per C10). Privacy-policy URL required. |
 | A4 | **Ad unit IDs**: confirm Release uses real `Constants.nativeAdUnitID`, not Google test unit | 🟡 | 30m | **Code verified ✓** — `NativeAdManager.defaultAdUnitID` already guards DEBUG→test / Release→`Constants.nativeAdUnitID`. Remaining: confirm Xcode Cloud `ADMOB_*` env vars set + Info.plist `GADApplicationIdentifier` is the real app ID + device check in Phase 3. |
 
 ## B. High (S1) — crashes, legal, load failure
@@ -42,8 +42,9 @@
 
 | ID | Item | Status | Effort | Notes |
 |----|------|--------|--------|-------|
-| C1 | **Sentry DSN → Constants + lower trace rate** (audit #01) | 🔴 | 10m | DSN hardcoded; trace rate 0.3 → 0.05. (April marked "critical"; a DSN is a write-only ingest URL — real severity is hygiene/cost, hence S2.) |
-| C2 | **Sentry PII `beforeSend` + mask device-token logs** (audit #06, #10) | 🔴 | 20m | Tokens/payloads logged → Sentry breadcrumbs. Mask in `AppDelegate` (lines 74/92/148) + add `beforeSend`. |
+| C1 | **Sentry DSN → Constants + lower trace rate** (audit #01) | 🟢 | 10m | **DONE (Batch 2).** DSN now `Constants.sentryDSN` (gitignored) via `ci_post_clone.sh`; trace 0.3→0.05; empty-DSN guard logs instead of silently disabling; CI warns if `$SENTRY_DSN` unset. ⚠️ **Set `SENTRY_DSN` in Xcode Cloud before next archive.** No DSN left in tracked source. |
+| C2 | **Sentry PII `beforeSend` + mask device-token logs** (audit #06, #10) | 🟢 | 20m | **DONE (Batch 2).** Added `beforeSend` breadcrumb redaction to both blocks; masked token logs (prefix-12) and payload logs (eventID only) at AppDelegate 74/92/148/197/214. |
+| C10 | **Ad-tracking posture: orphan ATT string + no EEA consent** | 🔴 | varies | *New finding (Batch 2).* App has `NSUserTrackingUsageDescription` but never calls `requestTrackingAuthorization`, and no UMP/CMP consent flow. So no IDFA tracking → manifest `NSPrivacyTracking=false` is correct. But: (a) remove the orphan ATT string OR implement ATT if you want personalized ads; (b) AdMob in the EEA without a Google-certified CMP is an AdMob *policy* gap (monetization/ops, not a binary reject). Triage in Batch 3. |
 | C3 | **Offline UX** — no real offline indicator, only a stale-data banner | 🔴 | 2–4h | Add explicit offline state + retry affordance. Part of the UX pass. |
 | C4 | **Ad cadence decision** — currently max 3/screen, ~1 per 5 games | 🔴 | TBD | *Decide on-device in Phase 3.* Candidate dial-back: 1 per 8–10 games, max 2/screen. See §G. |
 | C5 | **Tailscale IP / local-server paths gating** (audit #11) | 🟡 | 15m | IP `100.68.255.93` still in `NetworkHandler:237`; some `#if DEBUG` present. Audit that all dev hosts + ATS exception are Debug-only; `strings` the Release binary to confirm. |
@@ -119,3 +120,39 @@ Decision recorded here once made: _TBD_.
 ## Open decisions (still need input)
 3. **Ad cadence (C4/§G)** — decide after device pass in Phase 3 (default plan).
 4. **Which S2s are in the cut line** vs pushed to v1.1 — confirm during/after Batch 1.
+
+---
+
+## ✅ Final Submission Checklist (manual / human steps)
+
+Steps that can't be done in code — do these before hitting "Submit for Review".
+
+### Xcode Cloud environment variables (set before next archive)
+- [ ] **`SENTRY_DSN`** — required, else prod ships with crash reporting OFF (build logs a warning). Value: the existing Sentry ingest URL. *(Batch 2 / C1)*
+- [ ] **`ADMOB_APP_ID`** and **`ADMOB_NATIVE_AD_UNIT_ID`** — must be the real production values so the generated `Constants.swift` serves real ads, not Google test ads. *(A4)*
+- [ ] Confirm `REVENUECAT_API_KEY` and `SPORTSCAL_API_KEY` are set (production values).
+
+### Archive-time verification
+- [ ] `codesign -d --entitlements - Scoreline.app` shows **`aps-environment: production`**. *(A2)*
+- [ ] Archive ▸ **Generate Privacy Report** renders the manifest + SDK manifests with no errors. *(A1)*
+- [ ] Build a **watch-scheme archive** and confirm `PrivacyInfo.xcprivacy` is in the watch app + watch-widgets bundles (iOS build can't verify these). *(A1)*
+- [ ] Confirm `Info.plist` `GADApplicationIdentifier` is the **real** AdMob app ID. *(A4)*
+
+### App Store Connect — App Privacy labels *(A3, must match the manifest)*
+- [ ] **Identifiers → Device ID**: Collected · Not linked · Not tracking · App Functionality.
+- [ ] **Other Data** (favorites / event IDs): Collected · Not linked · Not tracking · App Functionality.
+- [ ] **Diagnostics → Crash Data + Performance Data** (Sentry): Collected · Not linked · App Functionality.
+- [ ] **Purchases** (RevenueCat): Collected · Linked · App Functionality.
+- [ ] Do **NOT** list EngagementTracker (on-device → not collected).
+- [ ] "Used to Track You" = **none** (contingent on C10 ad-tracking decision).
+- [ ] Privacy-policy URL is present and live.
+
+### Decisions to resolve before submit
+- [ ] **C10 — ad tracking**: remove the orphan `NSUserTrackingUsageDescription` (no ATT requested) OR implement ATT if you want personalized ads; address EEA CMP for AdMob.
+- [ ] **C4 — ad cadence**: confirm after on-device feel pass.
+
+### Test gates
+- [ ] Run full `SportsCalTests` suite green (the MCP runner couldn't auto-launch — run in CI or Xcode).
+- [ ] Server `swift test` green; nightly push-smoke green.
+
+> Code-side status lives in the tables above (🟢 done). This checklist is only the out-of-band steps.
