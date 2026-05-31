@@ -40,10 +40,12 @@ struct DeveloperSettingsSection: View {
                 LocalServerStatusView()
                 APNsEnvironmentMismatchBanner()
                 PushDiagnosticsRow()
+                #if DEBUG
                 Toggle("Mock Pro Subscription", isOn: Binding(
                     get: { subscriptionManager.isPro },
                     set: { subscriptionManager.setMockPro($0) }
                 ))
+                #endif
                 Button("Dump Caches") {
                     do {
                         try viewModel.dumpCaches()

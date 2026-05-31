@@ -31,7 +31,11 @@ public class SubscriptionManager: @unchecked Sendable {
     }
 
     internal var environmentOverridesEnabled: Bool {
-        ProcessInfo.processInfo.environment["mock-subscribed"] != nil
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["mock-subscribed"] != nil
+        #else
+        return false
+        #endif
     }
 
     /// Call once at app launch (e.g., in SportsCalApp.init)
@@ -65,18 +69,23 @@ public class SubscriptionManager: @unchecked Sendable {
     /// Debug-only override for QA. Lets you flip Pro state without a sandbox purchase.
     /// Persists to UserDefaults so the change survives relaunches.
     public func setMockPro(_ value: Bool) {
+        #if DEBUG
         isPro = value
         UserDefaults.standard.set(value, forKey: "isSubscribed")
+        #endif
     }
 
     internal func updateProStatus(from customerInfo: CustomerInfo) {
         let newValue = customerInfo.entitlements["Pro"]?.isActive == true
-        // Allow mock override for QA builds (skip for test instances)
+        // Allow mock override for QA builds (skip for test instances). DEBUG-only so it
+        // can never grant Pro in a release build.
+        #if DEBUG
         if !isTestInstance, ProcessInfo.processInfo.environment["mock-subscribed"] != nil {
             isPro = true
             UserDefaults.standard.set(true, forKey: "isSubscribed")
             return
         }
+        #endif
         isPro = newValue
         UserDefaults.standard.set(newValue, forKey: "isSubscribed")
     }

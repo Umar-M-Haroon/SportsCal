@@ -801,13 +801,6 @@ public class GameViewModel: NSObject {
         liveInfo.removeOtherInfo()
         self.currentLiveInfo = liveInfo
         updateLiveData()
-//        print("found", self.currentLiveInfo?.mlb?.events.count, "mlb games")
-//        print("found", self.currentLiveInfo?.nba?.events.count, "nba games")
-//        print("found", self.currentLiveInfo?.nfl?.events.count, "nfl games")
-//        print("found", self.currentLiveInfo?.nhl?.events.count, "nhl games")
-//        print("found", self.currentLiveInfo?.soccer?.events.count, "soccer games")
-//        print("found", self.currentLiveInfo?.golf?.events.count, "golf games")
-//        print("found", self.currentLiveInfo?.tennis?.events.count, "tennis games")
         if let liveInfo = currentLiveInfo {
             liveCache?.insert(liveInfo, for: "live")
         }

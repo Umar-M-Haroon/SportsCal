@@ -119,7 +119,7 @@ class ESPNNetworking {
 
     @available(*, deprecated, message: "use league lookup")
     static func getScoreboard<Output: Decodable>(req: some Client, DecodeType: Output.Type, scoreType: SportType) async throws -> Output {
-        let urlString = "http://site.api.espn.com/apis/site/v2/sports/"
+        let urlString = "https://site.api.espn.com/apis/site/v2/sports/"
         guard let sport = decodeSportToPath(sport: scoreType) else { throw NetworkError.invalidLeague }
         let scoreboard = "/scoreboard"
         let fullString = urlString + sport + scoreboard
@@ -143,7 +143,7 @@ class ESPNNetworking {
             throw NetworkError.cooledDown(until: until)
         }
         if let espnSlug = league.espnSlug {
-            let urlString = "http://site.api.espn.com/apis/site/v2/sports"
+            let urlString = "https://site.api.espn.com/apis/site/v2/sports"
             let scoreboard = "scoreboard"
             let sport = league.sport
             let fullString = [urlString, sport, espnSlug, scoreboard].joined(separator: "/")
@@ -179,7 +179,7 @@ class ESPNNetworking {
 
     static func getTeam<Output: Decodable>(req: some Client, DecodeType: Output.Type, league: Leagues) async throws -> Output {
         if let espnSlug = league.espnSlug {
-            let urlString = "http://site.api.espn.com/apis/site/v2/sports"
+            let urlString = "https://site.api.espn.com/apis/site/v2/sports"
             let scoreboard = "teams"
             let sport = league.sport
             let fullString = [urlString, sport, espnSlug, scoreboard].joined(separator: "/")
@@ -202,7 +202,7 @@ class ESPNNetworking {
 
     static func getStandings<Output: Decodable>(req: some Client, DecodeType: Output.Type, league: Leagues) async throws -> Output {
         if let espnSlug = league.espnSlug {
-            let urlString = "http://site.api.espn.com/apis/v2/sports"
+            let urlString = "https://site.api.espn.com/apis/v2/sports"
             let sport = league.sport
             let fullString = [urlString, sport, espnSlug, "standings"].joined(separator: "/")
             do {
@@ -224,7 +224,7 @@ class ESPNNetworking {
 
     static func getLeaders<Output: Decodable>(req: some Client, DecodeType: Output.Type, league: Leagues) async throws -> Output {
         if let espnSlug = league.espnSlug {
-            let urlString = "http://site.api.espn.com/apis/site/v2/sports"
+            let urlString = "https://site.api.espn.com/apis/site/v2/sports"
             let sport = league.sport
             let fullString = [urlString, sport, espnSlug, "leaders"].joined(separator: "/")
             do {
@@ -438,7 +438,7 @@ class ESPNNetworking {
 
     /// Fetches detailed golf tournament summary including course info, hole-by-hole scores, and round stats.
     static func getGolfSummary(req: some Client, eventId: String) async throws -> GolfSummaryResponse {
-        let urlString = "http://site.api.espn.com/apis/site/v2/sports/golf/pga/summary?event=\(eventId)"
+        let urlString = "https://site.api.espn.com/apis/site/v2/sports/golf/pga/summary?event=\(eventId)"
         do {
             let response = try await performGet(req, URI(string: urlString))
             return try response.content.decode(GolfSummaryResponse.self)

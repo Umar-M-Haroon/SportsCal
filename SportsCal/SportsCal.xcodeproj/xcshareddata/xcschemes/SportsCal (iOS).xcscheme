@@ -83,18 +83,8 @@
       </BuildableProductRunnable>
       <EnvironmentVariables>
          <EnvironmentVariable
-            key = "host"
-            value = "https://83f4-2601-280-c781-8ec0-8d6f-9240-bbf1-8e4b.ngrok.io"
-            isEnabled = "NO">
-         </EnvironmentVariable>
-         <EnvironmentVariable
             key = "mock-subscribed"
             value = "true"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "websockethost"
-            value = "wss://83f4-2601-280-c781-8ec0-8d6f-9240-bbf1-8e4b.ngrok.io"
             isEnabled = "NO">
          </EnvironmentVariable>
          <EnvironmentVariable

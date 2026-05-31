@@ -77,7 +77,7 @@ export class LiveGames {
   }
 
   private async fetchLiveGames() {
-    logger.log('Fetching live games from /api/admin/live-espn...', 'info')
+    logger.log('Fetching live games...', 'info')
     const startTime = Date.now()
 
     try {
@@ -173,7 +173,7 @@ export class LiveGames {
       sum + (sport.allData?.events?.length || 0), 0
     )
 
-    logger.log(`Displaying ${liveGamesCount} live games (${totalGamesCount} total from ESPN)`, liveGamesCount > 0 ? 'success' : 'info')
+    logger.log(`Displaying ${liveGamesCount} live games (${totalGamesCount} total)`, liveGamesCount > 0 ? 'success' : 'info')
 
     const content = this.container?.querySelector('#live-games-content')
     const statusBadge = this.container?.querySelector('#ws-status')
@@ -209,7 +209,7 @@ export class LiveGames {
       content.innerHTML = `
         ${sportSummaries ? `
           <div style="margin-bottom: 1.5rem;">
-            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-secondary);">ESPN Scoreboard Summary</h3>
+            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-secondary);">Live Scoreboard Summary</h3>
             ${sportSummaries}
           </div>
         ` : ''}
