@@ -29,7 +29,7 @@
 
 | ID | Item | Status | Effort | Notes |
 |----|------|--------|--------|-------|
-| B1 | **Force-unwraps in view code** — `GameScoreView.swift:81` (`parts.last!`), `F1GapRibbonView.swift:157` | 🔴 | 30m | Crash on single-word names / malformed F1 gap strings. Guard both. |
+| B1 | **Force-unwraps in view code** — `GameScoreView.swift:81`, `F1GapRibbonView.swift:157` | 🟢 | 30m | **DONE (3a) — reclassified S1→S3.** On reading: both `parts.last!` are guarded by `count >= 2`, so they can't crash. De-`!`'d anyway for hygiene. Not the crash risk the April pass implied. |
 | B2 | **ESPN HTTP→HTTPS** on server (audit #02) — 6× `http://site.api.espn.com` in `ESPNNetworking.swift` | 🟢 | 5m | **DONE (Batch 1).** All 6 → HTTPS; server builds clean. |
 | B3 | **Remove ESPN branding** from admin UI/source (audit #05) | 🟢 | 10m | **DONE (Batch 1).** `LiveGames.ts` 80/176/212 genericized; admin builds clean. Endpoint name `live-espn` left (optional rename needs server route change). |
 | B4 | **Gate `mock-subscribed` behind `#if DEBUG`** (audit #07) — `SubscriptionManager.swift:34,75` | 🟢 | 5m | **DONE (Batch 1).** Gated env-var path AND the bigger leak: the **Settings "Mock Pro" toggle** (reachable via user-toggleable Debug Mode) + `setMockPro` body now `#if DEBUG`. iOS builds clean. |
@@ -44,13 +44,13 @@
 |----|------|--------|--------|-------|
 | C1 | **Sentry DSN → Constants + lower trace rate** (audit #01) | 🟢 | 10m | **DONE (Batch 2).** DSN now `Constants.sentryDSN` (gitignored) via `ci_post_clone.sh`; trace 0.3→0.05; empty-DSN guard logs instead of silently disabling; CI warns if `$SENTRY_DSN` unset. ⚠️ **Set `SENTRY_DSN` in Xcode Cloud before next archive.** No DSN left in tracked source. |
 | C2 | **Sentry PII `beforeSend` + mask device-token logs** (audit #06, #10) | 🟢 | 20m | **DONE (Batch 2).** Added `beforeSend` breadcrumb redaction to both blocks; masked token logs (prefix-12) and payload logs (eventID only) at AppDelegate 74/92/148/197/214. |
-| C10 | **Ad-tracking posture: orphan ATT string + no EEA consent** | 🔴 | varies | *New finding (Batch 2).* App has `NSUserTrackingUsageDescription` but never calls `requestTrackingAuthorization`, and no UMP/CMP consent flow. So no IDFA tracking → manifest `NSPrivacyTracking=false` is correct. But: (a) remove the orphan ATT string OR implement ATT if you want personalized ads; (b) AdMob in the EEA without a Google-certified CMP is an AdMob *policy* gap (monetization/ops, not a binary reject). Triage in Batch 3. |
-| C3 | **Offline UX** — no real offline indicator, only a stale-data banner | 🔴 | 2–4h | Add explicit offline state + retry affordance. Part of the UX pass. |
+| C10 | **Ad-tracking posture: orphan ATT string + no EEA consent** | 🟡 | varies | **Partly done (3a):** removed the orphan `NSUserTrackingUsageDescription` (no ATT requested → consistent with `NSPrivacyTracking=false`). **Remaining (ops, not code):** AdMob in the EEA without a Google-certified CMP is an AdMob *policy* gap; address before serving EEA traffic. If you later want personalized ads, add ATT + a CMP. |
+| C3 | **Offline UX** — no real offline indicator, only a stale-data banner | 🟢 | 2–4h | **DONE (3c).** Wired the (previously dead) `.failed` path via a race-free task-group result; added observable `isOffline` (from NWPathMonitor) + `lastSuccessfulFetch`. Banner now shows "You're offline" vs "Showing data from {real ago}", Retry disabled offline; full-screen offline placeholder when no cached data. **Needs an airplane-mode device pass to confirm feel.** |
 | C4 | **Ad cadence decision** — currently max 3/screen, ~1 per 5 games | 🔴 | TBD | *Decide on-device in Phase 3.* Candidate dial-back: 1 per 8–10 games, max 2/screen. See §G. |
-| C5 | **Tailscale IP / local-server paths gating** (audit #11) | 🟡 | 15m | IP `100.68.255.93` still in `NetworkHandler:237`; some `#if DEBUG` present. Audit that all dev hosts + ATS exception are Debug-only; `strings` the Release binary to confirm. |
+| C5 | **Tailscale IP / local-server paths gating** (audit #11) | 🟢 | 15m | **DONE (3b).** `tailscaleHost` + `.local`/`.dev` resolution in `baseURL()`/`rootURL()`/`refreshEnvironment()` gated `#if DEBUG`; Release always returns prod and the IP isn't compiled in. Verify with `strings` on a Release archive (checklist). |
 | ~~C6~~ → B9 | **App Attest implementation** — `verifyAppleAttestation`/`verifyAppleAssertion` stubs | 🔴 | days | **DECISION: implement for v1 → promoted to S1, own batch (Batch 5).** Real hardware attestation against API abuse/scraping. First confirm stubs aren't currently wired (so nothing breaks pre-implementation), then build verification end-to-end (client attestation + server verify). Scope: days. |
 | C7 | **Push-to-start `X-Install-ID` client migration** — server moved to install-keyed storage | 🟡 | — | Ensure the iOS build that ships sends `X-Install-ID`; old `PushToStart-{token}` keys won't migrate. Coordinate client+server release. |
-| C8 | **WebSocket reconnect untested** — `GameViewModel.reconnectWebSocketOnly()` backoff | 🔴 | 1–2h | Add a test + a manual offline→online device pass. |
+| C8 | **WebSocket reconnect untested** — `GameViewModel.reconnectWebSocketOnly()` backoff | 🟢 | 1–2h | **DONE (3b).** Extracted pure `WebSocketBackoff.delaySeconds(forAttempt:)` + `WebSocketBackoffTests` pinning the quadratic-capped-at-60 curve. (Offline→online reconnect itself is covered by the C3 path-monitor pass.) |
 
 ## D. Low (S3) — defer to v1.1 unless cheap
 
@@ -61,7 +61,7 @@
 | D3 | "Reset Suggestions" button for EngagementTracker | 🔴 | 30m | Nice privacy affordance; optional. |
 | D4 | Skeleton loaders instead of spinners | 🔴 | 2–4h | Polish; v1.1 OK. |
 | D5 | Commented-out debug prints `GameViewModel:804–810` | 🟢 | 5m | **DONE (Batch 1).** Removed. |
-| C9 | **Developer settings section visible to ALL release users** — `DeveloperSettingsSection` "Debug Mode" toggle has no build guard | 🔴 | 30m | *New finding (Batch 1).* Any user can enable Debug Mode → exposes server-env switcher, cache dump, diagnostics (Mock Pro now gated). Not a Pro leak anymore, but a polished release shouldn't surface dev tools to everyone. Gate the section behind `#if DEBUG \|\| isTestFlight`. Candidate for Batch 3. |
+| C9 | **Developer settings section visible to ALL release users** — `DeveloperSettingsSection` "Debug Mode" toggle has no build guard | 🟢 | 30m | **DONE (3a).** Gated the whole section: rendered only in `#if DEBUG` or TestFlight (`isTestFlight`). App Store production users no longer see Debug Mode / server-env switcher / diagnostics. |
 
 ---
 

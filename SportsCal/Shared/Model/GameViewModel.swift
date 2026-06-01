@@ -146,6 +146,10 @@ public class GameViewModel: NSObject {
     var sortedGames: Array<(key: DateComponents, value: Array<Game>)> = []
     var sortedGamesWithTeams: [GameDateSection] = []
     var networkState: NetworkState = .loading
+    /// True while the device has no network path. Drives the offline banner / empty-state.
+    var isOffline: Bool = false
+    /// Timestamp of the last fully-successful fetch, for the "showing data from …" label.
+    var lastSuccessfulFetch: Date?
     var currentLiveInfo: LiveScore?
     var currentlyLiveSports: [SportType] = []
     var liveGameCountsBySport: [SportType: Int] = [:]
@@ -676,6 +680,7 @@ public class GameViewModel: NSObject {
                 guard let self else { return }
                 let wasOffline = !self.hasNetworkPath
                 self.hasNetworkPath = satisfied
+                self.isOffline = !satisfied
                 if satisfied && wasOffline {
                     if self.appStorage.debugMode {
                         AppLogger.networking.info("Network path restored — forcing WebSocket reconnect")
@@ -1043,16 +1048,18 @@ public class GameViewModel: NSObject {
     private func getData() async {
         // Phase 1: Fetch teams + live snapshot first (fast), then connect WebSocket immediately.
         // This ensures live games appear without waiting for full schedule fetch.
-        await withTaskGroup(of: Void.self) { group in
+        var fetchFailed = await withTaskGroup(of: Bool.self) { group -> Bool in
             group.addTask {
-                do { try await self.handleTeams() }
-                catch { AppLogger.networking.error("handleTeams failed: \(error.localizedDescription)") }
+                do { try await self.handleTeams(); return false }
+                catch { AppLogger.networking.error("handleTeams failed: \(error.localizedDescription)"); return true }
             }
             group.addTask {
-                do { try await self.handleLiveGames() }
-                catch { AppLogger.networking.error("handleLiveGames failed: \(error.localizedDescription)") }
+                do { try await self.handleLiveGames(); return false }
+                catch { AppLogger.networking.error("handleLiveGames failed: \(error.localizedDescription)"); return true }
             }
-            await group.waitForAll()
+            var failed = false
+            for await taskFailed in group { failed = failed || taskFailed }
+            return failed
         }
         // Re-run after both teams and live data are available so live events render with team badges
         updateLiveData()
@@ -1066,7 +1073,10 @@ public class GameViewModel: NSObject {
 
         // Phase 2: Fetch full schedules (slower, per-sport)
         do { try await self.handleGames() }
-        catch { AppLogger.networking.error("handleGames failed: \(error.localizedDescription)") }
+        catch {
+            AppLogger.networking.error("handleGames failed: \(error.localizedDescription)")
+            fetchFailed = true
+        }
         // Re-evaluate WebSocket now that we have schedule data
         ensureWebSocketConnected()
         #if canImport(ActivityKit) && os(iOS)
@@ -1075,7 +1085,12 @@ public class GameViewModel: NSObject {
         preCacheFavoriteTeamBadges()
         #endif
         appStorage.cleanupExpiredAutoFollows(games: totalGames ?? [])
-        networkState = .loaded
+        if fetchFailed {
+            networkState = .failed
+        } else {
+            networkState = .loaded
+            lastSuccessfulFetch = Date()
+        }
         networkFetchTask = nil
     }
 

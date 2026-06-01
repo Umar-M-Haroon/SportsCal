@@ -10,11 +10,17 @@ import SwiftUI
 
 public struct StaleDataBanner: View {
     public let lastUpdatedAgo: String   // "4m ago"
+    public let isOffline: Bool
     public let retryAction: () -> Void
 
-    public init(lastUpdatedAgo: String, retryAction: @escaping () -> Void) {
+    public init(lastUpdatedAgo: String, isOffline: Bool = false, retryAction: @escaping () -> Void) {
         self.lastUpdatedAgo = lastUpdatedAgo
+        self.isOffline = isOffline
         self.retryAction = retryAction
+    }
+
+    private var message: String {
+        isOffline ? "You're offline — showing saved data" : "Showing data from \(lastUpdatedAgo)"
     }
 
     public var body: some View {
@@ -22,13 +28,15 @@ public struct StaleDataBanner: View {
             HStack(spacing: .appSpace2) {
                 Image(systemName: "wifi.slash")
                     .imageScale(.small)
-                Text("Showing data from \(lastUpdatedAgo)")
+                Text(message)
                     .font(.appCallout)
                 Spacer(minLength: .appSpace2)
-                Text("Retry")
-                    .font(.appFootnote)
-                    .tracking(1)
-                    .textCase(.uppercase)
+                if !isOffline {
+                    Text("Retry")
+                        .font(.appFootnote)
+                        .tracking(1)
+                        .textCase(.uppercase)
+                }
             }
             .padding(.horizontal, .appSpace4)
             .padding(.vertical, .appSpace2)
@@ -44,7 +52,8 @@ public struct StaleDataBanner: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text("Showing data from \(lastUpdatedAgo). Tap to retry."))
+        .disabled(isOffline)
+        .accessibilityLabel(Text(isOffline ? "You're offline, showing saved data." : "Showing data from \(lastUpdatedAgo). Tap to retry."))
         .accessibilityAddTraits(.isButton)
     }
 }

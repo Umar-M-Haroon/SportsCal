@@ -81,14 +81,43 @@ struct ContentView: View {
     /// unreachable. We have data (totalGames non-empty) AND the last
     /// fetch failed.
     private var showStaleBanner: Bool {
-        viewModel.networkState == .failed && (viewModel.totalGames?.isEmpty == false)
+        (viewModel.isOffline || viewModel.networkState == .failed) && (viewModel.totalGames?.isEmpty == false)
     }
 
-    /// Label shown in the StaleDataBanner. GameViewModel doesn't yet
-    /// track a last-success timestamp, so we surface a generic "earlier"
-    /// rather than fabricating a number. Replace with a real elapsed
-    /// time when the model exposes one.
-    private var staleAgoLabel: String { "earlier" }
+    /// True when offline with no cached games — a full-screen placeholder reads
+    /// better than an empty list.
+    private var showOfflinePlaceholder: Bool {
+        viewModel.isOffline && (viewModel.totalGames?.isEmpty ?? true)
+    }
+
+    @ViewBuilder
+    private var offlinePlaceholder: some View {
+        ZStack {
+            Color.appBackground.ignoresSafeArea()
+            VStack(spacing: .appSpace4) {
+                Image(systemName: "wifi.slash")
+                    .font(.system(size: 44, weight: .light))
+                    .foregroundStyle(.secondary)
+                Text("You're offline")
+                    .font(.title3.weight(.semibold))
+                Text("Connect to the internet to load games.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Try Again") { viewModel.getInfo() }
+                    .buttonStyle(.borderedProminent)
+            }
+            .padding(.appSpace5)
+        }
+    }
+
+    /// Relative "x min ago" label from the model's last-success timestamp.
+    private var staleAgoLabel: String {
+        guard let last = viewModel.lastSuccessfulFetch else { return "earlier" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: last, relativeTo: Date())
+    }
 
     var body: some View {
         mainNavigation
@@ -96,6 +125,7 @@ struct ContentView: View {
                 if showStaleBanner {
                     StaleDataBanner(
                         lastUpdatedAgo: staleAgoLabel,
+                        isOffline: viewModel.isOffline,
                         retryAction: { viewModel.getInfo() }
                     )
                     .padding(.horizontal, .appSpace3)
@@ -111,6 +141,13 @@ struct ContentView: View {
                         .allowsHitTesting(true)
                 }
             }
+            .overlay {
+                if showOfflinePlaceholder {
+                    offlinePlaceholder
+                        .transition(.opacity)
+                }
+            }
+            .animation(.default, value: showOfflinePlaceholder)
             .refreshable(action: {
                 viewModel.getInfo()
             })
