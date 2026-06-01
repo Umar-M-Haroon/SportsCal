@@ -153,8 +153,8 @@ struct F1GapRibbonView: View {
 
     private func shortName(_ fullName: String) -> String {
         let parts = fullName.components(separatedBy: " ")
-        if parts.count >= 2 {
-            return String(parts.last!.prefix(3)).uppercased()
+        if parts.count >= 2, let last = parts.last {
+            return String(last.prefix(3)).uppercased()
         }
         return String(fullName.prefix(3)).uppercased()
     }

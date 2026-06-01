@@ -23,6 +23,19 @@ struct DeveloperSettingsSection: View {
     }
 
     var body: some View {
+        // Hide developer tooling from App Store production users. Visible in
+        // DEBUG builds and TestFlight betas only.
+        #if DEBUG
+        developerSection
+        #else
+        if isTestFlight {
+            developerSection
+        }
+        #endif
+    }
+
+    @ViewBuilder
+    private var developerSection: some View {
         @Bindable var bindableAppStorage = appStorage
 
         Section("Developer") {

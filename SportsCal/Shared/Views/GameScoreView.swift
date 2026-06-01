@@ -77,8 +77,8 @@ struct GameScoreView: View {
 
     private func abbreviatedName(_ name: String) -> String {
         let parts = name.split(separator: " ")
-        guard parts.count >= 2 else { return name }
-        return "\(parts[0].prefix(1)). \(parts.last!)"
+        guard parts.count >= 2, let last = parts.last else { return name }
+        return "\(parts[0].prefix(1)). \(last)"
     }
 
     @ViewBuilder

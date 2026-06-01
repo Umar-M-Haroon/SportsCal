@@ -39,8 +39,6 @@
 	</array>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-7626210410574910~5399782511</string>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>This allows SportsCal to show you more relevant ads and helps support future development.</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>
