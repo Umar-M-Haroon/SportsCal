@@ -15,6 +15,15 @@ import Logging
 struct F1EnrichmentJob: AsyncScheduledJob {
     private static let logger = Logger(label: "com.sportscal.f1-enrichment")
 
+    // Persist-guards: a failed source returns an empty collection (the fetchers are
+    // non-throwing), so guard writes to avoid clobbering last-known-good Redis data.
+    static func shouldPersistCircuits(_ circuits: [String: F1CircuitInfo]) -> Bool {
+        !circuits.isEmpty
+    }
+    static func shouldPersistStandings(_ standings: F1Standings) -> Bool {
+        !standings.driverStandings.isEmpty || !standings.constructorStandings.isEmpty
+    }
+
     func run(context: QueueContext) async throws {
         let isDebug = context.application.environment == .development
         let client = context.application.client
@@ -92,17 +101,30 @@ struct F1EnrichmentJob: AsyncScheduledJob {
         let circuitsKey = RedisEndpoint.ESPN.f1Circuits.getValue(isDebug: isDebug)
         let standingsKey = RedisEndpoint.ESPN.f1Standings.getValue(isDebug: isDebug)
         let raceTimingKey = RedisEndpoint.ESPN.f1RaceTiming.getValue(isDebug: isDebug)
-        try await redis.set(circuitsKey, toJSON: enrichedCircuits)
-        try await redis.set(standingsKey, toJSON: standings)
+        var wrotePrimary = false
+        if Self.shouldPersistCircuits(enrichedCircuits) {
+            try await redis.set(circuitsKey, toJSON: enrichedCircuits)
+            wrotePrimary = true
+        }
+        if Self.shouldPersistStandings(standings) {
+            try await redis.set(standingsKey, toJSON: standings)
+            wrotePrimary = true
+        }
         if let recentRaceTiming {
             try await redis.set(raceTimingKey, toJSON: recentRaceTiming)
         }
-        try await redis.set(lastUpdateKey, toJSON: Date())
+        // Only stamp lastUpdate when core data was actually refreshed, so a degraded run
+        // (a source down → empty) retries next tick instead of being silenced for 6h.
+        if wrotePrimary {
+            try await redis.set(lastUpdateKey, toJSON: Date())
+        }
 
         // Also update the main schedule to attach circuit info + standings
         let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
         if var schedule = try? await redis.get(scheduleKey, asJSON: LiveScore.self) {
-            schedule.f1Standings = standings
+            if Self.shouldPersistStandings(standings) {
+                schedule.f1Standings = standings
+            }
             if var racingEvents = schedule.racing?.events {
                 for i in racingEvents.indices {
                     let game = racingEvents[i]

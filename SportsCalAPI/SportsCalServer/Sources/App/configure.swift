@@ -14,6 +14,12 @@ public func configure(_ app: Application) async throws {
     // Serve static files from /Public folder (for admin dashboard)
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
 
+    // Bound all outbound Vapor-client HTTP (ESPN + F1/golf/injuries enrichment) so a
+    // hung upstream socket can't stall a scheduled job past its tick. A timeout surfaces
+    // as a transport error, feeding the existing per-league cooldown + retry. APNS uses
+    // its own client and is unaffected.
+    app.http.client.configuration.timeout = .init(connect: .seconds(5), read: .seconds(20))
+
     // register routes
     let redisHost = Environment.get("REDIS_HOST") ?? "127.0.0.1"
     let redisPort = Int(Environment.get("REDIS_PORT") ?? "6379") ?? 6379
