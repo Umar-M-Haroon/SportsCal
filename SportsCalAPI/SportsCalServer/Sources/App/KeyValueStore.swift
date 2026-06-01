@@ -32,8 +32,27 @@ struct RedisKeyValueStore: KeyValueStore, @unchecked Sendable {
     let redis: any RedisClient
 
     func scanKeys(matching pattern: String) async throws -> [String] {
-        let response = try await redis.send(command: "keys", with: [pattern.convertedToRESPValue()]).get()
-        return response.array?.compactMap { $0.string } ?? []
+        // SCAN cursor loop instead of KEYS: KEYS is O(N) and blocks the entire
+        // Redis server (every other client stalls) — unacceptable at device scale.
+        // SCAN is incremental/non-blocking; it may return duplicates, so dedup.
+        var cursor = "0"
+        var found = Set<String>()
+        repeat {
+            let response = try await redis.send(command: "SCAN", with: [
+                cursor.convertedToRESPValue(),
+                "MATCH".convertedToRESPValue(),
+                pattern.convertedToRESPValue(),
+                "COUNT".convertedToRESPValue(),
+                "500".convertedToRESPValue()
+            ]).get()
+            guard let top = response.array, top.count == 2,
+                  let nextCursor = top[0].string else { break }
+            for element in top[1].array ?? [] {
+                if let key = element.string { found.insert(key) }
+            }
+            cursor = nextCursor
+        } while cursor != "0"
+        return Array(found)
     }
 
     func getString(_ key: String) async throws -> String? {

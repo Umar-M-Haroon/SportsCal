@@ -16,6 +16,9 @@ actor PushMetrics {
         var tokenCleanup: [String: Int]
         var dedupHit: Int
         var dedupMiss: Int
+        var scanProd: Int
+        var scanSandbox: Int
+        var lastRunSeconds: Double
         var lastUpdated: String
     }
 
@@ -24,6 +27,9 @@ actor PushMetrics {
     private var tokenCleanup: [String: Int] = [:]    // keyed by reason: unregistered, badDeviceToken
     private var dedupHit: Int = 0
     private var dedupMiss: Int = 0
+    private var scanProd: Int = 0
+    private var scanSandbox: Int = 0
+    private var lastRunSeconds: Double = 0
     private var lastUpdated: Date = .distantPast
 
     func recordSend(kind: APNSSendResult.Kind) {
@@ -46,6 +52,21 @@ actor PushMetrics {
         lastUpdated = Date()
     }
 
+    /// Per-tick APNS keyspace cardinality — the early-warning signal for the
+    /// scan/process cliff. Watch this climb as registrations grow.
+    func recordScanSize(prod: Int, sandbox: Int) {
+        scanProd = prod
+        scanSandbox = sandbox
+        lastUpdated = Date()
+    }
+
+    /// Wall-clock duration of the last APNS job run. Should stay well under the
+    /// 50s JobLock TTL (target < 40s).
+    func recordDuration(_ seconds: Double) {
+        lastRunSeconds = seconds
+        lastUpdated = Date()
+    }
+
     func snapshot() -> Snapshot {
         let formatter = ISO8601DateFormatter()
         return Snapshot(
@@ -54,6 +75,9 @@ actor PushMetrics {
             tokenCleanup: tokenCleanup,
             dedupHit: dedupHit,
             dedupMiss: dedupMiss,
+            scanProd: scanProd,
+            scanSandbox: scanSandbox,
+            lastRunSeconds: lastRunSeconds,
             lastUpdated: formatter.string(from: lastUpdated)
         )
     }
