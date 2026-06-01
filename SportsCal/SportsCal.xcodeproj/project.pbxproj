@@ -154,6 +154,7 @@
 		1DAA10112FA1457C00853609 /* LiveActivityMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DAA10102FA1457C00853609 /* LiveActivityMatcher.swift */; };
 		1DAA10122FA1457C00853609 /* LiveActivityMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DAA10102FA1457C00853609 /* LiveActivityMatcher.swift */; };
 		1DAA10142FA145AF00853609 /* LiveActivityMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DAA10132FA145AF00853609 /* LiveActivityMatcherTests.swift */; };
+		1DAA10162FA145AF00853609 /* WebSocketBackoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DAA10152FA145AF00853609 /* WebSocketBackoffTests.swift */; };
 		1DB93DC42907659300311FAA /* Favorites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1FD912740AECB00783E62 /* Favorites.swift */; };
 		1DBEB4162F05F6340025B04C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBEB4152F05F6340025B04C /* Constants.swift */; };
 		1DBEB4172F05F6340025B04C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBEB4152F05F6340025B04C /* Constants.swift */; };
@@ -470,6 +471,7 @@
 		1DAA100E2FA1408600853609 /* LiveActivityCodableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityCodableTests.swift; sourceTree = "<group>"; };
 		1DAA10102FA1457C00853609 /* LiveActivityMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityMatcher.swift; sourceTree = "<group>"; };
 		1DAA10132FA145AF00853609 /* LiveActivityMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityMatcherTests.swift; sourceTree = "<group>"; };
+		1DAA10152FA145AF00853609 /* WebSocketBackoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketBackoffTests.swift; sourceTree = "<group>"; };
 		1DBEB4152F05F6340025B04C /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		1DC8774529B834A900895C22 /* FavoriteGamesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteGamesView.swift; sourceTree = "<group>"; };
 		1DCEBF0426C045B200913A94 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -777,6 +779,7 @@
 				1DAA100D2FA1405A00853609 /* LiveActivities 2 */,
 				1DAA100E2FA1408600853609 /* LiveActivityCodableTests.swift */,
 				1DAA10132FA145AF00853609 /* LiveActivityMatcherTests.swift */,
+				1DAA10152FA145AF00853609 /* WebSocketBackoffTests.swift */,
 				1D16B09F2FA6C76900490122 /* GameCountParityTests.swift */,
 			);
 			path = SportsCalTests;
@@ -1454,6 +1457,7 @@
 				1D73C0D32F934A4C00C98966 /* DetailViewSnapshotTests.swift in Sources */,
 				A1B2C3D401000003AABBCCDD /* StoreKitIntegrationTests.swift in Sources */,
 				1DAA10142FA145AF00853609 /* LiveActivityMatcherTests.swift in Sources */,
+				1DAA10162FA145AF00853609 /* WebSocketBackoffTests.swift in Sources */,
 				1D73C0D72F934A6500C98966 /* BoardSnapshotTests.swift in Sources */,
 				A1B2C3D401000004AABBCCDD /* ProFeatureGatingTests.swift in Sources */,
 			);

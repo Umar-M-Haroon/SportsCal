@@ -900,7 +900,7 @@ public class GameViewModel: NSObject {
         wsReconnectAttempts += 1
         // Quadratic backoff capped at 60s: 2, 8, 18, 32, 50, 60, 60... — keep retrying
         // forever so a long outage doesn't permanently silence live updates.
-        let delay = min(Double(wsReconnectAttempts * wsReconnectAttempts) * 2, 60)
+        let delay = WebSocketBackoff.delaySeconds(forAttempt: wsReconnectAttempts)
         if appStorage.debugMode {
             AppLogger.networking.info("WebSocket reconnect attempt \(self.wsReconnectAttempts) in \(delay)s")
         }

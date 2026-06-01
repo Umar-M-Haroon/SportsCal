@@ -55,6 +55,15 @@ enum InstallID {
     }
 }
 
+/// Pure, testable quadratic backoff for WebSocket reconnection.
+enum WebSocketBackoff {
+    /// Delay before reconnect `attempt` (1-based), capped at 60s.
+    /// Sequence: 1→2, 2→8, 3→18, 4→32, 5→50, 6+→60.
+    static func delaySeconds(forAttempt attempt: Int) -> TimeInterval {
+        min(Double(attempt * attempt) * 2, 60)
+    }
+}
+
 enum NetworkState: String {
     case loading = "Loading"
     case loaded = "Loaded"
@@ -233,8 +242,11 @@ struct NetworkHandler {
     /// Host discovered via Bonjour (e.g. "192.168.1.42:8080")
     static var localServerHost: String?
 
-    /// Tailscale IP of the dev server (reachable only from your Tailscale network)
+    #if DEBUG
+    /// Tailscale IP of the dev server (reachable only from your Tailscale network).
+    /// DEBUG-only so the dev IP is never compiled into the shipping Release binary.
     static let tailscaleHost = "100.68.255.93:8080"
+    #endif
 
     /// Production host. Keep public so the Settings screen and parity tools can
     /// display / probe it without re-deriving the URL shape.
@@ -244,6 +256,7 @@ struct NetworkHandler {
 
     /// Base URL for v2025 API endpoints.
     static func baseURL() -> String {
+        #if DEBUG
         switch resolvedEnvironment {
         case .local:
             if let host = localServerHost { return "http://\(host)/v2025" }
@@ -254,10 +267,15 @@ struct NetworkHandler {
         case .auto, .prod:
             return "https://\(prodHost)/v2025"
         }
+        #else
+        // Release always talks to production — dev hosts are not compiled in.
+        return "https://\(prodHost)/v2025"
+        #endif
     }
 
     /// Root server URL without version path (for WebSocket and admin).
     static func rootURL() -> (http: String, ws: String) {
+        #if DEBUG
         switch resolvedEnvironment {
         case .local:
             if let host = localServerHost { return ("http://\(host)", "ws://\(host)") }
@@ -267,6 +285,9 @@ struct NetworkHandler {
         case .auto, .prod:
             return ("https://\(prodHost)", "wss://\(prodHost)")
         }
+        #else
+        return ("https://\(prodHost)", "wss://\(prodHost)")
+        #endif
     }
 
     /// Build a URLRequest with the API key header attached.
@@ -282,6 +303,7 @@ struct NetworkHandler {
     /// `currentEnvironment` is an explicit choice, that value is used directly.
     /// Safe to call repeatedly; probing uses a 500 ms timeout per candidate.
     static func refreshEnvironment() async {
+        #if DEBUG
         let desired = currentEnvironment
         if desired != .auto {
             resolvedEnvironment = desired
@@ -300,6 +322,10 @@ struct NetworkHandler {
         }
 
         resolvedEnvironment = .prod
+        #else
+        // Release builds only ever resolve to production.
+        resolvedEnvironment = .prod
+        #endif
     }
 
     /// HEAD `/ping` with a short timeout; any HTTP response counts as reachable.
