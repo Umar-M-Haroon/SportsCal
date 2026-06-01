@@ -9,6 +9,7 @@ import Foundation
 import SportsCalModel
 import Vapor
 import APNSCore
+import Crypto
 
 public struct ContentState: Codable, Hashable {
     var homeScore: Int
@@ -16,6 +17,17 @@ public struct ContentState: Codable, Hashable {
     var status: String?
     var progress: String?
     var lastPlay: String? = nil
+
+    /// Deterministic content hash, safe to share across processes. Swift's
+    /// `Hashable.hashValue` uses a per-process random seed and cannot be used
+    /// as a Redis claim key.
+    func stableHash() -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = (try? encoder.encode(self)) ?? Data()
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
 }
 
 public struct LiveSportAttributes: Codable, Sendable {
@@ -43,6 +55,18 @@ struct PushToStartRegistration: Codable, Content {
     var token: String
     var favorites: [String]
     var eventIDs: [String]? = nil
+}
+
+/// One blob per install. Persisting token+favorites+events together means a
+/// token rotation just overwrites the install's record; no orphan keys, and
+/// the ESPNFetchJob scan iterates over installs instead of having to merge
+/// two per-token keyspaces (favorites vs eventIDs) into one logical entry.
+struct PushToStartInstall: Codable {
+    var installID: String
+    var token: String
+    var favorites: [String]
+    var eventIDs: [String]
+    var environment: APNSEnvironment
 }
 
 /// Wire format for `POST /liveActivity` registration. The token lived in the URL

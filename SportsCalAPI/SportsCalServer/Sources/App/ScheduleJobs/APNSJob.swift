@@ -18,13 +18,24 @@ struct APNSJob: AsyncScheduledJob {
         let isDebug = app.environment == .development
         guard app.storage[APNSConfiguredKey.self] == true else { return }
 
-        try await APNSJob.runOnce(
-            kv: app.kv,
-            apns: app.apnsSending,
-            clock: app.appClock,
-            isDebug: isDebug,
+        // Leader-election: minutely tick; ttl 50s gives a 10s safety margin
+        // before the next tick. Multi-replica deploys: only one wins per tick.
+        _ = try await JobLock.withLock(
+            app.kv,
+            name: "apns-job",
+            ttl: 50,
+            instanceID: app.instanceID,
             logger: Self.logger,
-            metrics: app.pushMetrics
+            body: {
+                try await APNSJob.runOnce(
+                    kv: app.kv,
+                    apns: app.apnsSending,
+                    clock: app.appClock,
+                    isDebug: isDebug,
+                    logger: Self.logger,
+                    metrics: app.pushMetrics
+                )
+            }
         )
     }
 
@@ -128,6 +139,17 @@ struct APNSJob: AsyncScheduledJob {
                 let stateKey = RedisEndpoint.eventState(event.id).getValue(isDebug: isDebug).rawValue
                 let savedState = try await kv.getJSON(stateKey, as: ContentState.self)
                 guard savedState != contentState else { continue }
+                // Atomic per-(token, eventID, contentState) claim: only one server
+                // instance — across all replicas — wins permission to send this
+                // exact update. The stateKey cache write still happens but moves
+                // below the claim so a lost-claim caller doesn't trample it.
+                let stateHash = contentState.stableHash()
+                let claimKey = RedisEndpoint.eventStateClaim(event.id + "-" + tokenString, stateHash).getValue(isDebug: isDebug).rawValue
+                let claimed = (try? await kv.setIfAbsent(claimKey, value: "1", ttl: 60 * 60 * 12)) ?? false
+                guard claimed else {
+                    logger.info("Lost update claim for \(event.id) → \(tokenString.prefix(8))... — skipping")
+                    continue
+                }
                 try await kv.setJSON(stateKey, value: contentState, ttl: 60 * 60 * 12)
                 do {
                     _ = try await apns.sendLiveActivityUpdate(
@@ -148,10 +170,15 @@ struct APNSJob: AsyncScheduledJob {
                     if sendError.isStaleToken {
                         _ = try await kv.delete([key])
                         await metrics?.recordCleanup(reason: sendError.reason.rawValue)
+                    } else {
+                        // Release the claim so the next tick can retry — otherwise a
+                        // single transient error would silence updates for 12h.
+                        _ = try? await kv.delete([claimKey])
                     }
                 } catch {
                     logger.error("Failed to send APNS update for \(event.id) [\(environment.rawValue)]: \(error)")
                     await metrics?.recordError(.other)
+                    _ = try? await kv.delete([claimKey])
                 }
             } else {
                 logger.info("Ending live activity for game \(key)")

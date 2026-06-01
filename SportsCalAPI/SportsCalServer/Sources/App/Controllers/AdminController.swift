@@ -495,30 +495,21 @@ struct AdminController: RouteCollection {
 
     func pushToStartRegistrations(req: Request) async throws -> PushToStartRegistrationsResponse {
         let isDebug = req.application.environment == .development
-        let keyPattern = isDebug ? "debug-PushToStart-*" : "PushToStart-*"
-        let keyPrefix = isDebug ? "debug-PushToStart-" : "PushToStart-"
-        let eventsKeyPrefix = isDebug ? "debug-PushToStartEvents-" : "PushToStartEvents-"
+        let keyPattern = isDebug ? "debug-PushToStartByInstall-*" : "PushToStartByInstall-*"
 
-        guard let registrationKeys = try? await req.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
+        guard let installKeys = try? await req.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
             .array?
-            .compactMap({ $0.string })
-            .filter({ !$0.contains("Events-") && !$0.contains("SentPush") })
-            .map({ RedisKey($0) }) else {
+            .compactMap({ $0.string }) else {
             return PushToStartRegistrationsResponse(registrations: [], totalTokens: 0)
         }
 
         var infos: [PushToStartRegistrationInfo] = []
-
-        for registrationKey in registrationKeys {
-            let token = String(registrationKey.rawValue.dropFirst(keyPrefix.count))
-            let favorites = (try? await req.application.redis.get(registrationKey, asJSON: [String].self)) ?? []
-            let eventsKey = RedisKey("\(eventsKeyPrefix)\(token)")
-            let eventIDs = (try? await req.application.redis.get(eventsKey, asJSON: [String].self)) ?? []
-
+        for installKey in installKeys {
+            guard let install = try? await req.kv.getJSON(installKey, as: PushToStartInstall.self) else { continue }
             infos.append(PushToStartRegistrationInfo(
-                tokenPrefix: String(token.prefix(16)) + "...",
-                favorites: favorites,
-                eventIDs: eventIDs
+                tokenPrefix: String(install.token.prefix(16)) + "...",
+                favorites: install.favorites,
+                eventIDs: install.eventIDs
             ))
         }
 
@@ -551,13 +542,10 @@ struct AdminController: RouteCollection {
 
     func pushToStartDiagnostics(req: Request) async throws -> PushToStartDiagnosticsResponse {
         let isDebug = req.application.environment == .development
-        let keyPrefix = isDebug ? "debug-PushToStart-" : "PushToStart-"
-        let eventsKeyPrefix = isDebug ? "debug-PushToStartEvents-" : "PushToStartEvents-"
         let sentKeyPrefix = isDebug ? "debug-SentPushToStart-" : "SentPushToStart-"
 
         // System checks
         var redisConnected = false
-        var tokenCount = 0
         do {
             let pong = try await req.redis.send(command: "PING").get()
             redisConnected = (pong.string == "PONG")
@@ -565,50 +553,36 @@ struct AdminController: RouteCollection {
 
         let apnsConfigured = req.application.storage[APNSConfiguredKey.self] ?? false
 
-        // Count registration tokens
-        let keyPattern = isDebug ? "debug-PushToStart-*" : "PushToStart-*"
-        let registrationKeys: [String]
-        if let keys = try? await req.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
+        // Count installs (= devices)
+        let keyPattern = isDebug ? "debug-PushToStartByInstall-*" : "PushToStartByInstall-*"
+        let installKeys: [String] = (try? await req.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
             .array?
-            .compactMap({ $0.string })
-            .filter({ !$0.contains("Events-") && !$0.contains("SentPush") }) {
-            registrationKeys = keys
-            tokenCount = keys.count
-        } else {
-            registrationKeys = []
-        }
+            .compactMap({ $0.string })) ?? []
 
         let systemChecks = [
             SystemCheck(name: "Redis Connected", ok: redisConnected, detail: redisConnected ? "PONG" : "Connection failed"),
             SystemCheck(name: "APNS Configured", ok: apnsConfigured, detail: apnsConfigured ? "Auth key loaded" : "Missing APNSkeyID or TeamID"),
-            SystemCheck(name: "Registered Tokens", ok: tokenCount > 0, detail: "\(tokenCount) token(s)")
+            SystemCheck(name: "Registered Installs", ok: !installKeys.isEmpty, detail: "\(installKeys.count) install(s)")
         ]
 
-        // Per-token pipeline
+        // Per-install pipeline
         var tokenPipelines: [TokenPipeline] = []
-        for keyString in registrationKeys {
-            let token = String(keyString.dropFirst(keyPrefix.count))
-            let shortToken = String(token.prefix(16)) + "..."
+        for installKey in installKeys {
+            guard let install = try? await req.kv.getJSON(installKey, as: PushToStartInstall.self) else { continue }
+            let shortToken = String(install.token.prefix(16)) + "..."
 
             var steps: [PipelineStep] = []
+            steps.append(PipelineStep(name: "Install Registered", status: "green", detail: "Key exists"))
 
-            // Step 1: Token Registered
-            steps.append(PipelineStep(name: "Token Registered", status: "green", detail: "Key exists"))
-
-            // Step 2: Events Stored
-            let eventsKey = RedisKey("\(eventsKeyPrefix)\(token)")
-            let eventIDs = (try? await req.application.redis.get(eventsKey, asJSON: [String].self)) ?? []
-            if !eventIDs.isEmpty {
-                steps.append(PipelineStep(name: "Events Stored", status: "green", detail: "\(eventIDs.count) event(s)"))
+            if !install.eventIDs.isEmpty {
+                steps.append(PipelineStep(name: "Events Stored", status: "green", detail: "\(install.eventIDs.count) event(s)"))
             } else {
                 steps.append(PipelineStep(name: "Events Stored", status: "yellow", detail: "No event IDs"))
             }
 
-            // Step 3: APNS Configured
             steps.append(PipelineStep(name: "APNS Configured", status: apnsConfigured ? "green" : "red", detail: apnsConfigured ? "Ready" : "Not configured"))
 
-            // Step 4: Notification Sent
-            let sentPattern = "\(sentKeyPrefix)\(token)-*"
+            let sentPattern = "\(sentKeyPrefix)\(install.token)-*"
             let sentKeys = (try? await req.application.redis.send(command: "keys", with: [sentPattern.convertedToRESPValue()])
                 .array?
                 .compactMap({ $0.string })) ?? []
@@ -618,7 +592,6 @@ struct AdminController: RouteCollection {
                 steps.append(PipelineStep(name: "Notification Sent", status: "yellow", detail: "None sent yet"))
             }
 
-            // Step 5: Token Valid
             steps.append(PipelineStep(name: "Token Valid", status: "green", detail: "Presumed valid (in Redis)"))
 
             tokenPipelines.append(TokenPipeline(tokenPrefix: shortToken, steps: steps))
@@ -643,40 +616,36 @@ struct AdminController: RouteCollection {
         }
 
         let isDebug = req.application.environment == .development
-        let keyPrefix = isDebug ? "debug-PushToStart-" : "PushToStart-"
-        let eventsKeyPrefix = isDebug ? "debug-PushToStartEvents-" : "PushToStartEvents-"
         let sentKeyPrefix = isDebug ? "debug-SentPushToStart-" : "SentPushToStart-"
-        let keyPattern = "\(keyPrefix)*"
-
-        // Find the full token matching this prefix
-        let allKeys = (try? await req.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
-            .array?
-            .compactMap({ $0.string })
-            .filter({ !$0.contains("Events-") && !$0.contains("SentPush") })) ?? []
-
-        guard let matchingKey = allKeys.first(where: {
-            let token = String($0.dropFirst(keyPrefix.count))
-            return token.hasPrefix(tokenPrefix)
-        }) else {
-            return DeviceStatusResponse(registered: false, favorites: [], eventIDs: [], sentNotifications: [], apnsConfigured: req.application.storage[APNSConfiguredKey.self] ?? false)
-        }
-
-        let fullToken = String(matchingKey.dropFirst(keyPrefix.count))
-
-        let favorites = (try? await req.application.redis.get(RedisKey(matchingKey), asJSON: [String].self)) ?? []
-        let eventsKey = RedisKey("\(eventsKeyPrefix)\(fullToken)")
-        let eventIDs = (try? await req.application.redis.get(eventsKey, asJSON: [String].self)) ?? []
-
-        // Find sent notifications
-        let sentPattern = "\(sentKeyPrefix)\(fullToken)-*"
-        let sentKeys = (try? await req.application.redis.send(command: "keys", with: [sentPattern.convertedToRESPValue()])
-            .array?
-            .compactMap({ $0.string })
-            .map({ String($0.dropFirst("\(sentKeyPrefix)\(fullToken)-".count)) })) ?? []
+        let keyPattern = isDebug ? "debug-PushToStartByInstall-*" : "PushToStartByInstall-*"
 
         let apnsConfigured = req.application.storage[APNSConfiguredKey.self] ?? false
 
-        return DeviceStatusResponse(registered: true, favorites: favorites, eventIDs: eventIDs, sentNotifications: sentKeys, apnsConfigured: apnsConfigured)
+        let allInstallKeys = (try? await req.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
+            .array?
+            .compactMap({ $0.string })) ?? []
+
+        // Find the install whose token starts with the supplied prefix.
+        var matched: PushToStartInstall? = nil
+        for key in allInstallKeys {
+            guard let install = try? await req.kv.getJSON(key, as: PushToStartInstall.self) else { continue }
+            if install.token.hasPrefix(tokenPrefix) {
+                matched = install
+                break
+            }
+        }
+
+        guard let install = matched else {
+            return DeviceStatusResponse(registered: false, favorites: [], eventIDs: [], sentNotifications: [], apnsConfigured: apnsConfigured)
+        }
+
+        let sentPattern = "\(sentKeyPrefix)\(install.token)-*"
+        let sentKeys = (try? await req.application.redis.send(command: "keys", with: [sentPattern.convertedToRESPValue()])
+            .array?
+            .compactMap({ $0.string })
+            .map({ String($0.dropFirst("\(sentKeyPrefix)\(install.token)-".count)) })) ?? []
+
+        return DeviceStatusResponse(registered: true, favorites: install.favorites, eventIDs: install.eventIDs, sentNotifications: sentKeys, apnsConfigured: apnsConfigured)
     }
 
     // MARK: - Write Endpoints

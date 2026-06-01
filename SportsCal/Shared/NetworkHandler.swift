@@ -6,8 +6,54 @@
 //
 
 import Foundation
+import Security
 import SportsCalModel
 import os
+
+/// Persistent per-install identifier — UUID generated once and stored in the
+/// Keychain so it survives uninstalls when the user reinstalls without wiping
+/// the device. The server uses it as the durable key for push-to-start state
+/// so an APNS token rotation can't leave a duplicate registration shadowing
+/// the new token (the bug that caused two Live Activities per game).
+enum InstallID {
+    private static let keychainService = "com.KomodoLLC.SportsCal.installID"
+    private static let keychainAccount = "installID"
+
+    static func current() -> String {
+        if let existing = readKeychain() { return existing }
+        let new = UUID().uuidString
+        writeKeychain(new)
+        return new
+    }
+
+    private static func readKeychain() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String:       kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+            kSecReturnData as String:  true,
+            kSecMatchLimit as String:  kSecMatchLimitOne
+        ]
+        var out: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
+              let d = out as? Data else { return nil }
+        return String(data: d, encoding: .utf8)
+    }
+
+    private static func writeKeychain(_ value: String) {
+        let data = Data(value.utf8)
+        let baseQuery: [String: Any] = [
+            kSecClass as String:       kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount
+        ]
+        SecItemDelete(baseQuery as CFDictionary)
+        var add = baseQuery
+        add[kSecValueData as String] = data
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        SecItemAdd(add as CFDictionary, nil)
+    }
+}
 
 enum NetworkState: String {
     case loading = "Loading"
@@ -442,6 +488,7 @@ struct NetworkHandler {
         // Token + APNS-env hint travel in the body and a custom header,
         // respectively, instead of in the URL — keeps both out of access logs.
         request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+        request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
         var body: [String: Any] = ["token": token, "eventID": eventID]
         if let homeTeam { body["homeTeam"] = homeTeam }
         if let awayTeam { body["awayTeam"] = awayTeam }
@@ -464,6 +511,7 @@ struct NetworkHandler {
         request.httpMethod = "DELETE"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+        request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
         let body: [String: Any] = ["token": token]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         // Short timeout so an unreachable previous host doesn't block re-registration.
@@ -560,6 +608,7 @@ struct NetworkHandler {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+        request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
         var body: [String: Any] = ["token": token, "favorites": favorites]
         if !eventIDs.isEmpty {
             body["eventIDs"] = eventIDs
@@ -579,6 +628,7 @@ struct NetworkHandler {
         request.httpMethod = "DELETE"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+        request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
         let body: [String: Any] = ["token": token]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let config = URLSessionConfiguration.ephemeral

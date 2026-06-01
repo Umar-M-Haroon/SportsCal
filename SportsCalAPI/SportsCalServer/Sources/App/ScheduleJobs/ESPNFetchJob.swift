@@ -19,6 +19,20 @@ struct ESPNFetchJob: AsyncScheduledJob {
     func run(context: Queues.QueueContext) async throws {
         let isDebug = context.application.environment == .development
 
+        // Leader-election: only one replica may execute a given tick. ttl 50s
+        // gives a 10s safety margin before the next minutely tick fires, so a
+        // missed release on crash never overlaps live work.
+        _ = try await JobLock.withLock(
+            context.application.kv,
+            name: "espn-fetch",
+            ttl: 50,
+            instanceID: context.application.instanceID,
+            logger: Self.logger,
+            body: { try await self.runUnderLock(context: context, isDebug: isDebug) }
+        )
+    }
+
+    private func runUnderLock(context: Queues.QueueContext, isDebug: Bool) async throws {
         // Prune any cached "in-progress" games whose scheduled start is >8h in the past.
         // Runs every tick — including ticks where we skip the ESPN fetch — so a game that
         // ended during an idle window doesn't stay pinned as live forever.
@@ -595,9 +609,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
         logger: Logger,
         metrics: PushMetrics? = nil
     ) async {
-        let envs: [(prefix: String, eventsPrefix: String, env: APNSEnvironment)] = [
-            ("PushToStart-", "PushToStartEvents-", .production),
-            ("debug-PushToStart-", "debug-PushToStartEvents-", .sandbox),
+        let envPrefixes: [(prefix: String, env: APNSEnvironment)] = [
+            ("PushToStartByInstall-", .production),
+            ("debug-PushToStartByInstall-", .sandbox),
         ]
 
         let newlyStartedIDs = Set(newlyStarted.compactMap(\.idEvent))
@@ -615,58 +629,32 @@ struct ESPNFetchJob: AsyncScheduledJob {
             }
         }
 
-        for spec in envs {
-            let allKeys = (try? await kv.scanKeys(matching: "\(spec.prefix)*")) ?? []
-            // Guard: scanKeys for `PushToStart-*` also matches `PushToStartEvents-*`
-            // because `*` is greedy. Filter those out to keep favorites handling pure.
-            let registrationKeys = allKeys.filter { !$0.hasPrefix(spec.eventsPrefix) }
-
-            if !registrationKeys.isEmpty {
-                logger.info("Scanning \(registrationKeys.count) push-to-start registrations [\(spec.env.rawValue)]")
+        for spec in envPrefixes {
+            let installKeys = (try? await kv.scanKeys(matching: "\(spec.prefix)*")) ?? []
+            if !installKeys.isEmpty {
+                logger.info("Scanning \(installKeys.count) push-to-start installs [\(spec.env.rawValue)]")
             }
 
-            for registrationKey in registrationKeys {
-                guard let favorites = try? await kv.getJSON(registrationKey, as: [String].self) else { continue }
-                let favoritesSet = Set(favorites)
-                let token = String(registrationKey.dropFirst(spec.prefix.count))
+            for installKey in installKeys {
+                guard let install = try? await kv.getJSON(installKey, as: PushToStartInstall.self) else { continue }
+                let favoritesSet = Set(install.favorites)
+                let eventIDsSet = Set(install.eventIDs)
 
+                // Per-install dedup of matches: a game on the favorites list AND
+                // the auto-follow list must only fire once. Use a set of eventIDs.
+                var matchedEventIDs = Set<String>()
                 for game in newlyStarted {
-                    let homeTeam = game.strHomeTeam
-                    let awayTeam = game.strAwayTeam
-                    guard favoritesSet.contains(homeTeam) || favoritesSet.contains(awayTeam),
-                          game.idEvent != nil else { continue }
+                    guard let eventID = game.idEvent else { continue }
+                    let isFavoriteMatch = favoritesSet.contains(game.strHomeTeam) || favoritesSet.contains(game.strAwayTeam)
+                    let isEventIDMatch = eventIDsSet.contains(eventID) && newlyStartedIDs.contains(eventID)
+                    guard isFavoriteMatch || isEventIDMatch else { continue }
+                    guard matchedEventIDs.insert(eventID).inserted else { continue }
 
-                    logger.info("Matching \(homeTeam) vs \(awayTeam) → token \(token.prefix(8))... [\(spec.env.rawValue)] (via favorites)")
+                    let via = isFavoriteMatch ? (isEventIDMatch ? "favorites+eventID" : "favorites") : "eventID"
+                    logger.info("Matching \(game.strHomeTeam) vs \(game.strAwayTeam) → install \(install.installID.prefix(8))... token \(install.token.prefix(8))... [\(spec.env.rawValue)] (via \(via))")
                     await sendPushToStartNotification(
                         game: game,
-                        token: token,
-                        environment: spec.env,
-                        kv: kv,
-                        apns: apns,
-                        clock: clock,
-                        logger: logger,
-                        metrics: metrics,
-                        teamShortByID: teamShortByID
-                    )
-                }
-            }
-
-            let eventRegistrationKeys = (try? await kv.scanKeys(matching: "\(spec.eventsPrefix)*")) ?? []
-            for registrationKey in eventRegistrationKeys {
-                guard let eventIDs = try? await kv.getJSON(registrationKey, as: [String].self) else { continue }
-                let token = String(registrationKey.dropFirst(spec.eventsPrefix.count))
-                let matchingIDs = Set(eventIDs).intersection(newlyStartedIDs)
-                if !matchingIDs.isEmpty {
-                    logger.info("Event registration \(token.prefix(8))... [\(spec.env.rawValue)] has \(eventIDs.count) event IDs, \(matchingIDs.count) matches")
-                }
-
-                for game in newlyStarted {
-                    guard let eventID = game.idEvent,
-                          matchingIDs.contains(eventID) else { continue }
-                    logger.info("Matching \(game.strHomeTeam) vs \(game.strAwayTeam) → token \(token.prefix(8))... [\(spec.env.rawValue)] (via eventID \(eventID))")
-                    await sendPushToStartNotification(
-                        game: game,
-                        token: token,
+                        token: install.token,
                         environment: spec.env,
                         kv: kv,
                         apns: apns,
@@ -706,19 +694,18 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // Dedup key namespacing follows the registration's environment so a
         // sandbox token and a prod token watching the same event don't share
         // dedup state (one's success would silence the other).
+        //
+        // Atomic SET NX EX: only one caller — across all server instances — wins
+        // the claim. Losers skip silently. Closes the TOCTOU window the previous
+        // exists() → setString() pair had between multi-replica deploys.
         let sentKey = RedisEndpoint.sentPushToStart(token, eventID).getValue(isDebug: environment == .sandbox).rawValue
-        let alreadySent = (try? await kv.exists(sentKey)) ?? false
-        guard !alreadySent else {
-            logger.info("Already sent push-to-start for \(eventID) to \(token.prefix(8))... — skipping")
+        let claimed = (try? await kv.setIfAbsent(sentKey, value: "1", ttl: 60 * 60 * 8)) ?? false
+        guard claimed else {
+            logger.info("Lost push-to-start claim for \(eventID) → \(token.prefix(8))... — skipping")
             await metrics?.recordDedup(hit: true)
             return
         }
         await metrics?.recordDedup(hit: false)
-
-        // Mark before send: if APNS returns a stale-token error, we'll clean it
-        // up along with the registration anyway. Marking after send would risk
-        // duplicates if the mark-write failed after a successful push.
-        try? await kv.setString(sentKey, value: "1", ttl: 60 * 60 * 8)
 
         let attributes = LiveSportAttributes(
             homeTeam: homeTeam,
@@ -753,14 +740,27 @@ struct ESPNFetchJob: AsyncScheduledJob {
             await metrics?.recordError(sendError.reason)
             if sendError.isStaleToken {
                 logger.warning("Removing stale push-to-start token \(token.prefix(8))... [\(environment.rawValue)]")
-                let keyPrefix = environment == .sandbox ? "debug-PushToStart-" : "PushToStart-"
-                let eventsKeyPrefix = environment == .sandbox ? "debug-PushToStartEvents-" : "PushToStartEvents-"
-                _ = try? await kv.delete([keyPrefix + token, eventsKeyPrefix + token])
+                // Reverse-index lookup gives us the installID so we can delete the
+                // install record without iterating every install in the namespace.
+                let indexKey = RedisEndpoint.pushToStartTokenIndex(token).getValue(isDebug: environment == .sandbox).rawValue
+                var toDelete: [String] = [indexKey]
+                if let installID = try? await kv.getString(indexKey) {
+                    let installKey = RedisEndpoint.pushToStartByInstall(installID).getValue(isDebug: environment == .sandbox).rawValue
+                    toDelete.append(installKey)
+                }
+                _ = try? await kv.delete(toDelete)
                 await metrics?.recordCleanup(reason: sendError.reason.rawValue)
+                // Leave the claim — the registration is gone and we shouldn't keep
+                // trying to push to a dead token even if the claim TTL refreshes.
+            } else {
+                // Transient: release the claim so the next cycle can retry rather
+                // than waiting out the 8h TTL with no actual notification delivered.
+                _ = try? await kv.delete([sentKey])
             }
         } catch {
             logger.error("Failed to send push-to-start for event \(eventID) [\(environment.rawValue)]: \(error)")
             await metrics?.recordError(.other)
+            _ = try? await kv.delete([sentKey])
         }
     }
 

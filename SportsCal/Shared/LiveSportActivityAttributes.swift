@@ -32,4 +32,23 @@ struct LiveSportActivityAttributes: ActivityAttributes {
     var homeTeamShort: String? = nil
     var awayTeamShort: String? = nil
 }
+
+/// Pure decision helper for the dedup funnel — given the eventIDs of currently
+/// active Live Activities, decides whether the caller should request a new one
+/// or update an existing one. Extracted from `GameViewModel.requestActivity` so
+/// the logic is unit-testable without ActivityKit.
+///
+/// The funnel matters: iOS ActivityKit happily spawns two activities for the
+/// same attributes. The bug we're fixing is "same game shows twice" — every
+/// caller must route through this planner before touching `Activity.request`.
+enum LiveActivityRequestPlan: Equatable {
+    case createNew
+    case updateExisting
+}
+
+enum LiveActivityRequestPlanner {
+    static func plan(existingEventIDs: [String], for eventID: String) -> LiveActivityRequestPlan {
+        existingEventIDs.contains(eventID) ? .updateExisting : .createNew
+    }
+}
 #endif

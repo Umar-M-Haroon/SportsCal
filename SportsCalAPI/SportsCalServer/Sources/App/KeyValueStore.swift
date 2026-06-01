@@ -21,6 +21,11 @@ protocol KeyValueStore: Sendable {
     /// registration TTL forward on every successful APNS update.
     @discardableResult
     func expire(_ key: String, ttl: TimeInterval) async throws -> Bool
+    /// Atomic `SET key value NX EX ttl`. Returns true iff this caller created the key
+    /// (i.e., won the claim). False if a previous caller already holds the key.
+    /// Foundation of every dedup / leader-election path: the read-then-write pattern
+    /// has a TOCTOU window that two server instances race into.
+    func setIfAbsent(_ key: String, value: String, ttl: TimeInterval) async throws -> Bool
 }
 
 struct RedisKeyValueStore: KeyValueStore, @unchecked Sendable {
@@ -80,6 +85,22 @@ struct RedisKeyValueStore: KeyValueStore, @unchecked Sendable {
             with: [key.convertedToRESPValue(), Int(ttl).convertedToRESPValue()]
         ).get()
         return (response.int ?? 0) == 1
+    }
+
+    func setIfAbsent(_ key: String, value: String, ttl: TimeInterval) async throws -> Bool {
+        let response = try await redis.send(
+            command: "SET",
+            with: [
+                key.convertedToRESPValue(),
+                value.convertedToRESPValue(),
+                "NX".convertedToRESPValue(),
+                "EX".convertedToRESPValue(),
+                Int(ttl).convertedToRESPValue()
+            ]
+        ).get()
+        // Redis returns simple string "OK" when SET NX succeeds, null bulk reply when
+        // the key already exists. Anything else is an unexpected response.
+        return response.string == "OK"
     }
 }
 

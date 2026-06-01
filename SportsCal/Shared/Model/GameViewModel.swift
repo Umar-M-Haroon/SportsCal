@@ -2166,18 +2166,35 @@ extension GameViewModel {
                     staleDate: staleDate,
                     relevanceScore: relevance
                 )
-                let activity = try Activity.request(
-                    attributes: activityAttributes,
-                    content: content,
-                    pushType: .token
-                )
 
-                if appStorage.debugMode {
-                    AutoFollowLogger.shared.log("Live activity started, observing push token updates...", level: .success)
+                // Idempotent funnel: iOS ActivityKit does not collapse two requests
+                // with identical attributes; calling `request` twice for the same
+                // eventID would spawn two activities. Check existing activities
+                // first and forward to `update` if one is already alive.
+                let existingIDs = Activity<LiveSportActivityAttributes>.activities.map { $0.attributes.eventID }
+                switch LiveActivityRequestPlanner.plan(existingEventIDs: existingIDs, for: activityAttributes.eventID) {
+                case .updateExisting:
+                    guard let existing = Activity<LiveSportActivityAttributes>.activities
+                        .first(where: { $0.attributes.eventID == activityAttributes.eventID }) else { return }
+                    await existing.update(content)
+                    // Re-arm the token listener; the underlying AsyncSequence dedups
+                    // re-registrations server-side via the install-ID key.
+                    observePushTokenUpdates(for: existing)
+                    if appStorage.debugMode {
+                        AutoFollowLogger.shared.log("Live activity already present — updated in place for \(activityAttributes.eventID)", level: .info)
+                    }
+                    AppLogger.liveActivity.info("Idempotent update for existing activity \(activityAttributes.eventID)")
+                case .createNew:
+                    let activity = try Activity.request(
+                        attributes: activityAttributes,
+                        content: content,
+                        pushType: .token
+                    )
+                    if appStorage.debugMode {
+                        AutoFollowLogger.shared.log("Live activity started, observing push token updates...", level: .success)
+                    }
+                    observePushTokenUpdates(for: activity)
                 }
-
-                // Observe the token stream — the token may not be available immediately
-                observePushTokenUpdates(for: activity)
             } catch {
                 if appStorage.debugMode {
                     AutoFollowLogger.shared.log("Live activity request failed: \(error.localizedDescription)", level: .error)
@@ -2254,6 +2271,7 @@ extension GameViewModel {
         Task.detached(priority: .userInitiated) { [weak self] in
             for await activity in Activity<LiveSportActivityAttributes>.activityUpdates {
                 AppLogger.liveActivity.info("[activityUpdates] new activity for event \(activity.attributes.eventID) — observing push token")
+                await self?.reconcileDuplicateActivities(for: activity)
                 await MainActor.run {
                     self?.observePushTokenUpdates(for: activity)
                     self?.cacheBadgesForActivity(
@@ -2263,6 +2281,31 @@ extension GameViewModel {
                     )
                 }
             }
+        }
+    }
+
+    /// Race-resolution for the case where a user-initiated `Activity.request`
+    /// and a server-initiated push-to-start both land for the same eventID.
+    /// ActivityKit will surface both; we keep one and end the rest.
+    ///
+    /// Tiebreaker: prefer the activity that already has a push token (the
+    /// server can only drive updates on that one). If multiple or none have
+    /// tokens, keep the oldest by `activity.id` (stable, no clock skew).
+    @MainActor
+    private func reconcileDuplicateActivities(for newlySpawned: Activity<LiveSportActivityAttributes>) async {
+        let eventID = newlySpawned.attributes.eventID
+        let group = Activity<LiveSportActivityAttributes>.activities
+            .filter { $0.attributes.eventID == eventID }
+        guard group.count > 1 else { return }
+
+        let keeper = group.first(where: { $0.pushToken != nil })
+            ?? group.min(by: { $0.id < $1.id })!
+        for activity in group where activity.id != keeper.id {
+            AppLogger.liveActivity.info("[reconcile] ending duplicate activity \(activity.id) for event \(eventID), keeping \(keeper.id)")
+            if appStorage.debugMode {
+                AutoFollowLogger.shared.log("Ended duplicate live activity for \(eventID)", level: .info)
+            }
+            await activity.end(activity.content, dismissalPolicy: .immediate)
         }
     }
 

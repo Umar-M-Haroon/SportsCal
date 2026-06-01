@@ -18,39 +18,45 @@ final class DedupKeyTests: XCTestCase {
         XCTAssertEqual(key.rawValue, "debug-SentPushToStart-abc123-event-42")
     }
 
-    // MARK: - pushToStart registration
+    // MARK: - pushToStartByInstall (install-keyed registration)
 
-    func test_pushToStart_prodFormat() {
+    func test_pushToStartByInstall_prodFormat() {
         XCTAssertEqual(
-            RedisEndpoint.pushToStart("abc").getValue(isDebug: false).rawValue,
-            "PushToStart-abc"
+            RedisEndpoint.pushToStartByInstall("install-uuid").getValue(isDebug: false).rawValue,
+            "PushToStartByInstall-install-uuid"
         )
     }
 
-    func test_pushToStart_devFormat() {
+    func test_pushToStartByInstall_devFormat() {
         XCTAssertEqual(
-            RedisEndpoint.pushToStart("abc").getValue(isDebug: true).rawValue,
-            "debug-PushToStart-abc"
+            RedisEndpoint.pushToStartByInstall("install-uuid").getValue(isDebug: true).rawValue,
+            "debug-PushToStartByInstall-install-uuid"
         )
     }
 
-    // MARK: - pushToStartEvents (auto-follow list)
-
-    func test_pushToStartEvents_prodFormat() {
+    func test_pushToStartTokenIndex_prodFormat() {
         XCTAssertEqual(
-            RedisEndpoint.pushToStartEvents("abc").getValue(isDebug: false).rawValue,
-            "PushToStartEvents-abc"
+            RedisEndpoint.pushToStartTokenIndex("token").getValue(isDebug: false).rawValue,
+            "PushToStartTokenIndex-token"
         )
     }
 
-    func test_pushToStartEvents_doesNotCollideWithPushToStartGlobPattern() {
-        // `PushToStart-*` matches `PushToStartEvents-*` unless we filter. Lock
-        // in the invariant that the two keyspaces share a prefix so the scan
-        // call in ESPNFetchJob still needs the explicit filter.
-        let favorites = RedisEndpoint.pushToStart("token").getValue(isDebug: false).rawValue
-        let events = RedisEndpoint.pushToStartEvents("token").getValue(isDebug: false).rawValue
-        XCTAssertTrue(favorites.hasPrefix("PushToStart-"))
-        XCTAssertTrue(events.hasPrefix("PushToStartEvents-"))
+    // MARK: - eventStateClaim (atomic update dedup)
+
+    func test_eventStateClaim_prodFormat() {
+        XCTAssertEqual(
+            RedisEndpoint.eventStateClaim("event-42", "abc123").getValue(isDebug: false).rawValue,
+            "EventStateClaim-event-42-abc123"
+        )
+    }
+
+    // MARK: - jobLock
+
+    func test_jobLock_prodFormat() {
+        XCTAssertEqual(
+            RedisEndpoint.jobLock("espn-fetch").getValue(isDebug: false).rawValue,
+            "JobLock-espn-fetch"
+        )
     }
 
     // MARK: - eventState

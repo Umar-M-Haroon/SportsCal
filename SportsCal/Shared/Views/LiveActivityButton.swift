@@ -24,16 +24,18 @@ struct LiveActivityButton: View {
     }
     var body: some View {
         Button {
-            if isFollowing {
-                // Unfollow logic
-                if let activity = Activity<LiveSportActivityAttributes>.activities.first(where: {$0.attributes.eventID == game.idEvent}) {
-                    Task {
-                        await activity.end(using: activity.contentState, dismissalPolicy: .immediate)
-                    }
+            // Look up inside the Task so isFollowing snapshot can't race with a
+            // fresh push-to-start arrival — a stale "follow" tap would otherwise
+            // route through requestActivity and (now idempotently) just update
+            // the existing activity instead of starting a duplicate.
+            Task {
+                if let activity = Activity<LiveSportActivityAttributes>.activities
+                    .first(where: { $0.attributes.eventID == game.idEvent }) {
+                    await activity.end(using: activity.contentState, dismissalPolicy: .immediate)
+                    return
                 }
-                return
+                viewModel.requestActivity(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
             }
-            viewModel.requestActivity(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
         } label: {
             if isFollowing {
                 Label("Unfollow", systemImage: "clock.badge.xmark.fill")

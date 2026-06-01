@@ -117,6 +117,15 @@ final class InMemoryKeyValueStore: KeyValueStore, @unchecked Sendable {
         return true
     }
 
+    func setIfAbsent(_ key: String, value: String, ttl: TimeInterval) async throws -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        purgeExpiredLocked()
+        guard storage[key] == nil else { return false }
+        storage[key] = Entry(value: value, expiresAt: clock.now.addingTimeInterval(ttl))
+        return true
+    }
+
     // MARK: - Internals
 
     private func purgeExpiredLocked() {

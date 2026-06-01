@@ -6,6 +6,10 @@ import SportsCalModel
 /// Push-to-start fires when a game transitions from scheduled to in-progress.
 /// The dedup key prevents re-firing within 8h. These tests cover both mechanics
 /// and the favorites + auto-follow-event-ID targeting paths.
+///
+/// Storage is install-keyed: `PushToStartByInstall-{installID}` holds the
+/// token + favorites + eventIDs together so an APNS token rotation can't leave
+/// an orphan registration shadowing the new token.
 final class ESPNFetchJobPushToStartTests: XCTestCase {
 
     private var kv: InMemoryKeyValueStore!
@@ -28,6 +32,29 @@ final class ESPNFetchJobPushToStartTests: XCTestCase {
             isDebug: isDebug,
             logger: logger
         )
+    }
+
+    /// Writes an install record under the production keyspace.
+    @discardableResult
+    private func seedInstall(
+        installID: String,
+        token: String,
+        favorites: [String] = [],
+        eventIDs: [String] = [],
+        environment: APNSEnvironment = .production
+    ) async throws -> PushToStartInstall {
+        let install = PushToStartInstall(
+            installID: installID,
+            token: token,
+            favorites: favorites,
+            eventIDs: eventIDs,
+            environment: environment
+        )
+        let prefix = environment == .sandbox ? "debug-PushToStartByInstall-" : "PushToStartByInstall-"
+        try await kv.setJSON(prefix + installID, value: install, ttl: nil)
+        let indexPrefix = environment == .sandbox ? "debug-PushToStartTokenIndex-" : "PushToStartTokenIndex-"
+        try await kv.setString(indexPrefix + token, value: installID, ttl: nil)
+        return install
     }
 
     // MARK: - Transition detection
@@ -65,9 +92,6 @@ final class ESPNFetchJobPushToStartTests: XCTestCase {
     }
 
     func test_coldStart_nilPrevious_allInProgressGamesCountAsNewlyStarted() {
-        // On the first tick after boot, there's no previous snapshot. Every
-        // in-progress game counts as "just transitioned" — this is intentional
-        // so we don't silently miss games that started during downtime.
         let now = TestGameFactory.liveScore(nba: [
             TestGameFactory.make(idEvent: "e1", strHomeTeam: "A", strAwayTeam: "B", strStatus: "in"),
             TestGameFactory.make(idEvent: "e2", strHomeTeam: "C", strAwayTeam: "D", strStatus: "pre")
@@ -80,21 +104,19 @@ final class ESPNFetchJobPushToStartTests: XCTestCase {
     // MARK: - Favorites-based targeting
 
     func test_sendsPushToStart_whenHomeTeamIsFavorite() async throws {
-        let token = "t1"
-        try await kv.setJSON("PushToStart-\(token)", value: ["Lakers"], ttl: nil)
+        try await seedInstall(installID: "i1", token: "t1", favorites: ["Lakers"])
         let game = TestGameFactory.make(idEvent: "e1", strHomeTeam: "Lakers", strAwayTeam: "Warriors", strStatus: "in")
 
         await runPhase(newlyStarted: [game])
 
         XCTAssertEqual(apns.recorded.count, 1)
         XCTAssertEqual(apns.recorded.first?.kind, .start)
-        XCTAssertEqual(apns.recorded.first?.deviceToken, token)
+        XCTAssertEqual(apns.recorded.first?.deviceToken, "t1")
         XCTAssertEqual(apns.recorded.first?.attributes?.eventID, "e1")
     }
 
     func test_sendsPushToStart_whenAwayTeamIsFavorite() async throws {
-        let token = "t1"
-        try await kv.setJSON("PushToStart-\(token)", value: ["Warriors"], ttl: nil)
+        try await seedInstall(installID: "i1", token: "t1", favorites: ["Warriors"])
         let game = TestGameFactory.make(idEvent: "e1", strHomeTeam: "Lakers", strAwayTeam: "Warriors", strStatus: "in")
 
         await runPhase(newlyStarted: [game])
@@ -103,7 +125,7 @@ final class ESPNFetchJobPushToStartTests: XCTestCase {
     }
 
     func test_doesNotSend_whenNoTeamMatchesFavorites() async throws {
-        try await kv.setJSON("PushToStart-t1", value: ["Knicks", "Bulls"], ttl: nil)
+        try await seedInstall(installID: "i1", token: "t1", favorites: ["Knicks", "Bulls"])
         let game = TestGameFactory.make(idEvent: "e1", strHomeTeam: "Lakers", strAwayTeam: "Warriors", strStatus: "in")
 
         await runPhase(newlyStarted: [game])
@@ -111,24 +133,10 @@ final class ESPNFetchJobPushToStartTests: XCTestCase {
         XCTAssertTrue(apns.recorded.isEmpty)
     }
 
-    func test_doesNotMatchPushToStartEventsKey_withPushToStartScan() async throws {
-        // PushToStart-* glob would also match PushToStartEvents-*. The job filters
-        // those out so the same token doesn't get treated as both favorites list
-        // and event-ID list. Regression guard.
-        try await kv.setJSON("PushToStartEvents-t1", value: ["e1"], ttl: nil)
-        let game = TestGameFactory.make(idEvent: "e1", strHomeTeam: "Lakers", strAwayTeam: "Warriors", strStatus: "in")
-
-        await runPhase(newlyStarted: [game])
-
-        // The Events list should still trigger via the second pass — exactly once.
-        XCTAssertEqual(apns.recorded.count, 1)
-    }
-
     // MARK: - Auto-follow event-ID targeting
 
     func test_sendsPushToStart_viaAutoFollowEventID() async throws {
-        let token = "t1"
-        try await kv.setJSON("PushToStartEvents-\(token)", value: ["e1", "e2"], ttl: nil)
+        try await seedInstall(installID: "i1", token: "t1", eventIDs: ["e1", "e2"])
         let game = TestGameFactory.make(idEvent: "e2", strHomeTeam: "Lakers", strAwayTeam: "Warriors", strStatus: "in")
 
         await runPhase(newlyStarted: [game])
@@ -137,78 +145,84 @@ final class ESPNFetchJobPushToStartTests: XCTestCase {
         XCTAssertEqual(apns.recorded.first?.attributes?.eventID, "e2")
     }
 
-    func test_bothFavoritesAndEventIDRegistered_sendsExactlyTwoPushes() async throws {
-        // If a user has the team favorited *and* the event auto-followed, they
-        // appear in both scan passes. Current behavior: one push per pass = two
-        // pushes. Dedup key should then prevent the second one on subsequent runs.
-        let token = "t1"
-        try await kv.setJSON("PushToStart-\(token)", value: ["Lakers"], ttl: nil)
-        try await kv.setJSON("PushToStartEvents-\(token)", value: ["e1"], ttl: nil)
+    func test_bothFavoritesAndEventIDForSameGame_sendsOnce() async throws {
+        // If a user has the team favorited AND the event auto-followed, the
+        // per-install matchedEventIDs set must coalesce — exactly one push.
+        try await seedInstall(installID: "i1", token: "t1", favorites: ["Lakers"], eventIDs: ["e1"])
         let game = TestGameFactory.make(idEvent: "e1", strHomeTeam: "Lakers", strAwayTeam: "Warriors", strStatus: "in")
 
         await runPhase(newlyStarted: [game])
 
-        // One push — the dedup key written after the first send blocks the second.
-        XCTAssertEqual(apns.recorded.count, 1, "Dedup key should prevent the second pass from re-sending")
+        XCTAssertEqual(apns.recorded.count, 1, "Per-install dedup should coalesce favorites + eventID into one push")
     }
 
-    // MARK: - Deduplication
+    // MARK: - Atomic dedup (SETNX)
 
-    func test_rerunningOnSameGame_doesNotReSend_whenDedupKeyExists() async throws {
-        try await kv.setJSON("PushToStart-t1", value: ["Lakers"], ttl: nil)
+    func test_rerunningOnSameGame_doesNotReSend_whenClaimExists() async throws {
+        try await seedInstall(installID: "i1", token: "t1", favorites: ["Lakers"])
         let game = TestGameFactory.make(idEvent: "e1", strHomeTeam: "Lakers", strAwayTeam: "Warriors", strStatus: "in")
 
         await runPhase(newlyStarted: [game])
         await runPhase(newlyStarted: [game])
         await runPhase(newlyStarted: [game])
 
-        XCTAssertEqual(apns.recorded.count, 1, "Dedup key should prevent re-sends within the TTL window")
+        XCTAssertEqual(apns.recorded.count, 1, "Claim should prevent re-sends within the TTL window")
     }
 
     func test_dedupKeyExpires_reEnablesNextSend() async throws {
-        try await kv.setJSON("PushToStart-t1", value: ["Lakers"], ttl: nil)
+        try await seedInstall(installID: "i1", token: "t1", favorites: ["Lakers"])
         let game = TestGameFactory.make(idEvent: "e1", strHomeTeam: "Lakers", strAwayTeam: "Warriors", strStatus: "in")
 
         await runPhase(newlyStarted: [game])
         XCTAssertEqual(apns.recorded.count, 1)
 
-        // Fast-forward past the 8h dedup window
+        // Fast-forward past the 8h claim window
         clock.advance(by: 60 * 60 * 9)
         apns.reset()
-        // Re-seed favorites since they're also TTL'd (24h — still alive at 9h,
-        // but we reset the mock for a clean assert).
-        try await kv.setJSON("PushToStart-t1", value: ["Lakers"], ttl: nil)
 
         await runPhase(newlyStarted: [game])
 
-        XCTAssertEqual(apns.recorded.count, 1, "After dedup TTL expires, push should fire again")
+        XCTAssertEqual(apns.recorded.count, 1, "After claim TTL expires, push should fire again")
+    }
+
+    func test_concurrentInstances_onlyOneSends() async throws {
+        // Two server replicas processing the same fetch cycle: atomic SETNX
+        // guarantees exactly one wins. This is the multi-instance dedup story
+        // — the bug we're fixing was the same game showing up as two activities
+        // because both replicas independently issued APNS start pushes.
+        try await seedInstall(installID: "i1", token: "t1", favorites: ["Lakers"])
+        let game = TestGameFactory.make(idEvent: "e1", strHomeTeam: "Lakers", strAwayTeam: "Warriors", strStatus: "in")
+
+        async let a: () = runPhase(newlyStarted: [game])
+        async let b: () = runPhase(newlyStarted: [game])
+        _ = await (a, b)
+
+        XCTAssertEqual(apns.recorded.count, 1, "Atomic SETNX must allow exactly one of two concurrent runs to send")
     }
 
     // MARK: - Stale-token cleanup on send failure
 
-    func test_unregisteredResponse_clearsBothFavoritesAndEventIDs() async throws {
-        let token = "t1"
-        try await kv.setJSON("PushToStart-\(token)", value: ["Lakers"], ttl: nil)
-        try await kv.setJSON("PushToStartEvents-\(token)", value: ["e1"], ttl: nil)
-        apns.queueError(APNSSendError(reason: .unregistered, underlying: nil), for: token)
+    func test_unregisteredResponse_clearsInstallAndTokenIndex() async throws {
+        let install = try await seedInstall(installID: "i1", token: "t1", favorites: ["Lakers"], eventIDs: ["e1"])
+        apns.queueError(APNSSendError(reason: .unregistered, underlying: nil), for: install.token)
         let game = TestGameFactory.make(idEvent: "e1", strHomeTeam: "Lakers", strAwayTeam: "Warriors", strStatus: "in")
 
         await runPhase(newlyStarted: [game])
 
         let snapshot = kv.rawSnapshot
-        XCTAssertNil(snapshot["PushToStart-\(token)"])
-        XCTAssertNil(snapshot["PushToStartEvents-\(token)"])
+        XCTAssertNil(snapshot["PushToStartByInstall-i1"], "Install record should be deleted on stale-token")
+        XCTAssertNil(snapshot["PushToStartTokenIndex-t1"], "Reverse index should be deleted on stale-token")
     }
 
     // MARK: - Multi-environment dispatch
 
-    /// A single server now serves both Xcode dev devices (sandbox tokens stored
-    /// under `debug-PushToStart-`) and TestFlight / App Store users (production
-    /// tokens under `PushToStart-`). The job must scan both keyspaces and
-    /// dispatch each token through the matching APNS gateway.
+    /// A single server serves both Xcode dev devices (sandbox installs stored
+    /// under `debug-PushToStartByInstall-`) and TestFlight / App Store users
+    /// (production installs under `PushToStartByInstall-`). The job must scan
+    /// both keyspaces and dispatch each token through the matching APNS gateway.
     func test_dispatchesBothEnvironments_perTokenGateway() async throws {
-        try await kv.setJSON("PushToStart-prodToken", value: ["Lakers"], ttl: nil)
-        try await kv.setJSON("debug-PushToStart-sandboxToken", value: ["Lakers"], ttl: nil)
+        try await seedInstall(installID: "prod-install", token: "prodToken", favorites: ["Lakers"], environment: .production)
+        try await seedInstall(installID: "sandbox-install", token: "sandboxToken", favorites: ["Lakers"], environment: .sandbox)
         let game = TestGameFactory.make(idEvent: "e1", strHomeTeam: "Lakers", strAwayTeam: "Warriors", strStatus: "in")
 
         await runPhase(newlyStarted: [game])

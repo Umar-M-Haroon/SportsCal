@@ -16,6 +16,10 @@ enum RedisEndpoint {
     case pushToStart(String) // "PushToStart-{token}"
     case pushToStartEvents(String) // "PushToStartEvents-{token}"
     case sentPushToStart(String, String) // "SentPushToStart-{token}-{eventID}"
+    case pushToStartByInstall(String) // "PushToStartByInstall-{installID}"
+    case pushToStartTokenIndex(String) // "PushToStartTokenIndex-{token}" → installID
+    case eventStateClaim(String, String) // "EventStateClaim-{eventID}-{stateHash}"
+    case jobLock(String) // "JobLock-{name}"
     enum SportsDB {
         case latestLiveInfo
         case latestFullLiveInfo
@@ -199,6 +203,14 @@ enum RedisEndpoint {
             return "PushToStartEvents-\(token)"
         case .sentPushToStart(let token, let eventID):
             return "SentPushToStart-\(token)-\(eventID)"
+        case .pushToStartByInstall(let installID):
+            return "PushToStartByInstall-\(installID)"
+        case .pushToStartTokenIndex(let token):
+            return "PushToStartTokenIndex-\(token)"
+        case .eventStateClaim(let eventID, let hash):
+            return "EventStateClaim-\(eventID)-\(hash)"
+        case .jobLock(let name):
+            return "JobLock-\(name)"
         }
     }
     public var debugValue: RedisKey {
@@ -217,6 +229,14 @@ enum RedisEndpoint {
             return "debug-PushToStartEvents-\(token)"
         case .sentPushToStart(let token, let eventID):
             return "debug-SentPushToStart-\(token)-\(eventID)"
+        case .pushToStartByInstall(let installID):
+            return "debug-PushToStartByInstall-\(installID)"
+        case .pushToStartTokenIndex(let token):
+            return "debug-PushToStartTokenIndex-\(token)"
+        case .eventStateClaim(let eventID, let hash):
+            return "debug-EventStateClaim-\(eventID)-\(hash)"
+        case .jobLock(let name):
+            return "debug-JobLock-\(name)"
         }
     }
     public func getValue(isDebug: Bool = false) -> RedisKey {
