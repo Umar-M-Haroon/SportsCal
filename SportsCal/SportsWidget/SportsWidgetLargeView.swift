@@ -276,10 +276,7 @@ struct LargeCompactGameCell: View {
             return shortName
         }
         let name = teamName.trimmingCharacters(in: .whitespaces)
-        if name.count >= 3 {
-            return String(name.prefix(3)).uppercased()
-        }
-        return name.uppercased()
+        return Team.shortCode(strTeamShort: nil, name: name)
     }
 
     private func isHomeWinning() -> Bool {

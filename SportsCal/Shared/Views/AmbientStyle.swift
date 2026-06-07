@@ -209,13 +209,8 @@ enum AmbientFormat {
     }
 
     static func abbreviation(team: Team?, fallback: String) -> String {
-        if let abbr = team?.strTeamShort, !abbr.isEmpty { return abbr.uppercased() }
-        // Collapse "Los Angeles Lakers" → "LAL" if nothing better is available.
-        let words = fallback.split(separator: " ")
-        if words.count >= 2 {
-            let initials = words.prefix(3).compactMap { $0.first }
-            return String(initials).uppercased()
-        }
-        return fallback.uppercased()
+        // Delegates to the shared model helper so every surface derives abbreviations
+        // identically ("New York Knicks" → "NYK", never "NEW").
+        Team.shortCode(strTeamShort: team?.strTeamShort, name: fallback)
     }
 }

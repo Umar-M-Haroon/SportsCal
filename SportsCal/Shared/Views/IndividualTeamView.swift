@@ -33,11 +33,11 @@ struct IndividualTeamView: View {
                 .fill(Color.gray.opacity(0.2))
                 .frame(width: 40, height: 40)
             if let shortName {
-                Text(String(shortName.prefix(3)))
+                Text(Team.shortCode(strTeamShort: nil, name: shortName))
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.secondary)
             } else if let longName {
-                Text(String(longName.prefix(3)))
+                Text(Team.shortCode(strTeamShort: nil, name: longName))
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.secondary)
             }

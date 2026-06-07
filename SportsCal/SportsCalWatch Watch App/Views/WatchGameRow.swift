@@ -144,6 +144,6 @@ struct WatchGameRow: View {
            let short = team.strTeamShort {
             return short
         }
-        return String(name.prefix(3)).uppercased()
+        return Team.shortCode(strTeamShort: nil, name: name)
     }
 }

@@ -140,8 +140,8 @@ struct ModernGameDetailSections: View {
     }
 
     private func seriesStatusText(homeWins: Int, awayWins: Int, seriesCompleted: Bool) -> String {
-        let homeShort = homeTeam.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased()
-        let awayShort = awayTeam.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased()
+        let homeShort = Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam)
+        let awayShort = Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam)
         if seriesCompleted {
             if homeWins > awayWins { return "\(homeShort) win series \(homeWins)-\(awayWins)" }
             if awayWins > homeWins { return "\(awayShort) win series \(awayWins)-\(homeWins)" }
@@ -173,14 +173,14 @@ struct ModernGameDetailSections: View {
                             .fill(Color.appDivider)
                             .frame(height: 1)
                         boxScoreRow(
-                            teamShort: awayTeam.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased(),
+                            teamShort: Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam),
                             line: awayLs,
                             otherCount: homeLs.count,
                             total: awayTotal,
                             isLeader: awayTotal > homeTotal
                         )
                         boxScoreRow(
-                            teamShort: homeTeam.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased(),
+                            teamShort: Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam),
                             line: homeLs,
                             otherCount: awayLs.count,
                             total: homeTotal,

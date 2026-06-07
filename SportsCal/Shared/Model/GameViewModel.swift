@@ -1990,12 +1990,13 @@ public class GameViewModel: NSObject {
             return Team.getTeamInfoFrom(teamDict: self.teamsDictName, teamName: strHomeTeam)
         }()
 
-        // Final fallback: Create team from game data if not found
+        // Final fallback: Create team from game data if not found. Derive a sensible
+        // abbreviation so an unmatched team never renders as first-3-chars ("NEW").
         if foundHomeTeam == nil {
             foundHomeTeam = Team(
                 idTeam: idHomeTeam,
                 strTeam: strHomeTeam,
-                strTeamShort: nil,
+                strTeamShort: Team.shortCode(strTeamShort: nil, name: strHomeTeam),
                 strAlternate: nil,
                 strTeamBadge: game.strHomeTeamBadge
             )
@@ -2010,12 +2011,13 @@ public class GameViewModel: NSObject {
             return Team.getTeamInfoFrom(teamDict: self.teamsDictName, teamName: strAwayTeam)
         }()
 
-        // Final fallback: Create team from game data if not found
+        // Final fallback: Create team from game data if not found. Derive a sensible
+        // abbreviation so an unmatched team never renders as first-3-chars ("NEW").
         if foundAwayTeam == nil {
             foundAwayTeam = Team(
                 idTeam: idAwayTeam,
                 strTeam: strAwayTeam,
-                strTeamShort: nil,
+                strTeamShort: Team.shortCode(strTeamShort: nil, name: strAwayTeam),
                 strAlternate: nil,
                 strTeamBadge: game.strAwayTeamBadge
             )

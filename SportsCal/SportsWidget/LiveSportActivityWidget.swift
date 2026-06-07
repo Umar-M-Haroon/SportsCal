@@ -8,6 +8,7 @@
 import SwiftUI
 import WidgetKit
 import UIKit
+import SportsCalModel
 #if canImport(ActivityKit)
 
 /// Loads a team badge image from the shared app group container, with a fallback to team initials.
@@ -32,8 +33,7 @@ private func badgeImage(for teamName: String, size: CGFloat) -> some View {
 /// and falls back to the first 3 characters of the full name for activities
 /// started before the field existed or via server push-to-start without it.
 private func shortAbbreviation(short: String?, full: String) -> String {
-    if let short, !short.isEmpty { return short.uppercased() }
-    return String(full.prefix(3)).uppercased()
+    return Team.shortCode(strTeamShort: short, name: full)
 }
 
 /// Fallback view showing team initials in a circle when badge image is unavailable.
@@ -47,7 +47,7 @@ private func teamInitialsView(_ teamName: String, size: CGFloat) -> some View {
             .fill(.white.opacity(0.18))
             .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1))
             .frame(width: size, height: size)
-        Text(String(teamName.prefix(3)))
+        Text(Team.shortCode(strTeamShort: nil, name: teamName))
             .font(.system(size: size * 0.35, weight: .heavy, design: .rounded))
             .foregroundStyle(.white)
     }

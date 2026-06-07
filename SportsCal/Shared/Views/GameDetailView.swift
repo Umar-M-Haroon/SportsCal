@@ -341,7 +341,7 @@ struct GameDetailView: View {
                 .fill(Color.gray.opacity(0.2))
                 .frame(width: size, height: size)
             if let name {
-                Text(String(name.prefix(3)))
+                Text(Team.shortCode(strTeamShort: nil, name: name))
                     .font(.system(size: size * 0.3, weight: .bold))
                     .foregroundColor(.secondary)
             }
@@ -532,8 +532,8 @@ struct FocusGameDetailView: View {
 
     private var homeDisplayName: String { homeTeam.strTeam ?? game.strHomeTeam }
     private var awayDisplayName: String { awayTeam.strTeam ?? game.strAwayTeam }
-    private var homeShort: String { homeTeam.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased() }
-    private var awayShort: String { awayTeam.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased() }
+    private var homeShort: String { Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam) }
+    private var awayShort: String { Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam) }
 
     private var supportsPlayByPlay: Bool {
         switch sportType {
@@ -1000,7 +1000,7 @@ struct FocusGameDetailView: View {
             .stroke(Color.primary.opacity(0.4), lineWidth: 1.5)
             .frame(width: size, height: size)
             .overlay(
-                Text(String(name.prefix(3)))
+                Text(Team.shortCode(strTeamShort: nil, name: name))
                     .font(.system(size: size * 0.32, weight: .semibold, design: .serif))
                     .foregroundStyle(.primary)
             )
@@ -1149,8 +1149,8 @@ struct GameDetailSections: View {
     }
 
     private func seriesStatusText(homeWins: Int, awayWins: Int, seriesCompleted: Bool) -> String {
-        let homeShort = homeTeam.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased()
-        let awayShort = awayTeam.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased()
+        let homeShort = Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam)
+        let awayShort = Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam)
         if seriesCompleted {
             if homeWins > awayWins { return "\(homeShort) win series \(homeWins)-\(awayWins)" }
             if awayWins > homeWins { return "\(awayShort) win series \(awayWins)-\(homeWins)" }
@@ -1194,7 +1194,7 @@ struct GameDetailSections: View {
                         Divider()
 
                         HStack(spacing: 0) {
-                            Text(awayTeam.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased())
+                            Text(Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam))
                                 .frame(width: 60, alignment: .leading)
                                 .lineLimit(1)
                             ForEach(Array(awayLs.enumerated()), id: \.offset) { _, score in
@@ -1212,7 +1212,7 @@ struct GameDetailSections: View {
                         .font(.caption)
 
                         HStack(spacing: 0) {
-                            Text(homeTeam.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased())
+                            Text(Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam))
                                 .frame(width: 60, alignment: .leading)
                                 .lineLimit(1)
                             ForEach(Array(homeLs.enumerated()), id: \.offset) { _, score in

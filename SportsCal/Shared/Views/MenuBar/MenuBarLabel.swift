@@ -51,7 +51,7 @@ struct MenuBarLabel: View {
 
         return HStack(spacing: 3) {
             if game.isIndividualSport {
-                let name = gwt.homeTeam?.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased()
+                let name = Team.shortCode(strTeamShort: gwt.homeTeam?.strTeamShort, name: game.strHomeTeam)
                 if let leader = game.resolvedLeaderboard.first {
                     Text("\(name) \(leader.score)")
                         .font(.caption2)
@@ -63,8 +63,8 @@ struct MenuBarLabel: View {
             } else {
                 let awaySeed = game.awaySeed.map { "(\($0)) " } ?? ""
                 let homeSeed = game.homeSeed.map { "(\($0)) " } ?? ""
-                let away = awaySeed + (gwt.awayTeam?.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased())
-                let home = homeSeed + (gwt.homeTeam?.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased())
+                let away = awaySeed + Team.shortCode(strTeamShort: gwt.awayTeam?.strTeamShort, name: game.strAwayTeam)
+                let home = homeSeed + (Team.shortCode(strTeamShort: gwt.homeTeam?.strTeamShort, name: game.strHomeTeam))
                 if let awayScore = game.intAwayScore, let homeScore = game.intHomeScore {
                     Text("\(away) \(awayScore) - \(home) \(homeScore)")
                         .font(.caption2)
@@ -85,7 +85,7 @@ struct MenuBarLabel: View {
 
     private func upcomingLabel(game: GameWithTeams, gameDate: Date) -> some View {
         let remaining = gameDate.timeIntervalSince(Date())
-        let name = game.homeTeam?.strTeamShort ?? String(game.game.strHomeTeam.prefix(3)).uppercased()
+        let name = Team.shortCode(strTeamShort: game.homeTeam?.strTeamShort, name: game.game.strHomeTeam)
 
         return HStack(spacing: 3) {
             Text("⭑")

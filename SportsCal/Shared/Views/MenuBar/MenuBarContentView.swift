@@ -406,8 +406,8 @@ struct MenuBarContentView: View {
 
     private func teamRow(gwt: GameWithTeams, isLive: Bool) -> some View {
         let game = gwt.game
-        let away = seedPrefix(game.awaySeed) + (gwt.awayTeam?.strTeamShort ?? String(game.strAwayTeam.prefix(3)).uppercased())
-        let home = seedPrefix(game.homeSeed) + (gwt.homeTeam?.strTeamShort ?? String(game.strHomeTeam.prefix(3)).uppercased())
+        let away = seedPrefix(game.awaySeed) + Team.shortCode(strTeamShort: gwt.awayTeam?.strTeamShort, name: game.strAwayTeam)
+        let home = seedPrefix(game.homeSeed) + Team.shortCode(strTeamShort: gwt.homeTeam?.strTeamShort, name: game.strHomeTeam)
 
         return HStack {
             if isLive, let awayScore = game.intAwayScore, let homeScore = game.intHomeScore {
@@ -489,8 +489,8 @@ private struct MenuBarPreviewWrapper: View {
         }
 
         func gwt(_ g: Game) -> GameWithTeams {
-            let ht = Team(idTeam: g.idHomeTeam, strTeam: g.strHomeTeam, strTeamShort: String(g.strHomeTeam.prefix(3)).uppercased(), strAlternate: nil, strTeamBadge: nil)
-            let at = Team(idTeam: g.idAwayTeam, strTeam: g.strAwayTeam, strTeamShort: String(g.strAwayTeam.prefix(3)).uppercased(), strAlternate: nil, strTeamBadge: nil)
+            let ht = Team(idTeam: g.idHomeTeam, strTeam: g.strHomeTeam, strTeamShort: Team.shortCode(strTeamShort: nil, name: g.strHomeTeam), strAlternate: nil, strTeamBadge: nil)
+            let at = Team(idTeam: g.idAwayTeam, strTeam: g.strAwayTeam, strTeamShort: Team.shortCode(strTeamShort: nil, name: g.strAwayTeam), strAlternate: nil, strTeamBadge: nil)
             return GameWithTeams(game: g, homeTeam: ht, awayTeam: at)
         }
 

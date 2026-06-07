@@ -30,8 +30,8 @@ struct SportsWidgetCircularView: View {
                             .multilineTextAlignment(.center)
                     } else if let homeTeamID = game.idHomeTeam, let homeTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: homeTeamID, teamName: game.strHomeTeam), let awayTeamID = game.idAwayTeam, let awayTeam = Team.getTeamInfoFrom(teams: entry.teams, teamID: awayTeamID, teamName: game.strAwayTeam) {
                         HStack(spacing: 2) {
-                            TinyWidgetTeamView(shortName: awayTeam.strTeamShort, longName: String(awayTeam.strTeam?.prefix(3) ?? "") , isAway: true, data: entry.images?[awayTeamID])
-                            TinyWidgetTeamView(shortName: homeTeam.strTeamShort, longName: String(homeTeam.strTeam?.prefix(3) ?? "") , isAway: false, data: entry.images?[homeTeamID])
+                            TinyWidgetTeamView(shortName: awayTeam.strTeamShort, longName: Team.shortCode(strTeamShort: nil, name: awayTeam.strTeam ?? "") , isAway: true, data: entry.images?[awayTeamID])
+                            TinyWidgetTeamView(shortName: homeTeam.strTeamShort, longName: Team.shortCode(strTeamShort: nil, name: homeTeam.strTeam ?? "") , isAway: false, data: entry.images?[homeTeamID])
                         }
                         if let date = game.standardDate {
                             Group {

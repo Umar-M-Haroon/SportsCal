@@ -415,7 +415,7 @@ struct ModernGameDetailView: View {
     private func badgePlaceholder(name: String) -> some View {
         ZStack {
             Circle().fill(Color.appAlt)
-            Text(String(name.prefix(3)).uppercased())
+            Text(Team.shortCode(strTeamShort: nil, name: name))
                 .font(.system(size: 14, weight: .heavy, design: .rounded))
                 .foregroundStyle(accent)
         }

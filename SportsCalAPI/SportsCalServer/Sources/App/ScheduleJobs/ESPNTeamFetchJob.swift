@@ -180,7 +180,7 @@ struct ESPNTeamFetchJob: AsyncScheduledJob {
                 teamsByID[matchedID] = Team(
                     idTeam: existingTeam.idTeam,
                     strTeam: existingTeam.strTeam,
-                    strTeamShort: espnAbbrev ?? existingTeam.strTeamShort,
+                    strTeamShort: Team.canonicalAbbreviationOverrides[existingTeam.idTeam ?? ""] ?? espnAbbrev ?? existingTeam.strTeamShort,
                     strAlternate: combinedAlternate,
                     strTeamBadge: espnLogo ?? existingTeam.strTeamBadge
                 )
