@@ -366,6 +366,13 @@ private struct ModernDayContent: View {
                 .padding(.bottom, .appSpace6)
             }
         }
+        #if os(iOS)
+        .onAppear {
+            if !subscriptionManager.isPro && AdConfiguration.isEnabled {
+                adManager.refreshOnAppear()
+            }
+        }
+        #endif
     }
 
     private var header: some View {
@@ -397,11 +404,30 @@ private struct ModernDayContent: View {
     @ViewBuilder
     private var structuredBody: some View {
         let data = sectionData
-        liveSection(games: data.live)
-        yourTeamsSection(games: data.yourTeams)
-        forYouSection(games: data.forYou)
-        bySportWithAds(data.bySport)
+        let adPlan = makeFeedAdPlan(for: data)
+        liveSection(games: data.live, adPlan: adPlan)
+        yourTeamsSection(games: data.yourTeams, adPlan: adPlan)
+        forYouSection(games: data.forYou, adPlan: adPlan)
+        bySportWithAds(data.bySport, adPlan: adPlan)
         hiddenFooter(games: data.hidden)
+    }
+
+    /// Builds one globally-capped ad layout for the whole day feed. Offers each
+    /// section to the planner in render order so the total honors
+    /// `AdConfiguration.maxAdsPerScreen` (not a per-section cap) and no creative
+    /// repeats. Pro users / kill switch / non-iOS get an empty plan.
+    private func makeFeedAdPlan(for data: SectionData) -> FeedAdPlan {
+        #if os(iOS)
+        guard !subscriptionManager.isPro, AdConfiguration.isEnabled else { return FeedAdPlan() }
+        var planner = FeedAdPlanner(cap: AdConfiguration.maxAdsPerScreen)
+        planner.offerFlatList(region: "live", count: data.live.count)
+        planner.offerFlatList(region: "yourTeams", count: data.yourTeams.count)
+        planner.offerFlatList(region: "forYou", count: data.forYou.count)
+        planner.offerSectionGaps(sectionCount: data.bySport.count)
+        return planner.plan
+        #else
+        return FeedAdPlan()
+        #endif
     }
 
     /// Per-sport sections with ads sprinkled between them, mirroring legacy
@@ -410,26 +436,16 @@ private struct ModernDayContent: View {
     /// count and respects `AdConfiguration.maxAdsPerScreen`. Pro users / kill
     /// switch / non-iOS get the plain section stream.
     @ViewBuilder
-    private func bySportWithAds(_ sections: [(SportType, [Game])]) -> some View {
-        #if os(iOS)
-        let adsActive = !subscriptionManager.isPro && AdConfiguration.isEnabled
-        let adSlots: Set<Int> = adsActive
-            ? AdInsertionHelper.sectionAdSlots(
-                sectionCount: sections.count,
-                maxAds: AdConfiguration.maxAdsPerScreen)
-            : []
+    private func bySportWithAds(_ sections: [(SportType, [Game])], adPlan: FeedAdPlan) -> some View {
         ForEach(Array(sections.enumerated()), id: \.element.0) { index, pair in
             sportSection(sport: pair.0, games: pair.1)
-            if adSlots.contains(index), let ad = adManager.adForSlot(index) {
+            #if os(iOS)
+            if let slot = adPlan.gapSlot(index), let ad = adManager.adForSlot(slot) {
                 NativeAdCardView(nativeAd: ad)
                     .padding(.horizontal, .appSpace4)
             }
+            #endif
         }
-        #else
-        ForEach(sections, id: \.0) { (sport, games) in
-            sportSection(sport: sport, games: games)
-        }
-        #endif
     }
 
     /// Pre-computed section buckets. Iteration order matters: each bucket
@@ -542,65 +558,52 @@ private struct ModernDayContent: View {
     // MARK: - Section view builders
 
     @ViewBuilder
-    private func liveSection(games: [Game]) -> some View {
+    private func liveSection(games: [Game], adPlan: FeedAdPlan) -> some View {
         if !games.isEmpty {
             sectionEyebrowRow(text: "LIVE · \(games.count)", icon: nil)
             LazyVStack(spacing: .appSpace2) {
-                gameRowsWithAds(games, slotOffset: 0)
+                gameRowsWithAds(games, region: "live", adPlan: adPlan)
             }
         }
     }
 
     @ViewBuilder
-    private func yourTeamsSection(games: [Game]) -> some View {
+    private func yourTeamsSection(games: [Game], adPlan: FeedAdPlan) -> some View {
         if !games.isEmpty {
             sectionEyebrowRow(text: "★ YOUR TEAMS · \(games.count)", icon: nil)
                 .foregroundStyle(Color.appStar)
             LazyVStack(spacing: .appSpace2) {
-                gameRowsWithAds(games, slotOffset: 100)
+                gameRowsWithAds(games, region: "yourTeams", adPlan: adPlan)
             }
         }
     }
 
     @ViewBuilder
-    private func forYouSection(games: [Game]) -> some View {
+    private func forYouSection(games: [Game], adPlan: FeedAdPlan) -> some View {
         if !games.isEmpty {
             sectionEyebrowRow(text: "FOR YOU · \(games.count)", icon: nil)
             LazyVStack(spacing: .appSpace2) {
-                gameRowsWithAds(games, slotOffset: 200)
+                gameRowsWithAds(games, region: "forYou", adPlan: adPlan)
             }
         }
     }
 
-    /// Renders a flat list of games and interleaves a `NativeAdCardView`
-    /// every `AdConfiguration.adaptiveInterval` rows when the list is at least
-    /// 5 games long. `slotOffset` shifts the `adForSlot` index so Live /
-    /// Your Teams / For You don't all start with the same cached ad in view.
+    /// Renders a flat list of games, interleaving a `NativeAdCardView` only
+    /// where the shared `adPlan` placed one for this `region`. The plan enforces
+    /// the global per-feed cap and assigns distinct creatives, so this section
+    /// never decides ad count on its own.
     @ViewBuilder
-    private func gameRowsWithAds(_ games: [Game], slotOffset: Int) -> some View {
-        #if os(iOS)
-        let adsActive = !subscriptionManager.isPro
-            && AdConfiguration.isEnabled
-            && games.count >= 5
-        let adIndexSet: Set<Int> = adsActive
-            ? Set(AdInsertionHelper.gameAdIndices(
-                totalGames: games.count,
-                every: AdConfiguration.adaptiveInterval(forGameCount: games.count),
-                maxAds: AdConfiguration.maxAdsPerScreen))
-            : []
+    private func gameRowsWithAds(_ games: [Game], region: String, adPlan: FeedAdPlan) -> some View {
         ForEach(Array(games.enumerated()), id: \.element.id) { index, game in
             rowLink(game)
-            if adIndexSet.contains(index),
-               let ad = adManager.adForSlot(slotOffset + index) {
+            #if os(iOS)
+            if let slot = adPlan.slot(region: region, row: index),
+               let ad = adManager.adForSlot(slot) {
                 NativeAdCardView(nativeAd: ad)
                     .padding(.horizontal, .appSpace4)
             }
+            #endif
         }
-        #else
-        ForEach(games, id: \.id) { game in
-            rowLink(game)
-        }
-        #endif
     }
 
     /// Per-sport section with chevron toggle. Compact 2-col grid when the

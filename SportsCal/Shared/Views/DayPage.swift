@@ -272,6 +272,13 @@ struct DayPage: View {
                 listBody
             }
         }
+        #if os(iOS)
+        .onAppear {
+            if !subscriptionManager.isPro && AdConfiguration.isEnabled {
+                adManager.refreshOnAppear()
+            }
+        }
+        #endif
         .navigationDestination(item: $spotlightGameID) { eventID in
             spotlightDestination(for: eventID)
         }
@@ -478,6 +485,7 @@ struct DayPage: View {
 
     @ViewBuilder
     private var dayContent: some View {
+        let adPlan = classicAdPlan
         // Live games (only on today)
         if !filteredLiveEvents.isEmpty {
             Section {
@@ -536,8 +544,7 @@ struct DayPage: View {
         }
 
         #if os(iOS)
-        if !subscriptionManager.isPro && AdConfiguration.isEnabled,
-           let ad = adManager.adForSlot(filteredOtherBySport.count + 1) {
+        if let slot = adPlan.slot(region: "lead", row: 0), let ad = adManager.adForSlot(slot) {
             Section {
                 NativeAdCardView(nativeAd: ad)
             }
@@ -549,7 +556,7 @@ struct DayPage: View {
             let isCollapsed = collapsedSportSections.contains(section.sport)
             Section {
                 if !isCollapsed {
-                    sportSectionContent(games: section.games)
+                    sportSectionContent(games: section.games, region: "sport-\(index)", adPlan: adPlan)
                 }
             } header: {
                 Button {
@@ -577,17 +584,6 @@ struct DayPage: View {
                 }
                 .buttonStyle(.plain)
             }
-
-            #if os(iOS)
-            // Insert ad between sport sections
-            if shouldShowAdBetweenSections(afterIndex: index) {
-                if let ad = adManager.adForSlot(index) {
-                    Section {
-                        NativeAdCardView(nativeAd: ad)
-                    }
-                }
-            }
-            #endif
         }
 
         // Empty state
@@ -597,7 +593,7 @@ struct DayPage: View {
                     Image(systemName: "calendar.badge.clock")
                         .font(.largeTitle)
                         .foregroundColor(.secondary)
-                    if totalCountForDay > 0 {
+                    if storage.showFilteredOutGames, totalCountForDay > 0 {
                         Text("\(totalCountForDay) \(totalCountForDay == 1 ? "game" : "games") scheduled but hidden by your sport filters")
                             .foregroundColor(.secondary)
                         Button {
@@ -641,12 +637,12 @@ struct DayPage: View {
         }
 
         // Game count footer + peek at hidden
-        if !isEmpty || totalCountForDay > 0 {
+        if storage.showFilteredOutGames, !isEmpty || totalCountForDay > 0 {
             let hiddenCount = totalCountForDay - visibleCountForDay
             Section {
                 HStack {
                     Spacer()
-                    if hiddenCount > 0 {
+                    if storage.showFilteredOutGames, hiddenCount > 0 {
                         Button {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 showHiddenGames.toggle()
@@ -674,7 +670,7 @@ struct DayPage: View {
         }
 
         // Hidden games peek
-        if showHiddenGames {
+        if storage.showFilteredOutGames, showHiddenGames {
             let hiddenBySport = viewModel.hiddenGamesBySport(for: selectedDate)
             let hiddenSections = storage.orderedSports.compactMap { sport -> (sport: SportType, games: [GameWithTeams])? in
                 guard let games = hiddenBySport[sport], !games.isEmpty else { return nil }
@@ -1122,12 +1118,14 @@ struct DayPage: View {
     // MARK: - Ad Helpers
 
     @ViewBuilder
-    private func sportSectionContent(games: [GameWithTeams]) -> some View {
+    private func sportSectionContent(games: [GameWithTeams], region: String?, adPlan: FeedAdPlan) -> some View {
         let hasTennisMatches = games.contains { $0.game.isTennisMatch }
         if hasTennisMatches {
+            // Tennis groups games into per-tournament disclosure groups; we
+            // don't inline ads inside those nested lists.
             tennisTournamentContent(games: games)
         } else {
-            flatGameList(games: games)
+            flatGameList(games: games, region: region, adPlan: adPlan)
         }
     }
 
@@ -1136,7 +1134,7 @@ struct DayPage: View {
         let grouped = groupedByTournament(games)
         ForEach(grouped, id: \.key) { tournamentName, matches in
             DisclosureGroup {
-                flatGameList(games: matches)
+                flatGameList(games: matches, region: nil, adPlan: FeedAdPlan())
             } label: {
                 HStack {
                     Text(tournamentName)
@@ -1166,45 +1164,32 @@ struct DayPage: View {
     }
 
     @ViewBuilder
-    private func flatGameList(games: [GameWithTeams]) -> some View {
-        #if os(iOS)
-        if !subscriptionManager.isPro && AdConfiguration.isEnabled {
-            let n = AdConfiguration.adaptiveInterval(forGameCount: games.count)
-            let adIndices = AdInsertionHelper.gameAdIndices(
-                totalGames: games.count,
-                every: n,
-                maxAds: AdConfiguration.maxAdsPerScreen
-            )
-            ForEach(Array(games.enumerated()), id: \.element.id) { index, gameWithTeams in
-                gameRow(for: gameWithTeams, isLive: false)
-                if adIndices.contains(index), let ad = adManager.adForSlot(index) {
-                    NativeAdCardView(nativeAd: ad)
-                }
-            }
-        } else {
-            ForEach(games) { gameWithTeams in
-                gameRow(for: gameWithTeams, isLive: false)
-            }
-        }
-        #else
-        ForEach(games) { gameWithTeams in
+    private func flatGameList(games: [GameWithTeams], region: String?, adPlan: FeedAdPlan) -> some View {
+        ForEach(Array(games.enumerated()), id: \.element.id) { index, gameWithTeams in
             gameRow(for: gameWithTeams, isLive: false)
+            #if os(iOS)
+            if let region,
+               let slot = adPlan.slot(region: region, row: index),
+               let ad = adManager.adForSlot(slot) {
+                NativeAdCardView(nativeAd: ad)
+            }
+            #endif
         }
-        #endif
     }
 
     #if os(iOS)
-    private func shouldShowAdBetweenSections(afterIndex index: Int) -> Bool {
-        guard !subscriptionManager.isPro,
-              AdConfiguration.isEnabled,
-              case .betweenSections = AdConfiguration.strategy else {
-            return false
+    /// One globally-capped ad layout for the whole day feed: a single lead ad
+    /// above the per-sport sections, then ads spread across those sections in
+    /// order. The total honors `AdConfiguration.maxAdsPerScreen` and no creative
+    /// repeats. Empty for Pro users / kill switch.
+    private var classicAdPlan: FeedAdPlan {
+        guard !subscriptionManager.isPro, AdConfiguration.isEnabled else { return FeedAdPlan() }
+        var planner = FeedAdPlanner(cap: AdConfiguration.maxAdsPerScreen)
+        planner.offerSingle(region: "lead")
+        for (i, section) in filteredOtherBySport.enumerated() {
+            planner.offerFlatList(region: "sport-\(i)", count: section.games.count)
         }
-        let slots = AdInsertionHelper.sectionAdSlots(
-            sectionCount: filteredOtherBySport.count,
-            maxAds: AdConfiguration.maxAdsPerScreen
-        )
-        return slots.contains(index)
+        return planner.plan
     }
     #endif
 }

@@ -28,7 +28,13 @@ class NativeAdManager: NSObject {
 
     private(set) var loadedAds: [NativeAd] = []
     private var adLoader: AdLoader?
-    private var pendingAdCount: Int = 0
+    private var isLoading = false
+    private var lastLoadStarted: Date?
+
+    /// How long a cached batch stays "fresh". After this, the next feed
+    /// appearance discards it and loads new creatives so a long session isn't
+    /// stuck showing the same handful of ads.
+    private let refreshInterval: TimeInterval = 5 * 60
 
     private let adUnitID: String
 
@@ -39,11 +45,30 @@ class NativeAdManager: NSObject {
 
     /// Pre-load a batch of native ads so they're ready when scrolled into view.
     func preloadAds(count: Int = 3) {
-        guard loadedAds.count < count else { return }
-        pendingAdCount = count - loadedAds.count
+        guard !isLoading, loadedAds.count < count else { return }
+        startLoad(count: count - loadedAds.count)
+    }
+
+    /// Call from a feed's `onAppear`. Tops up after partial-fill failures, and
+    /// when the cached batch has gone stale it discards and reloads fresh
+    /// creatives to avoid ad fatigue over a long session.
+    func refreshOnAppear(target: Int = 5) {
+        guard !isLoading else { return }
+        let isStale = lastLoadStarted.map { Date().timeIntervalSince($0) > refreshInterval } ?? true
+        if isStale && !loadedAds.isEmpty {
+            loadedAds.removeAll()
+        }
+        guard loadedAds.count < target else { return }
+        startLoad(count: target - loadedAds.count)
+    }
+
+    private func startLoad(count: Int) {
+        guard count > 0 else { return }
+        isLoading = true
+        lastLoadStarted = Date()
 
         let multipleAdsOptions = MultipleAdsAdLoaderOptions()
-        multipleAdsOptions.numberOfAds = pendingAdCount
+        multipleAdsOptions.numberOfAds = count
 
         let adLoader = AdLoader(
             adUnitID: adUnitID,
@@ -56,10 +81,12 @@ class NativeAdManager: NSObject {
         adLoader.load(Request())
     }
 
-    /// Return a cached ad for a given slot index. Returns nil if none available.
+    /// Return the cached creative for a given slot index. Non-recycling: returns
+    /// nil once the slot exceeds available inventory, so a feed never shows the
+    /// same creative twice (the old modulo behavior caused duplicates).
     func adForSlot(_ slot: Int) -> NativeAd? {
-        guard !loadedAds.isEmpty else { return nil }
-        return loadedAds[slot % loadedAds.count]
+        guard slot >= 0, slot < loadedAds.count else { return nil }
+        return loadedAds[slot]
     }
 }
 
@@ -72,6 +99,11 @@ extension NativeAdManager: NativeAdLoaderDelegate {
 
     func adLoader(_ adLoader: AdLoader, didFailToReceiveAdWithError error: Error) {
         AppLogger.general.error("Native ad failed to load: \(error.localizedDescription)")
+        isLoading = false
+    }
+
+    func adLoaderDidFinishLoading(_ adLoader: AdLoader) {
+        isLoading = false
     }
 }
 #endif

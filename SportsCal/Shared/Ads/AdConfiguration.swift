@@ -19,8 +19,10 @@ struct AdConfiguration {
     /// Current placement strategy — change this to tune ad frequency
     static var strategy: PlacementStrategy = .everyNGames(n: 5)
 
-    /// Maximum number of ads shown on a single screen/list
-    static var maxAdsPerScreen: Int = 3
+    /// Maximum number of ads shown across a single scrollable feed.
+    /// Enforced globally per feed via `FeedAdPlanner` (not per-section), so this
+    /// is a true ceiling on how many ads a user sees in one Games/Browse screen.
+    static var maxAdsPerScreen: Int = 2
 
     /// Kill switch to disable all ads without a code change
     static var isEnabled: Bool = true
