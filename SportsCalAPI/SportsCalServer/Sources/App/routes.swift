@@ -112,7 +112,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 
     //MARK: - Schedules
     routes.get("schedules") { req async throws -> String in
-        let schedule = try await req.application.redis.get(RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development), asJSON: LiveScore.self)
+        let schedule = try await req.kv.getJSON(RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue, as: LiveScore.self)
         guard let schedule = schedule else { throw NetworkError.invalidData }
         return encodeResult(res: schedule)
     }
@@ -120,7 +120,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     //MARK: - Sport
     routes.get("sport", ":sport") { req in
         let sport = SportType(rawValue: req.parameters.get("sport")!)
-        let schedule = try await req.application.redis.get(RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development), asJSON: LiveScore.self)
+        let schedule = try await req.kv.getJSON(RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue, as: LiveScore.self)
         let result: LiveEvent?
         switch sport {
         case .basketball:
@@ -159,7 +159,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 
     //MARK: - Teams
     routes.get("teams") { req async throws -> String in
-        let teams = try await req.redis.get(RedisEndpoint.teams.getValue(isDebug: req.application.environment == .development), asJSON: [Team].self) ?? []
+        let teams = try await req.kv.getJSON(RedisEndpoint.teams.getValue(isDebug: req.application.environment == .development).rawValue, as: [Team].self) ?? []
         return encodeResult(res: teams)
     }
 
@@ -174,7 +174,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         let key = RedisEndpoint.ESPN.playByPlay(eventID).getValue(isDebug: isDebug)
 
         // Tier 1: Redis hot cache.
-        if let cached = try await req.application.redis.get(key, asJSON: CachedPlays.self) {
+        if let cached = try await req.kv.getJSON(key.rawValue, as: CachedPlays.self) {
             return encodeResult(res: cached)
         }
 
@@ -187,8 +187,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         // Cache miss: try to resolve TSDB → ESPN via the enrichment map, then optionally
         // fall back to client-supplied sport/league.
         let mapKey = RedisEndpoint.ESPN.espnEventMap.getValue(isDebug: isDebug)
-        let eventMap: [String: ESPNEventMapping] = (try? await req.application.redis.get(
-            mapKey, asJSON: [String: ESPNEventMapping].self
+        let eventMap: [String: ESPNEventMapping] = (try? await req.kv.getJSON(
+            mapKey.rawValue, as: [String: ESPNEventMapping].self
         )) ?? [:]
 
         let resolvedESPNID: String
@@ -276,7 +276,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 
     //MARK: - all-live-games
     routes.get("all-live-games") { req async throws -> String in
-        let liveScore = try await req.application.redis.get(RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: req.application.environment == .development), asJSON: LiveScore.self)
+        let liveScore = try await req.kv.getJSON(RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: req.application.environment == .development).rawValue, as: LiveScore.self)
         return encodeResult(res: liveScore)
     }
 
@@ -460,7 +460,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 
     //MARK: - live
     routes.get("live") { req async throws in
-        var result = try await req.application.redis.get(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: req.application.environment == .development), asJSON: LiveScore.self)
+        var result = try await req.kv.getJSON(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: req.application.environment == .development).rawValue, as: LiveScore.self)
         result?.removeNonStarting()
 //        result?.removeOtherInfo()
         return encodeResult(res: result)
@@ -826,9 +826,9 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         let favoriteTeams = Set(favoritesParam.split(separator: ",").map(String.init))
 
         // Load full schedule from Redis
-        guard let schedule = try await req.application.redis.get(
-            RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development),
-            asJSON: LiveScore.self
+        guard let schedule = try await req.kv.getJSON(
+            RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue,
+            as: LiveScore.self
         ) else {
             throw NetworkError.invalidData
         }
@@ -926,9 +926,9 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 
         // Only include teams referenced by returned games
         let teamIDs = Set(strippedGames.flatMap { [$0.idHomeTeam, $0.idAwayTeam].compactMap { $0 } })
-        let allTeams = try await req.application.redis.get(
-            RedisEndpoint.teams.getValue(isDebug: req.application.environment == .development),
-            asJSON: [Team].self
+        let allTeams = try await req.kv.getJSON(
+            RedisEndpoint.teams.getValue(isDebug: req.application.environment == .development).rawValue,
+            as: [Team].self
         ) ?? []
         let relevantTeams = allTeams.filter { teamIDs.contains($0.idTeam ?? "") }
 
