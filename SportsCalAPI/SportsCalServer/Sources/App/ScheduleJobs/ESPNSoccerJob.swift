@@ -44,7 +44,13 @@ struct ESPNSoccerJob: AsyncScheduledJob {
             for league in leaguesToFetch {
                 group.addTask {
                     do {
-                        return (league, try await Integrator.getESPNScoreboard(for: league, context.application.client))
+                        // World Cup: query the full season (`?dates=<year>`) so the
+                        // whole upcoming fixture list lands in the schedule, not just
+                        // ESPN's imminent slate. Other leagues use the default window.
+                        let dates: Int? = league == .FIFA_World_Cup
+                            ? Calendar.current.component(.year, from: Date())
+                            : nil
+                        return (league, try await Integrator.getESPNScoreboard(for: league, context.application.client, dates: dates))
                     } catch {
                         Self.logger.debug("Failed to fetch soccer scoreboard", metadata: [
                             "league": "\(league)",
@@ -70,9 +76,30 @@ struct ESPNSoccerJob: AsyncScheduledJob {
     /// `Integrator.activeLeagues` (TSDB schedule ∪ ESPN schedule window). On cold start
     /// (both sources missing), falls back to fetching every soccer league.
     private func soccerLeaguesToFetch(redis: RedisClient, isDebug: Bool) async -> [Leagues] {
-        guard let active = await Integrator.activeLeagues(redis: redis, isDebug: isDebug) else {
-            return Leagues.allCases.filter { $0.isSoccer }
+        var leagues: [Leagues]
+        if let active = await Integrator.activeLeagues(redis: redis, isDebug: isDebug) {
+            leagues = active.filter { $0.isSoccer }
+        } else {
+            leagues = Leagues.allCases.filter { $0.isSoccer }
         }
-        return active.filter { $0.isSoccer }
+        // The World Cup's fixtures don't enter the live window until ~30 min before
+        // kickoff, but the Games-tab hero and the World Cup hub need upcoming matches
+        // days ahead (next-kickoff countdown, fixture ticker). Keep it in the fetch
+        // set for the tournament era so ESPN's `fifa.world` schedule populates eagerly.
+        if Self.worldCupFetchWindow.contains(Date()), !leagues.contains(.FIFA_World_Cup) {
+            leagues.append(.FIFA_World_Cup)
+        }
+        return leagues
     }
+
+    /// Pre-tournament lead-in through the final: fetch World Cup fixtures eagerly in
+    /// this range so they're in the schedule before they reach the live window.
+    /// (2026 FIFA Men's World Cup: Jun 11 – Jul 19, 2026.)
+    private static let worldCupFetchWindow: ClosedRange<Date> = {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC") ?? .current
+        let start = cal.date(from: DateComponents(year: 2026, month: 5, day: 15)) ?? .distantPast
+        let end = cal.date(from: DateComponents(year: 2026, month: 7, day: 20)) ?? .distantFuture
+        return start...end
+    }()
 }
