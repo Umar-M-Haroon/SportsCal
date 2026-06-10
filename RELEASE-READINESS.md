@@ -65,18 +65,18 @@
 
 ---
 
-## E. Test coverage gaps (drives Phase 3 confidence)
+## E. Test coverage gaps (drives Phase 3 confidence) — ✅ CLOSED June 10
 
-**Server (highest-value gaps):**
-- `ESPNFetchJob` schedule-merge (the 9-path team-matching fallback) — **untested, hot path.** Add at least a smoke test (N schedule games + M ESPN results → expected merge).
-- `DBUpdateJob` (~600 LOC SQLite sync) — untested.
-- Routes layer (`/plays` three-tier lookup, `/ws` streaming, `/sport/:sport`) — untested.
-- `ContentState.stableHash()` determinism — no test pinning the hash format (dedup depends on it).
+**Server:**
+- ✅ `ESPNFetchJob` schedule-merge — `ScheduleMergeTests` (15 tests): full fallback chain (IDs → names → normalized → alias canonical → event name), pre-game score guard, stale-`401` prune, append dedup, tennis identity stickiness.
+- ✅ `DBUpdateJob` — `ScheduleUpdateJobTests` (10 tests) over visibility seams + two extracted pure functions (`shouldRefreshSchedules`, `normalizeLeagueEvents`). The network fetch loop itself stays untested by design (low value/high risk to restructure pre-release).
+- ✅ Routes layer — `RoutesTests` (17 tests) against `InMemoryKeyValueStore` (read routes converted to `req.kv`, identical Redis calls): auth, `/schedules`, `/sport`, `/teams`, `/plays` tier-1 + 404s, push-to-start register/rotation/deregister, `/liveActivity` env routing, legacy-path parity. `/ws` deliberately excluded (infinite poll loop against live Redis; reconnect covered client-side).
+- ✅ `ContentState.stableHash()` — `ContentStateHashTests` (6 tests) incl. golden hard-coded hash pins (cross-deploy Live Activity dedup).
 
-**Client (already decent — matcher, gating, model tests exist):**
-- WebSocket reconnect/backoff (C8).
-- Offline→online transition + stale-cache display.
-- Push-to-start registration handshake (currently server-side only).
+**Client:**
+- ✅ WebSocket reconnect/backoff (C8) — `WebSocketReconnectTests` (5 tests): offline deferral, backoff scheduling, path-restore reset.
+- ✅ Offline→online transition — `OfflineTransitionTests` (6 tests) over the new `showsStaleBanner`/`showsOfflinePlaceholder` VM surface.
+- ✅ Push-to-start registration handshake — `PushToStartRegistrationTests` (7 tests): `PushToStartRegistrationPlanner` rules + request wire format (stable `X-Install-ID`, `eventIDs` absent when empty).
 
 ## F. Server load & resilience summary
 
@@ -93,7 +93,7 @@ Plan: **feel it on a real device with realistic game counts** (a busy NBA+NFL Sa
 - (b) Dial back — e.g. `everyNGames(n:8–10)`, `maxAdsPerScreen=2`, no ad in GameDetail.
 - (c) Hybrid — looser cadence on long lists, none on short ones.
 
-Decision recorded here once made: _TBD_.
+Decision recorded: **(b) dial back, implemented June 10** — `everyNGames(n:9)`, `adaptiveInterval` 8/10, `maxAdsPerScreen=2`, lists under 8 rows ad-free. GameDetail keeps its single ad for now; revisit during the device-feel pass (one-line revert if it feels heavy).
 
 ---
 
