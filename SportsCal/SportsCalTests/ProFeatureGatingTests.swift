@@ -48,35 +48,41 @@ final class ProFeatureGatingTests: XCTestCase {
 
     func testAdConfig_defaultStrategy() {
         if case .everyNGames(let n) = AdConfiguration.strategy {
-            XCTAssertEqual(n, 5, "Default strategy should be everyNGames(n: 5)")
+            XCTAssertEqual(n, 9, "Default strategy should be everyNGames(n: 9) — C4 dial-back")
         } else {
             XCTFail("Default strategy should be .everyNGames, got betweenSections")
         }
     }
 
-    func testAdConfig_adaptiveInterval_fewGames() {
-        XCTAssertEqual(AdConfiguration.adaptiveInterval(forGameCount: 3), 3,
-                        "Fewer than 6 games should use interval of 3")
+    func testAdConfig_adaptiveInterval_shortLists() {
+        // C4 dial-back: 1 ad per 8–10 games. Lists under 12 use the tighter
+        // bound of 8; FeedAdPlanner skips lists under 8 rows entirely.
+        XCTAssertEqual(AdConfiguration.adaptiveInterval(forGameCount: 3), 8)
+        XCTAssertEqual(AdConfiguration.adaptiveInterval(forGameCount: 8), 8)
+        XCTAssertEqual(AdConfiguration.adaptiveInterval(forGameCount: 11), 8)
     }
 
-    func testAdConfig_adaptiveInterval_mediumGames() {
-        XCTAssertEqual(AdConfiguration.adaptiveInterval(forGameCount: 8), 4,
-                        "6-11 games should use interval of 4")
+    func testAdConfig_adaptiveInterval_longLists() {
+        XCTAssertEqual(AdConfiguration.adaptiveInterval(forGameCount: 12), 10,
+                        "12+ games should use interval of 10")
+        XCTAssertEqual(AdConfiguration.adaptiveInterval(forGameCount: 20), 10)
     }
 
-    func testAdConfig_adaptiveInterval_manyGames() {
-        XCTAssertEqual(AdConfiguration.adaptiveInterval(forGameCount: 20), 7,
-                        "12+ games should use interval of 7")
+    func testFeedAdPlanner_longListPlacesAdsAtDialedBackInterval() {
+        var planner = FeedAdPlanner(cap: AdConfiguration.maxAdsPerScreen)
+        planner.offerFlatList(region: "games", count: 20)
+
+        let rows = planner.plan.rowAds["games"]?.keys.sorted() ?? []
+        XCTAssertEqual(rows, [9, 19],
+                        "20 games at interval 10 with cap 2 → ads after rows 10 and 20")
     }
 
-    func testAdConfig_adaptiveInterval_boundary6() {
-        XCTAssertEqual(AdConfiguration.adaptiveInterval(forGameCount: 6), 4,
-                        "Exactly 6 games should use interval of 4")
-    }
+    func testFeedAdPlanner_shortListShowsNoAds() {
+        var planner = FeedAdPlanner(cap: AdConfiguration.maxAdsPerScreen)
+        planner.offerFlatList(region: "games", count: 7)
 
-    func testAdConfig_adaptiveInterval_boundary12() {
-        XCTAssertEqual(AdConfiguration.adaptiveInterval(forGameCount: 12), 7,
-                        "Exactly 12 games should use interval of 7")
+        XCTAssertNil(planner.plan.rowAds["games"],
+                     "lists under 8 rows show no ads (C4 dial-back)")
     }
     #endif
 

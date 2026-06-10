@@ -78,8 +78,9 @@ struct FeedAdPlanner {
 
     /// Offer a flat list of `count` rows under `region`. Allocates ads at the
     /// adaptive interval, capped by the remaining global budget. Lists shorter
-    /// than `minimumRows` are skipped so tiny sections don't get ads.
-    mutating func offerFlatList(region: String, count: Int, minimumRows: Int = 5) {
+    /// than `minimumRows` are skipped — anything below the minimum ad interval
+    /// shows no ads at all (C4 dial-back).
+    mutating func offerFlatList(region: String, count: Int, minimumRows: Int = 8) {
         guard remaining > 0, count >= minimumRows else { return }
         let interval = AdConfiguration.adaptiveInterval(forGameCount: count)
         let indices = AdInsertionHelper.gameAdIndices(

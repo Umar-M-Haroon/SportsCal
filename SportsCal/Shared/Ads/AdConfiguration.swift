@@ -17,7 +17,7 @@ struct AdConfiguration {
     }
 
     /// Current placement strategy — change this to tune ad frequency
-    static var strategy: PlacementStrategy = .everyNGames(n: 5)
+    static var strategy: PlacementStrategy = .everyNGames(n: 9)
 
     /// Maximum number of ads shown across a single scrollable feed.
     /// Enforced globally per feed via `FeedAdPlanner` (not per-section), so this
@@ -28,11 +28,11 @@ struct AdConfiguration {
     static var isEnabled: Bool = true
 
     /// Returns an adaptive ad interval based on the number of games in a list.
-    /// Fewer games → more frequent ads so users with fewer sports still see ads.
+    /// Dialed back for v1 (C4): 1 ad per 8–10 games. Short lists show at most
+    /// one ad late in the list; `FeedAdPlanner` skips lists under 8 rows entirely.
     static func adaptiveInterval(forGameCount totalGames: Int) -> Int {
-        if totalGames < 6 { return 3 }
-        else if totalGames < 12 { return 4 }
-        else { return 7 }
+        if totalGames < 12 { return 8 }
+        else { return 10 }
     }
 }
 #endif

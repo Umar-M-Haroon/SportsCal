@@ -46,7 +46,7 @@
 | C2 | **Sentry PII `beforeSend` + mask device-token logs** (audit #06, #10) | 🟢 | 20m | **DONE (Batch 2).** Added `beforeSend` breadcrumb redaction to both blocks; masked token logs (prefix-12) and payload logs (eventID only) at AppDelegate 74/92/148/197/214. |
 | C10 | **Ad-tracking posture: orphan ATT string + no EEA consent** | 🟡 | varies | **Partly done (3a):** removed the orphan `NSUserTrackingUsageDescription` (no ATT requested → consistent with `NSPrivacyTracking=false`). **Remaining (ops, not code):** AdMob in the EEA without a Google-certified CMP is an AdMob *policy* gap; address before serving EEA traffic. If you later want personalized ads, add ATT + a CMP. |
 | C3 | **Offline UX** — no real offline indicator, only a stale-data banner | 🟢 | 2–4h | **DONE (3c).** Wired the (previously dead) `.failed` path via a race-free task-group result; added observable `isOffline` (from NWPathMonitor) + `lastSuccessfulFetch`. Banner now shows "You're offline" vs "Showing data from {real ago}", Retry disabled offline; full-screen offline placeholder when no cached data. **Needs an airplane-mode device pass to confirm feel.** |
-| C4 | **Ad cadence decision** — currently max 3/screen, ~1 per 5 games | 🔴 | TBD | *Decide on-device in Phase 3.* Candidate dial-back: 1 per 8–10 games, max 2/screen. See §G. |
+| C4 | **Ad cadence decision** — currently max 3/screen, ~1 per 5 games | 🟡 | June 10 | *Dial-back implemented (June 10):* 1 per 8–10 games (`adaptiveInterval` 8/10), max 2/screen, lists under 8 rows show no ads (`FeedAdPlanner minimumRows: 8`), strategy `everyNGames(n: 9)`. Pinned by `ProFeatureGatingTests`. Remaining: confirm feel on device in Phase 3 (incl. whether GameDetail keeps its single ad). |
 | C5 | **Tailscale IP / local-server paths gating** (audit #11) | 🟢 | 15m | **DONE (3b).** `tailscaleHost` + `.local`/`.dev` resolution in `baseURL()`/`rootURL()`/`refreshEnvironment()` gated `#if DEBUG`; Release always returns prod and the IP isn't compiled in. Verify with `strings` on a Release archive (checklist). |
 | ~~C6~~ → B9 | **App Attest implementation** — `verifyAppleAttestation`/`verifyAppleAssertion` stubs | ⚪️ | days | **DECISION REVERSED (June 9): ship v1 WITHOUT App Attest → moved to v1.1.** Verified the stubs are fail-closed and not wired to any route, so nothing breaks. Build client attestation + server verify end-to-end in v1.1 (Batch 5 becomes a v1.1 track). |
 | C7 | **Push-to-start `X-Install-ID` client migration** — server moved to install-keyed storage | 🟢 | — | **Verified June 9:** client sends `X-Install-ID` on all 4 registration paths in `NetworkHandler.swift` (517/540/667/687). Server deployed with install-keyed storage same day — client+server release coordinated. |
@@ -119,7 +119,7 @@ Decision recorded here once made: _TBD_.
 3. ✅ **EEA ads (C10)**: handled via App Store Connect update (user-owned web-console step) — declare/configure EU ad serving + CMP posture in ASC before serving EEA traffic.
 
 ## Open decisions (still need input)
-3. **Ad cadence (C4/§G)** — decide after device pass in Phase 3 (default plan).
+3. **Ad cadence (C4/§G)** — dial-back option (b) implemented June 10 (1 per 8–10, max 2/screen); confirm feel on device in Phase 3.
 4. **Which S2s are in the cut line** vs pushed to v1.1 — confirm during/after Batch 1.
 
 ---
@@ -150,7 +150,7 @@ Steps that can't be done in code — do these before hitting "Submit for Review"
 
 ### Decisions to resolve before submit
 - [x] **C10 — ad tracking**: orphan `NSUserTrackingUsageDescription` already removed (3a). EEA/AdMob: handle via App Store Connect update (EU DSA / ad-serving declaration + CMP posture) — manual ASC step before serving EEA traffic.
-- [ ] **C4 — ad cadence**: confirm after on-device feel pass.
+- [ ] **C4 — ad cadence**: dial-back implemented (June 10); confirm after on-device feel pass.
 - [x] **B9 — App Attest**: deferred to v1.1 (June 9 decision).
 
 ### Test gates
