@@ -23,7 +23,7 @@
 | A1 | **Privacy manifest** `PrivacyInfo.xcprivacy` (audit #03) | 🟢 | 1–2h | **DONE (Batch 2).** Authored small first-party manifest (UserDefaults CA92.1+1C8F.1; Device ID + Other collected, not-linked/not-tracking, App Functionality). Added to iOS app + widget (pbxproj) and watch app + watch widgets (synchronized folders). **Verified in build artifact**: present in `Scoreline.app` root + embedded `.appex`, valid plist. Watch bundles verify on a watch-scheme archive. |
 | A2 | **Release APS entitlement** = `development` (audit #04) | 🟢 | 2m | **DONE (Batch 1).** Release entitlements now `production`; Debug left `development`. Verify at archive time via `codesign -d --entitlements -`. |
 | A3 | **App Privacy nutrition labels** in App Store Connect (audit #12) | 🟡 | 30m | *Manual web-console task (checklist in plan).* Declare: Device ID (collected/not-linked/not-tracking/App Functionality), Other Data (favorites), Crash+Performance (Sentry), Purchases (RevenueCat, linked). **Do NOT list EngagementTracker** (on-device → not collected; corrects April audit). "Used to track you" = none (per C10). Privacy-policy URL required. |
-| A4 | **Ad unit IDs**: confirm Release uses real `Constants.nativeAdUnitID`, not Google test unit | 🟡 | 30m | **Code verified ✓** — `NativeAdManager.defaultAdUnitID` already guards DEBUG→test / Release→`Constants.nativeAdUnitID`. Remaining: confirm Xcode Cloud `ADMOB_*` env vars set + Info.plist `GADApplicationIdentifier` is the real app ID + device check in Phase 3. |
+| A4 | **Ad unit IDs**: confirm Release uses real `Constants.nativeAdUnitID`, not Google test unit | 🟡 | 30m | **Code verified ✓** — `NativeAdManager.defaultAdUnitID` already guards DEBUG→test / Release→`Constants.nativeAdUnitID`. **Info.plist `GADApplicationIdentifier` verified real (`ca-app-pub-7626…~5399…`, not Google test ID) — June 9.** Remaining: confirm Xcode Cloud `ADMOB_*` env vars set + device check in Phase 3. |
 
 ## B. High (S1) — crashes, legal, load failure
 
@@ -49,7 +49,7 @@
 | C4 | **Ad cadence decision** — currently max 3/screen, ~1 per 5 games | 🔴 | TBD | *Decide on-device in Phase 3.* Candidate dial-back: 1 per 8–10 games, max 2/screen. See §G. |
 | C5 | **Tailscale IP / local-server paths gating** (audit #11) | 🟢 | 15m | **DONE (3b).** `tailscaleHost` + `.local`/`.dev` resolution in `baseURL()`/`rootURL()`/`refreshEnvironment()` gated `#if DEBUG`; Release always returns prod and the IP isn't compiled in. Verify with `strings` on a Release archive (checklist). |
 | ~~C6~~ → B9 | **App Attest implementation** — `verifyAppleAttestation`/`verifyAppleAssertion` stubs | 🔴 | days | **DECISION: implement for v1 → promoted to S1, own batch (Batch 5).** Real hardware attestation against API abuse/scraping. First confirm stubs aren't currently wired (so nothing breaks pre-implementation), then build verification end-to-end (client attestation + server verify). Scope: days. |
-| C7 | **Push-to-start `X-Install-ID` client migration** — server moved to install-keyed storage | 🟡 | — | Ensure the iOS build that ships sends `X-Install-ID`; old `PushToStart-{token}` keys won't migrate. Coordinate client+server release. |
+| C7 | **Push-to-start `X-Install-ID` client migration** — server moved to install-keyed storage | 🟢 | — | **Verified June 9:** client sends `X-Install-ID` on all 4 registration paths in `NetworkHandler.swift` (517/540/667/687). Server deployed with install-keyed storage same day — client+server release coordinated. |
 | C8 | **WebSocket reconnect untested** — `GameViewModel.reconnectWebSocketOnly()` backoff | 🟢 | 1–2h | **DONE (3b).** Extracted pure `WebSocketBackoff.delaySeconds(forAttempt:)` + `WebSocketBackoffTests` pinning the quadratic-capped-at-60 curve. (Offline→online reconnect itself is covered by the C3 path-monitor pass.) |
 
 ## D. Low (S3) — defer to v1.1 unless cheap
@@ -57,7 +57,7 @@
 | ID | Item | Status | Effort | Notes |
 |----|------|--------|--------|-------|
 | D1 | Cleanup ngrok URL in xcscheme (audit #13) | 🟢 | 2m | **DONE (Batch 1).** Both ngrok env vars removed; also disabled `mock-subscribed` in the shared scheme so the free/ad UX is testable in Phase 3. |
-| D2 | Standings TTL 90→30d (audit #08) | ⚪️ | — | `StandingsSnapshotJob` is disabled → likely moot. Confirm & close. |
+| D2 | Standings TTL 90→30d (audit #08) | ⚪️ | — | **Confirmed June 9:** `StandingsSnapshotJob` scheduling is commented out in `configure.swift` → moot. Closed. |
 | D3 | "Reset Suggestions" button for EngagementTracker | 🔴 | 30m | Nice privacy affordance; optional. |
 | D4 | Skeleton loaders instead of spinners | 🔴 | 2–4h | Polish; v1.1 OK. |
 | D5 | Commented-out debug prints `GameViewModel:804–810` | 🟢 | 5m | **DONE (Batch 1).** Removed. |
@@ -152,7 +152,11 @@ Steps that can't be done in code — do these before hitting "Submit for Review"
 - [ ] **C4 — ad cadence**: confirm after on-device feel pass.
 
 ### Test gates
-- [ ] Run full `SportsCalTests` suite green (the MCP runner couldn't auto-launch — run in CI or Xcode).
-- [ ] Server `swift test` green; nightly push-smoke green.
+- [ ] Run full `SportsCalTests` suite green (the MCP runner couldn't auto-launch — run in CI or Xcode; re-confirmed June 9: `RunAllTests` returns 133 "not run").
+- [x] Server unit tests green (June 9): all 13 unit suites pass (~115 tests incl. `WorldCupEnrichmentTests` 8/8). Note: `AppTests.AppTests` + `ScheduleCountTests/testLeagueGameCounts` are live-data integration tests that need a populated prod-like Redis — they fail/SIGTRAP on dev machines and are excluded from the local gate.
+- [ ] Nightly push-smoke green.
+
+### Deploy log
+- **June 9, 2026** — `main` fast-forwarded to `cleanup-staging` (96 release-prep commits) + World Cup commit `d1767c1`; both pushed to origin. Hetzner redeployed from a clean worktree (deploy.sh rsyncs the working tree — never deploy from a dirty checkout). First deploy (`6cc5b8b`) verified: `/ping` pong, schedules 200. Second deploy (`d1767c1`, World Cup routes + enrichment job) followed immediately.
 
 > Code-side status lives in the tables above (🟢 done). This checklist is only the out-of-band steps.
