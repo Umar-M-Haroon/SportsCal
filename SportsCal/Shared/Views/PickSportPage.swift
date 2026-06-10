@@ -17,6 +17,26 @@ struct PickSportPage: View {
         
         List {
             Section {
+                Toggle(isOn: $bindableAppStorage.shouldShowWorldCup) {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("FIFA World Cup 2026")
+                            Text("Jun 11 – Jul 19 · follow every match")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "soccerball")
+                            .modifier(SportsTint(sport: .soccer))
+                    }
+                }
+            } header: {
+                Text("Featured")
+            } footer: {
+                Text("Turn this on to follow the World Cup without enabling all of soccer.")
+            }
+
+            Section {
                 Toggle(isOn: $bindableAppStorage.shouldShowNHL) {
                     Label {
                         Text("NHL")
@@ -160,7 +180,7 @@ struct PickSportPage: View {
                     viewModel.getInfo()
                 }, label: {
                     Text("Continue")
-                        .disabled(!(appStorage.shouldShowSoccer || appStorage.shouldShowMLB || appStorage.shouldShowNBA || appStorage.shouldShowWNBA || appStorage.shouldShowNFL || appStorage.shouldShowNHL || appStorage.shouldShowGolf || appStorage.shouldShowTennis || appStorage.shouldShowRacing))
+                        .disabled(!(appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup || appStorage.shouldShowMLB || appStorage.shouldShowNBA || appStorage.shouldShowWNBA || appStorage.shouldShowNFL || appStorage.shouldShowNHL || appStorage.shouldShowGolf || appStorage.shouldShowTennis || appStorage.shouldShowRacing))
                 })
                 .frame(maxWidth: .infinity,alignment: .center)
                 .buttonStyle(.bordered)

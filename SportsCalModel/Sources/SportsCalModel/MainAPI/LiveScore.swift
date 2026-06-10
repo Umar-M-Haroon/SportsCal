@@ -353,7 +353,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     }
 }
 public struct LiveScore: Codable, Equatable {
-    public init(nba: LiveEvent? = nil, mlb: LiveEvent? = nil, soccer: LiveEvent? = nil, nfl: LiveEvent? = nil, nhl: LiveEvent? = nil, golf: LiveEvent? = nil, tennis: LiveEvent? = nil, racing: LiveEvent? = nil, f1Standings: F1Standings? = nil) {
+    public init(nba: LiveEvent? = nil, mlb: LiveEvent? = nil, soccer: LiveEvent? = nil, nfl: LiveEvent? = nil, nhl: LiveEvent? = nil, golf: LiveEvent? = nil, tennis: LiveEvent? = nil, racing: LiveEvent? = nil, f1Standings: F1Standings? = nil, worldCup: WorldCupEnrichment? = nil) {
         self.nba = nba
         self.mlb = mlb
         self.soccer = soccer
@@ -363,6 +363,7 @@ public struct LiveScore: Codable, Equatable {
         self.tennis = tennis
         self.racing = racing
         self.f1Standings = f1Standings
+        self.worldCup = worldCup
     }
 
     public var nba: LiveEvent?
@@ -374,6 +375,7 @@ public struct LiveScore: Codable, Equatable {
     public var tennis: LiveEvent?
     public var racing: LiveEvent?
     public var f1Standings: F1Standings?
+    public var worldCup: WorldCupEnrichment?
 
     public func event(for sport: SportType) -> LiveEvent? {
         switch sport {
@@ -400,7 +402,8 @@ public struct LiveScore: Codable, Equatable {
             golf: LiveEvent.merging(self.golf, other.golf),
             tennis: LiveEvent.merging(self.tennis, other.tennis),
             racing: LiveEvent.merging(self.racing, other.racing),
-            f1Standings: self.f1Standings ?? other.f1Standings
+            f1Standings: self.f1Standings ?? other.f1Standings,
+            worldCup: self.worldCup ?? other.worldCup
         )
     }
 

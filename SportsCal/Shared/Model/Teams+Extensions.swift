@@ -105,3 +105,81 @@ extension Game {
         }
     }
 }
+
+// MARK: - F1 Weekend Status
+
+/// Session-aware status for an F1 race weekend. Avoids collapsing a multi-session
+/// weekend into a single scalar (which made a *completed qualifying* — whose ESPN
+/// `shortDetail` is literally "Final" — read as if the whole weekend was over).
+enum RaceWeekendStatus {
+    /// A session is currently running (e.g. "Qualifying", "Race").
+    case live(String)
+    /// The Race session has completed.
+    case finished
+    /// The race hasn't run yet — show the next session and when it starts.
+    case upcoming(label: String, date: Date)
+    /// Not a race weekend, or no session data.
+    case none
+}
+
+extension Game {
+    /// The Race session within the weekend, if present (case-insensitive match).
+    var raceSessionEntry: EventSession? {
+        sessions?.first { $0.sessionType.caseInsensitiveCompare("Race") == .orderedSame }
+    }
+
+    /// The session currently in progress, if any.
+    var liveSessionEntry: EventSession? {
+        sessions?.first { $0.status?.lowercased() == "in" }
+    }
+
+    /// The earliest session that hasn't started yet (not `post`/`in`, dated in the future).
+    var nextUpcomingSession: EventSession? {
+        guard let sessions, !sessions.isEmpty else { return nil }
+        let now = Date()
+        return sessions
+            .filter { session in
+                let status = session.status?.lowercased()
+                return status != "post" && status != "in"
+            }
+            .compactMap { session -> (EventSession, Date)? in
+                guard let dateStr = session.date,
+                      let date = DateFormatters.isoFormatter.date(from: dateStr),
+                      date > now else { return nil }
+                return (session, date)
+            }
+            .min { $0.1 < $1.1 }?.0
+    }
+
+    /// Long-form display name for an F1 session type abbreviation.
+    func sessionDisplayName(_ type: String) -> String {
+        switch type.lowercased() {
+        case "fp1", "practice 1": return "Practice 1"
+        case "fp2", "practice 2": return "Practice 2"
+        case "fp3", "practice 3": return "Practice 3"
+        case "qual", "qualifying": return "Qualifying"
+        case "sprint": return "Sprint"
+        case "sprint qualifying", "sprint shootout", "sq", "ss": return "Sprint Qualifying"
+        case "race", "r": return "Race"
+        default: return type.isEmpty ? "Session" : type
+        }
+    }
+
+    /// Status to surface for a race weekend. "Final" is reported **only** once the Race
+    /// session itself is complete — never from a finished qualifying.
+    var raceWeekendStatus: RaceWeekendStatus {
+        guard isRace, let sessions, !sessions.isEmpty else { return .none }
+        if let live = liveSessionEntry {
+            return .live(sessionDisplayName(live.sessionType))
+        }
+        if raceSessionEntry?.status?.lowercased() == "post" {
+            return .finished
+        }
+        if let next = nextUpcomingSession,
+           let dateStr = next.date,
+           let date = DateFormatters.isoFormatter.date(from: dateStr) {
+            return .upcoming(label: sessionDisplayName(next.sessionType), date: date)
+        }
+        return .none
+    }
+}

@@ -115,6 +115,10 @@ public func configure(_ app: Application) async throws {
         app.queues.schedule(injuriesEnrichmentJob)
             .hourly()
             .at(42)
+        let worldCupEnrichmentJob = WorldCupEnrichmentJob()
+        app.queues.schedule(worldCupEnrichmentJob)
+            .hourly()
+            .at(50)
 
         try app.queues.startScheduledJobs()
     }

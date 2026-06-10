@@ -242,6 +242,133 @@ class ESPNNetworking {
         throw NetworkError.invalidLeague
     }
 
+    // MARK: - Roster (team squad)
+
+    /// Fetches a team's roster from ESPN, e.g.
+    /// site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/teams/{id}/roster
+    static func getRoster(req: some Client, league: Leagues, teamID: String) async throws -> RosterResponse {
+        guard let espnSlug = league.espnSlug else { throw NetworkError.invalidLeague }
+        let urlString = "https://site.api.espn.com/apis/site/v2/sports"
+        let sport = league.sport
+        let fullString = [urlString, sport, espnSlug, "teams", teamID, "roster"].joined(separator: "/")
+        do {
+            let response = try await performGet(req, URI(string: fullString))
+            return try response.content.decode(RosterResponse.self)
+        } catch {
+            logger.error("ESPN roster fetch failed", metadata: [
+                "league": "\(league)",
+                "teamID": "\(teamID)",
+                "url": "\(fullString)",
+                "error": "\(error)"
+            ])
+            throw error
+        }
+    }
+
+    /// Tolerant decode of the ESPN roster endpoint. Soccer returns `athletes` either as a
+    /// flat list of athletes or as position-grouped buckets (`{ position, items: [...] }`),
+    /// so each element decodes both shapes and `flatAthletes` flattens them.
+    struct RosterResponse: Decodable {
+        let team: RosterTeam?
+        let athletes: [RosterGroupOrAthlete]?
+
+        struct RosterTeam: Decodable {
+            let id: String?
+            let displayName: String?
+            let logos: [RosterLogo]?
+            struct RosterLogo: Decodable { let href: String? }
+        }
+
+        struct RosterGroupOrAthlete: Decodable {
+            // group fields
+            let position: String?
+            let items: [RosterAthlete]?
+            // flat-athlete fields (present when this element IS an athlete)
+            let id: String?
+            let displayName: String?
+            let fullName: String?
+            let jersey: String?
+            let age: Int?
+            let headshot: RosterHeadshot?
+            let position2: RosterPosition?
+
+            enum CodingKeys: String, CodingKey {
+                case position, items, id, displayName, fullName, jersey, age, headshot
+                case position2 = "positionRef" // unused alias; real position obj decoded below
+            }
+
+            // ESPN athlete `position` is an object; the group `position` is a string. Decode
+            // manually so both coexist without clashing.
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: DynamicKey.self)
+                self.items = try? c.decode([RosterAthlete].self, forKey: DynamicKey("items"))
+                self.id = try? c.decode(String.self, forKey: DynamicKey("id"))
+                self.displayName = try? c.decode(String.self, forKey: DynamicKey("displayName"))
+                self.fullName = try? c.decode(String.self, forKey: DynamicKey("fullName"))
+                self.jersey = try? c.decode(String.self, forKey: DynamicKey("jersey"))
+                self.age = try? c.decode(Int.self, forKey: DynamicKey("age"))
+                self.headshot = try? c.decode(RosterHeadshot.self, forKey: DynamicKey("headshot"))
+                // position may be a String (group label) or an object (athlete position)
+                if let str = try? c.decode(String.self, forKey: DynamicKey("position")) {
+                    self.position = str
+                    self.position2 = nil
+                } else {
+                    self.position = nil
+                    self.position2 = try? c.decode(RosterPosition.self, forKey: DynamicKey("position"))
+                }
+            }
+        }
+
+        struct RosterAthlete: Decodable {
+            let id: String?
+            let displayName: String?
+            let fullName: String?
+            let jersey: String?
+            let age: Int?
+            let headshot: RosterHeadshot?
+            let position: RosterPosition?
+        }
+
+        struct RosterHeadshot: Decodable { let href: String? }
+        struct RosterPosition: Decodable { let abbreviation: String?; let name: String? }
+
+        private struct DynamicKey: CodingKey {
+            var stringValue: String
+            var intValue: Int? { nil }
+            init(_ s: String) { stringValue = s }
+            init?(stringValue: String) { self.stringValue = stringValue }
+            init?(intValue: Int) { return nil }
+        }
+
+        /// Flattens grouped or flat athletes into a single ordered list of squad players.
+        var flatAthletes: [WorldCupSquadPlayer] {
+            guard let athletes else { return [] }
+            var out: [WorldCupSquadPlayer] = []
+            for element in athletes {
+                if let items = element.items, !items.isEmpty {
+                    for a in items {
+                        out.append(WorldCupSquadPlayer(
+                            name: a.displayName ?? a.fullName ?? "Unknown",
+                            position: a.position?.abbreviation ?? a.position?.name ?? element.position,
+                            jersey: a.jersey,
+                            headshotURL: a.headshot?.href,
+                            age: a.age
+                        ))
+                    }
+                } else if (element.displayName ?? element.fullName) != nil {
+                    out.append(WorldCupSquadPlayer(
+                        name: element.displayName ?? element.fullName ?? "Unknown",
+                        position: element.position2?.abbreviation ?? element.position2?.name,
+                        jersey: element.jersey,
+                        headshotURL: element.headshot?.href,
+                        age: element.age
+                    ))
+                }
+            }
+            return out
+        }
+    }
+
     // MARK: - F1 Core Data (Constructors + Timing)
 
     /// Minimal struct for decoding the ESPN core API competitor response (vehicle field only)

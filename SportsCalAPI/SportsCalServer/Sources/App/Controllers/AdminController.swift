@@ -892,10 +892,32 @@ struct AdminController: RouteCollection {
                 message: "InjuriesEnrichmentJob executed successfully. Injury reports fetched from ESPN and attached to schedule.",
                 jobName: jobName
             )
+        case "WorldCupEnrichmentJob":
+            let context = QueueContext(
+                queueName: .default,
+                configuration: .init(),
+                application: req.application,
+                logger: req.logger,
+                on: req.eventLoop
+            )
+
+            // Clear the staleness key so the job actually runs when triggered manually
+            let isDebug = req.application.environment == .development
+            let lastUpdateKey = RedisEndpoint.ESPN.worldCupEnrichmentLastUpdate.getValue(isDebug: isDebug)
+            _ = try? await req.redis.delete(lastUpdateKey)
+
+            let job = WorldCupEnrichmentJob()
+            try await job.run(context: context)
+
+            return TriggerJobResponse(
+                success: true,
+                message: "WorldCupEnrichmentJob executed successfully. Bracket and Golden Boot refreshed and attached to schedule.",
+                jobName: jobName
+            )
         default:
             return TriggerJobResponse(
                 success: false,
-                message: "Job '\(jobName)' not recognized. Available jobs: ESPNTeamFetchJob, ScheduleUpdateJob, ESPNFetchJob, GolfEnrichmentJob, F1EnrichmentJob, InjuriesEnrichmentJob",
+                message: "Job '\(jobName)' not recognized. Available jobs: ESPNTeamFetchJob, ScheduleUpdateJob, ESPNFetchJob, GolfEnrichmentJob, F1EnrichmentJob, InjuriesEnrichmentJob, WorldCupEnrichmentJob",
                 jobName: jobName
             )
         }

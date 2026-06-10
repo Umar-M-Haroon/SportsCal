@@ -20,7 +20,8 @@ struct StandingsSnapshotJob: AsyncScheduledJob {
     private static let snapshotLeagues: [Leagues] = [
         .nba, .nfl, .nhl, .mlb, // Major US sports
         .English_Premier_League, .La_Liga, .German_Bundesliga, .Serie_A, .Ligue_1, // Top 5 soccer
-        .MLS
+        .MLS,
+        .FIFA_World_Cup // group-stage tables during the tournament
     ]
 
     func run(context: QueueContext) async throws {

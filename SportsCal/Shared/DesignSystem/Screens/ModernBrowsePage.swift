@@ -61,6 +61,16 @@ struct ModernBrowsePage: View {
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
+                        NavigationLink {
+                            WorldCupHubView()
+                                .environment(viewModel)
+                                .environment(storage)
+                                .environment(favorites)
+                        } label: {
+                            worldCupRow
+                        }
+                        .buttonStyle(.plain)
+
                         ForEach(sports, id: \.self) { sport in
                             NavigationLink {
                                 BrowseSportView(sport: sport)
@@ -92,6 +102,40 @@ struct ModernBrowsePage: View {
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var worldCupRow: some View {
+        let accent = Color.app(.soccer)
+        return HStack(spacing: .appSpace3) {
+            Image(systemName: "soccerball")
+                .imageScale(.medium)
+                .foregroundStyle(accent)
+                .frame(width: 22)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("FIFA World Cup 2026")
+                    .font(.appHeadline)
+                    .foregroundStyle(Color.appInk)
+                Text("Groups · Bracket · Golden Boot")
+                    .font(.appCaption)
+                    .foregroundStyle(Color.appInkSoft)
+            }
+            Spacer()
+            Image(systemName: "chevron.right").foregroundStyle(Color.appInkFaint)
+        }
+        .padding(.horizontal, .appSpace4)
+        .padding(.vertical, .appSpace3)
+        .frame(minHeight: .appHit)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(accent)
+                .frame(width: 3)
+                .padding(.vertical, .appSpace2)
+                .allowsHitTesting(false)
+        }
+        .overlay(alignment: .top) {
+            Rectangle().fill(Color.appDivider).frame(height: 1)
+        }
     }
 
     private func row(for sport: SportType) -> some View {

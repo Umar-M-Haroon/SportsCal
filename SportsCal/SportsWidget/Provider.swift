@@ -514,13 +514,17 @@ class Provider: AppIntentTimelineProvider {
         }
     }
 
-    /// Filters games to a single calendar day
+    /// Filters games to a single calendar day. Multi-session races (F1 weekends) match the
+    /// day if *any* of their sessions fall on it, so the weekend stays visible Fri–Sun.
     private func filterGamesToDay(_ games: [Game], targetDate: Date) -> [Game] {
         let cal = Calendar.current
         let dayStart = cal.startOfDay(for: targetDate)
         let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
-        return games.filter {
-            guard let date = $0.standardDate else { return false }
+        return games.filter { game in
+            if game.isRace, !game.sessionDates.isEmpty {
+                return game.sessionDates.contains { $0 >= dayStart && $0 < dayEnd }
+            }
+            guard let date = game.standardDate else { return false }
             return date >= dayStart && date < dayEnd
         }
     }

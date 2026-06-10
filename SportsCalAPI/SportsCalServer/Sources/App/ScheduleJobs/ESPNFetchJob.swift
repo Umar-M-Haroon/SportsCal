@@ -786,7 +786,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 let homeID = game.idHomeTeam.flatMap { mapping[$0] } ?? game.idHomeTeam
                 let awayID = game.idAwayTeam.flatMap { mapping[$0] } ?? game.idAwayTeam
                 guard homeID != game.idHomeTeam || awayID != game.idAwayTeam else { return game }
-                return Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: homeID, idAwayTeam: awayID, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: game.intHomeScore, intAwayScore: game.intAwayScore, strStatus: game.strStatus, strProgress: game.strProgress, strTimestamp: game.strTimestamp, lastPlay: game.lastPlay, homeLinescores: game.homeLinescores, awayLinescores: game.awayLinescores, homeLeaders: game.homeLeaders, awayLeaders: game.awayLeaders, isCompleted: game.isCompleted, isoDate: game.isoDate, leaderboardEntries: game.leaderboardEntries, sessions: game.sessions, venueName: game.venueName, homeTeamColor: game.homeTeamColor, awayTeamColor: game.awayTeamColor, homeRecord: game.homeRecord, awayRecord: game.awayRecord, legDisplay: game.legDisplay, aggregateScore: game.aggregateScore, homeSeed: game.homeSeed, awaySeed: game.awaySeed, playoff: game.playoff)
+                return Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: homeID, idAwayTeam: awayID, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: game.intHomeScore, intAwayScore: game.intAwayScore, strStatus: game.strStatus, strProgress: game.strProgress, strTimestamp: game.strTimestamp, lastPlay: game.lastPlay, homeLinescores: game.homeLinescores, awayLinescores: game.awayLinescores, homeLeaders: game.homeLeaders, awayLeaders: game.awayLeaders, isCompleted: game.isCompleted, isoDate: game.isoDate, leaderboardEntries: game.leaderboardEntries, sessions: game.sessions, venueName: game.venueName, homeTeamColor: game.homeTeamColor, awayTeamColor: game.awayTeamColor, homeRecord: game.homeRecord, awayRecord: game.awayRecord, legDisplay: game.legDisplay, aggregateScore: game.aggregateScore, homeSeed: game.homeSeed, awaySeed: game.awaySeed, tournamentName: game.tournamentName, round: game.round, playoff: game.playoff)
             }
         }
 
@@ -893,7 +893,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
             let canonicalKey = resolver.dedupKey(home: game.strHomeTeam, away: game.strAwayTeam, leagueID: game.idLeague, day: day)
             espnByCanonicalKey[canonicalKey] = game
 
-            if game.isIndividualSport {
+            // Golf/F1 carry the event name in strHomeTeam (strAwayTeam is "TBD"/leader), so a
+            // name-only match is correct. Tennis matches are real head-to-heads — keying by home
+            // player alone (no day) makes one live match match ALL of that player's season games,
+            // bleeding today's score/status across every tournament. Exclude them; tennis still
+            // matches legitimately via the team-name+day path above.
+            if game.isIndividualSport && !game.isTennisMatch {
                 espnByEventName[game.strHomeTeam.lowercased()] = game
             }
         }
@@ -947,8 +952,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 }
             }
 
-            // Individual sports: match by event/tournament name
-            if espnMatch == nil && scheduleGame.isIndividualSport {
+            // Individual sports: match by event/tournament name (golf/F1 only — see build above).
+            if espnMatch == nil && scheduleGame.isIndividualSport && !scheduleGame.isTennisMatch {
                 espnMatch = espnByEventName[scheduleGame.strHomeTeam.lowercased()]
             }
 
@@ -1004,6 +1009,11 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 aggregateScore: espnGame.aggregateScore ?? scheduleGame.aggregateScore,
                 homeSeed: espnGame.homeSeed ?? scheduleGame.homeSeed,
                 awaySeed: espnGame.awaySeed ?? scheduleGame.awaySeed,
+                // Preserve tournament identity from the structured schedule — without this the
+                // merge strips tournamentName/round off every matched tennis game, collapsing
+                // browse back into the two flat "ATP Tour"/"WTA Tour" buckets.
+                tournamentName: scheduleGame.tournamentName ?? espnGame.tournamentName,
+                round: scheduleGame.round ?? espnGame.round,
                 homeInjuries: scheduleGame.homeInjuries ?? espnGame.homeInjuries,
                 awayInjuries: scheduleGame.awayInjuries ?? espnGame.awayInjuries,
                 raceTiming: scheduleGame.raceTiming ?? espnGame.raceTiming,
@@ -1069,7 +1079,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             if let foundEvent = events.first(where: {$0.strHomeTeam == event.strHomeTeam && $0.strAwayTeam == event.strAwayTeam}) {
                 // Only include essential fields - strSport/strLeague are computed from idLeague
                 // Deprecated fields removed: strPlayer, idPlayer, intEventScore, intEventScoreTotal, strEventTime, dateEvent, updated
-                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, playoff: event.playoff)
+                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, tournamentName: foundEvent.tournamentName ?? event.tournamentName, round: foundEvent.round ?? event.round, playoff: event.playoff)
             } else {
                 return event
             }

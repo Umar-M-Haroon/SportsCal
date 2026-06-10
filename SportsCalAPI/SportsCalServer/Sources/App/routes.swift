@@ -559,6 +559,46 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return "Welcome to sportscal! BG task call"
     }
 
+    //MARK: - World Cup
+    // Knockout bracket (built by WorldCupEnrichmentJob, cached in Redis).
+    routes.get("worldcup", "bracket") { req async throws -> String in
+        let isDebug = req.application.environment == .development
+        let key = RedisEndpoint.ESPN.worldCupBracket.getValue(isDebug: isDebug)
+        let bracket = (try? await req.application.redis.get(key, asJSON: WorldCupBracket.self)) ?? WorldCupBracket()
+        return encodeResult(res: bracket)
+    }
+
+    // Golden Boot / top scorers (cached in Redis).
+    routes.get("worldcup", "scorers") { req async throws -> String in
+        let isDebug = req.application.environment == .development
+        let key = RedisEndpoint.ESPN.worldCupScorers.getValue(isDebug: isDebug)
+        let scorers = (try? await req.application.redis.get(key, asJSON: [WorldCupScorer].self)) ?? []
+        return encodeResult(res: scorers)
+    }
+
+    // Squad for a national team — fetched lazily from ESPN and cached 24h.
+    routes.get("worldcup", "squad", ":teamID") { req async throws -> String in
+        guard let teamID = req.parameters.get("teamID"), !teamID.isEmpty else {
+            throw Abort(.badRequest)
+        }
+        let isDebug = req.application.environment == .development
+        let cacheKey: RedisKey = isDebug ? "debug-World Cup Squad-\(teamID)" : "World Cup Squad-\(teamID)"
+        if let cached = try? await req.application.redis.get(cacheKey, asJSON: WorldCupSquad.self) {
+            return encodeResult(res: cached)
+        }
+        let roster = try await ESPNNetworking.getRoster(req: req.client, league: .FIFA_World_Cup, teamID: teamID)
+        let squad = WorldCupSquad(
+            teamID: roster.team?.id ?? teamID,
+            teamName: roster.team?.displayName ?? "",
+            teamBadge: roster.team?.logos?.first?.href,
+            players: roster.flatAthletes
+        )
+        if !squad.players.isEmpty {
+            try? await req.application.redis.setex(cacheKey, toJSON: squad, expirationInSeconds: 60 * 60 * 24).get()
+        }
+        return encodeResult(res: squad)
+    }
+
     //MARK: - Standings
     routes.get("standings", ":leagueID") { req async throws -> String in
         guard let leagueIDString = req.parameters.get("leagueID"),

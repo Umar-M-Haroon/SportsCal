@@ -67,6 +67,7 @@ struct DeveloperSettingsSection: View {
                     }
                 }
                 Toggle("Game count HUD", isOn: $bindableAppStorage.showGameCountHUD)
+                Toggle("Show filtered-out games", isOn: $bindableAppStorage.showFilteredOutGames)
                 NavigationLink("Game count audit") {
                     GameCountAuditView()
                         .environment(viewModel)

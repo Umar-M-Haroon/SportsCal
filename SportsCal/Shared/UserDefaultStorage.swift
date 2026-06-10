@@ -15,6 +15,9 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("shouldShowNFL") var shouldShowNFL: Bool = false
     @ObservationIgnored @AppStorage("shouldShowNHL") var shouldShowNHL: Bool = false
     @ObservationIgnored @AppStorage("shouldShowSoccer") var shouldShowSoccer: Bool = false
+    /// Dedicated World Cup opt-in: surfaces FIFA World Cup matches even when all of
+    /// Soccer is left off. OR-ed into the soccer filter gate at the league level.
+    @ObservationIgnored @AppStorage("shouldShowWorldCup") var shouldShowWorldCup: Bool = false
     @ObservationIgnored @AppStorage("shouldShowMLB") var shouldShowMLB: Bool = false
     @ObservationIgnored @AppStorage("shouldShowGolf") var shouldShowGolf: Bool = false
     @ObservationIgnored @AppStorage("shouldShowTennis") var shouldShowTennis: Bool = false
@@ -38,10 +41,18 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("showStartTime") var showStartTime: Bool = true
     @ObservationIgnored @AppStorage("debugMode") var debugMode: Bool = false
     @ObservationIgnored @AppStorage("showGameCountHUD") var showGameCountHUD: Bool = false
+    @ObservationIgnored @AppStorage("showFilteredOutGames") var showFilteredOutGames: Bool = false
     @ObservationIgnored @AppStorage("hiddenCompetitions") var hiddenCompetitions: [String] = []
     @ObservationIgnored @AppStorage("favoritesOnlyCompetitions") var favoritesOnlyCompetitions: [String] = []
     @ObservationIgnored @AppStorage("useRelativeValue") var useRelativeValue: Bool = false
     @ObservationIgnored @AppStorage("autoFollowFavorites") var autoFollowFavorites: Bool = true
+    /// One-tap "Follow World Cup": when true, all upcoming FIFA World Cup matches are
+    /// auto-followed for notifications. Source of truth — the concrete event IDs are
+    /// recomputed each fetch (see GameViewModel.reconcileWorldCupFollows).
+    @ObservationIgnored @AppStorage("followWorldCup") var followWorldCup: Bool = false
+    /// Optional: restrict the World Cup follow to a single national team's matches
+    /// (team name). Empty means follow every match.
+    @ObservationIgnored @AppStorage("followWorldCupTeam") var followWorldCupTeam: String = ""
     @ObservationIgnored @AppStorage("showSuggestedForYou") var showSuggestedForYou: Bool = true
     @ObservationIgnored @AppStorage("serverEnvironment") var serverEnvironment: ServerEnvironment = .auto
     @ObservationIgnored @AppStorage("sportOrder") var sportOrder: [String] = []
@@ -81,6 +92,29 @@ class UserDefaultStorage {
 
     func isAutoFollowing(_ eventID: String) -> Bool {
         autoFollowEventIDs.contains(eventID)
+    }
+
+    /// Event IDs of upcoming/in-progress World Cup matches that should be auto-followed
+    /// while `followWorldCup` is on. If `followWorldCupTeam` is set, only that team's
+    /// matches are returned. Past games are excluded so cleanup doesn't fight us.
+    func worldCupEventIDsToFollow(from games: [Game]) -> Set<String> {
+        guard followWorldCup else { return [] }
+        let now = Date()
+        let team = followWorldCupTeam.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        var ids: Set<String> = []
+        for game in games {
+            guard game.idLeague == String(Leagues.FIFA_World_Cup.rawValue),
+                  let eventID = game.idEvent else { continue }
+            // keep future + currently-live games
+            if let date = game.standardDate, date < now, game.hasDoneStatus { continue }
+            if !team.isEmpty {
+                let home = game.strHomeTeam.lowercased()
+                let away = game.strAwayTeam.lowercased()
+                guard home.contains(team) || away.contains(team) else { continue }
+            }
+            ids.insert(eventID)
+        }
+        return ids
     }
 
     /// Remove auto-follow entries for games whose dates are in the past,
@@ -175,6 +209,7 @@ class UserDefaultStorage {
         defaults?.set(shouldShowNFL, forKey: "shouldShowNFL")
         defaults?.set(shouldShowNHL, forKey: "shouldShowNHL")
         defaults?.set(shouldShowSoccer, forKey: "shouldShowSoccer")
+        defaults?.set(shouldShowWorldCup, forKey: "shouldShowWorldCup")
         defaults?.set(shouldShowMLB, forKey: "shouldShowMLB")
         defaults?.set(shouldShowGolf, forKey: "shouldShowGolf")
         defaults?.set(shouldShowTennis, forKey: "shouldShowTennis")

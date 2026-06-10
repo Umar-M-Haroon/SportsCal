@@ -41,19 +41,28 @@ class SportBrowseViewModel {
         // Reuse games already in viewModel if the sport was fetched by getInfo()
         if let cached = viewModel.gamesDict[sport], !cached.isEmpty {
             fetchedGames = cached
-            categorize(cached)
+            categorizeIfNeeded(cached)
         } else {
             // Sport not in enabled list — fetch from network
             do {
                 let schedule = try await NetworkHandler.getScheduleFor(sport: sport)
                 fetchedGames = schedule.events
-                categorize(fetchedGames)
+                categorizeIfNeeded(fetchedGames)
             } catch {
                 errorMessage = error.localizedDescription
             }
         }
 
         isLoading = false
+    }
+
+    /// Tennis browse drills in by tournament (see `BrowsePage.tennisTournamentSections`) and only
+    /// reads `fetchedGames` — it never touches today/upcoming/recent. Running `categorize()` over a
+    /// full two-season tennis schedule (~20k matches) calls `resolveGameWithTeams` per match, which
+    /// is the bulk of the tennis load time. Skip it entirely for tennis.
+    private func categorizeIfNeeded(_ games: [Game]) {
+        guard sport != .tennis else { return }
+        categorize(games)
     }
 
     private func categorize(_ games: [Game]) {
@@ -82,7 +91,11 @@ class SportBrowseViewModel {
             if let eventID = game.idEvent, liveIDs.contains(eventID) { continue }
 
             guard let gwt = viewModel.resolveGameWithTeams(game) else { continue }
-            guard let date = game.standardDate else {
+            // Race weekends span multiple days; bucket them by race day (last session)
+            // rather than the weekend start, so an in-progress weekend whose race hasn't
+            // run yet stays in Upcoming/Today instead of falling into Past.
+            let bucketDate = game.isRace ? (game.effectiveEndDate ?? game.standardDate) : game.standardDate
+            guard let date = bucketDate else {
                 upcoming.append(gwt)
                 continue
             }
@@ -103,6 +116,7 @@ class SportBrowseViewModel {
 
         self.todayGames = today
         self.upcomingGames = Array(upcoming.prefix(50))
-        self.recentGames = Array(recent.prefix(30))
+        // Racing returns ~2 full seasons (~50 races) which we split by season; keep enough.
+        self.recentGames = Array(recent.prefix(sport == .racing ? 80 : 30))
     }
 }

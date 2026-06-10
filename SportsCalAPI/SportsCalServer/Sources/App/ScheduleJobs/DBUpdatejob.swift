@@ -213,12 +213,65 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                     schedule.golf = events
                     Self.logger.info("Schedule loaded", metadata: ["sport": "golf", "events": "\(events.events.count)"])
                 case .atp, .wta:
-                    if schedule.tennis == nil {
-                        schedule.tennis = events
+                    // Tennis: build a STRUCTURED schedule from ESPN (event = tournament, with
+                    // per-match round + draw) instead of TheSportsDB's flat, unstructured dump.
+                    // ESPN `dates=<year>` returns the full season (~12MB/league/year), so gate
+                    // the heavy fetch behind a 20-min staleness marker and reuse the cached
+                    // parsed result on the frequent schedule runs. Both tours are handled once,
+                    // on the .atp iteration; .wta is skipped.
+                    if league == .wta { break }
+
+                    let tennisKey = RedisEndpoint.ESPN.tennisSchedule.getValue(isDebug: isDebug)
+                    let tennisLastUpdateKey = RedisEndpoint.ESPN.tennisScheduleLastUpdate.getValue(isDebug: isDebug)
+                    var tennisEvent: LiveEvent?
+                    if let lastUpdate = try? await context.application.redis.get(tennisLastUpdateKey, asJSON: Date.self),
+                       Date().timeIntervalSince(lastUpdate) / 60 < 20,
+                       let cached = try? await context.application.redis.get(tennisKey, asJSON: LiveEvent.self) {
+                        tennisEvent = cached
                     } else {
-                        schedule.tennis?.events += events.events
+                        let currentYear = Calendar.current.component(.year, from: Date())
+                        var tennisGames: [Game] = []
+                        for tour in [Leagues.atp, Leagues.wta] {
+                            for year in [currentYear - 1, currentYear] {
+                                if let scoreboard = try? await Integrator.getESPNScoreboard(for: tour, context.application.client, dates: year),
+                                   let parsed = LiveEvent(events: scoreboard, league: tour) {
+                                    tennisGames.append(contentsOf: parsed.events)
+                                }
+                            }
+                        }
+                        // Combined events (e.g. United Cup) appear in both the ATP and WTA
+                        // feeds with identical competition IDs — dedupe by event id.
+                        var seenTennisIDs = Set<String>()
+                        tennisGames = tennisGames.filter { game in
+                            guard let id = game.idEvent else { return true }
+                            return seenTennisIDs.insert(id).inserted
+                        }
+                        if !tennisGames.isEmpty {
+                            let built = LiveEvent(events: tennisGames)
+                            tennisEvent = built
+                            try? await context.application.redis.set(tennisKey, toJSON: built)
+                            try? await context.application.redis.set(tennisLastUpdateKey, toJSON: Date())
+                        }
                     }
-                    Self.logger.info("Schedule loaded", metadata: ["sport": "tennis", "league": "\(league.leagueName)", "events": "\(events.events.count)"])
+                    // If the heavy ESPN fetch failed and the 20-min cache was stale, reuse the
+                    // last good structured cache regardless of age before dropping to TheSportsDB.
+                    // Otherwise a transient ESPN hiccup silently wipes every tournament name
+                    // (browse regresses to two flat "ATP Tour"/"WTA Tour" buckets) until the next
+                    // successful fetch — the named tournaments should be sticky once acquired.
+                    var tennisSource = "espn"
+                    if tennisEvent == nil,
+                       let staleCache = try? await context.application.redis.get(tennisKey, asJSON: LiveEvent.self),
+                       !staleCache.events.isEmpty {
+                        tennisEvent = staleCache
+                        tennisSource = "espn-stale-cache"
+                    }
+                    if let tennisEvent {
+                        schedule.tennis = tennisEvent
+                        Self.logger.info("Schedule loaded", metadata: ["sport": "tennis", "source": "\(tennisSource)", "events": "\(tennisEvent.events.count)"])
+                    } else {
+                        schedule.tennis = events // fallback to TheSportsDB if ESPN unavailable AND no cache
+                        Self.logger.info("Schedule loaded", metadata: ["sport": "tennis", "source": "thesportsdb-fallback", "events": "\(events.events.count)"])
+                    }
                 case .formula1:
                     // TheSportsDB has event names but no results — fetch from ESPN for richer data
                     let currentYear = Calendar.current.component(.year, from: Date())

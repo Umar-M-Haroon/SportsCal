@@ -19,18 +19,34 @@ struct OnboardingPage: View {
                 InfoView(title: "Notifications", subTitle: "Be notified when the game is about to start", image: Image(systemName: "app.badge.fill"), tint: .red)
                 InfoView(title: "Multiple Sports", subTitle: "Check multiple sports at a glance", image: Image(systemName: "sportscourt.fill"), tint: .green)
                 InfoView(title: "Live Activities", subTitle: "See games from anywhere with Live Activities", image: Image(systemName: "clock.badge.fill"), tint: .blue)
+                InfoView(title: "World Cup 2026", subTitle: "Follow every match, group, and the road to the final", image: Image(systemName: "soccerball"), tint: Color.app(.soccer))
                 Spacer()
+                Button {
+                    appStorage.shouldShowWorldCup = true
+                    sheetType = .none
+                    appStorage.shouldShowOnboarding = false
+                    appStorage.recomputeEnabledSports()
+                    viewModel.filterSports(force: true)
+                    viewModel.getInfo()
+                } label: {
+                    Label("Follow the World Cup", systemImage: "soccerball")
+                        .frame(maxWidth: .infinity)
+                        .padding(4)
+                }
+                .buttonStyle(BorderedProminentButtonStyle())
+                .tint(Color.app(.soccer))
+                .padding(.horizontal)
                 NavigationLink {
                     PickSportPage(sheetType: $sheetType)
                         .environment(appStorage)
                         .environment(viewModel)
                 } label: {
-                    Text("Next")
+                    Text("Pick sports manually")
                         .frame(maxWidth: .infinity)
                         .padding(4)
                 }
-                .buttonStyle(BorderedProminentButtonStyle())
-                .padding()
+                .buttonStyle(BorderedButtonStyle())
+                .padding([.horizontal, .bottom])
             }
             .navigationTitle("Welcome to SportsCal!")
         }

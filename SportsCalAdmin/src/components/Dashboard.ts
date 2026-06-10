@@ -8,6 +8,7 @@ import { DebugTools } from './DebugTools'
 import { ServerControl } from './ServerControl'
 import { Logs } from './Logs'
 import { Parity } from './Parity'
+import { WorldCupStatus } from './WorldCupStatus'
 
 export class Dashboard {
   private currentView: string = ''
@@ -28,6 +29,7 @@ export class Dashboard {
     this.components.set('server', new ServerControl())
     this.components.set('logs', new Logs())
     this.components.set('parity', new Parity())
+    this.components.set('worldcup', new WorldCupStatus())
 
     this.setupNavigation()
     this.showView('health')

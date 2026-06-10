@@ -203,6 +203,10 @@ struct ContentView: View {
             .onChange(of: storage.hiddenCompetitions) { _, _ in
                 viewModel.filterSports()
             }
+            .onChange(of: storage.shouldShowWorldCup) { _, _ in
+                viewModel.filterSports(force: true)
+                viewModel.reconcileWorldCupFollows()
+            }
             .onReceive(NotificationCenter.default.publisher(for: CloudSyncManager.didApplyRemoteUpdateNotification)) { _ in
                 viewModel.filterSports()
             }

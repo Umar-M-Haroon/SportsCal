@@ -20,6 +20,8 @@ export interface Game {
   isoDate?: string
   strSport?: string
   strLeague?: string
+  aggregateScore?: string
+  legDisplay?: string
 }
 
 export interface LiveEvent {

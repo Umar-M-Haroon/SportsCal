@@ -48,7 +48,7 @@ public class GameViewModel: NSObject {
     /// Bump when Game, LiveScore, or any cached Codable shape changes so previously
     /// persisted `games.cache` / `teams.cache` / `live.cache` files are invalidated
     /// instead of out-voting freshly parsed responses.
-    static let cacheSchemaVersion = 2
+    static let cacheSchemaVersion = 3
 
     /// Versioned base name for `Cache.saveToDisk(with:)` — no `.cache` suffix (it appends).
     /// `nonisolated` so background-task helpers (which run outside the main actor)
@@ -160,6 +160,7 @@ public class GameViewModel: NSObject {
     var todayOtherGamesBySport: [SportType: [GameWithTeams]] = [:]
     var todayAllGamesBySport: [SportType: [GameWithTeams]] = [:]
     var f1Standings: F1Standings?
+    var worldCup: WorldCupEnrichment?
 
     var favorites: Favorites
     var teams: [Team] = []
@@ -260,14 +261,23 @@ public class GameViewModel: NSObject {
         }
     }
 
+    /// Whether a soccer game's league passes the sport-enable gate. Soccer is
+    /// admitted when the user has enabled all of Soccer, OR when they've opted into
+    /// the World Cup specifically and this is the World Cup league.
+    func soccerGamePassesEnableGate(_ league: Leagues) -> Bool {
+        if appStorage.shouldShowSoccer { return true }
+        if appStorage.shouldShowWorldCup && league == .FIFA_World_Cup { return true }
+        return false
+    }
+
     private func computeCurrentlyLiveSports() -> [SportType] {
         var sports: [SportType] = []
-        if appStorage.shouldShowSoccer, let events = currentLiveInfo?.soccer?.events, !events.isEmpty {
+        if (appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup), let events = currentLiveInfo?.soccer?.events, !events.isEmpty {
             let filtered = events.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
-                return league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+                return league.isSoccer && soccerGamePassesEnableGate(league) && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
             }
             if !filtered.isEmpty { sports.append(.soccer) }
         }
@@ -310,7 +320,7 @@ public class GameViewModel: NSObject {
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
-                return league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+                return league.isSoccer && soccerGamePassesEnableGate(league) && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
             }
             if !filteredSoccer.isEmpty {
                 counts[.soccer] = filteredSoccer.count
@@ -464,13 +474,13 @@ public class GameViewModel: NSObject {
 
     private func computeLiveEvents() -> [Game] {
         var games: [Game] = []
-        if appStorage.shouldShowSoccer {
+        if appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup {
             var soccerGames = currentLiveInfo?.soccer?.events
             soccerGames = soccerGames?.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
-                return league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+                return league.isSoccer && soccerGamePassesEnableGate(league) && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
             }
             if let soccerGames {
                 games.append(contentsOf: applyFavoritesFilter(soccerGames, favoritesOnly: appStorage.favoritesOnlySoccer))
@@ -933,7 +943,7 @@ public class GameViewModel: NSObject {
         case .basketball:
             return appStorage.shouldShowNBA
         case .soccer:
-            return appStorage.shouldShowSoccer
+            return appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup
         case .hockey:
             return appStorage.shouldShowNHL
         case .mlb:
@@ -1029,6 +1039,11 @@ public class GameViewModel: NSObject {
                 f1Standings = standings
             }
 
+            // World Cup enrichment (bracket + Golden Boot) rides along with the soccer slice
+            if sport == .soccer, let wc = snapshot.worldCup {
+                worldCup = wc
+            }
+
             if !firstSliceRendered {
                 networkState = .loaded
                 firstSliceRendered = true
@@ -1085,6 +1100,7 @@ public class GameViewModel: NSObject {
         preCacheFavoriteTeamBadges()
         #endif
         appStorage.cleanupExpiredAutoFollows(games: totalGames ?? [])
+        reconcileWorldCupFollows()
         if fetchFailed {
             networkState = .failed
         } else {
@@ -1235,7 +1251,7 @@ public class GameViewModel: NSObject {
     /// Test-only: seed fixture data for snapshot rendering. Bypasses network fetch,
     /// marks state as loaded, and triggers filterSports so derived state (today's
     /// games, sorted sections, etc.) is populated.
-    func applySnapshotFixtures(games: [Game], liveEvents: [Game] = [], teams: [Team] = [], f1Standings: F1Standings? = nil) {
+    func applySnapshotFixtures(games: [Game], liveEvents: [Game] = [], teams: [Team] = [], f1Standings: F1Standings? = nil, worldCup: WorldCupEnrichment? = nil) {
         networkFetchTask?.cancel()
         networkFetchTask = nil
         self.totalGames = games
@@ -1244,6 +1260,9 @@ public class GameViewModel: NSObject {
         buildTeamLookupCaches()
         if let standings = f1Standings {
             self.f1Standings = standings
+        }
+        if let worldCup {
+            self.worldCup = worldCup
         }
         // Group games by sport so filterSports picks them up
         self.gamesDict = Dictionary(grouping: games, by: { game in
@@ -1267,6 +1286,9 @@ public class GameViewModel: NSObject {
         if let standings = result.f1Standings {
             f1Standings = standings
         }
+        if let wc = result.worldCup {
+            worldCup = wc
+        }
         filterSports(force: true, skipLiveUpdate: skipLiveUpdate)
     }
     
@@ -1286,12 +1308,12 @@ public class GameViewModel: NSObject {
     
     func getGamesFromUserPreferences() -> [Game] {
         var allGames: [Game] = []
-        if appStorage.shouldShowSoccer {
+        if appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup {
             let soccerGames = (gamesDict[.soccer] ?? []).filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
-                return league.isSoccer && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+                return league.isSoccer && soccerGamePassesEnableGate(league) && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
             }
             allGames.append(contentsOf: applyFavoritesFilter(soccerGames, favoritesOnly: appStorage.favoritesOnlySoccer))
         }
@@ -1501,6 +1523,7 @@ public class GameViewModel: NSObject {
     private func computeFilterStateHash() -> Int {
         var hasher = Hasher()
         hasher.combine(appStorage.shouldShowSoccer)
+        hasher.combine(appStorage.shouldShowWorldCup)
         hasher.combine(appStorage.shouldShowMLB)
         hasher.combine(appStorage.shouldShowNBA)
         hasher.combine(appStorage.shouldShowWNBA)
@@ -1956,6 +1979,26 @@ public class GameViewModel: NSObject {
             gameWithTeamsCache[result.id] = result
         }
         return result
+    }
+
+    /// Public wrapper so World Cup hub views can resolve teams for a game.
+    func gameWithTeams(for game: Game) -> GameWithTeams? {
+        makeGameWithTeams(game)
+    }
+
+    /// All FIFA World Cup games (league 4429) wrapped with resolved teams, sorted by date.
+    var worldCupGamesWithTeams: [GameWithTeams] {
+        let wcID = String(Leagues.FIFA_World_Cup.rawValue)
+        return (totalGames ?? [])
+            .filter { $0.idLeague == wcID }
+            .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
+            .compactMap { makeGameWithTeams($0) }
+    }
+
+    /// Resolve a World Cup game (and its teams) by ESPN event ID, for bracket navigation.
+    func worldCupGameWithTeams(eventID: String) -> GameWithTeams? {
+        guard let game = (totalGames ?? []).first(where: { $0.idEvent == eventID }) else { return nil }
+        return makeGameWithTeams(game)
     }
 
     func getTeams(for game: Game) -> (home: Team, away: Team)? {
@@ -2492,6 +2535,25 @@ extension GameViewModel {
                 }
             }
         }
+    }
+
+    /// Keeps `autoFollowEventIDs` in sync with the one-tap "Follow World Cup" toggle.
+    /// `followWorldCup` is the source of truth; the concrete WC event IDs are recomputed
+    /// from the current game list each fetch so new knockout fixtures get followed as the
+    /// bracket fills in (and so date-based cleanup doesn't permanently drop them).
+    /// Re-registers push-to-start only when the followed set actually changes.
+    func reconcileWorldCupFollows() {
+        guard appStorage.followWorldCup else { return }
+        let wcIDs = appStorage.worldCupEventIDsToFollow(from: totalGames ?? [])
+        guard !wcIDs.isEmpty else { return }
+        let existing = appStorage.autoFollowEventIDs
+        let missing = wcIDs.subtracting(existing)
+        guard !missing.isEmpty else { return }
+        appStorage.autoFollowEventIDs = existing.union(missing)
+        if appStorage.debugMode {
+            AutoFollowLogger.shared.log("Follow World Cup: added \(missing.count) matches to auto-follow", level: .success)
+        }
+        sendAutoFollowRegistration()
     }
 
     /// Called from AutoFollowButton when the user toggles auto-follow for a game.

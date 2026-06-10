@@ -9,7 +9,9 @@ import Foundation
 public struct Competitor: Codable {
     public var id, uid: String
     public var type: String
-    public var order: Int
+    /// Finishing/grid order. ESPN omits this for not-yet-contested events (e.g. a future
+    /// F1 race), so it must be optional or the whole scoreboard decode fails.
+    public var order: Int?
     public var homeAway: String?
     public var team: CompetitorTeam?
     public var athlete: Athlete?
@@ -24,7 +26,7 @@ public struct Competitor: Codable {
         public var current: Int?
     }
 
-    public init(id: String, uid: String, type: String, order: Int, homeAway: String? = nil, team: CompetitorTeam? = nil, score: String? = nil, linescores: [Linescore]? = nil, statistics: [Statistic]? = nil, leaders: [CompetitorLeader]? = nil, records: [Record]? = nil, curatedRank: CuratedRank? = nil) {
+    public init(id: String, uid: String, type: String, order: Int? = nil, homeAway: String? = nil, team: CompetitorTeam? = nil, score: String? = nil, linescores: [Linescore]? = nil, statistics: [Statistic]? = nil, leaders: [CompetitorLeader]? = nil, records: [Record]? = nil, curatedRank: CuratedRank? = nil) {
         self.id = id
         self.uid = uid
         self.type = type

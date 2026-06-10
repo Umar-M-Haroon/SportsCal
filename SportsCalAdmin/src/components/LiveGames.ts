@@ -290,6 +290,10 @@ export class LiveGames {
           </div>
           <span style="font-size: 1.25rem; font-weight: 700;">${awayScore}</span>
         </div>
+        ${(game.aggregateScore || game.legDisplay) ? `
+        <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);">
+          ${[game.legDisplay, game.aggregateScore].filter(Boolean).join(' · ')}
+        </div>` : ''}
       </div>
     `
   }

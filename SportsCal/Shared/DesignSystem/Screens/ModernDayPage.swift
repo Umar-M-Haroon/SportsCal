@@ -204,8 +204,11 @@ private struct ModernDayContent: View {
             .filter { game in
                 // Date filter
                 guard let d = game.standardDate, d >= start, d < end else { return false }
-                // Sport pref filter
-                guard let sport = game.sportType, isSportEnabled(sport) else { return false }
+                // Sport pref filter. World Cup matches ride on `shouldShowWorldCup`
+                // even when all of soccer is off (mirrors filterSports).
+                guard let sport = game.sportType else { return false }
+                let isWorldCup = game.idLeague == Self.worldCupLeagueID
+                guard isSportEnabled(sport) || (isWorldCup && storage.shouldShowWorldCup) else { return false }
                 // Resolve league once for the hidden / per-competition checks.
                 let league: Leagues? = {
                     guard let id = game.idLeague, let intID = Int(id) else { return nil }
@@ -358,7 +361,11 @@ private struct ModernDayContent: View {
                     case .loading:       loadingBody
                     case .failed:        failedBody
                     case .allSportsOff:  allSportsOffBody
-                    case .empty:         emptyBody
+                    case .empty:
+                        // Quiet day, but the tournament hero still leads —
+                        // it carries the next kickoff and the group tables.
+                        worldCupHeroSection
+                        emptyBody
                     case .hasGames:
                         structuredBody
                     }
@@ -405,6 +412,7 @@ private struct ModernDayContent: View {
     private var structuredBody: some View {
         let data = sectionData
         let adPlan = makeFeedAdPlan(for: data)
+        worldCupHeroSection
         liveSection(games: data.live, adPlan: adPlan)
         yourTeamsSection(games: data.yourTeams, adPlan: adPlan)
         forYouSection(games: data.forYou, adPlan: adPlan)
@@ -458,11 +466,35 @@ private struct ModernDayContent: View {
         let hidden: [Game]
     }
 
+    /// Whether the World Cup hero owns today's WC matches. The hero renders
+    /// them itself (marquee + ticker), so the regular sections skip them.
+    private var showWorldCupHero: Bool {
+        guard isToday else { return false }
+        guard storage.shouldShowWorldCup || storage.shouldShowSoccer else { return false }
+        return WorldCupHeroCard.isActive(viewModel: viewModel)
+    }
+
+    private static let worldCupLeagueID = String(Leagues.FIFA_World_Cup.rawValue)
+
+    private var todayWorldCupIDs: Set<String> {
+        Set(dayGames.filter { $0.idLeague == Self.worldCupLeagueID }.map(\.id))
+    }
+
+    @ViewBuilder
+    private var worldCupHeroSection: some View {
+        if showWorldCupHero {
+            WorldCupHeroCard()
+                .padding(.horizontal, .appSpace4)
+        }
+    }
+
     private var sectionData: SectionData {
-        var seen: Set<String> = []
+        // World Cup matches surface inside the hero on matchday — claim them
+        // first so they don't duplicate in Live / Your Teams / per-sport.
+        var seen: Set<String> = showWorldCupHero ? todayWorldCupIDs : []
 
         // Live — favorites first within, then by start time.
-        let live = liveGames.sorted { a, b in
+        let live = liveGames.filter { !seen.contains($0.id) }.sorted { a, b in
             let af = favorites.contains(a)
             let bf = favorites.contains(b)
             if af != bf { return af }

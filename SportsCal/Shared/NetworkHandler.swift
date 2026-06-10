@@ -607,6 +607,36 @@ struct NetworkHandler {
         }
     }
 
+    // MARK: - World Cup
+
+    static func getWorldCupBracket() async throws -> WorldCupBracket {
+        let url = URL(string: "\(baseURL())/worldcup/bracket")!
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+        }
+        return try Self.sharedDecoder.decode(WorldCupBracket.self, from: data)
+    }
+
+    static func getWorldCupScorers() async throws -> [WorldCupScorer] {
+        let url = URL(string: "\(baseURL())/worldcup/scorers")!
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+        }
+        return try Self.sharedDecoder.decode([WorldCupScorer].self, from: data)
+    }
+
+    static func getWorldCupSquad(teamID: String) async throws -> WorldCupSquad {
+        let encoded = teamID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? teamID
+        let url = URL(string: "\(baseURL())/worldcup/squad/\(encoded)")!
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+        }
+        return try Self.sharedDecoder.decode(WorldCupSquad.self, from: data)
+    }
+
     static func getStandingsHistory(leagueID: Int, days: Int = 30) async throws -> [StandingsHistoryDay] {
         let urlString = "\(baseURL())/standings/\(leagueID)/history?days=\(days)"
         let url = URL(string: urlString)!

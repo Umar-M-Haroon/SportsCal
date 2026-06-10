@@ -76,17 +76,41 @@ struct WidgetRaceCell: View {
 
     @ViewBuilder
     private var statusView: some View {
-        if let statusText = game.displayStatus {
+        switch game.raceWeekendStatus {
+        case .live(let name):
             HStack(spacing: 3) {
                 Circle().fill(WidgetTokens.live).frame(width: 4, height: 4)
-                Text(statusText)
+                Text("\(name) LIVE")
                     .font(.system(size: compact ? 8 : 9, design: .monospaced).weight(.semibold))
                     .foregroundStyle(WidgetTokens.live)
             }
-        } else if let gameDate = game.standardDate {
-            Text(gameDate.formatToTime() ?? "")
-                .font(.system(size: compact ? 8 : 9, design: .monospaced))
+        case .finished:
+            Text("Final")
+                .font(.system(size: compact ? 8 : 9, design: .monospaced).weight(.semibold))
                 .foregroundStyle(WidgetTokens.inkSoft)
+        case .upcoming(let label, let date):
+            HStack(spacing: 3) {
+                Image(systemName: "clock")
+                    .font(.system(size: compact ? 7 : 8))
+                    .foregroundStyle(WidgetTokens.inkSoft)
+                Text("\(label) · \(date.formatted(.dateTime.weekday(.abbreviated).hour().minute()))")
+                    .font(.system(size: compact ? 8 : 9, design: .monospaced))
+                    .foregroundStyle(WidgetTokens.inkSoft)
+                    .lineLimit(1)
+            }
+        case .none:
+            if let statusText = game.displayStatus {
+                HStack(spacing: 3) {
+                    Circle().fill(WidgetTokens.live).frame(width: 4, height: 4)
+                    Text(statusText)
+                        .font(.system(size: compact ? 8 : 9, design: .monospaced).weight(.semibold))
+                        .foregroundStyle(WidgetTokens.live)
+                }
+            } else if let gameDate = game.standardDate {
+                Text(gameDate.formatToTime() ?? "")
+                    .font(.system(size: compact ? 8 : 9, design: .monospaced))
+                    .foregroundStyle(WidgetTokens.inkSoft)
+            }
         }
     }
 }

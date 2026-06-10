@@ -79,6 +79,18 @@
 		1D486B0028A834470024BC32 /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D486AFF28A834470024BC32 /* GameViewModel.swift */; };
 		1D5AB1372FCCFFD700BDFA2A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1D5AB1362FCCFFD700BDFA2A /* PrivacyInfo.xcprivacy */; };
 		1D5AB1382FCCFFD700BDFA2A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1D5AB1362FCCFFD700BDFA2A /* PrivacyInfo.xcprivacy */; };
+		1D5AB3ED2FD4FBC900BDFA2A /* StandingsGroupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3EC2FD4FBC900BDFA2A /* StandingsGroupView.swift */; };
+		1D5AB3EF2FD4FBD500BDFA2A /* WorldCupHubViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3EE2FD4FBD500BDFA2A /* WorldCupHubViewModel.swift */; };
+		1D5AB3F12FD4FBEC00BDFA2A /* WorldCupComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3F02FD4FBEC00BDFA2A /* WorldCupComponents.swift */; };
+		1D5AB3F32FD4FBFF00BDFA2A /* WorldCupBracketView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3F22FD4FBFF00BDFA2A /* WorldCupBracketView.swift */; };
+		1D5AB3F52FD4FC0C00BDFA2A /* WorldCupScorersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3F42FD4FC0C00BDFA2A /* WorldCupScorersView.swift */; };
+		1D5AB3F72FD4FC1800BDFA2A /* WorldCupSquadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3F62FD4FC1800BDFA2A /* WorldCupSquadView.swift */; };
+		1D5AB3F92FD4FC2C00BDFA2A /* WorldCupFollowButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3F82FD4FC2C00BDFA2A /* WorldCupFollowButton.swift */; };
+		1D5AB3FB2FD4FC4C00BDFA2A /* WorldCupHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3FA2FD4FC4C00BDFA2A /* WorldCupHubView.swift */; };
+		1D5AB3FD2FD4FC6100BDFA2A /* WorldCupFeaturedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3FC2FD4FC6100BDFA2A /* WorldCupFeaturedCard.swift */; };
+		1D5AB3FF2FD50F6A00BDFA2A /* CompactGameRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3FE2FD50F6A00BDFA2A /* CompactGameRowView.swift */; };
+		1D5AB4012FD5100000BDFA2A /* TournamentHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB4002FD5100000BDFA2A /* TournamentHubView.swift */; };
+		1D5AB4032FD8FD9400BDFA2A /* WorldCupHeroCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB4022FD8FD9400BDFA2A /* WorldCupHeroCard.swift */; };
 		1D5C463126C9C5F900BA827B /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463026C9C5F900BA827B /* SubscriptionManager.swift */; };
 		1D5C463426C9F10400BA827B /* Confetti.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463326C9F10400BA827B /* Confetti.swift */; };
 		1D5C463726C9FB5000BA827B /* SettingsData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463626C9FB5000BA827B /* SettingsData.swift */; };
@@ -424,6 +436,18 @@
 		1D408096290BAA6A00729FFE /* LiveSportActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSportActivityWidget.swift; sourceTree = "<group>"; };
 		1D486AFF28A834470024BC32 /* GameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModel.swift; sourceTree = "<group>"; };
 		1D5AB1362FCCFFD700BDFA2A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		1D5AB3EC2FD4FBC900BDFA2A /* StandingsGroupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingsGroupView.swift; sourceTree = "<group>"; };
+		1D5AB3EE2FD4FBD500BDFA2A /* WorldCupHubViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupHubViewModel.swift; sourceTree = "<group>"; };
+		1D5AB3F02FD4FBEC00BDFA2A /* WorldCupComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupComponents.swift; sourceTree = "<group>"; };
+		1D5AB3F22FD4FBFF00BDFA2A /* WorldCupBracketView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupBracketView.swift; sourceTree = "<group>"; };
+		1D5AB3F42FD4FC0C00BDFA2A /* WorldCupScorersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupScorersView.swift; sourceTree = "<group>"; };
+		1D5AB3F62FD4FC1800BDFA2A /* WorldCupSquadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupSquadView.swift; sourceTree = "<group>"; };
+		1D5AB3F82FD4FC2C00BDFA2A /* WorldCupFollowButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupFollowButton.swift; sourceTree = "<group>"; };
+		1D5AB3FA2FD4FC4C00BDFA2A /* WorldCupHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupHubView.swift; sourceTree = "<group>"; };
+		1D5AB3FC2FD4FC6100BDFA2A /* WorldCupFeaturedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupFeaturedCard.swift; sourceTree = "<group>"; };
+		1D5AB3FE2FD50F6A00BDFA2A /* CompactGameRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactGameRowView.swift; sourceTree = "<group>"; };
+		1D5AB4002FD5100000BDFA2A /* TournamentHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TournamentHubView.swift; sourceTree = "<group>"; };
+		1D5AB4022FD8FD9400BDFA2A /* WorldCupHeroCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupHeroCard.swift; sourceTree = "<group>"; };
 		1D5C463026C9C5F900BA827B /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
 		1D5C463326C9F10400BA827B /* Confetti.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Confetti.swift; sourceTree = "<group>"; };
 		1D5C463626C9FB5000BA827B /* SettingsData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsData.swift; sourceTree = "<group>"; };
@@ -856,8 +880,28 @@
 				1D73C6302F983FCF00C98966 /* AmbientGameDetailView.swift */,
 				EFA0030100000001 /* EFRemix */,
 				1D16B13C2FA8677E00490122 /* CloudSyncDiagnosticsView.swift */,
+				1D5AB3EB2FD4FBBB00BDFA2A /* WorldCup */,
+				1D5AB3FE2FD50F6A00BDFA2A /* CompactGameRowView.swift */,
+				1D5AB4002FD5100000BDFA2A /* TournamentHubView.swift */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		1D5AB3EB2FD4FBBB00BDFA2A /* WorldCup */ = {
+			isa = PBXGroup;
+			children = (
+				1D5AB3EC2FD4FBC900BDFA2A /* StandingsGroupView.swift */,
+				1D5AB3EE2FD4FBD500BDFA2A /* WorldCupHubViewModel.swift */,
+				1D5AB3F02FD4FBEC00BDFA2A /* WorldCupComponents.swift */,
+				1D5AB3F22FD4FBFF00BDFA2A /* WorldCupBracketView.swift */,
+				1D5AB3F42FD4FC0C00BDFA2A /* WorldCupScorersView.swift */,
+				1D5AB3F62FD4FC1800BDFA2A /* WorldCupSquadView.swift */,
+				1D5AB3F82FD4FC2C00BDFA2A /* WorldCupFollowButton.swift */,
+				1D5AB3FA2FD4FC4C00BDFA2A /* WorldCupHubView.swift */,
+				1D5AB3FC2FD4FC6100BDFA2A /* WorldCupFeaturedCard.swift */,
+				1D5AB4022FD8FD9400BDFA2A /* WorldCupHeroCard.swift */,
+			);
+			path = WorldCup;
 			sourceTree = "<group>";
 		};
 		1D73B9982F86E11E00C98966 /* Ads */ = {
@@ -1607,6 +1651,7 @@
 				1DE1F0BD2940590000741B19 /* LiveActivityStatusView.swift in Sources */,
 				1D20B33D2929D8C900956B14 /* MiniSubscriptionPage.swift in Sources */,
 				1D16B0972FA6C37900490122 /* ModernGameDetailView.swift in Sources */,
+				1D5AB3F72FD4FC1800BDFA2A /* WorldCupSquadView.swift in Sources */,
 				1DF27D6D2F6C6184000F5FCE /* CloudSyncManager.swift in Sources */,
 				1DD35DB62907B6AE009A2113 /* LiveAnimatedView.swift in Sources */,
 				1D20B33B2928C45A00956B14 /* PickSportPage.swift in Sources */,
@@ -1641,12 +1686,15 @@
 				1D16B0742FA6B2C700490122 /* LiveTag.swift in Sources */,
 				1D16B0902FA6B2CA00490122 /* StaleDataBanner.swift in Sources */,
 				1D40809A290BAC4F00729FFE /* LiveSportActivityAttributes.swift in Sources */,
+				1D5AB3FB2FD4FC4C00BDFA2A /* WorldCupHubView.swift in Sources */,
 				1DF27D692F6B47D1000F5FCE /* MacSettingsView.swift in Sources */,
 				1D73B99A2F86E13100C98966 /* AdConfiguration.swift in Sources */,
 				1DEC76CD268EFB6700D217A1 /* SportsCalApp.swift in Sources */,
+				1D5AB4012FD5100000BDFA2A /* TournamentHubView.swift in Sources */,
 				1D16B06B2FA6B19000490122 /* Shadow.swift in Sources */,
 				1D408090290B862700729FFE /* NotifyButton.swift in Sources */,
 				1D73C62B2F983F5500C98966 /* AmbientStyle.swift in Sources */,
+				1D5AB3F92FD4FC2C00BDFA2A /* WorldCupFollowButton.swift in Sources */,
 				1DAA10112FA1457C00853609 /* LiveActivityMatcher.swift in Sources */,
 				1D73C62D2F983F6600C98966 /* AmbientBrowsePage.swift in Sources */,
 				1D73B99E2F86E13D00C98966 /* NativeAdManager.swift in Sources */,
@@ -1656,19 +1704,24 @@
 				1DE897CE2F3DBE55006657FF /* AutoFollowButton.swift in Sources */,
 				1DE897D02F3DBE80006657FF /* SearchToken.swift in Sources */,
 				1DEC7705268F0AF200D217A1 /* NetworkErrors.swift in Sources */,
+				1D5AB3EF2FD4FBD500BDFA2A /* WorldCupHubViewModel.swift in Sources */,
 				1D63E71926A9494800FC3DE6 /* Date+Extensions.swift in Sources */,
 				1D3DD53027FBEF400086DD9E /* CompetitionView.swift in Sources */,
 				1D15BD562A57C71800711F92 /* ListDetailView.swift in Sources */,
 				1D16B08A2FA6B2CA00490122 /* PaywallGate.swift in Sources */,
 				1D16B09C2FA6C6DD00490122 /* GameCountHUD.swift in Sources */,
+				1D5AB3F52FD4FC0C00BDFA2A /* WorldCupScorersView.swift in Sources */,
 				1D16B0932FA6BE1500490122 /* ModernDayPage.swift in Sources */,
+				1D5AB3ED2FD4FBC900BDFA2A /* StandingsGroupView.swift in Sources */,
 				1DE897D62F403951006657FF /* AutoFollowLogger.swift in Sources */,
 				1DE897DD2F4196D3006657FF /* AppLogger.swift in Sources */,
 				1D7D46AE29EAAE1700179018 /* DecorationView.swift in Sources */,
 				1D5C463426C9F10400BA827B /* Confetti.swift in Sources */,
 				1D619F5B2A286A01006E889E /* ModelError.swift in Sources */,
 				1D16B0A22FA7138400490122 /* EmptyStatePresets.swift in Sources */,
+				1D5AB4032FD8FD9400BDFA2A /* WorldCupHeroCard.swift in Sources */,
 				1D16B13D2FA8677E00490122 /* CloudSyncDiagnosticsView.swift in Sources */,
+				1D5AB3FF2FD50F6A00BDFA2A /* CompactGameRowView.swift in Sources */,
 				1DCEBF0526C045B200913A94 /* SettingsView.swift in Sources */,
 				1DE4EBB62F3ACECB00CAC2E8 /* RaceScoreView.swift in Sources */,
 				1DE4EBB72F3ACECB00CAC2E8 /* RaceDetailView.swift in Sources */,
@@ -1681,6 +1734,7 @@
 				1D1239A026D0D180001B503E /* LocalNotificationManager.swift in Sources */,
 				1DF1FD922740AECB00783E62 /* Favorites.swift in Sources */,
 				EE00020200000001 /* EngagementTracker.swift in Sources */,
+				1D5AB3F12FD4FBEC00BDFA2A /* WorldCupComponents.swift in Sources */,
 				1DBEB4162F05F6340025B04C /* Constants.swift in Sources */,
 				1D16B07C2FA6B2C800490122 /* LiveGameRow.swift in Sources */,
 				AA000001TIPS000000000002 /* Tips.swift in Sources */,
@@ -1716,6 +1770,8 @@
 				AA00001800000000 /* SpotlightIndexer.swift in Sources */,
 				BB00010200000002 /* StandingsChartView.swift in Sources */,
 				BB00020200000002 /* MomentumChartView.swift in Sources */,
+				1D5AB3FD2FD4FC6100BDFA2A /* WorldCupFeaturedCard.swift in Sources */,
+				1D5AB3F32FD4FBFF00BDFA2A /* WorldCupBracketView.swift in Sources */,
 				1D16B09A2FA6C6A000490122 /* GameCountAudit.swift in Sources */,
 				1D73B99C2F86E13400C98966 /* AdInsertionHelper.swift in Sources */,
 				1D16B0882FA6B2C900490122 /* Rotator.swift in Sources */,

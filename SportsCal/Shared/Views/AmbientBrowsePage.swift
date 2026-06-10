@@ -36,6 +36,35 @@ struct AmbientBrowsePage: View {
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
+                        NavigationLink {
+                            WorldCupHubView()
+                                .environment(viewModel)
+                                .environment(storage)
+                                .environment(favorites)
+                                .preferredColorScheme(.dark)
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "soccerball")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(AmbientPalette.ink)
+                                    .frame(width: 20)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("FIFA World Cup 2026")
+                                        .font(.ambientDisplay(18, weight: .semibold))
+                                        .foregroundStyle(AmbientPalette.ink)
+                                    Text("Groups · Bracket · Golden Boot")
+                                        .font(.caption)
+                                        .foregroundStyle(AmbientPalette.ink.opacity(0.6))
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(AmbientPalette.ink.opacity(0.5))
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                        }
+                        .buttonStyle(.plain)
+
                         // Top divider (the departure row draws its divider on the top edge)
                         ForEach(sports, id: \.self) { sport in
                             NavigationLink {

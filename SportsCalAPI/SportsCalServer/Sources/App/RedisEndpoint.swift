@@ -68,12 +68,19 @@ enum RedisEndpoint {
         case f1EnrichmentLastUpdate
         case golfEnrichment
         case golfEnrichmentLastUpdate
+        case worldCupEnrichment
+        case worldCupBracket
+        case worldCupScorers
+        case worldCupSquads
+        case worldCupEnrichmentLastUpdate
         case injuries
         case injuriesLastUpdate
         case postseasonWindow
         case postseasonWindowLastUpdate
         case espnScheduleWindow           // "ESPN Schedule Window" — [Leagues: Scoreboard] for today + tomorrow
         case espnScheduleWindowLastUpdate // "ESPN Schedule Window Last Update"
+        case tennisSchedule               // structured ESPN tennis season (tournament + round), parsed LiveEvent
+        case tennisScheduleLastUpdate     // staleness marker for the heavy tennis season fetch
         case playByPlay(String) // "PBP-{eventID}" — per-game ESPN play-by-play cache
         case espnEventMap       // "ESPN-Event-Map" — TSDB eventID → ESPN eventID + sport/league
         public var value: RedisKey {
@@ -110,6 +117,16 @@ enum RedisEndpoint {
                 return "Golf Enrichment"
             case .golfEnrichmentLastUpdate:
                 return "Golf Enrichment Last Update"
+            case .worldCupEnrichment:
+                return "World Cup Enrichment"
+            case .worldCupBracket:
+                return "World Cup Bracket"
+            case .worldCupScorers:
+                return "World Cup Scorers"
+            case .worldCupSquads:
+                return "World Cup Squads"
+            case .worldCupEnrichmentLastUpdate:
+                return "World Cup Enrichment Last Update"
             case .injuries:
                 return "Injuries"
             case .injuriesLastUpdate:
@@ -122,6 +139,10 @@ enum RedisEndpoint {
                 return "ESPN Schedule Window"
             case .espnScheduleWindowLastUpdate:
                 return "ESPN Schedule Window Last Update"
+            case .tennisSchedule:
+                return "Tennis Schedule"
+            case .tennisScheduleLastUpdate:
+                return "Tennis Schedule Last Update"
             case .playByPlay(let eventID):
                 return RedisKey("PBP-\(eventID)")
             case .espnEventMap:
@@ -162,6 +183,16 @@ enum RedisEndpoint {
                 return "debug-Golf Enrichment"
             case .golfEnrichmentLastUpdate:
                 return "debug-Golf Enrichment Last Update"
+            case .worldCupEnrichment:
+                return "debug-World Cup Enrichment"
+            case .worldCupBracket:
+                return "debug-World Cup Bracket"
+            case .worldCupScorers:
+                return "debug-World Cup Scorers"
+            case .worldCupSquads:
+                return "debug-World Cup Squads"
+            case .worldCupEnrichmentLastUpdate:
+                return "debug-World Cup Enrichment Last Update"
             case .injuries:
                 return "debug-Injuries"
             case .injuriesLastUpdate:
@@ -174,6 +205,10 @@ enum RedisEndpoint {
                 return "debug-ESPN Schedule Window"
             case .espnScheduleWindowLastUpdate:
                 return "debug-ESPN Schedule Window Last Update"
+            case .tennisSchedule:
+                return "debug-Tennis Schedule"
+            case .tennisScheduleLastUpdate:
+                return "debug-Tennis Schedule Last Update"
             case .playByPlay(let eventID):
                 return RedisKey("debug-PBP-\(eventID)")
             case .espnEventMap:
