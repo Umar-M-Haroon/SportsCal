@@ -43,8 +43,18 @@ private func wcState(_ game: Game) -> WCMatchState {
 /// otherwise initials ("South Korea" → "SKO" beats truncation ambiguity) or a
 /// 3-letter prefix for single-word names ("Mexico" → "MEX").
 private func wcCode(_ team: Team?, fallback: String) -> String {
-    if let short = team?.strTeamShort, !short.isEmpty { return short.uppercased() }
-    let name = (team?.strTeam ?? fallback).trimmingCharacters(in: .whitespaces)
+    // Prefer the team's short code only when it's a clean 3-letter abbreviation
+    // (e.g. "MEX"). Reject 2-letter ISO codes / empty values that some sources
+    // supply for nations like Türkiye / Czechia — derive from the name instead.
+    if let short = team?.strTeamShort?
+        .folding(options: .diacriticInsensitive, locale: .current),
+       short.count == 3, short.allSatisfy(\.isLetter) {
+        return short.uppercased()
+    }
+    // Strip diacritics so "Türkiye" → "TUR" rather than "TÜR".
+    let name = (team?.strTeam ?? fallback)
+        .folding(options: .diacriticInsensitive, locale: .current)
+        .trimmingCharacters(in: .whitespaces)
     let words = name.split(separator: " ")
     if words.count >= 2 {
         let initials = words.compactMap(\.first)
@@ -122,6 +132,18 @@ struct WorldCupHeroCard: View {
 
     @AppStorage("followWorldCup") private var followWorldCup: Bool = false
 
+    /// Programmatic navigation hooks. When set (classic `List` / board host),
+    /// the hero drives navigation through the parent instead of inline
+    /// `NavigationLink`s — nested NavigationLinks inside a single List row cause
+    /// double-push and stray disclosure chevrons. When nil (Modern `ScrollView`),
+    /// the hero falls back to its own NavigationLinks.
+    var onSelectGame: ((GameWithTeams) -> Void)? = nil
+    var onOpenHub: (() -> Void)? = nil
+
+    /// The day the hero presents — today by default, or the page's selected date
+    /// so the hero leads every matchday with that day's fixtures.
+    var date: Date = Date()
+
     @State private var standings = WorldCupHeroStandings()
     /// The match pinned in the marquee slot — tapping an "also live" row
     /// switches it in.
@@ -139,99 +161,131 @@ struct WorldCupHeroCard: View {
     static func isActive(viewModel: GameViewModel) -> Bool {
         let now = Date()
         if now >= windowStart && now <= windowEnd { return true }
-        return !viewModel.worldCupGamesWithTeams.isEmpty
+        // Cheap emptiness probe — don't build the resolved GameWithTeams array
+        // (filter + sort + team resolution) just to check for any WC fixture.
+        let wcID = String(Leagues.FIFA_World_Cup.rawValue)
+        return (viewModel.totalGames ?? []).contains { $0.idLeague == wcID }
     }
 
     // MARK: Data
 
     private var allMatches: [GameWithTeams] { viewModel.worldCupGamesWithTeams }
 
-    private var todayMatches: [GameWithTeams] {
-        let start = calendar.startOfDay(for: Date())
-        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return [] }
-        return allMatches.filter { gwt in
-            guard let d = gwt.game.standardDate else { return false }
-            return d >= start && d < end
-        }
+    /// All day-derived state, computed in a single pass. The body reads this
+    /// once per render (`let data = content`) instead of re-deriving each slice
+    /// ~20× over the full fixture list through chained computed properties.
+    private struct HeroContent {
+        var marquee: GameWithTeams?
+        var alsoLive: [GameWithTeams]
+        var ticker: [GameWithTeams]
+        var marqueeCaption: (text: String, live: Bool)?
+        var tickerCaption: String
+        /// True when the day has no fixtures at all (drives the standings spinner).
+        var dayIsEmpty: Bool
     }
 
-    private var liveMatches: [GameWithTeams] { todayMatches.filter { wcState($0.game) == .live } }
-    private var upcomingToday: [GameWithTeams] { todayMatches.filter { wcState($0.game) == .pre } }
-    private var finalsToday: [GameWithTeams] { todayMatches.filter { wcState($0.game) == .final } }
+    private var content: HeroContent {
+        let all = allMatches
+        let start = calendar.startOfDay(for: date)
+        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
 
-    /// The next kickoff anywhere in the schedule — the marquee lead when
-    /// nothing is live today.
-    private var nextMatch: GameWithTeams? {
-        let now = Date()
-        return allMatches.first { wcState($0.game) == .pre && ($0.game.standardDate ?? .distantPast) > now }
-    }
-
-    private var marquee: GameWithTeams? {
-        if !liveMatches.isEmpty {
-            return liveMatches.first { $0.id == featuredID } ?? liveMatches.first
-        }
-        return nextMatch
-    }
-
-    private var alsoLive: [GameWithTeams] {
-        guard let marquee, liveMatches.count > 1 else { return [] }
-        return liveMatches.filter { $0.id != marquee.id }
-    }
-
-    /// The rest of the matchday under the marquee: today's remaining kickoffs,
-    /// then today's finals.
-    private var ticker: [GameWithTeams] {
-        let upcoming = upcomingToday.filter { $0.id != marquee?.id }
-        return upcoming + finalsToday
-    }
-
-    private var marqueeCaption: (text: String, live: Bool)? {
-        if liveMatches.count > 1 { return ("Live now · \(liveMatches.count) matches", true) }
-        if liveMatches.count == 1 { return ("Featured · live now", true) }
-        if let marquee {
-            if let countdown = wcCountdown(to: marquee.game.standardDate) {
-                return ("Next match · \(countdown)", false)
+        // One filter + sort for the day; bucket by state in one walk.
+        var live: [GameWithTeams] = []
+        var upcoming: [GameWithTeams] = []
+        var finals: [GameWithTeams] = []
+        let dayMatches = all
+            .filter { gwt in
+                guard let d = gwt.game.standardDate else { return false }
+                return d >= start && d < end
             }
-            return ("Next match", false)
+            .sorted { ($0.game.standardDate ?? .distantPast) < ($1.game.standardDate ?? .distantPast) }
+        for gwt in dayMatches {
+            switch wcState(gwt.game) {
+            case .live: live.append(gwt)
+            case .pre:  upcoming.append(gwt)
+            case .final: finals.append(gwt)
+            }
         }
-        if !finalsToday.isEmpty { return ("Matchday complete", false) }
-        return nil
-    }
 
-    private var tickerCaption: String {
-        if upcomingToday.contains(where: { $0.id != marquee?.id }) { return "Later today · group stage" }
-        return "Today · results"
+        let marquee: GameWithTeams?
+        if !live.isEmpty {
+            marquee = live.first { $0.id == featuredID } ?? live.first
+        } else if let up = upcoming.first {
+            marquee = up
+        } else if let fin = finals.first {
+            marquee = fin
+        } else {
+            // Day is empty (e.g. today, pre-tournament) → next kickoff anywhere.
+            let now = Date()
+            marquee = all
+                .filter { wcState($0.game) == .pre && ($0.game.standardDate ?? .distantPast) > now }
+                .min { ($0.game.standardDate ?? .distantFuture) < ($1.game.standardDate ?? .distantFuture) }
+        }
+
+        let alsoLive = (marquee != nil && live.count > 1) ? live.filter { $0.id != marquee!.id } : []
+        let shownIDs = Set([marquee?.id].compactMap { $0 } + alsoLive.map(\.id))
+        let ticker = dayMatches.filter { !shownIDs.contains($0.id) }
+
+        let marqueeCaption: (text: String, live: Bool)?
+        if live.count > 1 {
+            marqueeCaption = ("Live now · \(live.count) matches", true)
+        } else if live.count == 1 {
+            marqueeCaption = ("Featured · live now", true)
+        } else if let m = marquee, wcState(m.game) == .pre {
+            marqueeCaption = wcCountdown(to: m.game.standardDate)
+                .map { ("Next match · \($0)", false) } ?? ("Next match", false)
+        } else if !finals.isEmpty {
+            marqueeCaption = ("Matchday complete", false)
+        } else {
+            marqueeCaption = nil
+        }
+
+        let tickerCaption: String
+        if !calendar.isDateInToday(date) {
+            tickerCaption = "Fixtures · group stage"
+        } else if ticker.contains(where: { wcState($0.game) == .pre }) {
+            tickerCaption = "Later today · group stage"
+        } else {
+            tickerCaption = "Today · results"
+        }
+
+        return HeroContent(
+            marquee: marquee, alsoLive: alsoLive, ticker: ticker,
+            marqueeCaption: marqueeCaption, tickerCaption: tickerCaption,
+            dayIsEmpty: dayMatches.isEmpty
+        )
     }
 
     var body: some View {
         if Self.isActive(viewModel: viewModel) {
+            let data = content
             VStack(alignment: .leading, spacing: 0) {
                 header
                 followChip
                     .padding(.horizontal, .appSpace4)
                     .padding(.top, .appSpace2)
 
-                if let caption = marqueeCaption {
+                if let caption = data.marqueeCaption {
                     WCRailCaption(text: caption.text, live: caption.live)
                         .padding(.horizontal, .appSpace4)
                         .padding(.top, .appSpace3)
                 }
-                if let marquee {
+                if let marquee = data.marquee {
                     marqueeLink(marquee)
                         .padding(.horizontal, .appSpace3)
                         .padding(.top, .appSpace2)
                 }
 
-                if !alsoLive.isEmpty {
+                if !data.alsoLive.isEmpty {
                     WCRailCaption(text: "Also live · tap to feature", live: true)
                         .padding(.horizontal, .appSpace4)
                         .padding(.top, .appSpace3)
                     VStack(spacing: 0) {
-                        ForEach(Array(alsoLive.enumerated()), id: \.element.id) { index, gwt in
+                        ForEach(Array(data.alsoLive.enumerated()), id: \.element.id) { index, gwt in
                             Button {
                                 withAnimation(.snappy(duration: 0.3)) { featuredID = gwt.id }
                             } label: {
-                                WCFixtureRow(gameWithTeams: gwt, showDivider: index < alsoLive.count - 1)
+                                WCFixtureRow(gameWithTeams: gwt, showDivider: index < data.alsoLive.count - 1)
                             }
                             .buttonStyle(.plain)
                         }
@@ -239,16 +293,24 @@ struct WorldCupHeroCard: View {
                     .padding(.horizontal, .appSpace3)
                 }
 
-                if !ticker.isEmpty {
-                    WCRailCaption(text: tickerCaption)
+                if !data.ticker.isEmpty {
+                    WCRailCaption(text: data.tickerCaption)
                         .padding(.horizontal, .appSpace4)
                         .padding(.top, .appSpace3)
                     VStack(spacing: 0) {
-                        ForEach(Array(ticker.enumerated()), id: \.element.id) { index, gwt in
-                            NavigationLink {
-                                detailDestination(for: gwt)
-                            } label: {
-                                WCFixtureRow(gameWithTeams: gwt, showDivider: index < ticker.count - 1)
+                        ForEach(Array(data.ticker.enumerated()), id: \.element.id) { index, gwt in
+                            Group {
+                                if let onSelectGame {
+                                    Button { onSelectGame(gwt) } label: {
+                                        WCFixtureRow(gameWithTeams: gwt, showDivider: index < data.ticker.count - 1)
+                                    }
+                                } else {
+                                    NavigationLink {
+                                        detailDestination(for: gwt)
+                                    } label: {
+                                        WCFixtureRow(gameWithTeams: gwt, showDivider: index < data.ticker.count - 1)
+                                    }
+                                }
                             }
                             .buttonStyle(.plain)
                         }
@@ -256,7 +318,7 @@ struct WorldCupHeroCard: View {
                     .padding(.horizontal, .appSpace3)
                 }
 
-                standingsRail
+                standingsRail(dayIsEmpty: data.dayIsEmpty)
             }
             .padding(.bottom, .appSpace4)
             .background(RoundedRectangle.appShape(.appRadiusXL).fill(Color.wcSurface))
@@ -268,37 +330,45 @@ struct WorldCupHeroCard: View {
     // MARK: Header
 
     private var header: some View {
-        NavigationLink {
-            WorldCupHubView()
-                .environment(viewModel)
-                .environment(favorites)
-                .environment(storage)
-        } label: {
-            HStack(spacing: .appSpace3) {
-                ZStack {
-                    Circle().fill(Color.wcMint.opacity(0.16)).frame(width: 42, height: 42)
-                    Image(systemName: "soccerball")
-                        .font(.title3)
-                        .foregroundStyle(Color.wcMint)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("FIFA World Cup 2026")
-                        .font(.appHeadline)
-                        .foregroundStyle(Color.appInk)
-                    Text("Jun 11 – Jul 19 · USA · CAN · MEX")
-                        .font(.appCaption)
-                        .foregroundStyle(Color.appInkSoft)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .imageScale(.small)
-                    .foregroundStyle(Color.appInkFaint)
+        Group {
+            if let onOpenHub {
+                Button(action: onOpenHub) { headerLabel }
+            } else {
+                NavigationLink {
+                    WorldCupHubView()
+                        .environment(viewModel)
+                        .environment(favorites)
+                        .environment(storage)
+                } label: { headerLabel }
             }
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .padding(.horizontal, .appSpace4)
         .padding(.top, .appSpace4)
+    }
+
+    private var headerLabel: some View {
+        HStack(spacing: .appSpace3) {
+            ZStack {
+                Circle().fill(Color.wcMint.opacity(0.16)).frame(width: 42, height: 42)
+                Image(systemName: "soccerball")
+                    .font(.title3)
+                    .foregroundStyle(Color.wcMint)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("FIFA World Cup 2026")
+                    .font(.appHeadline)
+                    .foregroundStyle(Color.appInk)
+                Text("Jun 11 – Jul 19 · USA · CAN · MEX")
+                    .font(.appCaption)
+                    .foregroundStyle(Color.appInkSoft)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .imageScale(.small)
+                .foregroundStyle(Color.appInkFaint)
+        }
+        .contentShape(Rectangle())
     }
 
     /// Compact mint follow pill — a confirmation chip when following, an
@@ -332,10 +402,16 @@ struct WorldCupHeroCard: View {
     // MARK: Marquee
 
     private func marqueeLink(_ gwt: GameWithTeams) -> some View {
-        NavigationLink {
-            detailDestination(for: gwt)
-        } label: {
-            WCMarqueeCard(gameWithTeams: gwt)
+        Group {
+            if let onSelectGame {
+                Button { onSelectGame(gwt) } label: { WCMarqueeCard(gameWithTeams: gwt) }
+            } else {
+                NavigationLink {
+                    detailDestination(for: gwt)
+                } label: {
+                    WCMarqueeCard(gameWithTeams: gwt)
+                }
+            }
         }
         .buttonStyle(.plain)
         .id(gwt.id)
@@ -353,7 +429,7 @@ struct WorldCupHeroCard: View {
     // MARK: Standings rail
 
     @ViewBuilder
-    private var standingsRail: some View {
+    private func standingsRail(dayIsEmpty: Bool) -> some View {
         if !standings.groups.isEmpty {
             WCRailCaption(text: "Group stage · standings")
                 .padding(.horizontal, .appSpace4)
@@ -367,7 +443,7 @@ struct WorldCupHeroCard: View {
                 .padding(.horizontal, .appSpace4)
             }
             .padding(.top, .appSpace2)
-        } else if standings.loading && todayMatches.isEmpty {
+        } else if standings.loading && dayIsEmpty {
             HStack { Spacer(); ProgressView(); Spacer() }
                 .padding(.top, .appSpace3)
         }
@@ -703,8 +779,13 @@ private struct WCGroupCard: View {
     }
 
     private func teamCode(_ entry: Entry) -> String {
-        if let abbr = entry.team?.abbreviation, !abbr.isEmpty { return abbr.uppercased() }
-        let name = entry.team?.shortDisplayName ?? entry.team?.displayName ?? "—"
+        if let abbr = entry.team?.abbreviation?
+            .folding(options: .diacriticInsensitive, locale: .current),
+           abbr.count == 3, abbr.allSatisfy(\.isLetter) {
+            return abbr.uppercased()
+        }
+        let name = (entry.team?.shortDisplayName ?? entry.team?.displayName ?? "—")
+            .folding(options: .diacriticInsensitive, locale: .current)
         return String(name.prefix(3)).uppercased()
     }
 

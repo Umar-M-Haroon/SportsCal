@@ -626,11 +626,12 @@ public class GameViewModel: NSObject {
         Self.purgeLegacyCacheFiles()
 
         let folderURLs = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-        var gameFileURL = folderURLs[0]
-        gameFileURL.appendPathComponent(Self.cacheFilename(base: "games"))
-        var teamFileURL = folderURLs[0]
-        teamFileURL.appendPathComponent(Self.cacheFilename(base: "teams"))
         do {
+            guard let cacheFolder = folderURLs.first else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+            let gameFileURL = cacheFolder.appendingPathComponent(Self.cacheFilename(base: "games"))
+            let teamFileURL = cacheFolder.appendingPathComponent(Self.cacheFilename(base: "teams"))
             let data = try NetworkHandler.sharedDecoder.decode(Cache<String, LiveScore>.self, from: Data(contentsOf: gameFileURL))
             self.gameCache = data
             let teamData = try NetworkHandler.sharedDecoder.decode(Cache<String, [Team]>.self, from: Data(contentsOf: teamFileURL))

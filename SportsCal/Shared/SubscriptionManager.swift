@@ -66,6 +66,20 @@ public class SubscriptionManager: @unchecked Sendable {
         }
     }
 
+    /// Restores previous purchases via RevenueCat and refreshes Pro state.
+    /// Returns the resulting `isPro` value (true if an active entitlement was found).
+    @MainActor
+    public func restorePurchases() async -> Bool {
+        do {
+            let customerInfo = try await Purchases.shared.restorePurchases()
+            updateProStatus(from: customerInfo)
+            return isPro
+        } catch {
+            AppLogger.general.error("Restore failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
     /// Debug-only override for QA. Lets you flip Pro state without a sandbox purchase.
     /// Persists to UserDefaults so the change survives relaunches.
     public func setMockPro(_ value: Bool) {

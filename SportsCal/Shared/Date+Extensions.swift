@@ -20,32 +20,32 @@ extension DateComponents {
 }
 extension Date{
     static func dateAfterWeeksFromNow(weeks: Int) -> Date{
-        return Calendar(identifier: .gregorian).date(byAdding: .day, value: 7*weeks, to: Date())!
+        return Calendar(identifier: .gregorian).date(byAdding: .day, value: 7*weeks, to: Date()) ?? Date()
     }
     static func dateAfterYearsFromNow(years: Int) -> Date{
-        return Calendar(identifier: .gregorian).date(byAdding: .year, value: years, to: Date())!
+        return Calendar(identifier: .gregorian).date(byAdding: .year, value: years, to: Date()) ?? Date()
     }
     static func dateAfterMonthsFromNow(months: Int) -> Date{
-        return Calendar(identifier: .gregorian).date(byAdding: .month, value: months, to: Date())!
+        return Calendar(identifier: .gregorian).date(byAdding: .month, value: months, to: Date()) ?? Date()
     }
     static func dateAfterHoursFromNow(hours: Int) -> Date{
-        return Calendar(identifier: .gregorian).date(byAdding: .hour, value: hours, to: Date())!
+        return Calendar(identifier: .gregorian).date(byAdding: .hour, value: hours, to: Date()) ?? Date()
     }
     static func dateAfterDaysFromNow(days: Int) -> Date{
-        return Calendar(identifier: .gregorian).date(byAdding: .day, value: days, to: Date())!
+        return Calendar(identifier: .gregorian).date(byAdding: .day, value: days, to: Date()) ?? Date()
     }
     func afterHoursFromNow(hours: Int) -> Date {
-        return Calendar(identifier: .gregorian).date(byAdding: .hour, value: hours, to: self)!
+        return Calendar(identifier: .gregorian).date(byAdding: .hour, value: hours, to: self) ?? self
     }
     func afterSecondsFromNow(seconds: Int) -> Date {
-        return Calendar(identifier: .gregorian).date(byAdding: .second, value: seconds, to: self)!
+        return Calendar(identifier: .gregorian).date(byAdding: .second, value: seconds, to: self) ?? self
     }
 
     func toGMT() -> Date {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
         formatter.timeZone = TimeZone(abbreviation: "GMT")
-        return formatter.date(from: formatter.string(from: Date()))!
+        return formatter.date(from: formatter.string(from: Date())) ?? self
     }
     func formatToTime() -> String {
         DateFormatters.dateFormatter.dateStyle = .none

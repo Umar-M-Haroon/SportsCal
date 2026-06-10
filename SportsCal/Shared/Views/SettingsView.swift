@@ -41,14 +41,22 @@ struct DeveloperSettingsSection: View {
         Section("Developer") {
             Toggle("Debug Mode", isOn: $bindableAppStorage.debugMode)
             if appStorage.debugMode {
-                Picker("Server", selection: $bindableAppStorage.serverEnvironment) {
+                // Bind directly to NetworkHandler.currentEnvironment (the value the
+                // resolver actually reads). serverEnvironment is @ObservationIgnored
+                // @AppStorage, so a $bindableAppStorage binding sends no observation
+                // mutation and `.onChange` won't reliably fire — the selection then
+                // never reaches the resolver and the picker appears stuck on Auto.
+                Picker("Server", selection: Binding(
+                    get: { NetworkHandler.currentEnvironment },
+                    set: { newValue in
+                        appStorage.serverEnvironment = newValue
+                        NetworkHandler.currentEnvironment = newValue
+                        Task { await NetworkHandler.refreshEnvironment() }
+                    }
+                )) {
                     ForEach(ServerEnvironment.allCases, id: \.self) { env in
                         Text(env.displayName).tag(env)
                     }
-                }
-                .onChange(of: appStorage.serverEnvironment) { _, newValue in
-                    NetworkHandler.currentEnvironment = newValue
-                    Task { await NetworkHandler.refreshEnvironment() }
                 }
                 LocalServerStatusView()
                 APNsEnvironmentMismatchBanner()
@@ -382,6 +390,11 @@ struct SettingsView: View {
     @Environment(EngagementTracker.self) private var engagementTracker
     @State private var showSportPicker: Bool = false
     @State private var showResetSuggestionsConfirm = false
+    @State private var showRestoreResult = false
+    @State private var restoreMessage = ""
+    #if os(iOS)
+    @Environment(\.openURL) private var openURL
+    #endif
     var isTestFlight: Bool {
         guard let path = Bundle.main.appStoreReceiptURL?.path else {
             return false
@@ -464,6 +477,32 @@ struct SettingsView: View {
                 }
                 ScoresSettingsSection()
                 DateFormatSettingsSection()
+                Section(header: Text("About")) {
+                    HStack {
+                        Text("Version")
+                        Spacer()
+                        Text(appVersionString)
+                            .foregroundStyle(.secondary)
+                    }
+                    Button("Restore Purchases") {
+                        Task {
+                            let restored = await SubscriptionManager.shared.restorePurchases()
+                            restoreMessage = restored
+                                ? "Your purchases have been restored."
+                                : "No previous purchases were found to restore."
+                            showRestoreResult = true
+                        }
+                    }
+                    #if os(iOS)
+                    Button("Contact Support") {
+                        let subject = "SportsCal Support (v\(appVersionString))"
+                            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                        if let url = URL(string: "mailto:\(Self.supportEmail)?subject=\(subject)") {
+                            openURL(url)
+                        }
+                    }
+                    #endif
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -473,6 +512,11 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .alert("Restore Purchases", isPresented: $showRestoreResult) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(restoreMessage)
+            }
             .onAppear {
                 if isTestFlight {
                     appStorage.debugMode = true
@@ -484,6 +528,15 @@ struct SettingsView: View {
                     .environment(viewModel)
             }
         }
+    }
+
+    /// Support inbox shown in the About section. Update if the address changes.
+    private static let supportEmail = "support@komodollc.com"
+
+    private var appVersionString: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
+        return "\(version) (\(build))"
     }
 
     private var enabledSportsSummary: String {

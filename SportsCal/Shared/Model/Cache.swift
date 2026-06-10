@@ -106,8 +106,8 @@ extension Cache: Codable where Key: Codable, Value: Codable {
 }
 extension Cache where Key: Codable, Value: Codable {
     func saveToDisk(with name: String, using fileManager: FileManager = .default) throws {
-        let folderURLs = fileManager.urls(for: .cachesDirectory, in: .userDomainMask)
-        let fileURL = URL(string: folderURLs[0].absoluteString + name + ".cache")!
+        guard let folder = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
+        let fileURL = folder.appendingPathComponent(name + ".cache")
         let data = try JSONEncoder().encode(self)
         try data.write(to: fileURL)
     }

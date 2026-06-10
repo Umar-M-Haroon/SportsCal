@@ -34,6 +34,7 @@ struct DayPage: View {
     @State private var searchTokens: [SearchToken] = []
     @State private var showHiddenGames: Bool = false
     @State private var boardNavigationTarget: GameWithTeams?
+    @State private var worldCupHubPresented = false
 
     // Memoization for `dayData`. A plain reference-type box held by @State keeps a
     // stable identity across renders without SwiftUI observing its mutations — so
@@ -53,6 +54,7 @@ struct DayPage: View {
         let favoritesHash: Int
         let suggestedHash: Int
         let orderedSportsHash: Int
+        let worldCupHeroActive: Bool
     }
 
     private var calendar: Calendar { Calendar.current }
@@ -67,6 +69,28 @@ struct DayPage: View {
 
     private var liveGameIDs: Set<String> {
         Set(viewModel.liveEventsWithTeams.map { $0.id })
+    }
+
+    // MARK: - World Cup hero
+
+    private static let worldCupLeagueID = String(Leagues.FIFA_World_Cup.rawValue)
+
+    /// The World Cup hero owns today's WC matches (marquee + ticker), so the
+    /// regular Live / soccer sections skip them. Mirrors `ModernDayPage`.
+    private var showWorldCupHero: Bool {
+        guard storage.shouldShowWorldCup || storage.shouldShowSoccer else { return false }
+        // Lead every matchday with the hero. On today, also show it during the
+        // tournament era for the next-kickoff countdown even on rest days.
+        if dayGames.contains(where: { $0.game.idLeague == Self.worldCupLeagueID }) { return true }
+        return isToday && WorldCupHeroCard.isActive(viewModel: viewModel)
+    }
+
+    /// IDs of today's World Cup games claimed by the hero — excluded from the
+    /// regular sections to avoid showing each match twice. Empty when the hero
+    /// isn't shown (so WC games surface normally on other days / when disabled).
+    private var heroClaimedWorldCupIDs: Set<String> {
+        guard showWorldCupHero else { return [] }
+        return Set(dayGames.filter { $0.game.idLeague == Self.worldCupLeagueID }.map(\.id))
     }
 
     private var suggestedSearchTokens: [SearchToken] {
@@ -105,7 +129,8 @@ struct DayPage: View {
             sportFilter: sportFilter,
             favoritesHash: favorites.teams.hashValue,
             suggestedHash: suggested.hashValue,
-            orderedSportsHash: storage.orderedSports.hashValue
+            orderedSportsHash: storage.orderedSports.hashValue,
+            worldCupHeroActive: showWorldCupHero
         )
     }
 
@@ -125,12 +150,15 @@ struct DayPage: View {
     private func computeDayData() -> DayData {
         let games = dayGames
         let suggestedTeamNames = engagementTracker.suggestedTeamNames(excluding: favorites.teams)
+        // Today's World Cup matches render inside the hero, not the sections.
+        let claimedWorldCupIDs = heroClaimedWorldCupIDs
 
         var favs: [GameWithTeams] = []
         var suggested: [GameWithTeams] = []
         var grouped: [SportType: [GameWithTeams]] = [:]
 
         for gwt in games {
+            if claimedWorldCupIDs.contains(gwt.id) { continue }
             if favorites.contains(gwt.game) {
                 if sportFilter.matches(gwt.game) {
                     favs.append(gwt)
@@ -169,7 +197,10 @@ struct DayPage: View {
 
     private var filteredLiveEvents: [GameWithTeams] {
         guard isToday else { return [] }
-        return viewModel.liveEventsWithTeams.filter { sportFilter.matches($0.game) }
+        let claimedWorldCupIDs = heroClaimedWorldCupIDs
+        return viewModel.liveEventsWithTeams.filter {
+            sportFilter.matches($0.game) && !claimedWorldCupIDs.contains($0.id)
+        }
     }
 
     private var filteredFavorites: [GameWithTeams] {
@@ -215,7 +246,8 @@ struct DayPage: View {
     }
 
     private var boardColumns: [BoardColumn] {
-        let games = dayGames
+        let claimedWorldCupIDs = heroClaimedWorldCupIDs
+        let games = dayGames.filter { !claimedWorldCupIDs.contains($0.id) }
         let live = filteredLiveEvents
         let liveIDs = liveGameIDs
 
@@ -284,6 +316,12 @@ struct DayPage: View {
         }
         .navigationDestination(item: $boardNavigationTarget) { gwt in
             boardDetailView(for: gwt)
+        }
+        .navigationDestination(isPresented: $worldCupHubPresented) {
+            WorldCupHubView()
+                .environment(viewModel)
+                .environment(favorites)
+                .environment(storage)
         }
         .sheet(item: $sheetType) { sheetType in
             switch sheetType {
@@ -388,6 +426,20 @@ struct DayPage: View {
             .padding(.horizontal)
             .padding(.bottom, 8)
 
+            // World Cup hero — pinned on matchday above the board. Width-capped
+            // so it reads as a card rather than stretching across a wide iPad.
+            if showWorldCupHero {
+                WorldCupHeroCard(
+                    onSelectGame: { boardNavigationTarget = $0 },
+                    onOpenHub: { worldCupHubPresented = true },
+                    date: selectedDate
+                )
+                .frame(maxWidth: 480)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+            }
+
             if isEmpty && (!viewModel.sortedGamesWithTeams.isEmpty || !viewModel.liveEventsWithTeams.isEmpty) {
                 Spacer()
                 VStack(spacing: 12) {
@@ -491,6 +543,21 @@ struct DayPage: View {
     @ViewBuilder
     private var dayContent: some View {
         let adPlan = classicAdPlan
+        // World Cup hero — pinned on matchday, carries the tournament (marquee,
+        // ticker, group rail). Owns today's WC matches; the sections skip them.
+        if showWorldCupHero {
+            Section {
+                WorldCupHeroCard(
+                    onSelectGame: { boardNavigationTarget = $0 },
+                    onOpenHub: { worldCupHubPresented = true },
+                    date: selectedDate
+                )
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        }
+
         // Live games (only on today)
         if !filteredLiveEvents.isEmpty {
             Section {
