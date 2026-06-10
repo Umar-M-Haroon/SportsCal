@@ -77,6 +77,11 @@
 		1D40809B290BAFE100729FFE /* IndividualTeamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D40808B290B7CED00729FFE /* IndividualTeamView.swift */; };
 		1D4080A0290C803400729FFE /* LiveAnimatedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DD35DB52907B6AE009A2113 /* LiveAnimatedView.swift */; };
 		1D486B0028A834470024BC32 /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D486AFF28A834470024BC32 /* GameViewModel.swift */; };
+		AB12CD3400000002000000AA /* PushToStartRegistrationPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB12CD3400000001000000AA /* PushToStartRegistrationPlanner.swift */; };
+		AB12CD3400000003000000AA /* PushToStartRegistrationPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB12CD3400000001000000AA /* PushToStartRegistrationPlanner.swift */; };
+		AB12CD3400000011000000AA /* WebSocketReconnectTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB12CD3400000010000000AA /* WebSocketReconnectTests.swift */; };
+		AB12CD3400000013000000AA /* OfflineTransitionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB12CD3400000012000000AA /* OfflineTransitionTests.swift */; };
+		AB12CD3400000015000000AA /* PushToStartRegistrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB12CD3400000014000000AA /* PushToStartRegistrationTests.swift */; };
 		1D5AB1372FCCFFD700BDFA2A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1D5AB1362FCCFFD700BDFA2A /* PrivacyInfo.xcprivacy */; };
 		1D5AB1382FCCFFD700BDFA2A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1D5AB1362FCCFFD700BDFA2A /* PrivacyInfo.xcprivacy */; };
 		1D5AB3ED2FD4FBC900BDFA2A /* StandingsGroupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3EC2FD4FBC900BDFA2A /* StandingsGroupView.swift */; };
@@ -435,6 +440,10 @@
 		1D408094290BA96A00729FFE /* LiveSportActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSportActivityAttributes.swift; sourceTree = "<group>"; };
 		1D408096290BAA6A00729FFE /* LiveSportActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSportActivityWidget.swift; sourceTree = "<group>"; };
 		1D486AFF28A834470024BC32 /* GameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModel.swift; sourceTree = "<group>"; };
+		AB12CD3400000001000000AA /* PushToStartRegistrationPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushToStartRegistrationPlanner.swift; sourceTree = "<group>"; };
+		AB12CD3400000010000000AA /* WebSocketReconnectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketReconnectTests.swift; sourceTree = "<group>"; };
+		AB12CD3400000012000000AA /* OfflineTransitionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineTransitionTests.swift; sourceTree = "<group>"; };
+		AB12CD3400000014000000AA /* PushToStartRegistrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushToStartRegistrationTests.swift; sourceTree = "<group>"; };
 		1D5AB1362FCCFFD700BDFA2A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		1D5AB3EC2FD4FBC900BDFA2A /* StandingsGroupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingsGroupView.swift; sourceTree = "<group>"; };
 		1D5AB3EE2FD4FBD500BDFA2A /* WorldCupHubViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupHubViewModel.swift; sourceTree = "<group>"; };
@@ -805,6 +814,9 @@
 				1DAA10132FA145AF00853609 /* LiveActivityMatcherTests.swift */,
 				1DAA10152FA145AF00853609 /* WebSocketBackoffTests.swift */,
 				1D16B09F2FA6C76900490122 /* GameCountParityTests.swift */,
+				AB12CD3400000010000000AA /* WebSocketReconnectTests.swift */,
+				AB12CD3400000012000000AA /* OfflineTransitionTests.swift */,
+				AB12CD3400000014000000AA /* PushToStartRegistrationTests.swift */,
 			);
 			path = SportsCalTests;
 			sourceTree = "<group>";
@@ -946,6 +958,7 @@
 				1DE0402C292D713800073494 /* Cache.swift */,
 				1DE897D72F403960006657FF /* DebugGameFactory.swift */,
 				1D486AFF28A834470024BC32 /* GameViewModel.swift */,
+				AB12CD3400000001000000AA /* PushToStartRegistrationPlanner.swift */,
 				1D20B337292893DD00956B14 /* GameManager.swift */,
 				1DA4343329079D3D0010364F /* Teams+Extensions.swift */,
 				AB12CD022F3B000200AABB02 /* SportBrowseViewModel.swift */,
@@ -1492,6 +1505,9 @@
 				FAC419D238E640E4802E1D64 /* ScheduleFilterTests.swift in Sources */,
 				1D73C0D12F934A4300C98966 /* RowViewSnapshotTests.swift in Sources */,
 				1D16B0A02FA6C76900490122 /* GameCountParityTests.swift in Sources */,
+				AB12CD3400000011000000AA /* WebSocketReconnectTests.swift in Sources */,
+				AB12CD3400000013000000AA /* OfflineTransitionTests.swift in Sources */,
+				AB12CD3400000015000000AA /* PushToStartRegistrationTests.swift in Sources */,
 				1D73C0CF2F934A2200C98966 /* SnapshotHelpers.swift in Sources */,
 				1DAA100F2FA1408600853609 /* LiveActivityCodableTests.swift in Sources */,
 				A1B2C3D401000001AABBCCDD /* SubscriptionManagerTests.swift in Sources */,
@@ -1609,6 +1625,7 @@
 				1D8352DB29067CBB00E60D7F /* UserDefaultStorage.swift in Sources */,
 				1D408099290BAB9000729FFE /* LiveSportActivityAttributes.swift in Sources */,
 				1DEA4E0129053AB900CD1D8F /* GameViewModel.swift in Sources */,
+				AB12CD3400000002000000AA /* PushToStartRegistrationPlanner.swift in Sources */,
 				1D4080A0290C803400729FFE /* LiveAnimatedView.swift in Sources */,
 				1D619F5C2A286A01006E889E /* ModelError.swift in Sources */,
 				1DC2651526F3CCF1005539C1 /* SettingsData.swift in Sources */,
@@ -1666,6 +1683,7 @@
 				1DE897D92F403960006657FF /* DebugGameFactory.swift in Sources */,
 				1DE4EBBB2F3AF17800CAC2E8 /* SportPickerSheet.swift in Sources */,
 				1D486B0028A834470024BC32 /* GameViewModel.swift in Sources */,
+				AB12CD3400000003000000AA /* PushToStartRegistrationPlanner.swift in Sources */,
 				1DE4EBBD2F3C7EBD00CAC2E8 /* BrowsePage.swift in Sources */,
 				1D8352D52905532D00E60D7F /* DateFormatters.swift in Sources */,
 				1D7D46B029EBC3BF00179018 /* DetailView.swift in Sources */,

@@ -150,6 +150,16 @@ public class GameViewModel: NSObject {
     var isOffline: Bool = false
     /// Timestamp of the last fully-successful fetch, for the "showing data from …" label.
     var lastSuccessfulFetch: Date?
+    /// True when we're showing cached data because the live feed is unreachable:
+    /// we have games AND we're either offline or the last fetch failed.
+    var showsStaleBanner: Bool {
+        (isOffline || networkState == .failed) && (totalGames?.isEmpty == false)
+    }
+    /// True when offline with no cached games — a full-screen placeholder reads
+    /// better than an empty list.
+    var showsOfflinePlaceholder: Bool {
+        isOffline && (totalGames?.isEmpty ?? true)
+    }
     var currentLiveInfo: LiveScore?
     var currentlyLiveSports: [SportType] = []
     var liveGameCountsBySport: [SportType: Int] = [:]
@@ -172,7 +182,7 @@ public class GameViewModel: NSObject {
     var restartTimer: Timer?
     var gamesDict: [SportType: [Game]] = [:]
     
-    private var webSocketTask: URLSessionWebSocketTask?
+    var webSocketTask: URLSessionWebSocketTask?
     private var webSocketSession: URLSession?
     /// Coalesces `updateLiveData()` invocations arriving within ~250 ms of each other.
     /// During busy live windows several sports can each push within a few hundred ms,
@@ -199,12 +209,12 @@ public class GameViewModel: NSObject {
     /// Whether a network fetch is currently in progress (visible to views for loading state).
     var isFetching: Bool { networkFetchTask != nil }
     private var networkFetchTask: Task<Void, Never>?
-    private var wsReconnectAttempts = 0
+    var wsReconnectAttempts = 0
     /// Tracks current network reachability so the WebSocket reconnect loop can pause
     /// while offline and resume immediately when the path comes back, instead of
     /// burning attempts against an unreachable host.
     nonisolated(unsafe) private var pathMonitor: NWPathMonitor?
-    private var hasNetworkPath: Bool = true
+    var hasNetworkPath: Bool = true
     
     var currentPushToStartToken: String?
     var liveEvents: [Game] = []
@@ -687,23 +697,29 @@ public class GameViewModel: NSObject {
         monitor.pathUpdateHandler = { [weak self] path in
             let satisfied = path.status == .satisfied
             Task { @MainActor [weak self] in
-                guard let self else { return }
-                let wasOffline = !self.hasNetworkPath
-                self.hasNetworkPath = satisfied
-                self.isOffline = !satisfied
-                if satisfied && wasOffline {
-                    if self.appStorage.debugMode {
-                        AppLogger.networking.info("Network path restored — forcing WebSocket reconnect")
-                    }
-                    self.wsReconnectAttempts = 0
-                    self.restartTimer?.invalidate()
-                    self.restartTimer = nil
-                    self.ensureWebSocketConnected()
-                }
+                self?.handlePathUpdate(satisfied: satisfied)
             }
         }
         monitor.start(queue: DispatchQueue(label: "com.sportscal.pathmonitor"))
         self.pathMonitor = monitor
+    }
+
+    /// Applies a network-path change: tracks offline state and, on restore,
+    /// resets the backoff and forces an immediate WebSocket reconnect.
+    @MainActor
+    func handlePathUpdate(satisfied: Bool) {
+        let wasOffline = !hasNetworkPath
+        hasNetworkPath = satisfied
+        isOffline = !satisfied
+        if satisfied && wasOffline {
+            if appStorage.debugMode {
+                AppLogger.networking.info("Network path restored — forcing WebSocket reconnect")
+            }
+            wsReconnectAttempts = 0
+            restartTimer?.invalidate()
+            restartTimer = nil
+            ensureWebSocketConnected()
+        }
     }
 
     /// Listens for `.serverEnvironmentDidChange` and, on a switch, drops
@@ -886,10 +902,13 @@ public class GameViewModel: NSObject {
     }
     
     private func handleLiveWebsocket() {
+        // No session means the VM was built without networking (snapshot/unit
+        // tests) — never fall through to URLSession.shared and open a real socket.
+        guard let session = webSocketSession else { return }
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         wsReconnectAttempts = 0
-        webSocketTask = NetworkHandler.connectWebSocketForLive(session: webSocketSession!)
+        webSocketTask = NetworkHandler.connectWebSocketForLive(session: session)
         webSocketTask?.resume()
         Task { @MainActor [weak self] in
             do {
@@ -902,7 +921,7 @@ public class GameViewModel: NSObject {
         }
     }
 
-    private func reconnectWebSocketOnly() {
+    func reconnectWebSocketOnly() {
         // While the network path is down, don't burn attempts — the path-monitor
         // callback in `startPathMonitor` will reset attempts and force a reconnect
         // the moment connectivity returns.
@@ -922,9 +941,10 @@ public class GameViewModel: NSObject {
         restartTimer?.invalidate()
         restartTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             self?.restartTimer = nil
+            guard let session = self?.webSocketSession else { return }
             self?.webSocketTask?.cancel(with: .goingAway, reason: nil)
             self?.webSocketTask = nil
-            self?.webSocketTask = NetworkHandler.connectWebSocketForLive(session: self?.webSocketSession)
+            self?.webSocketTask = NetworkHandler.connectWebSocketForLive(session: session)
             self?.webSocketTask?.resume()
             Task { @MainActor [weak self] in
                 do {
@@ -2449,9 +2469,7 @@ extension GameViewModel {
     /// Registers for push-to-start Live Activity tokens and sends them to the server
     /// along with the user's favorite teams and auto-followed event IDs.
     func registerPushToStartIfNeeded() {
-        let hasFavorites = appStorage.autoFollowFavorites && !favorites.teams.isEmpty
-        let hasAutoFollows = !appStorage.autoFollowEventIDs.isEmpty
-        guard hasFavorites || hasAutoFollows else { return }
+        guard currentPushToStartPayload() != nil else { return }
 
         if appStorage.debugMode {
             AutoFollowLogger.shared.log("Registering push-to-start (favorites: \(favorites.teams.count), events: \(appStorage.autoFollowEventIDs.count))")
@@ -2466,8 +2484,9 @@ extension GameViewModel {
                 if appStorage.debugMode {
                     AutoFollowLogger.shared.log("Got push-to-start token: \(tokenString.prefix(12))...", level: .success)
                 }
-                let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
-                let eventIDs = Array(appStorage.autoFollowEventIDs)
+                let payload = self.currentPushToStartPayload()
+                let favoritesList = payload?.favorites ?? []
+                let eventIDs = payload?.eventIDs ?? []
                 do {
                     try await NetworkHandler.registerPushToStart(token: tokenString, favorites: favoritesList, eventIDs: eventIDs)
                     if appStorage.debugMode {
@@ -2502,19 +2521,28 @@ extension GameViewModel {
         }
     }
 
+    /// Pure registration decision for the current app state — see
+    /// `PushToStartRegistrationPlanner` for the rules.
+    func currentPushToStartPayload() -> PushToStartPayload? {
+        PushToStartRegistrationPlanner.payload(
+            autoFollowFavorites: appStorage.autoFollowFavorites,
+            favoriteTeams: favorites.teams,
+            autoFollowEventIDs: appStorage.autoFollowEventIDs
+        )
+    }
+
     /// Sends the current push-to-start token, favorites, and auto-follow event IDs to the server.
     private func sendPushToStartRegistration() {
-        let hasFavorites = appStorage.autoFollowFavorites && !favorites.teams.isEmpty
-        let hasAutoFollows = !appStorage.autoFollowEventIDs.isEmpty
-        guard hasFavorites || hasAutoFollows else { return }
+        guard currentPushToStartPayload() != nil else { return }
 
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
         // Use cached token for immediate re-registration (don't wait for token update)
         if let cachedToken = currentPushToStartToken {
             Task { @MainActor in
-                let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
-                let eventIDs = Array(appStorage.autoFollowEventIDs)
+                let payload = self.currentPushToStartPayload()
+                let favoritesList = payload?.favorites ?? []
+                let eventIDs = payload?.eventIDs ?? []
                 try? await NetworkHandler.registerPushToStart(token: cachedToken, favorites: favoritesList, eventIDs: eventIDs)
                 if appStorage.debugMode {
                     AutoFollowLogger.shared.log("Re-registered push-to-start with \(favoritesList.count) favorites, \(eventIDs.count) events", level: .success)
@@ -2527,8 +2555,9 @@ extension GameViewModel {
                 for await token in Activity<LiveSportActivityAttributes>.pushToStartTokenUpdates {
                     let tokenString = token.map { String(format: "%02x", $0) }.joined()
                     self.currentPushToStartToken = tokenString
-                    let favoritesList = appStorage.autoFollowFavorites ? Array(favorites.teams) : []
-                    let eventIDs = Array(appStorage.autoFollowEventIDs)
+                    let payload = self.currentPushToStartPayload()
+                    let favoritesList = payload?.favorites ?? []
+                    let eventIDs = payload?.eventIDs ?? []
                     try? await NetworkHandler.registerPushToStart(token: tokenString, favorites: favoritesList, eventIDs: eventIDs)
                     AppLogger.liveActivity.info("Re-registered push-to-start with \(favoritesList.count) favorites, \(eventIDs.count) auto-follow events")
                     break

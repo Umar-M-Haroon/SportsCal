@@ -77,17 +77,12 @@ struct ContentView: View {
     @State private var sidebarSelection: MacSidebarItem? = .games
     #endif
 
-    /// True when we're showing cached data because the live feed is
-    /// unreachable. We have data (totalGames non-empty) AND the last
-    /// fetch failed.
     private var showStaleBanner: Bool {
-        (viewModel.isOffline || viewModel.networkState == .failed) && (viewModel.totalGames?.isEmpty == false)
+        viewModel.showsStaleBanner
     }
 
-    /// True when offline with no cached games — a full-screen placeholder reads
-    /// better than an empty list.
     private var showOfflinePlaceholder: Bool {
-        viewModel.isOffline && (viewModel.totalGames?.isEmpty ?? true)
+        viewModel.showsOfflinePlaceholder
     }
 
     @ViewBuilder

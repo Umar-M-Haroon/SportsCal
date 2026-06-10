@@ -657,7 +657,11 @@ struct NetworkHandler {
         return try Self.sharedDecoder.decode([TeamStatEntry].self, from: data)
     }
 
-    static func registerPushToStart(token: String, favorites: [String], eventIDs: [String] = []) async throws {
+    /// Builds the push-to-start registration request. Separated from the send so
+    /// tests can pin the wire format the server's `PushToStartRegistration`
+    /// decoder and install-keyed dedup rely on (headers, body shape, and the
+    /// `eventIDs` key being absent when empty).
+    static func pushToStartRegistrationRequest(token: String, favorites: [String], eventIDs: [String]) throws -> URLRequest {
         let urlString = "\(baseURL())/pushToStart/register"
         let url = URL(string: urlString)!
         var request = authenticatedRequest(url: url)
@@ -670,6 +674,11 @@ struct NetworkHandler {
             body["eventIDs"] = eventIDs
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return request
+    }
+
+    static func registerPushToStart(token: String, favorites: [String], eventIDs: [String] = []) async throws {
+        let request = try pushToStartRegistrationRequest(token: token, favorites: favorites, eventIDs: eventIDs)
         let (_, response) = try await URLSession.shared.data(for: request)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
