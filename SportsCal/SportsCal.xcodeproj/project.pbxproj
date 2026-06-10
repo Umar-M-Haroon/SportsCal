@@ -42,6 +42,7 @@
 		1D16B09C2FA6C6DD00490122 /* GameCountHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B09B2FA6C6DD00490122 /* GameCountHUD.swift */; };
 		1D16B09E2FA6C6EC00490122 /* GameCountAuditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B09D2FA6C6EC00490122 /* GameCountAuditView.swift */; };
 		1D16B0A02FA6C76900490122 /* GameCountParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B09F2FA6C76900490122 /* GameCountParityTests.swift */; };
+		AB12CD3400000017000000AA /* EngagementTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB12CD3400000016000000AA /* EngagementTrackerTests.swift */; };
 		1D16B0A22FA7138400490122 /* EmptyStatePresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B0A12FA7138400490122 /* EmptyStatePresets.swift */; };
 		1D16B0A42FA714C600490122 /* EdgeCaseGalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B0A32FA714C600490122 /* EdgeCaseGalleryView.swift */; };
 		1D16B0A62FA7159600490122 /* WidgetDesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B0A52FA7159600490122 /* WidgetDesignTokens.swift */; };
@@ -412,6 +413,7 @@
 		1D16B09B2FA6C6DD00490122 /* GameCountHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCountHUD.swift; sourceTree = "<group>"; };
 		1D16B09D2FA6C6EC00490122 /* GameCountAuditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCountAuditView.swift; sourceTree = "<group>"; };
 		1D16B09F2FA6C76900490122 /* GameCountParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCountParityTests.swift; sourceTree = "<group>"; };
+		AB12CD3400000016000000AA /* EngagementTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngagementTrackerTests.swift; sourceTree = "<group>"; };
 		1D16B0A12FA7138400490122 /* EmptyStatePresets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStatePresets.swift; sourceTree = "<group>"; };
 		1D16B0A32FA714C600490122 /* EdgeCaseGalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeCaseGalleryView.swift; sourceTree = "<group>"; };
 		1D16B0A52FA7159600490122 /* WidgetDesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDesignTokens.swift; sourceTree = "<group>"; };
@@ -814,6 +816,7 @@
 				1DAA10132FA145AF00853609 /* LiveActivityMatcherTests.swift */,
 				1DAA10152FA145AF00853609 /* WebSocketBackoffTests.swift */,
 				1D16B09F2FA6C76900490122 /* GameCountParityTests.swift */,
+				AB12CD3400000016000000AA /* EngagementTrackerTests.swift */,
 				AB12CD3400000010000000AA /* WebSocketReconnectTests.swift */,
 				AB12CD3400000012000000AA /* OfflineTransitionTests.swift */,
 				AB12CD3400000014000000AA /* PushToStartRegistrationTests.swift */,
@@ -1505,6 +1508,7 @@
 				FAC419D238E640E4802E1D64 /* ScheduleFilterTests.swift in Sources */,
 				1D73C0D12F934A4300C98966 /* RowViewSnapshotTests.swift in Sources */,
 				1D16B0A02FA6C76900490122 /* GameCountParityTests.swift in Sources */,
+				AB12CD3400000017000000AA /* EngagementTrackerTests.swift in Sources */,
 				AB12CD3400000011000000AA /* WebSocketReconnectTests.swift in Sources */,
 				AB12CD3400000013000000AA /* OfflineTransitionTests.swift in Sources */,
 				AB12CD3400000015000000AA /* PushToStartRegistrationTests.swift in Sources */,

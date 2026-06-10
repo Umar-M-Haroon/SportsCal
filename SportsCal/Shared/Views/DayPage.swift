@@ -424,7 +424,12 @@ struct DayPage: View {
             } else {
                 Spacer()
                 if viewModel.networkState == .loading || viewModel.isFetching {
-                    ProgressView()
+                    VStack(spacing: .appSpace2) {
+                        SkeletonRow()
+                        SkeletonRow()
+                        SkeletonRow()
+                    }
+                    .padding(.horizontal, .appSpace4)
                 } else {
                     VStack {
                         Text("No games fetched")
@@ -732,11 +737,11 @@ struct DayPage: View {
     @ViewBuilder
     private var loadingOrEmptyContent: some View {
         if viewModel.networkState == .loading || viewModel.isFetching {
-            HStack {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
+            ForEach(0..<3, id: \.self) { _ in
+                SkeletonRow()
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
-            .listRowBackground(Color.clear)
         } else {
             VStack {
                 Text("No games fetched")

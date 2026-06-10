@@ -379,7 +379,9 @@ struct SettingsView: View {
     @Environment(UserDefaultStorage.self) private var appStorage
     @Binding var sheetType: SheetType?
     @Environment(GameViewModel.self) private var viewModel
+    @Environment(EngagementTracker.self) private var engagementTracker
     @State private var showSportPicker: Bool = false
+    @State private var showResetSuggestionsConfirm = false
     var isTestFlight: Bool {
         guard let path = Bundle.main.appStoreReceiptURL?.path else {
             return false
@@ -442,6 +444,21 @@ struct SettingsView: View {
                     Text("Surface games from teams you've been checking on the Day tab, even if they aren't favorites.")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    Button("Reset Suggestions", role: .destructive) {
+                        showResetSuggestionsConfirm = true
+                    }
+                    .confirmationDialog(
+                        "Reset Suggestions?",
+                        isPresented: $showResetSuggestionsConfirm,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Reset", role: .destructive) {
+                            engagementTracker.reset()
+                        }
+                        Button("Cancel", role: .cancel) { }
+                    } message: {
+                        Text("Clears the on-device history of teams you've viewed. Nothing leaves your device.")
+                    }
                 }
                 ScoresSettingsSection()
                 DateFormatSettingsSection()

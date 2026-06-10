@@ -58,8 +58,8 @@
 |----|------|--------|--------|-------|
 | D1 | Cleanup ngrok URL in xcscheme (audit #13) | 🟢 | 2m | **DONE (Batch 1).** Both ngrok env vars removed; also disabled `mock-subscribed` in the shared scheme so the free/ad UX is testable in Phase 3. |
 | D2 | Standings TTL 90→30d (audit #08) | ⚪️ | — | **Confirmed June 9:** `StandingsSnapshotJob` scheduling is commented out in `configure.swift` → moot. Closed. |
-| D3 | "Reset Suggestions" button for EngagementTracker | 🔴 | 30m | Nice privacy affordance; optional. |
-| D4 | Skeleton loaders instead of spinners | 🔴 | 2–4h | Polish; v1.1 OK. |
+| D3 | "Reset Suggestions" button for EngagementTracker | 🟢 | June 10 | `EngagementTracker.reset()` (clears memory + persisted copy) + destructive button w/ confirmation in Settings ▸ Personalization. Pinned by `EngagementTrackerTests`. |
+| D4 | Skeleton loaders instead of spinners | 🟢 | June 10 | Classic DayPage (board + list) and BrowsePage spinners replaced with the design system's `SkeletonRow` (Modern theme already used it). Visual spot-check in the Phase 3 device pass. |
 | D5 | Commented-out debug prints `GameViewModel:804–810` | 🟢 | 5m | **DONE (Batch 1).** Removed. |
 | C9 | **Developer settings section visible to ALL release users** — `DeveloperSettingsSection` "Debug Mode" toggle has no build guard | 🟢 | 30m | **DONE (3a).** Gated the whole section: rendered only in `#if DEBUG` or TestFlight (`isTestFlight`). App Store production users no longer see Debug Mode / server-env switcher / diagnostics. |
 

@@ -138,8 +138,15 @@ struct BrowseSportView: View {
                     gamesList(browseVM)
                 }
             } else {
-                ProgressView("Loading \(sport.displayName)...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ScrollView {
+                    VStack(spacing: .appSpace2) {
+                        ForEach(0..<5, id: \.self) { _ in
+                            SkeletonRow()
+                        }
+                    }
+                    .padding(.horizontal, .appSpace4)
+                    .padding(.top, .appSpace4)
+                }
             }
         }
         .navigationTitle(sport.displayName)

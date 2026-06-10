@@ -100,4 +100,15 @@ class EngagementTracker {
         UserDefaults(suiteName: "group.Komodo.SportsCal")?.set(data, forKey: saveKey)
         #endif
     }
+
+    /// Clears all on-device engagement history, including the persisted copy
+    /// (Settings → Personalization → "Reset Suggestions").
+    func reset() {
+        engagements = [:]
+        #if os(watchOS)
+        UserDefaults.standard.removeObject(forKey: saveKey)
+        #else
+        UserDefaults(suiteName: "group.Komodo.SportsCal")?.removeObject(forKey: saveKey)
+        #endif
+    }
 }
