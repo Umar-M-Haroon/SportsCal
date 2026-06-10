@@ -159,6 +159,10 @@ Steps that can't be done in code — do these before hitting "Submit for Review"
 - [ ] Nightly push-smoke green.
 
 ### Deploy log
-- **June 9, 2026** — `main` fast-forwarded to `cleanup-staging` (96 release-prep commits) + World Cup commit `d1767c1`; both pushed to origin. Hetzner redeployed from a clean worktree (deploy.sh rsyncs the working tree — never deploy from a dirty checkout). First deploy (`6cc5b8b`) verified: `/ping` pong, schedules 200. Second deploy (`d1767c1`, World Cup routes + enrichment job) followed immediately.
+- **June 9, 2026** — `main` fast-forwarded to `cleanup-staging` (96 release-prep commits) + World Cup commit `d1767c1`; both pushed to origin. Hetzner redeployed from a clean worktree (deploy.sh rsyncs the working tree — never deploy from a dirty checkout). First deploy (`6cc5b8b`) verified: `/ping` pong, schedules 200. Second deploy (`d1767c1`, World Cup routes + enrichment job) followed immediately; `WorldCupEnrichmentJob` first run clean (rounds=0/scorers=0 expected pre-tournament).
+- **June 9, 2026 (late)** — Third deploy `1f25981`: **prod was serving 0 MLB and 0 NFL games** (TheSportsDB labels those seasons single-year; the job requested split-year). Caught by `testStableLeagueGameCounts` once the iOS suite was repaired. Fixed via `Leagues.sportsDBSingleYearSeason`; after deploy + `POST /api/admin/redis/refresh`: MLB 5078, NFL 655 events. All 8 leagues populated.
+
+### iOS suite status (June 9)
+106/133 pass, 1 skipped (DayPage snapshot — time-relative pixels, record-on-demand via `RECORD_SNAPSHOTS=1`), 26 fail **for environmental reasons only**: 25 × StoreKitIntegrationTests (Xcode 26.3 RC + iOS 18.6 sim never serves `SKTestSession` products — retry added; run on stable Xcode/CI; RevenueCat + SubscriptionManager suites pass) and 1 × testStableLeagueGameCounts (points at the dev server; passes once dev has the season fix).
 
 > Code-side status lives in the tables above (🟢 done). This checklist is only the out-of-band steps.
