@@ -56,7 +56,7 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("showSuggestedForYou") var showSuggestedForYou: Bool = true
     @ObservationIgnored @AppStorage("serverEnvironment") var serverEnvironment: ServerEnvironment = .auto
     @ObservationIgnored @AppStorage("sportOrder") var sportOrder: [String] = []
-    @ObservationIgnored @AppStorage("appTheme") var appTheme: AppTheme = .efRemix
+    @ObservationIgnored @AppStorage("appTheme") var appTheme: AppTheme = .classic
 
     var orderedSports: [SportType] {
         let ordered = sportOrder.compactMap { SportType(rawValue: $0) }
