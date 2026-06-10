@@ -48,7 +48,7 @@
 | C3 | **Offline UX** — no real offline indicator, only a stale-data banner | 🟢 | 2–4h | **DONE (3c).** Wired the (previously dead) `.failed` path via a race-free task-group result; added observable `isOffline` (from NWPathMonitor) + `lastSuccessfulFetch`. Banner now shows "You're offline" vs "Showing data from {real ago}", Retry disabled offline; full-screen offline placeholder when no cached data. **Needs an airplane-mode device pass to confirm feel.** |
 | C4 | **Ad cadence decision** — currently max 3/screen, ~1 per 5 games | 🔴 | TBD | *Decide on-device in Phase 3.* Candidate dial-back: 1 per 8–10 games, max 2/screen. See §G. |
 | C5 | **Tailscale IP / local-server paths gating** (audit #11) | 🟢 | 15m | **DONE (3b).** `tailscaleHost` + `.local`/`.dev` resolution in `baseURL()`/`rootURL()`/`refreshEnvironment()` gated `#if DEBUG`; Release always returns prod and the IP isn't compiled in. Verify with `strings` on a Release archive (checklist). |
-| ~~C6~~ → B9 | **App Attest implementation** — `verifyAppleAttestation`/`verifyAppleAssertion` stubs | 🔴 | days | **DECISION: implement for v1 → promoted to S1, own batch (Batch 5).** Real hardware attestation against API abuse/scraping. First confirm stubs aren't currently wired (so nothing breaks pre-implementation), then build verification end-to-end (client attestation + server verify). Scope: days. |
+| ~~C6~~ → B9 | **App Attest implementation** — `verifyAppleAttestation`/`verifyAppleAssertion` stubs | ⚪️ | days | **DECISION REVERSED (June 9): ship v1 WITHOUT App Attest → moved to v1.1.** Verified the stubs are fail-closed and not wired to any route, so nothing breaks. Build client attestation + server verify end-to-end in v1.1 (Batch 5 becomes a v1.1 track). |
 | C7 | **Push-to-start `X-Install-ID` client migration** — server moved to install-keyed storage | 🟢 | — | **Verified June 9:** client sends `X-Install-ID` on all 4 registration paths in `NetworkHandler.swift` (517/540/667/687). Server deployed with install-keyed storage same day — client+server release coordinated. |
 | C8 | **WebSocket reconnect untested** — `GameViewModel.reconnectWebSocketOnly()` backoff | 🟢 | 1–2h | **DONE (3b).** Extracted pure `WebSocketBackoff.delaySeconds(forAttempt:)` + `WebSocketBackoffTests` pinning the quadratic-capped-at-60 curve. (Offline→online reconnect itself is covered by the C3 path-monitor pass.) |
 
@@ -115,7 +115,8 @@ Decision recorded here once made: _TBD_.
 
 ## Decisions (resolved)
 1. ✅ **Single Hetzner instance at launch.** B8 deferred to S2 (see row). Guardrail: keep dev on sandbox APNS + debug keys.
-2. ✅ **App Attest implemented for v1.** Promoted to B9 / Batch 5.
+2. ✅ ~~App Attest implemented for v1~~ → **REVERSED June 9: v1 ships without App Attest; implement in v1.1.** Stubs are fail-closed and unwired, so no risk in the meantime.
+3. ✅ **EEA ads (C10)**: handled via App Store Connect update (user-owned web-console step) — declare/configure EU ad serving + CMP posture in ASC before serving EEA traffic.
 
 ## Open decisions (still need input)
 3. **Ad cadence (C4/§G)** — decide after device pass in Phase 3 (default plan).
@@ -148,8 +149,9 @@ Steps that can't be done in code — do these before hitting "Submit for Review"
 - [ ] Privacy-policy URL is present and live.
 
 ### Decisions to resolve before submit
-- [ ] **C10 — ad tracking**: remove the orphan `NSUserTrackingUsageDescription` (no ATT requested) OR implement ATT if you want personalized ads; address EEA CMP for AdMob.
+- [x] **C10 — ad tracking**: orphan `NSUserTrackingUsageDescription` already removed (3a). EEA/AdMob: handle via App Store Connect update (EU DSA / ad-serving declaration + CMP posture) — manual ASC step before serving EEA traffic.
 - [ ] **C4 — ad cadence**: confirm after on-device feel pass.
+- [x] **B9 — App Attest**: deferred to v1.1 (June 9 decision).
 
 ### Test gates
 - [ ] Run full `SportsCalTests` suite green (the MCP runner couldn't auto-launch — run in CI or Xcode; re-confirmed June 9: `RunAllTests` returns 133 "not run").
