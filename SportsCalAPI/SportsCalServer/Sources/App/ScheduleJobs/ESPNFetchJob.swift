@@ -806,7 +806,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
     /// Merges ESPN live data into the TheSportsDB-sourced schedule, updating scores/statuses
     /// while preserving TheSportsDB identifiers and scheduled start times.
-    private func mergeESPNIntoSchedule(schedule: LiveScore, espn: LiveScore, resolver: TeamAliasResolver) -> LiveScore {
+    func mergeESPNIntoSchedule(schedule: LiveScore, espn: LiveScore, resolver: TeamAliasResolver) -> LiveScore {
         LiveScore(
             nba: mergeSportEvents(schedule: schedule.nba, espn: espn.nba, resolver: resolver),
             mlb: mergeSportEvents(schedule: schedule.mlb, espn: espn.mlb, resolver: resolver),
@@ -821,7 +821,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
     /// Normalizes team names to handle abbreviation differences
     /// (e.g., "LA Clippers" → "los angeles clippers", "NY Knicks" → "new york knicks")
-    private func normalizeTeamName(_ name: String) -> String {
+    func normalizeTeamName(_ name: String) -> String {
         var result = name.lowercased()
         // Common city abbreviations — order matters (longer matches first)
         let abbreviations: [(abbreviation: String, full: String)] = [
@@ -859,7 +859,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
     /// Merges ESPN events into a single sport's schedule events.
     /// Matches by team IDs + day, falls back to team names + day, normalized names + day,
     /// alias-aware canonical key + day, or event name for individual sports.
-    private func mergeSportEvents(schedule: LiveEvent?, espn: LiveEvent?, resolver: TeamAliasResolver) -> LiveEvent? {
+    func mergeSportEvents(schedule: LiveEvent?, espn: LiveEvent?, resolver: TeamAliasResolver) -> LiveEvent? {
         guard let schedule else { return espn }
         guard let espn, !espn.events.isEmpty else { return schedule }
 
@@ -1060,7 +1060,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
     }
 
     /// Extracts a "YYYY-MM-DD" day string from a Game for same-day matching.
-    private func dayString(from game: Game) -> String {
+    func dayString(from game: Game) -> String {
         if let date = game.isoDate {
             let df = DateFormatter()
             df.dateFormat = "yyyy-MM-dd"

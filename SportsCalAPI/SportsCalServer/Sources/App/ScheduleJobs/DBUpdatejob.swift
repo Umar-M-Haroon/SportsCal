@@ -16,7 +16,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
     private static let logger = Logger(label: "com.sportscal.schedule-update")
 
     /// Extracts unique teams from games to ensure multi-season coverage
-    private func extractTeamsFromGames(_ games: [Game]) -> [Team] {
+    func extractTeamsFromGames(_ games: [Game]) -> [Team] {
         var teamsDict: [String: Team] = [:]
 
         for game in games {
@@ -52,7 +52,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
 
     /// Merges teams from API with teams extracted from games
     /// Prefers API teams (which have more complete data like strTeamShort)
-    private func mergeTeams(apiTeams: [Team], gameTeams: [Team]) -> [Team] {
+    func mergeTeams(apiTeams: [Team], gameTeams: [Team]) -> [Team] {
         var mergedDict: [String: Team] = [:]
 
         // Add game teams first (as fallback)
@@ -73,10 +73,38 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
     }
 
     /// Counts total games across all sports in a LiveScore
-    private func countGames(in score: LiveScore) -> Int {
+    func countGames(in score: LiveScore) -> Int {
         [score.nba, score.mlb, score.soccer, score.nfl, score.nhl, score.golf, score.tennis, score.racing]
             .compactMap { $0?.events.count }
             .reduce(0, +)
+    }
+
+    /// Refresh schedules if missing, if the teams cache is empty, or if it's been
+    /// more than 1 hour since the last update (or the timestamp is missing).
+    static func shouldRefreshSchedules(hasSchedule: Bool, teamsCount: Int, lastUpdate: Date?, now: Date) -> Bool {
+        guard hasSchedule, teamsCount > 0 else { return true }
+        guard let lastUpdate else { return true }
+        return now.timeIntervalSince(lastUpdate) / 3600 > 1
+    }
+
+    /// Normalizes a league's raw schedule events: dedupes games repeated across
+    /// overlapping season fetches (previous/current/next), drops games with no
+    /// timestamp, and backfills `isoDate` from `strTimestamp` where missing.
+    static func normalizeLeagueEvents(_ events: [Game]) -> [Game] {
+        var seenEventIDs = Set<String>()
+        var normalized = events.filter { game in
+            guard let eventID = game.idEvent else { return true }
+            return seenEventIDs.insert(eventID).inserted
+        }
+        normalized.removeAll(where: { $0.strTimestamp == nil })
+        return normalized.map {
+            if $0.isoDate == nil {
+                var game = $0
+                game.isoDate = game.getDate()
+                return game
+            }
+            return $0
+        }
     }
 
     func run(context: Queues.QueueContext) async throws {
@@ -120,27 +148,22 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         ])
 
         // Refresh schedules if missing or if it's been more than 1 hour
-        let shouldRefreshSchedules: Bool
-        if let _ = existingSchedule, let existingTeams, !existingTeams.isEmpty {
-            if let lastUpdate = lastUpdateTime {
-                let hoursSinceUpdate = Date().timeIntervalSince(lastUpdate) / 3600
-                shouldRefreshSchedules = hoursSinceUpdate > 1
-                if shouldRefreshSchedules {
-                    Self.logger.info("Schedules stale, refreshing from API", metadata: ["hoursSinceUpdate": "\(String(format: "%.1f", hoursSinceUpdate))"])
-                } else {
-                    Self.logger.info("Using cached schedules", metadata: ["hoursSinceUpdate": "\(String(format: "%.1f", hoursSinceUpdate))"])
-                }
-            } else {
-                shouldRefreshSchedules = true
-                Self.logger.info("No update timestamp found, refreshing schedules to set baseline")
-            }
+        let shouldRefreshSchedules = Self.shouldRefreshSchedules(
+            hasSchedule: existingSchedule != nil,
+            teamsCount: existingTeams?.count ?? 0,
+            lastUpdate: lastUpdateTime,
+            now: Date()
+        )
+        if shouldRefreshSchedules {
+            Self.logger.info("Refreshing schedules from API", metadata: [
+                "scheduleExists": "\(existingSchedule != nil)",
+                "teamsCount": "\(existingTeams?.count ?? 0)",
+                "lastUpdate": "\(lastUpdateTime?.description ?? "never")"
+            ])
         } else {
-            shouldRefreshSchedules = true
-            if existingSchedule == nil {
-                Self.logger.info("No schedules in cache, fetching from API")
-            } else if existingTeams?.isEmpty ?? true {
-                Self.logger.info("No teams in cache, fetching from API")
-            }
+            Self.logger.info("Using cached schedules", metadata: [
+                "lastUpdate": "\(lastUpdateTime?.description ?? "never")"
+            ])
         }
 
         if !shouldRefreshSchedules {
@@ -167,21 +190,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                     .reduce(into: LiveEvent(events: [])) { partialResult, next in
                     partialResult.events += next.events
                 }
-                // Deduplicate games from overlapping seasons (previous/current/next)
-                var seenEventIDs = Set<String>()
-                events.events = events.events.filter { game in
-                    guard let eventID = game.idEvent else { return true }
-                    return seenEventIDs.insert(eventID).inserted
-                }
-                events.events.removeAll(where: {$0.strTimestamp == nil})
-                events.events = events.events.map({
-                    if $0.isoDate == nil {
-                        var game = $0
-                        game.isoDate = game.getDate()
-                        return game
-                    }
-                    return $0
-                })
+                events.events = Self.normalizeLeagueEvents(events.events)
 
                 // Collect all games for team extraction
                 allGames.append(contentsOf: events.events)
@@ -523,7 +532,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
 
     /// Normalizes team names to handle abbreviation differences
     /// (e.g., "LA Clippers" → "los angeles clippers")
-    private func normalizeTeamName(_ name: String) -> String {
+    func normalizeTeamName(_ name: String) -> String {
         var result = name.lowercased()
         let abbreviations: [(abbreviation: String, full: String)] = [
             ("la ", "los angeles "),
@@ -557,7 +566,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
     }
 
     /// Merges ESPN enrichment fields into TheSportsDB schedule games by matching team names + day.
-    private func mergeEnrichment(schedule: LiveEvent, espn: LiveEvent) -> LiveEvent {
+    func mergeEnrichment(schedule: LiveEvent, espn: LiveEvent) -> LiveEvent {
         // Build ESPN lookup by team names + day
         var espnByNames: [String: Game] = [:]
         var espnByNormalized: [String: Game] = [:]
