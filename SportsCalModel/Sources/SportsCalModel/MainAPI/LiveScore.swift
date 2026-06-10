@@ -351,6 +351,19 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return false
         }
     }
+
+    /// Whether TheSportsDB labels this league's seasons with a single year ("2026")
+    /// instead of a split year ("2025-2026"). MLB and NFL are single-year there even
+    /// though they are not individual sports — distinct from `usesSingleYearSeason`,
+    /// which also gates whole-year ESPN scoreboard fetches.
+    public var sportsDBSingleYearSeason: Bool {
+        switch self {
+        case .atp, .wta, .pga, .formula1, .mlb, .nfl:
+            return true
+        default:
+            return false
+        }
+    }
 }
 public struct LiveScore: Codable, Equatable {
     public init(nba: LiveEvent? = nil, mlb: LiveEvent? = nil, soccer: LiveEvent? = nil, nfl: LiveEvent? = nil, nhl: LiveEvent? = nil, golf: LiveEvent? = nil, tennis: LiveEvent? = nil, racing: LiveEvent? = nil, f1Standings: F1Standings? = nil, worldCup: WorldCupEnrichment? = nil) {

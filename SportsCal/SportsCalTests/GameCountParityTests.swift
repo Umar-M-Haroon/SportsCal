@@ -15,19 +15,18 @@
 
 import XCTest
 import SportsCalModel
-@testable import SportsCal
+@testable import Scoreline
 
 @MainActor
 final class GameCountParityTests: XCTestCase {
 
     func testDayBoundedCountsAgreeAcrossViewsOnGameDay() throws {
-        // Arrange — realistic fixture spans Apr 14 with mixed sports/states.
+        // Arrange — realistic fixture anchors its games to *today* (2:30 PM),
+        // so the day-bounded audit must use today as well.
         let storage = makeStorage(allSportsOn: true, hidePastEvents: false)
         let vm = makeViewModel(storage: storage)
 
-        // RealisticFixtures uses Apr 14 2024 as "game day". Use the same.
-        let cal = Calendar(identifier: .gregorian)
-        let gameDay = cal.date(from: DateComponents(year: 2024, month: 4, day: 14))!
+        let gameDay = Date()
 
         // Act
         let snap = GameCountAudit.snapshot(for: gameDay, viewModel: vm, storage: storage)
@@ -58,8 +57,8 @@ final class GameCountParityTests: XCTestCase {
         let storage = makeStorage(allSportsOn: true, hidePastEvents: true)
         let vm = makeViewModel(storage: storage)
 
-        let cal = Calendar(identifier: .gregorian)
-        let gameDay = cal.date(from: DateComponents(year: 2024, month: 4, day: 14))!
+        // Fixture games are anchored to today.
+        let gameDay = Date()
 
         let snap = GameCountAudit.snapshot(for: gameDay, viewModel: vm, storage: storage)
 
@@ -99,8 +98,8 @@ final class GameCountParityTests: XCTestCase {
         storage.shouldShowWNBA = false
         let vm = makeViewModel(storage: storage)
 
-        let cal = Calendar(identifier: .gregorian)
-        let gameDay = cal.date(from: DateComponents(year: 2024, month: 4, day: 14))!
+        // Fixture games are anchored to today.
+        let gameDay = Date()
 
         let snap = GameCountAudit.snapshot(for: gameDay, viewModel: vm, storage: storage)
 

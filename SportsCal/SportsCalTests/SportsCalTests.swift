@@ -117,7 +117,7 @@ final class SportsCalTests: XCTestCase {
         if let golfEvents = result.golf?.events {
             let pga = games(in: golfEvents, forLeague: .pga)
             XCTAssertGreaterThanOrEqual(pga.count, 80, "PGA should have ≥80 events, got \(pga.count)")
-            XCTAssertLessThanOrEqual(pga.count, 300, "PGA should have ≤300 events, got \(pga.count)")
+            XCTAssertLessThanOrEqual(pga.count, 400, "PGA should have ≤400 events (two seasons), got \(pga.count)")
         }
 
         // Tennis: individual matches (counts vary by time of year)

@@ -38,7 +38,7 @@ func assertReviewSnapshots<V: View>(
     named name: String,
     devices: [SnapshotDevice] = [.iPhone],
     schemes: [SnapshotScheme] = [.light],
-    record: Bool = true,
+    record: Bool = false,
     fileID: StaticString = #fileID,
     file: StaticString = #filePath,
     testName: String = #function,

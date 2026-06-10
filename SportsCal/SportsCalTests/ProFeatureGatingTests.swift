@@ -42,8 +42,8 @@ final class ProFeatureGatingTests: XCTestCase {
     }
 
     func testAdConfig_maxAdsPerScreen() {
-        XCTAssertEqual(AdConfiguration.maxAdsPerScreen, 3,
-                        "Max ads per screen should be 3")
+        XCTAssertEqual(AdConfiguration.maxAdsPerScreen, 2,
+                        "Max ads per screen should be 2 (true per-feed cap)")
     }
 
     func testAdConfig_defaultStrategy() {

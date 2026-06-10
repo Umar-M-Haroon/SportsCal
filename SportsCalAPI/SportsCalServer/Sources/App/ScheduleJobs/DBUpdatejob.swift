@@ -161,7 +161,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 if let response = try await SportsDBNetworking.getTeamInfoForLeague(app: context.application, DecodeType: Teams.self, league: league.rawValue) {
                     apiTeams.append(contentsOf: response.teams)
                 }
-                let response = try await SportsDBNetworking.getSchedule(app: context.application, DecodeType: LiveEvent.self, league: league.rawValue, singleYearSeason: league.usesSingleYearSeason)
+                let response = try await SportsDBNetworking.getSchedule(app: context.application, DecodeType: LiveEvent.self, league: league.rawValue, singleYearSeason: league.sportsDBSingleYearSeason)
                     .compactMap({$0})
                 var events = response
                     .reduce(into: LiveEvent(events: [])) { partialResult, next in

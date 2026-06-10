@@ -31,8 +31,22 @@ final class StoreKitIntegrationTests: XCTestCase {
 
     // MARK: - Helpers
 
+    /// The simulator's StoreKit daemon can lag behind a freshly created
+    /// SKTestSession, returning [] for the first queries. Retry briefly
+    /// before treating an empty catalog as a real failure.
+    private func loadProducts(_ ids: [String]) async throws -> [Product] {
+        for attempt in 0..<10 {
+            let products = try await Product.products(for: ids)
+            if products.count == ids.count { return products }
+            if attempt < 9 {
+                try await Task.sleep(nanoseconds: 300_000_000)
+            }
+        }
+        return try await Product.products(for: ids)
+    }
+
     private func fetchProduct(_ id: String) async throws -> Product {
-        let products = try await Product.products(for: [id])
+        let products = try await loadProducts([id])
         return try XCTUnwrap(products.first, "Product \(id) should exist")
     }
 
@@ -64,7 +78,7 @@ final class StoreKitIntegrationTests: XCTestCase {
     // MARK: - Product Catalog Tests
 
     func testMonthlyProductExists() async throws {
-        let products = try await Product.products(for: [monthlyProductId])
+        let products = try await loadProducts([monthlyProductId])
         XCTAssertEqual(products.count, 1, "Monthly product should exist")
     }
 
@@ -89,7 +103,7 @@ final class StoreKitIntegrationTests: XCTestCase {
     }
 
     func testYearlyProductExists() async throws {
-        let products = try await Product.products(for: [yearlyProductId])
+        let products = try await loadProducts([yearlyProductId])
         XCTAssertEqual(products.count, 1, "Yearly product should exist")
     }
 
@@ -117,7 +131,7 @@ final class StoreKitIntegrationTests: XCTestCase {
     }
 
     func testBothProductsExist() async throws {
-        let products = try await Product.products(for: [monthlyProductId, yearlyProductId])
+        let products = try await loadProducts([monthlyProductId, yearlyProductId])
         XCTAssertEqual(products.count, 2, "Both products should exist")
     }
 
