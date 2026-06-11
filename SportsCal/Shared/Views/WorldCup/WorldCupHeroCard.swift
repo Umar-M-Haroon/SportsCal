@@ -151,8 +151,12 @@ struct WorldCupHeroCard: View {
 
     private let calendar = Calendar.current
 
-    /// Tournament window — same gate as `WorldCupFeaturedCard`.
-    private static let windowStart = DateComponents(calendar: .current, year: 2026, month: 6, day: 11).date ?? .distantFuture
+    /// Activation window — same gate as `WorldCupFeaturedCard`. Starts at the
+    /// server's eager-fetch date (May 15) rather than kickoff so the hero is
+    /// unconditionally active through the entire run-up; otherwise, pre-kickoff,
+    /// `isActive` rides on the feed probe below and the hero unmounts/flashes
+    /// every time `totalGames` is momentarily replaced during a refresh.
+    private static let windowStart = DateComponents(calendar: .current, year: 2026, month: 5, day: 15).date ?? .distantFuture
     private static let windowEnd = DateComponents(calendar: .current, year: 2026, month: 7, day: 20).date ?? .distantPast
 
     /// Whether the hero has anything to show: in the tournament window, or
@@ -721,8 +725,9 @@ private struct WCFixtureRow: View {
 // MARK: - Compact group card
 
 /// One narrow standings card for the horizontal rail: rank · flag · code ·
-/// W-L-D · Pts, with qualifying ranks in mint.
-private struct WCGroupCard: View {
+/// W-L-D · Pts, with qualifying ranks in mint. Shared with `WorldCupHubView`'s
+/// group rail so both surfaces read as the same data system.
+struct WCGroupCard: View {
     let group: Child
 
     private var entries: [Entry] { group.standings?.entries ?? [] }
