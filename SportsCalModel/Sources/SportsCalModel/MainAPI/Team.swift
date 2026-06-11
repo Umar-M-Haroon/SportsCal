@@ -1,3 +1,5 @@
+import Foundation
+
 // MARK: - Team
 public struct Teams: Codable, Hashable {
     public init(teams: [Team]) {
@@ -64,12 +66,24 @@ public extension Team {
     /// initials of each word in the name ("New York Knicks" → "NYK"). Never returns
     /// the broken first-3-characters value ("New York Knicks" → "NEW").
     static func shortCode(strTeamShort: String?, name: String) -> String {
-        if let short = strTeamShort, !short.isEmpty { return short.uppercased() }
-        let words = name.split(separator: " ")
-        if words.count >= 2 {
-            return String(words.prefix(3).compactMap(\.first)).uppercased()
+        // Use a provided short code only when it's already a clean 3-letter
+        // abbreviation; otherwise derive a 3-letter code from the name.
+        if let short = strTeamShort?.folding(options: .diacriticInsensitive, locale: .current),
+           short.count == 3, short.allSatisfy(\.isLetter) {
+            return short.uppercased()
         }
-        return name.uppercased()
+        // Strip diacritics so "Türkiye" → "TUR", not "TÜRKIYE".
+        let clean = name.folding(options: .diacriticInsensitive, locale: .current)
+        let words = clean.split(separator: " ")
+        if words.count >= 2 {
+            let initials = String(words.prefix(3).compactMap(\.first))
+            if initials.count >= 3 { return initials.uppercased() }
+            // 2-word name → first letter + first two of the second word (e.g.
+            // "South Korea" → "SKO") so it's always a 3-letter code.
+            return (String(words[0].prefix(1)) + String(words[1].prefix(2))).uppercased()
+        }
+        // Single word (most nations): first three letters — "Czechia" → "CZE".
+        return String(clean.prefix(3)).uppercased()
     }
 
     /// Display abbreviation for this team, falling back to its own name.
