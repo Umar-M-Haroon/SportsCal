@@ -61,6 +61,19 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     public var isRacing: Bool {
         return self == .formula1
     }
+
+    /// Sport bucket used to namespace ESPN team IDs in the cross-sport ID map,
+    /// preventing collisions where ESPN reuses the same numeric ID across sports.
+    public var sportBucket: String {
+        if isBasketball { return "nba" }
+        if self == .nfl { return "nfl" }
+        if self == .nhl { return "nhl" }
+        if self == .mlb { return "mlb" }
+        if isGolf { return "golf" }
+        if isTennis { return "tennis" }
+        if isRacing { return "racing" }
+        return "soccer"
+    }
     
     public init?(slug: String) {
         switch slug {
