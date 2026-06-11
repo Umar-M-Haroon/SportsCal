@@ -616,16 +616,25 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
         let newlyStartedIDs = Set(newlyStarted.compactMap(\.idEvent))
 
-        // Load teams once and build idTeam → strTeamShort lookup so push-to-start
-        // attributes can carry the proper league abbreviation (e.g. "PHI", "NYY").
-        // The iOS widget uses this in the Dynamic Island compact/minimal slots
-        // where raster team logos get tinted into silhouettes.
+        // Load teams once and build lookup tables for push-to-start abbreviations.
+        // Three tables are needed: ID→short (primary), ID→name (for cross-sport
+        // validation), and name→short (fallback when the ID is wrong).
         let teamsKey = RedisEndpoint.teams.getValue(isDebug: isDebug).rawValue
         var teamShortByID: [String: String] = [:]
+        var teamNameByID: [String: String] = [:]
+        var teamShortByName: [String: String] = [:]
         if let teams = try? await kv.getJSON(teamsKey, as: [Team].self) {
             for team in teams {
-                guard let id = team.idTeam, let short = team.strTeamShort, !short.isEmpty else { continue }
-                teamShortByID[id] = short
+                guard let id = team.idTeam else { continue }
+                if let name = team.strTeam {
+                    teamNameByID[id] = name
+                    if let short = team.strTeamShort, !short.isEmpty {
+                        teamShortByID[id] = short
+                        teamShortByName[name] = short
+                    }
+                } else if let short = team.strTeamShort, !short.isEmpty {
+                    teamShortByID[id] = short
+                }
             }
         }
 
@@ -661,7 +670,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
                         clock: clock,
                         logger: logger,
                         metrics: metrics,
-                        teamShortByID: teamShortByID
+                        teamShortByID: teamShortByID,
+                        teamNameByID: teamNameByID,
+                        teamShortByName: teamShortByName
                     )
                 }
             }
@@ -683,13 +694,24 @@ struct ESPNFetchJob: AsyncScheduledJob {
         clock: AppClock,
         logger: Logger,
         metrics: PushMetrics? = nil,
-        teamShortByID: [String: String] = [:]
+        teamShortByID: [String: String] = [:],
+        teamNameByID: [String: String] = [:],
+        teamShortByName: [String: String] = [:]
     ) async {
         guard let eventID = game.idEvent else { return }
         let homeTeam = game.strHomeTeam
         let awayTeam = game.strAwayTeam
-        let homeTeamShort = game.idHomeTeam.flatMap { teamShortByID[$0] }
-        let awayTeamShort = game.idAwayTeam.flatMap { teamShortByID[$0] }
+        // Validate the ID-based lookup by name to guard against cross-sport ID collisions
+        // (e.g. ESPN NBA ID 18 ≠ ESPN NHL ID 18 — a wrong translation would return "LAC"
+        // for the Knicks). Fall back to name-based lookup if the ID resolves to a different team.
+        let homeTeamShort = game.idHomeTeam.flatMap { id -> String? in
+            guard teamNameByID[id] == homeTeam else { return nil }
+            return teamShortByID[id]
+        } ?? teamShortByName[homeTeam]
+        let awayTeamShort = game.idAwayTeam.flatMap { id -> String? in
+            guard teamNameByID[id] == awayTeam else { return nil }
+            return teamShortByID[id]
+        } ?? teamShortByName[awayTeam]
 
         // Dedup key namespacing follows the registration's environment so a
         // sandbox token and a prod token watching the same event don't share
@@ -781,24 +803,26 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
     /// Translates ESPN team IDs to TheSportsDB IDs in all games within a LiveScore
     private func translateTeamIDs(in liveScore: LiveScore, using mapping: [String: String]) -> LiveScore {
-        func translateEvents(_ events: [Game]) -> [Game] {
+        // Keys in the mapping are sport-scoped (e.g. "nba:18") to prevent cross-sport
+        // collisions where ESPN reuses the same numeric ID across different sports.
+        func translateEvents(_ events: [Game], bucket: String) -> [Game] {
             events.map { game in
-                let homeID = game.idHomeTeam.flatMap { mapping[$0] } ?? game.idHomeTeam
-                let awayID = game.idAwayTeam.flatMap { mapping[$0] } ?? game.idAwayTeam
+                let homeID = game.idHomeTeam.flatMap { mapping["\(bucket):\($0)"] } ?? game.idHomeTeam
+                let awayID = game.idAwayTeam.flatMap { mapping["\(bucket):\($0)"] } ?? game.idAwayTeam
                 guard homeID != game.idHomeTeam || awayID != game.idAwayTeam else { return game }
                 return Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: homeID, idAwayTeam: awayID, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: game.intHomeScore, intAwayScore: game.intAwayScore, strStatus: game.strStatus, strProgress: game.strProgress, strTimestamp: game.strTimestamp, lastPlay: game.lastPlay, homeLinescores: game.homeLinescores, awayLinescores: game.awayLinescores, homeLeaders: game.homeLeaders, awayLeaders: game.awayLeaders, isCompleted: game.isCompleted, isoDate: game.isoDate, leaderboardEntries: game.leaderboardEntries, sessions: game.sessions, venueName: game.venueName, homeTeamColor: game.homeTeamColor, awayTeamColor: game.awayTeamColor, homeRecord: game.homeRecord, awayRecord: game.awayRecord, legDisplay: game.legDisplay, aggregateScore: game.aggregateScore, homeSeed: game.homeSeed, awaySeed: game.awaySeed, tournamentName: game.tournamentName, round: game.round, playoff: game.playoff)
             }
         }
 
         return LiveScore(
-            nba: liveScore.nba.map { LiveEvent(events: translateEvents($0.events)) },
-            mlb: liveScore.mlb.map { LiveEvent(events: translateEvents($0.events)) },
-            soccer: liveScore.soccer.map { LiveEvent(events: translateEvents($0.events)) },
-            nfl: liveScore.nfl.map { LiveEvent(events: translateEvents($0.events)) },
-            nhl: liveScore.nhl.map { LiveEvent(events: translateEvents($0.events)) },
-            golf: liveScore.golf.map { LiveEvent(events: translateEvents($0.events)) },
-            tennis: liveScore.tennis.map { LiveEvent(events: translateEvents($0.events)) },
-            racing: liveScore.racing.map { LiveEvent(events: translateEvents($0.events)) }
+            nba: liveScore.nba.map { LiveEvent(events: translateEvents($0.events, bucket: "nba")) },
+            mlb: liveScore.mlb.map { LiveEvent(events: translateEvents($0.events, bucket: "mlb")) },
+            soccer: liveScore.soccer.map { LiveEvent(events: translateEvents($0.events, bucket: "soccer")) },
+            nfl: liveScore.nfl.map { LiveEvent(events: translateEvents($0.events, bucket: "nfl")) },
+            nhl: liveScore.nhl.map { LiveEvent(events: translateEvents($0.events, bucket: "nhl")) },
+            golf: liveScore.golf.map { LiveEvent(events: translateEvents($0.events, bucket: "golf")) },
+            tennis: liveScore.tennis.map { LiveEvent(events: translateEvents($0.events, bucket: "tennis")) },
+            racing: liveScore.racing.map { LiveEvent(events: translateEvents($0.events, bucket: "racing")) }
         )
     }
     

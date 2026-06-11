@@ -17,8 +17,10 @@ struct WorldCupFeaturedCard: View {
 
     private var accent: Color { .app(.soccer) }
 
-    /// Tournament window — promote the hub even before the first match appears in the feed.
-    private static let windowStart = DateComponents(calendar: .current, year: 2026, month: 6, day: 11).date ?? .distantFuture
+    /// Activation window — promote the hub through the run-up (matching the
+    /// server's eager-fetch date) so the card is stable before the first match
+    /// appears in the feed, not dependent on a momentarily-empty refresh.
+    private static let windowStart = DateComponents(calendar: .current, year: 2026, month: 5, day: 15).date ?? .distantFuture
     private static let windowEnd = DateComponents(calendar: .current, year: 2026, month: 7, day: 20).date ?? .distantPast
 
     private var inWindow: Bool {

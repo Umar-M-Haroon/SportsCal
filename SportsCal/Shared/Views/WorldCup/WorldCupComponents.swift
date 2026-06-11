@@ -8,19 +8,31 @@
 
 import SwiftUI
 import SportsCalModel
+import NukeUI
 
 /// Square team/flag badge with a soccerball fallback.
+///
+/// Uses Nuke's `LazyImage` (same pipeline as `IndividualTeamView`) rather than
+/// `AsyncImage`: the flag PNGs are downsampled off the main thread to the badge
+/// size and held in Nuke's memory/disk cache, so re-renders return the decoded
+/// image synchronously — no main-thread decode hitch and no placeholder→image
+/// flash when the hero re-renders or remounts.
 struct WCBadge: View {
     let url: String?
     var size: CGFloat = 28
 
     var body: some View {
-        if let urlString = url, let imageURL = URL(string: urlString) {
-            AsyncImage(url: imageURL) { phase in
-                switch phase {
-                case .success(let image):
+        if let imageURL = Self.resolvedURL(url) {
+            LazyImage(
+                request: ImageRequest(
+                    url: imageURL,
+                    processors: [.resize(size: CGSize(width: size, height: size),
+                                         unit: .points, contentMode: .aspectFit)]
+                )
+            ) { state in
+                if let image = state.image {
                     image.resizable().scaledToFit()
-                default:
+                } else {
                     placeholder
                 }
             }
@@ -28,6 +40,16 @@ struct WCBadge: View {
         } else {
             placeholder.frame(width: size, height: size)
         }
+    }
+
+    /// TheSportsDB badges need a `/preview` suffix for the small variant; ESPN
+    /// flag/logo URLs are used as-is.
+    private static func resolvedURL(_ urlString: String?) -> URL? {
+        guard let urlString, !urlString.isEmpty else { return nil }
+        if urlString.contains("thesportsdb.com") {
+            return URL(string: urlString + "/preview")
+        }
+        return URL(string: urlString)
     }
 
     private var placeholder: some View {

@@ -27,9 +27,14 @@ final class WorldCupHubViewModel {
             if let b = wc.bracket { bracket = b }
             if !wc.topScorers.isEmpty { scorers = wc.topScorers }
         }
-        await loadStandings()
-        await loadBracketIfNeeded()
-        await loadScorersIfNeeded()
+        // Fan the three fetches out concurrently. Each `NetworkHandler` call is a
+        // nonisolated static func, so the request + JSON decode run off the main
+        // actor; firing them together (instead of serially) means the hub fills
+        // in as fast as the slowest single request, not the sum of all three.
+        async let standings: Void = loadStandings()
+        async let bracketLoad: Void = loadBracketIfNeeded()
+        async let scorersLoad: Void = loadScorersIfNeeded()
+        _ = await (standings, bracketLoad, scorersLoad)
     }
 
     func loadStandings() async {
