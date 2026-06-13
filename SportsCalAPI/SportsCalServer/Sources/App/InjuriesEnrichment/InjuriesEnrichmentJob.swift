@@ -77,16 +77,38 @@ struct InjuriesEnrichmentJob: AsyncScheduledJob {
 
     /// Attaches cached injuries to the team sports in a LiveScore. Callers can use
     /// this to re-hydrate injuries after the schedule is rebuilt by other jobs.
-    static func applyInjuries(to schedule: inout LiveScore, lookup: [String: [InjuryReport]]) {
-        attachInjuries(to: &schedule.nba, lookup: lookup)
-        attachInjuries(to: &schedule.nfl, lookup: lookup)
-        attachInjuries(to: &schedule.nhl, lookup: lookup)
-        attachInjuries(to: &schedule.mlb, lookup: lookup)
+    static func applyInjuries(to schedule: inout LiveScore, lookup: [String: [InjuryReport]], now: Date = Date()) {
+        attachInjuries(to: &schedule.nba, lookup: lookup, now: now)
+        attachInjuries(to: &schedule.nfl, lookup: lookup, now: now)
+        attachInjuries(to: &schedule.nhl, lookup: lookup, now: now)
+        attachInjuries(to: &schedule.mlb, lookup: lookup, now: now)
     }
 
-    static func attachInjuries(to liveEvent: inout LiveEvent?, lookup: [String: [InjuryReport]]) {
+    /// Injuries are only meaningful for games a user might preview or watch: live,
+    /// just-finished, or upcoming within two weeks. They're only ever displayed on
+    /// the game-detail screen, never in lists. Attaching a team's full injury report
+    /// (free-text comments + headshot URLs) to *every* event it plays — including
+    /// thousands of completed past-season games and far-future fixtures — bloated the
+    /// schedule payload to ~85MB (77% injuries) and pegged server CPU re-encoding it
+    /// on every minutely job and API request. Gate to a window around `now` so the
+    /// feed only carries injuries where they're actually shown.
+    static func isInjuryRelevant(_ game: Game, now: Date) -> Bool {
+        guard let date = game.isoDate else { return false }
+        let recentlyFinished: TimeInterval = 12 * 3600        // keep just-ended games
+        let upcomingHorizon: TimeInterval = 14 * 24 * 3600    // ~two weeks ahead
+        return date >= now.addingTimeInterval(-recentlyFinished)
+            && date <= now.addingTimeInterval(upcomingHorizon)
+    }
+
+    static func attachInjuries(to liveEvent: inout LiveEvent?, lookup: [String: [InjuryReport]], now: Date = Date()) {
         guard var event = liveEvent else { return }
         event.events = event.events.map { game in
+            guard isInjuryRelevant(game, now: now) else {
+                // Strip any injuries a prior (ungated) run left on now-irrelevant
+                // games so the payload shrinks instead of carrying stale reports.
+                guard game.homeInjuries != nil || game.awayInjuries != nil else { return game }
+                return gameWithInjuries(game, home: nil, away: nil)
+            }
             let home = lookup[InjuriesNetworking.normalize(game.strHomeTeam)]
             let away = lookup[InjuriesNetworking.normalize(game.strAwayTeam)]
             guard home != nil || away != nil else { return game }

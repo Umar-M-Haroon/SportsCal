@@ -11,6 +11,11 @@
 api.sportscal.app {
     import common_headers
 
+    # Compress responses (gzip for the iOS/Watch URLSession clients, zstd for
+    # browsers). The /v2025/schedules JSON is highly repetitive and compresses
+    # ~12x, turning a multi-MB download into a few hundred KB on the wire.
+    encode zstd gzip
+
     @admin path /admin /admin/* /admin/assets/*
     respond @admin 404
 
@@ -19,6 +24,8 @@ api.sportscal.app {
 
 sportscal.app {
     import common_headers
+
+    encode zstd gzip
 
     @admin path /admin /admin/* /admin/assets/*
     respond @admin 404

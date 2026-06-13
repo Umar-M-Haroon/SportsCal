@@ -111,10 +111,16 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     let writeRoutes = routes.grouped(RateLimitMiddleware(limit: 20, windowSeconds: 60, keyPrefix: "rl:write"))
 
     //MARK: - Schedules
+    // The schedule is already stored in Redis as JSON (written via setJSON). Return
+    // the cached string verbatim instead of decoding it into a LiveScore and
+    // re-encoding it on every request — that round-trip burned ~5s of CPU per call
+    // (the dominant TTFB cost) and is pure waste since the bytes are identical.
     routes.get("schedules") { req async throws -> String in
-        let schedule = try await req.kv.getJSON(RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue, as: LiveScore.self)
-        guard let schedule = schedule else { throw NetworkError.invalidData }
-        return encodeResult(res: schedule)
+        let key = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue
+        guard let raw = try await req.kv.getString(key), !raw.isEmpty else {
+            throw NetworkError.invalidData
+        }
+        return raw
     }
 
     //MARK: - Sport
@@ -158,9 +164,11 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     }
 
     //MARK: - Teams
+    // Same as /schedules: serve the cached JSON string directly rather than
+    // decoding to [Team] and re-encoding it per request.
     routes.get("teams") { req async throws -> String in
-        let teams = try await req.kv.getJSON(RedisEndpoint.teams.getValue(isDebug: req.application.environment == .development).rawValue, as: [Team].self) ?? []
-        return encodeResult(res: teams)
+        let key = RedisEndpoint.teams.getValue(isDebug: req.application.environment == .development).rawValue
+        return (try await req.kv.getString(key)) ?? "[]"
     }
 
     //MARK: - Play-by-Play (per-event)
