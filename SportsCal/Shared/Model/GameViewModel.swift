@@ -139,7 +139,27 @@ public class GameViewModel: NSObject {
     var engagementTracker: EngagementTracker?
     var totalGames: [Game]?
     var filteredGames: [Game]?
-    var calendarGames: [Game]?
+    /// Backing cache for `calendarGames`. Invalidated (set nil) at the single
+    /// `filterSports` chokepoint whenever the calendar source set can change.
+    @ObservationIgnored private var _calendarGamesCache: [Game]?
+    /// All games for the Calendar/Browse tabs (every sport, minus hidden soccer
+    /// competitions), sorted by date. Built lazily on first access and memoized:
+    /// the Calendar tab is usually not on screen at launch, so eagerly sorting
+    /// ~45k games on every `filterSports` was pure waste (a dominant -Onone launch
+    /// cost). Reading `totalGames` / `hiddenCompetitions` here keeps SwiftUI
+    /// observation wired so the calendar repaints when the source actually changes.
+    var calendarGames: [Game]? {
+        guard let total = totalGames else { return nil }
+        if let cached = _calendarGamesCache { return cached }
+        let built = total.filter { game in
+            guard let leagueString = game.idLeague,
+                  let intLeague = Int(leagueString),
+                  let league = Leagues(rawValue: intLeague), league.isSoccer else { return true }
+            return !appStorage.hiddenCompetitions.contains(league.leagueName)
+        }.sorted { ($0.standardDate ?? .now) < ($1.standardDate ?? .now) }
+        _calendarGamesCache = built
+        return built
+    }
     var teamString: String? = ""
     var favoriteGames: [Game]?
     var favoriteGamesWithTeams: [GameWithTeams] = []
@@ -184,6 +204,25 @@ public class GameViewModel: NSObject {
     
     var webSocketTask: URLSessionWebSocketTask?
     private var webSocketSession: URLSession?
+    /// Developer "replay a game as live" is active. While true, the normal live-socket
+    /// reconnect/ensure paths stand down so they don't clobber the replay stream.
+    var isReplaying: Bool = false
+    /// The game currently being replayed (used by the dev UI / Live Activity start).
+    var replayingGame: Game?
+
+    // MARK: Replay status (developer UI)
+    enum ReplayPhase: String {
+        case fetching = "Fetching plays…"
+        case streaming = "Streaming"
+        case ended = "Ended"
+        case failed = "Failed"
+    }
+    /// Where the replay's play-by-play was sourced from ("Local server" / "Production").
+    enum ReplaySource: String { case localServer = "Local server", production = "Production" }
+    var replayPhase: ReplayPhase?
+    var replaySource: ReplaySource?
+    var replayTotalPlays: Int = 0
+    var replayFramesReceived: Int = 0
     /// Coalesces `updateLiveData()` invocations arriving within ~250 ms of each other.
     /// During busy live windows several sports can each push within a few hundred ms,
     /// and `updateLiveData()` does ~10 array recompositions per call; batching them
@@ -210,6 +249,11 @@ public class GameViewModel: NSObject {
     var isFetching: Bool { networkFetchTask != nil }
     private var networkFetchTask: Task<Void, Never>?
     var wsReconnectAttempts = 0
+    /// Set when the last WS failure was a fatal oversized-frame error. Reconnecting
+    /// can't fix it, so the reconnect path falls back to a slow REST live refresh
+    /// instead of hammering the normal 2–60s backoff curve. Cleared on any clean
+    /// receive / forced reconnect.
+    @ObservationIgnored private var wsFatalFrameError = false
     /// Tracks current network reachability so the WebSocket reconnect loop can pause
     /// while offline and resume immediately when the path comes back, instead of
     /// burning attempts against an unreachable host.
@@ -654,13 +698,18 @@ public class GameViewModel: NSObject {
         self.webSocketSession = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
 
         var hasCachedData = false
-        if let cacheGames = gameCache?.value(for: "games") {
-            setGames(result: cacheGames)
-            hasCachedData = true
-        }
+        // Load cached teams *before* cached games. setGames() runs a full
+        // filterSports pass (snapshot write + Spotlight index + 45k filter/sort);
+        // doing it before teams exist produced a wasted teams-less first pass
+        // (log: "Teams loaded: 0 … wrote 9210 bytes (0 teams)") that immediately
+        // re-ran once teams arrived. Teams-first makes that first pass correct.
         if let cacheTeams = teamCache?.value(for: "teams") {
             self.teams = cacheTeams
             buildTeamLookupCaches()
+        }
+        if let cacheGames = gameCache?.value(for: "games") {
+            setGames(result: cacheGames)
+            hasCachedData = true
         }
         // First-launch fallback: if no disk cache exists yet, fall through to a
         // bundled baseline snapshot so the very first app open still shows games
@@ -917,12 +966,183 @@ public class GameViewModel: NSObject {
             } catch {
                 AppLogger.networking.error("WebSocket receive error: \(error.localizedDescription)")
                 self?.webSocketTask = nil
+                self?.wsFatalFrameError = NetworkHandler.isOversizedFrameError(error)
                 self?.reconnectWebSocketOnly()
             }
         }
     }
 
+    // MARK: - Developer replay
+
+    /// Developer-only: replay a completed game as if it were live. Reconnects the live
+    /// WebSocket to the server's `/replay/:eventID` endpoint, sends the selected game as
+    /// the shell, and lets the normal receive→merge→liveEvents→LiveActivity pipeline drive
+    /// the rest. Requires the app to be pointed at a local/dev server (the endpoint is
+    /// dev-gated). Team sports only (NBA/NFL/NHL/MLB/soccer).
+    /// First WS frame sent to `/replay`: the game shell plus client-fetched plays.
+    private struct ReplayHandshakePayload: Encodable {
+        let shell: Game
+        let plays: [Play]
+    }
+
+    /// Result of probing whether a game can be replayed — the play-by-play and where it came from.
+    struct ReplayAvailability {
+        let plays: [Play]
+        let source: ReplaySource
+    }
+
+    /// Probes whether a game has play-by-play to replay: current server first, then production.
+    /// Pure (no state mutation) so the dev UI can call it per row to gate the Replay button.
+    /// Returns `nil` when no play-by-play is available anywhere.
+    func checkReplayAvailability(for game: Game) async -> ReplayAvailability? {
+        guard let eventID = game.idEvent, !eventID.isEmpty else { return nil }
+        let slugs = replayESPNSlugs(for: game)
+        if let cached = try? await NetworkHandler.fetchPlayByPlay(
+            eventID: eventID, sport: slugs?.sport, league: slugs?.league
+        ), !cached.plays.isEmpty {
+            return ReplayAvailability(plays: cached.plays, source: .localServer)
+        }
+        if let cached = try? await NetworkHandler.fetchPlayByPlayFromProduction(
+            eventID: eventID, sport: slugs?.sport, league: slugs?.league
+        ), !cached.plays.isEmpty {
+            return ReplayAvailability(plays: cached.plays, source: .production)
+        }
+        return nil
+    }
+
+    /// Replay a game. `availability` should be supplied by the dev UI (which has already
+    /// confirmed play-by-play exists); when nil, this probes for it and fails if none is found.
+    func startReplay(game: Game, speed: Double = 8.0, availability: ReplayAvailability? = nil) {
+        guard webSocketSession != nil else {
+            AutoFollowLogger.shared.log("Replay: no WebSocket session (networking disabled)", level: .error)
+            return
+        }
+        guard let eventID = game.idEvent, !eventID.isEmpty else {
+            AutoFollowLogger.shared.log("Replay: game has no event ID", level: .error)
+            return
+        }
+
+        isReplaying = true
+        replayingGame = game
+        replayPhase = .fetching
+        replaySource = availability?.source
+        replayTotalPlays = 0
+        replayFramesReceived = 0
+        AutoFollowLogger.shared.log("Replay: preparing \(game.strHomeTeam) vs \(game.strAwayTeam)…", level: .info)
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let resolved: ReplayAvailability?
+            if let availability {
+                resolved = availability
+            } else {
+                resolved = await self.checkReplayAvailability(for: game)
+            }
+            // Bail if the user already stopped, or nothing came back.
+            guard self.isReplaying else { return }
+            guard let resolved, !resolved.plays.isEmpty else {
+                AutoFollowLogger.shared.log("Replay: no play-by-play available for this game (tried local + production)", level: .error)
+                self.replayPhase = .failed
+                self.isReplaying = false
+                self.replayingGame = nil
+                return
+            }
+            self.replaySource = resolved.source
+            self.beginReplayStream(game: game, eventID: eventID, plays: resolved.plays, speed: speed)
+        }
+    }
+
+    /// ESPN (sport, league) slugs for a team-sport game, used to fetch its play-by-play.
+    private func replayESPNSlugs(for game: Game) -> (sport: String, league: String)? {
+        guard let idLeague = game.idLeague, let leagueInt = Int(idLeague),
+              let league = Leagues(rawValue: leagueInt) else { return nil }
+        if league.isBasketball { return ("basketball", league.espnSlug ?? "nba") }
+        if league == .nfl { return ("football", "nfl") }
+        if league == .nhl { return ("hockey", "nhl") }
+        if league == .mlb { return ("baseball", "mlb") }
+        if league.isSoccer, let slug = league.espnSlug { return ("soccer", slug) }
+        return nil
+    }
+
+    private func beginReplayStream(game: Game, eventID: String, plays: [Play], speed: Double) {
+        guard let session = webSocketSession else { return }
+        replayTotalPlays = plays.count
+        replayFramesReceived = 0
+        replayPhase = .streaming
+        NetworkHandler.replayTarget = (eventID: eventID, speed: speed)
+
+        restartTimer?.invalidate()
+        restartTimer = nil
+        wsReconnectAttempts = 0
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
+
+        let task = NetworkHandler.connectWebSocketForLive(session: session)
+        webSocketTask = task
+        task.resume()
+
+        // Send the shell + plays as the first frame; the server paces them back as LiveScore.
+        let payload = ReplayHandshakePayload(shell: game, plays: plays)
+        if let data = try? JSONEncoder().encode(payload),
+           let string = String(data: data, encoding: .utf8) {
+            task.send(.string(string)) { error in
+                if let error {
+                    AppLogger.networking.error("Replay handshake send failed: \(error.localizedDescription)")
+                }
+            }
+        }
+        AutoFollowLogger.shared.log("Replay started: \(game.strHomeTeam) vs \(game.strAwayTeam) — \(plays.count) plays at \(speed)x", level: .success)
+
+        Task { @MainActor [weak self] in
+            do {
+                try await self?.receiveMessages()
+            } catch {
+                // Stream ended or errored. During replay we do NOT auto-reconnect (that
+                // would re-dial /replay without a shell and loop); just drop the socket and
+                // reset state so the UI doesn't lie about an active replay.
+                guard let self, self.isReplaying else { return }
+                self.webSocketTask = nil
+                self.isReplaying = false
+                self.replayingGame = nil
+                self.replayPhase = self.replayFramesReceived > 0 ? .ended : .failed
+                NetworkHandler.replayTarget = nil
+                AutoFollowLogger.shared.log("Replay ended after \(self.replayFramesReceived)/\(self.replayTotalPlays) frames", level: .warning)
+                AppLogger.networking.info("Replay stream ended: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Stops an in-progress replay and returns the live socket to normal `/ws` behavior.
+    func stopReplay() {
+        guard isReplaying else { return }
+        isReplaying = false
+        replayingGame = nil
+        replayPhase = nil
+        replaySource = nil
+        replayTotalPlays = 0
+        replayFramesReceived = 0
+        NetworkHandler.replayTarget = nil
+        restartTimer?.invalidate()
+        restartTimer = nil
+        wsReconnectAttempts = 0
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
+        AutoFollowLogger.shared.log("Replay stopped — resuming live", level: .info)
+        handleLiveWebsocket()
+    }
+
+    /// Clears a finished replay's status badge (no-op while a replay is active).
+    func clearReplayStatus() {
+        guard !isReplaying else { return }
+        replayPhase = nil
+        replaySource = nil
+        replayTotalPlays = 0
+        replayFramesReceived = 0
+    }
+
     func reconnectWebSocketOnly() {
+        // Replay drives its own (non-reconnecting) socket — never auto-reconnect over it.
+        guard !isReplaying else { return }
         // While the network path is down, don't burn attempts — the path-monitor
         // callback in `startPathMonitor` will reset attempts and force a reconnect
         // the moment connectivity returns.
@@ -933,9 +1153,21 @@ public class GameViewModel: NSObject {
             return
         }
         wsReconnectAttempts += 1
-        // Quadratic backoff capped at 60s: 2, 8, 18, 32, 50, 60, 60... — keep retrying
-        // forever so a long outage doesn't permanently silence live updates.
-        let delay = WebSocketBackoff.delaySeconds(forAttempt: wsReconnectAttempts)
+        // Fatal oversized-frame error: the server is pushing a frame larger than the
+        // client cap, so reconnecting just reproduces the same failure on the next
+        // frame. Don't hammer the socket — pull live data over REST (HTTP is gzip'd
+        // and has no frame cap) and retry the socket on a slow fixed interval until
+        // the server-side payload shrinks back under the cap.
+        let delay: TimeInterval
+        if wsFatalFrameError {
+            AppLogger.networking.warning("WebSocket frame exceeds client cap — falling back to REST live refresh; slow socket retry in 300s")
+            Task { @MainActor [weak self] in try? await self?.handleLiveGames() }
+            delay = 300
+        } else {
+            // Quadratic backoff capped at 60s: 2, 8, 18, 32, 50, 60, 60... — keep retrying
+            // forever so a long outage doesn't permanently silence live updates.
+            delay = WebSocketBackoff.delaySeconds(forAttempt: wsReconnectAttempts)
+        }
         if appStorage.debugMode {
             AppLogger.networking.info("WebSocket reconnect attempt \(self.wsReconnectAttempts) in \(delay)s")
         }
@@ -953,6 +1185,7 @@ public class GameViewModel: NSObject {
                 } catch {
                     AppLogger.networking.error("WebSocket receive error (reconnect): \(error.localizedDescription)")
                     self?.webSocketTask = nil
+                    self?.wsFatalFrameError = NetworkHandler.isOversizedFrameError(error)
                     self?.reconnectWebSocketOnly()
                 }
             }
@@ -1024,6 +1257,20 @@ public class GameViewModel: NSObject {
     /// end-state consistency with the legacy single-shot setGames path.
     @MainActor
     private func applySnapshotIncrementally(_ snapshot: LiveScore) async {
+        // Reveal-from-empty is only for the FIRST paint, when the Games tab is still
+        // blank and favorites should appear ASAP. On a refresh we already have a full
+        // list on screen — rebuilding `totalGames` from [] would wipe every section
+        // for a frame per sport until its slice lands. The World Cup hero is the most
+        // visible casualty: its games ride the soccer slice, so until soccer is
+        // reached `worldCupGamesWithTeams` is empty and the hero collapses (or, on a
+        // non-today matchday page, unmounts entirely), reading as a flash. When data
+        // is already present, swap to the new snapshot in one shot (also cheaper: one
+        // filter pass, not N).
+        if !(totalGames?.isEmpty ?? true) {
+            setGames(result: snapshot)
+            return
+        }
+
         let order = prioritizedSports(in: snapshot)
 
         // Reset team-resolution caches up front so per-slice GameWithTeams lookups
@@ -1036,34 +1283,30 @@ public class GameViewModel: NSObject {
 
         for sport in order {
             let sportGames = snapshot.event(for: sport)?.events ?? []
-            accumulated.append(contentsOf: sportGames)
             gamesDict[sport] = sportGames
-            totalGames = accumulated
-
-            // Recompute filteredGames + calendarGames against the growing gamesDict.
-            // Cheap because gamesDict is a per-sport map and getGamesFromUserPreferences
-            // already operates on it.
-            filteredGames = filterAndSortGamesFromUserPreferences(games: getGamesFromUserPreferences())
-            let allValidGames = (totalGames ?? []).filter { game in
-                guard let leagueString = game.idLeague,
-                      let intLeague = Int(leagueString),
-                      let league = Leagues(rawValue: intLeague) else { return false }
-                if league.isSoccer {
-                    return !appStorage.hiddenCompetitions.contains(league.leagueName)
-                }
-                return true
-            }
-            calendarGames = allValidGames.sorted { ($0.standardDate ?? .now) < ($1.standardDate ?? .now) }
 
             // F1 standings ride along with the racing slice
             if sport == .racing, let standings = snapshot.f1Standings {
                 f1Standings = standings
             }
-
             // World Cup enrichment (bracket + Golden Boot) rides along with the soccer slice
             if sport == .soccer, let wc = snapshot.worldCup {
                 worldCup = wc
             }
+
+            // An empty sport doesn't change the visible list — appending nothing and
+            // re-running the filter would just repaint the identical Games tab and
+            // burn a frame. Skip straight to the next slice.
+            guard !sportGames.isEmpty else { continue }
+            accumulated.append(contentsOf: sportGames)
+            totalGames = accumulated
+
+            // Progressive paint of the Games tab only. calendarGames (Calendar tab,
+            // not on screen during this load) is intentionally NOT recomputed here:
+            // doing it per slice meant 8 filter+sorts over a growing array — the
+            // dominant cost in the load-time hang. The single authoritative
+            // filterSports(force:) below rebuilds it once at end-state.
+            filteredGames = filterAndSortGamesFromUserPreferences(games: getGamesFromUserPreferences())
 
             if !firstSliceRendered {
                 networkState = .loaded
@@ -1131,11 +1374,49 @@ public class GameViewModel: NSObject {
         networkFetchTask = nil
     }
 
+    struct WebSocketReceiveTimeout: Error {}
+
+    /// `URLSessionWebSocketTask.receive()` bounded by a timeout. A bare `receive()`
+    /// can hang indefinitely when the server disappears without a close frame
+    /// (server restart, NAT/Wi-Fi drop) — no error is thrown, so the reconnect
+    /// path never fires and live updates silently freeze at the last value. Racing
+    /// it against a sleep turns that stall into a throw the caller reconnects on.
+    nonisolated static func receive(
+        _ webSocket: URLSessionWebSocketTask,
+        timeoutSeconds: TimeInterval
+    ) async throws -> URLSessionWebSocketTask.Message {
+        try await withThrowingTaskGroup(of: URLSessionWebSocketTask.Message.self) { group in
+            group.addTask { try await webSocket.receive() }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
+                throw WebSocketReceiveTimeout()
+            }
+            defer { group.cancelAll() }
+            guard let result = try await group.next() else { throw WebSocketReceiveTimeout() }
+            return result
+        }
+    }
+
     @objc
     func receiveMessages() async throws {
         while let webSocket = webSocketTask {
-            let webSocketMessage = try await webSocket.receive()
+            // Tight window when we expect live pushes (server sends ≤5s apart during
+            // live games); generous otherwise so the 60s idle heartbeat isn't read as
+            // a dead socket. Either way a truly stalled connection reconnects instead
+            // of freezing forever.
+            let timeout: TimeInterval = liveEvents.isEmpty ? 75 : 20
+            let webSocketMessage = try await Self.receive(webSocket, timeoutSeconds: timeout)
+            #if canImport(ActivityKit) && os(iOS)
+            // A successful receive while reconnect attempts are outstanding means the
+            // socket just recovered (e.g. from the silent-death timeout). The server
+            // may have lost — or never received — our per-activity update tokens, so
+            // re-register them now rather than waiting for the next foreground.
+            if wsReconnectAttempts > 0 {
+                reRegisterAllActivityTokens()
+            }
+            #endif
             wsReconnectAttempts = 0 // Reset on successful receive
+            wsFatalFrameError = false // A frame came through under the cap — clear the fallback latch
             switch webSocketMessage {
             case .string(let jsonString):
                 if let jsonData = jsonString.data(using: .utf8) {
@@ -1159,6 +1440,7 @@ public class GameViewModel: NSObject {
                     } else if currentLiveInfo == nil {
                         self.currentLiveInfo = newLiveInfo
                     }
+                    if isReplaying { replayFramesReceived += 1 }
                     scheduleLiveDataUpdate()
                     #if canImport(ActivityKit) && os(iOS)
                     Task { @MainActor in
@@ -1296,7 +1578,7 @@ public class GameViewModel: NSObject {
         networkState = .loaded
     }
 
-    func setGames(result: LiveScore, skipLiveUpdate: Bool = false) {
+    func setGames(result: LiveScore, skipLiveUpdate: Bool = false, skipSideEffects: Bool = false) {
         // Invalidate caches since games changed
         gameWithTeamsCache.removeAll()
         gamesWithTeamsDateCache.removeAll()
@@ -1566,7 +1848,7 @@ public class GameViewModel: NSObject {
         return hasher.finalize()
     }
 
-    func filterSports(searchString: String? = nil, force: Bool = false, skipLiveUpdate: Bool = false) {
+    func filterSports(searchString: String? = nil, force: Bool = false, skipLiveUpdate: Bool = false, skipSideEffects: Bool = false) {
         // Refresh filter-state hash so subsequent reads/writes use the right scope.
         currentFilterStateHash = computeFilterStateHash()
         // Only purge the entire date cache when the underlying games actually changed
@@ -1592,17 +1874,11 @@ public class GameViewModel: NSObject {
         }
         let userPrefGames = getGamesFromUserPreferences()
         filteredGames = filterAndSortGamesFromUserPreferences(games: userPrefGames)
-        // Calendar shows ALL sports but respects hidden soccer competitions
-        let allValidGames = (totalGames ?? []).filter { game in
-            guard let leagueString = game.idLeague,
-                  let intLeague = Int(leagueString),
-                  let league = Leagues(rawValue: intLeague) else { return false }
-            if league.isSoccer {
-                return !appStorage.hiddenCompetitions.contains(league.leagueName)
-            }
-            return true
-        }
-        calendarGames = allValidGames.sorted { ($0.standardDate ?? .now) < ($1.standardDate ?? .now) }
+        // Invalidate the memoized calendar set — it's rebuilt lazily on next access
+        // (Calendar/Browse tab), not eagerly here. filterSports is the single
+        // chokepoint for every change that affects calendar membership (data
+        // fetches and filter/competition toggles), so nil-ing here is sufficient.
+        _calendarGamesCache = nil
 
         rebuildSportCountsCache()
         AppLogger.viewModel.info("Total games: \(self.totalGames?.count ?? 0), filtered: \(self.filteredGames?.count ?? 0)")
@@ -1612,6 +1888,11 @@ public class GameViewModel: NSObject {
         if !skipLiveUpdate {
             updateLiveData()
         }
+
+        // The widget snapshot, Spotlight reindex, and intent donation are skipped
+        // on the throwaway cached launch pass — getInfo()'s fetch reconcile runs
+        // moments later and does them once against fresh data, instead of 2-3×.
+        guard !skipSideEffects else { return }
 
         // Write trimmed snapshot for widget extension off main actor
         let snapshotGames = filteredGames ?? []
@@ -2007,13 +2288,39 @@ public class GameViewModel: NSObject {
         makeGameWithTeams(game)
     }
 
+    @ObservationIgnored private var _wcGamesCache: [GameWithTeams] = []
+    @ObservationIgnored private var _wcGamesCacheSignature: Int = .min
+
     /// All FIFA World Cup games (league 4429) wrapped with resolved teams, sorted by date.
+    ///
+    /// Memoized: the WC hero reads this on every body render — including every
+    /// WebSocket live tick — and the resolve (sort + `makeGameWithTeams` team
+    /// lookups across the whole ~104-match tournament) is far too heavy to redo
+    /// each frame. We rebuild only when the WC fixtures or their live state
+    /// actually change. The filter + cheap signature hash still run each call so
+    /// reading `totalGames` keeps SwiftUI observation wired up.
     var worldCupGamesWithTeams: [GameWithTeams] {
         let wcID = String(Leagues.FIFA_World_Cup.rawValue)
-        return (totalGames ?? [])
-            .filter { $0.idLeague == wcID }
+        let wcGames = (totalGames ?? []).filter { $0.idLeague == wcID }
+
+        var hasher = Hasher()
+        hasher.combine(wcGames.count)
+        for game in wcGames {
+            hasher.combine(game.idEvent)
+            hasher.combine(game.intHomeScore)
+            hasher.combine(game.intAwayScore)
+            hasher.combine(game.strStatus)
+            hasher.combine(game.strProgress)
+        }
+        let signature = hasher.finalize()
+        if signature == _wcGamesCacheSignature { return _wcGamesCache }
+
+        let resolved = wcGames
             .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
             .compactMap { makeGameWithTeams($0) }
+        _wcGamesCache = resolved
+        _wcGamesCacheSignature = signature
+        return resolved
     }
 
     /// Resolve a World Cup game (and its teams) by ESPN event ID, for bracket navigation.
@@ -2103,6 +2410,8 @@ public class GameViewModel: NSObject {
     /// Ensures the WebSocket is connected only when there are live or upcoming games.
     /// Call on foreground resume and after schedule updates.
     func ensureWebSocketConnected() {
+        // A developer replay owns the socket; don't tear it down or reconnect to live.
+        guard !isReplaying else { return }
         if shouldWebSocketBeActive() {
             guard webSocketTask == nil else { return }
             wsReconnectAttempts = 0
@@ -2301,23 +2610,52 @@ extension GameViewModel {
                     }
                 }
                 AppLogger.liveActivity.info("Registering push token for event \(eventID) (\(homeTeam) vs \(awayTeam)): \(tokenString.prefix(12))...")
-                do {
-                    try await NetworkHandler.subscribeToLiveActivityUpdate(token: tokenString, eventID: eventID, homeTeam: homeTeam, awayTeam: awayTeam)
-                    if isDebug {
-                        await MainActor.run {
-                            AutoFollowLogger.shared.log("Server registered activity token OK (\(homeTeam) vs \(awayTeam))", level: .success)
-                        }
+                await Self.registerActivityToken(
+                    token: tokenString,
+                    eventID: eventID,
+                    homeTeam: homeTeam,
+                    awayTeam: awayTeam,
+                    isDebug: isDebug
+                )
+            }
+        }
+    }
+
+    /// POSTs a per-activity update token to the server, retrying with backoff.
+    /// The previous fire-once POST only logged on failure — a single transient
+    /// network error then left the server without the token, so `APNSJob` had
+    /// nothing to push to and the Lock Screen activity froze at its start state
+    /// until the next foreground re-registration. Retrying closes that window;
+    /// WS-reconnect and foreground re-registration remain the longer-term net.
+    nonisolated static func registerActivityToken(
+        token: String,
+        eventID: String,
+        homeTeam: String,
+        awayTeam: String,
+        isDebug: Bool
+    ) async {
+        let backoffSeconds: [UInt64] = [0, 2, 5, 15, 30]
+        for (attempt, delay) in backoffSeconds.enumerated() {
+            if delay > 0 { try? await Task.sleep(nanoseconds: delay * 1_000_000_000) }
+            do {
+                try await NetworkHandler.subscribeToLiveActivityUpdate(token: token, eventID: eventID, homeTeam: homeTeam, awayTeam: awayTeam)
+                AppLogger.liveActivity.info("Registered activity update token for \(eventID) (attempt \(attempt + 1))")
+                if isDebug {
+                    await MainActor.run {
+                        AutoFollowLogger.shared.log("Server registered activity token OK (\(homeTeam) vs \(awayTeam))", level: .success)
                     }
-                } catch {
-                    AppLogger.liveActivity.error("Failed to register activity token: \(error.localizedDescription)")
-                    if isDebug {
-                        await MainActor.run {
-                            AutoFollowLogger.shared.log("Failed to register activity token: \(error.localizedDescription)", level: .error)
-                        }
+                }
+                return
+            } catch {
+                AppLogger.liveActivity.error("Activity token registration attempt \(attempt + 1) failed for \(eventID): \(error.localizedDescription)")
+                if isDebug {
+                    await MainActor.run {
+                        AutoFollowLogger.shared.log("Activity token registration attempt \(attempt + 1) failed: \(error.localizedDescription)", level: .error)
                     }
                 }
             }
         }
+        AppLogger.liveActivity.error("Gave up registering activity token for \(eventID) after \(backoffSeconds.count) attempts — will retry on WS reconnect / foreground")
     }
 
     /// Re-registers push tokens for any already-running Live Activities (e.g. after app relaunch).
@@ -2395,6 +2733,7 @@ extension GameViewModel {
     /// BGAppRefresh handler — without this, a quiet stretch (or a denied background grant)
     /// can let the server-side registration expire and silence the activity.
     func reRegisterAllActivityTokens() {
+        let isDebug = appStorage.debugMode
         for activity in Activity<LiveSportActivityAttributes>.activities {
             guard let tokenData = activity.pushToken else { continue }
             let tokenString = tokenData.map { String(format: "%02x", $0) }.joined()
@@ -2403,16 +2742,13 @@ extension GameViewModel {
             let awayTeam = activity.attributes.awayTeam
             AppLogger.liveActivity.info("Re-registering activity token for \(eventID): \(tokenString.prefix(12))...")
             Task.detached {
-                do {
-                    try await NetworkHandler.subscribeToLiveActivityUpdate(
-                        token: tokenString,
-                        eventID: eventID,
-                        homeTeam: homeTeam,
-                        awayTeam: awayTeam
-                    )
-                } catch {
-                    AppLogger.liveActivity.error("Failed to re-register activity token: \(error.localizedDescription)")
-                }
+                await Self.registerActivityToken(
+                    token: tokenString,
+                    eventID: eventID,
+                    homeTeam: homeTeam,
+                    awayTeam: awayTeam,
+                    isDebug: isDebug
+                )
             }
         }
     }

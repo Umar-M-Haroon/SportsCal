@@ -116,6 +116,13 @@ struct DebugLiveActivityTestView: View {
                 pipelineRow(step: "Event IDs sent to server", ok: (serverStatus?.eventIDs.count ?? 0) > 0, detail: "\(serverStatus?.eventIDs.count ?? 0) event(s)")
                 pipelineRow(step: "Server has APNS ready", ok: serverStatus?.apnsConfigured == true, detail: serverStatus?.apnsConfigured == true ? "Configured" : "Not configured")
                 pipelineRow(step: "Notification delivered", ok: (serverStatus?.sentNotifications.count ?? 0) > 0, detail: "\(serverStatus?.sentNotifications.count ?? 0) sent")
+                #if canImport(ActivityKit) && os(iOS)
+                // Distinct from "Token registered" above: that's the push-to-start
+                // install (starts activities). THIS verifies the per-activity update
+                // token the server pushes live score updates to. A running activity
+                // missing here = a Lock Screen that won't advance server-side.
+                activityUpdateTokenRow()
+                #endif
 
                 Button("Refresh Pipeline Status") {
                     fetchServerStatus()
@@ -202,6 +209,24 @@ struct DebugLiveActivityTestView: View {
     }
 
     // MARK: - Helpers
+
+    #if canImport(ActivityKit) && os(iOS)
+    /// Cross-checks each running activity's event ID against the per-activity
+    /// update-token registrations the server reports. Red when an activity is live
+    /// on the device but the server has no update token for it — the exact state
+    /// that leaves a Lock Screen activity frozen at its start value.
+    @ViewBuilder
+    private func activityUpdateTokenRow() -> some View {
+        let runningEventIDs = Set(Activity<LiveSportActivityAttributes>.activities.map { $0.attributes.eventID })
+        let registeredUpdateIDs = Set(serverStatus?.activityUpdateEventIDs ?? [])
+        let covered = runningEventIDs.intersection(registeredUpdateIDs)
+        pipelineRow(
+            step: "Activity update token registered",
+            ok: !runningEventIDs.isEmpty && covered.count == runningEventIDs.count,
+            detail: runningEventIDs.isEmpty ? "No running activities" : "\(covered.count)/\(runningEventIDs.count) on server"
+        )
+    }
+    #endif
 
     private func pipelineRow(step: String, ok: Bool, detail: String) -> some View {
         HStack(spacing: 8) {

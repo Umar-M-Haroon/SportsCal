@@ -15,11 +15,60 @@
 
 default_platform(:ios)
 
+APP_SCHEME = "SportsCal (iOS)"
+
+# App Store Connect API key (used for binary upload + metadata).
+# The .p8 lives in ~/.appstoreconnect/private_keys/ and is NOT checked in.
+def asc_api_key
+  app_store_connect_api_key(
+    key_id: "JQ6VYF64LN",
+    issuer_id: "c676fbfe-8aff-476b-b54f-89bb56cc09d6",
+    key_filepath: File.expand_path("~/.appstoreconnect/private_keys/AuthKey_JQ6VYF64LN.p8"),
+    in_house: false
+  )
+end
+
 platform :ios do
   desc "Generate new localized screenshots"
   lane :screenshots do
-    capture_screenshots(scheme: "SportsCal (iOS)")
+    capture_screenshots(scheme: APP_SCHEME)
     frameit()
     upload_to_app_store(skip_binary_upload: true, skip_metadata: true)
+  end
+
+  desc "Archive the app and upload the build to App Store Connect (TestFlight)"
+  lane :beta do
+    build_app(
+      scheme: APP_SCHEME,
+      export_method: "app-store",
+      output_directory: "./build",
+      clean: true
+    )
+    upload_to_testflight(
+      api_key: asc_api_key,
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Full release: archive, upload binary + What's New, ready to submit in App Store Connect"
+  lane :release do
+    build_app(
+      scheme: APP_SCHEME,
+      export_method: "app-store",
+      output_directory: "./build",
+      clean: true
+    )
+    upload_to_app_store(
+      api_key: asc_api_key,
+      force: true,                  # skip the HTML metadata-preview confirmation
+      skip_screenshots: true,       # leave existing screenshots untouched
+      skip_metadata: false,         # push fastlane/metadata (release notes) only
+      overwrite_screenshots: false,
+      precheck_include_in_app_purchases: false,
+      run_precheck_before_submit: false,
+      submit_for_review: false,     # upload only — submit manually after review
+      automatic_release: false
+    )
+    UI.success("Build + What's New uploaded. Review and Submit in App Store Connect.")
   end
 end

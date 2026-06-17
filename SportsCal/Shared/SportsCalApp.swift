@@ -105,7 +105,16 @@ struct SportsCalApp: App {
                     }
                     #if os(iOS)
                     if !subscriptionManager.isPro && AdConfiguration.isEnabled {
-                        adManager.preloadAds(count: 5)
+                        // Defer ad preloading off the launch-critical window. Each
+                        // native ad warms a GoogleMobileAds WKWebView (its own
+                        // WebContent/GPU/Networking helper processes); kicking off
+                        // a batch during the first frames is the dominant launch
+                        // jank. Wait for the UI to settle, then warm a small batch —
+                        // the feed's own `refreshOnAppear(target:)` tops it up later.
+                        Task {
+                            try? await Task.sleep(for: .seconds(1))
+                            adManager.preloadAds(count: 2)
+                        }
                     }
                     #endif
                 }

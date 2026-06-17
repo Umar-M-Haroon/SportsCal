@@ -85,6 +85,7 @@
 		1D5AB3F32FD4FBFF00BDFA2A /* WorldCupBracketView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3F22FD4FBFF00BDFA2A /* WorldCupBracketView.swift */; };
 		1D5AB3F52FD4FC0C00BDFA2A /* WorldCupScorersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3F42FD4FC0C00BDFA2A /* WorldCupScorersView.swift */; };
 		1D5AB3F72FD4FC1800BDFA2A /* WorldCupSquadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3F62FD4FC1800BDFA2A /* WorldCupSquadView.swift */; };
+		1DBC5A012FE1A00000BDFA2A /* WorldCupBoxScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBC5A022FE1A00000BDFA2A /* WorldCupBoxScoreView.swift */; };
 		1D5AB3F92FD4FC2C00BDFA2A /* WorldCupFollowButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3F82FD4FC2C00BDFA2A /* WorldCupFollowButton.swift */; };
 		1D5AB3FB2FD4FC4C00BDFA2A /* WorldCupHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3FA2FD4FC4C00BDFA2A /* WorldCupHubView.swift */; };
 		1D5AB3FD2FD4FC6100BDFA2A /* WorldCupFeaturedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3FC2FD4FC6100BDFA2A /* WorldCupFeaturedCard.swift */; };
@@ -158,6 +159,7 @@
 		1D8352D52905532D00E60D7F /* DateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8352D42905532D00E60D7F /* DateFormatters.swift */; };
 		1D8352D72905532D00E60D7F /* DateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8352D42905532D00E60D7F /* DateFormatters.swift */; };
 		1D8352DB29067CBB00E60D7F /* UserDefaultStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1FD932741EFA800783E62 /* UserDefaultStorage.swift */; };
+		1D8D4BDB2FE0FE8F00D40105 /* DebugReplayTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8D4BDA2FE0FE8F00D40105 /* DebugReplayTestView.swift */; };
 		1D981BDB2F37CA1E00401880 /* SportsCalModel in Frameworks */ = {isa = PBXBuildFile; productRef = 1D981BDA2F37CA1E00401880 /* SportsCalModel */; };
 		1D9D2CF027702FFB00735AF0 /* FavoriteButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9D2CEF27702FFB00735AF0 /* FavoriteButtonView.swift */; };
 		1DA4343429079D3D0010364F /* Teams+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA4343329079D3D0010364F /* Teams+Extensions.swift */; };
@@ -448,6 +450,7 @@
 		1D5AB3F22FD4FBFF00BDFA2A /* WorldCupBracketView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupBracketView.swift; sourceTree = "<group>"; };
 		1D5AB3F42FD4FC0C00BDFA2A /* WorldCupScorersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupScorersView.swift; sourceTree = "<group>"; };
 		1D5AB3F62FD4FC1800BDFA2A /* WorldCupSquadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupSquadView.swift; sourceTree = "<group>"; };
+		1DBC5A022FE1A00000BDFA2A /* WorldCupBoxScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupBoxScoreView.swift; sourceTree = "<group>"; };
 		1D5AB3F82FD4FC2C00BDFA2A /* WorldCupFollowButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupFollowButton.swift; sourceTree = "<group>"; };
 		1D5AB3FA2FD4FC4C00BDFA2A /* WorldCupHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupHubView.swift; sourceTree = "<group>"; };
 		1D5AB3FC2FD4FC6100BDFA2A /* WorldCupFeaturedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupFeaturedCard.swift; sourceTree = "<group>"; };
@@ -494,6 +497,7 @@
 		1D7F46472F45004C00F44569 /* SportsCalWatchWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SportsCalWatchWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1D83242F2F38101D00AED413 /* TournamentScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TournamentScoreView.swift; sourceTree = "<group>"; };
 		1D8352D42905532D00E60D7F /* DateFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormatters.swift; sourceTree = "<group>"; };
+		1D8D4BDA2FE0FE8F00D40105 /* DebugReplayTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugReplayTestView.swift; sourceTree = "<group>"; };
 		1D981BD92F37CA1E00401880 /* SportsCalModel */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = SportsCalModel; path = ../SportsCalModel; sourceTree = "<group>"; };
 		1D9D2CEF27702FFB00735AF0 /* FavoriteButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteButtonView.swift; sourceTree = "<group>"; };
 		1DA4343329079D3D0010364F /* Teams+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Teams+Extensions.swift"; sourceTree = "<group>"; };
@@ -898,6 +902,7 @@
 				1D5AB3EB2FD4FBBB00BDFA2A /* WorldCup */,
 				1D5AB3FE2FD50F6A00BDFA2A /* CompactGameRowView.swift */,
 				1D5AB4002FD5100000BDFA2A /* TournamentHubView.swift */,
+				1D8D4BDA2FE0FE8F00D40105 /* DebugReplayTestView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -911,6 +916,7 @@
 				1D5AB3F22FD4FBFF00BDFA2A /* WorldCupBracketView.swift */,
 				1D5AB3F42FD4FC0C00BDFA2A /* WorldCupScorersView.swift */,
 				1D5AB3F62FD4FC1800BDFA2A /* WorldCupSquadView.swift */,
+				1DBC5A022FE1A00000BDFA2A /* WorldCupBoxScoreView.swift */,
 				1D5AB3F82FD4FC2C00BDFA2A /* WorldCupFollowButton.swift */,
 				1D5AB3FA2FD4FC4C00BDFA2A /* WorldCupHubView.swift */,
 				1D5AB3FC2FD4FC6100BDFA2A /* WorldCupFeaturedCard.swift */,
@@ -1673,6 +1679,7 @@
 				1D20B33D2929D8C900956B14 /* MiniSubscriptionPage.swift in Sources */,
 				1D16B0972FA6C37900490122 /* ModernGameDetailView.swift in Sources */,
 				1D5AB3F72FD4FC1800BDFA2A /* WorldCupSquadView.swift in Sources */,
+				1DBC5A012FE1A00000BDFA2A /* WorldCupBoxScoreView.swift in Sources */,
 				1DF27D6D2F6C6184000F5FCE /* CloudSyncManager.swift in Sources */,
 				1DD35DB62907B6AE009A2113 /* LiveAnimatedView.swift in Sources */,
 				1D20B33B2928C45A00956B14 /* PickSportPage.swift in Sources */,
@@ -1704,6 +1711,7 @@
 				1DC8774629B834A900895C22 /* FavoriteGamesView.swift in Sources */,
 				1DE897D32F3DC6B9006657FF /* HeadshotView.swift in Sources */,
 				1D16B0612FA6B18F00490122 /* Color+App.swift in Sources */,
+				1D8D4BDB2FE0FE8F00D40105 /* DebugReplayTestView.swift in Sources */,
 				1DE897ED2F44FA89006657FF /* WatchSyncService.swift in Sources */,
 				1D16B0742FA6B2C700490122 /* LiveTag.swift in Sources */,
 				1D16B0902FA6B2CA00490122 /* StaleDataBanner.swift in Sources */,
@@ -1927,7 +1935,7 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 3;
+				MARKETING_VERSION = 3.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1966,7 +1974,7 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 3;
+				MARKETING_VERSION = 3.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -2120,7 +2128,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 3;
+				MARKETING_VERSION = 3.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.watchkitapp.SportsCalWatchWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -2159,7 +2167,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 3;
+				MARKETING_VERSION = 3.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.watchkitapp.SportsCalWatchWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -2195,7 +2203,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 3;
+				MARKETING_VERSION = 3.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.SportsWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -2228,7 +2236,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 3;
+				MARKETING_VERSION = 3.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.SportsWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -2362,7 +2370,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "SportsCal (iOS).entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 115;
+				CURRENT_PROJECT_VERSION = 116;
 				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -2387,7 +2395,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 3.0;
+				MARKETING_VERSION = 3.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal;
 				PRODUCT_NAME = Scoreline;
 				REGISTER_APP_GROUPS = YES;
@@ -2410,7 +2418,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "SportsCal (iOS)Release.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 115;
+				CURRENT_PROJECT_VERSION = 116;
 				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -2435,7 +2443,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 3.0;
+				MARKETING_VERSION = 3.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal;
 				PRODUCT_NAME = Scoreline;
 				REGISTER_APP_GROUPS = YES;

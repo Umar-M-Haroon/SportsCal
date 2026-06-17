@@ -10,6 +10,40 @@ import SportsCalModel
 import Sentry
 #if canImport(ActivityKit) && os(iOS)
 import ActivityKit
+#if os(iOS)
+import UIKit
+#endif
+
+/// Context-menu content for following a live game with a Live Activity.
+///
+/// When Live Activities are authorized it shows the follow/unfollow toggle.
+/// When they're disabled (the app's switch is off in Settings, or the user
+/// turned the system feature off) it shows a tappable hint that deep-links to
+/// Settings — previously the button was simply hidden, leaving the user with a
+/// silently-missing "Follow" with no explanation.
+struct LiveActivityFollowMenu: View {
+    var game: Game
+    var homeTeam: Team
+    var awayTeam: Team
+    @Environment(GameViewModel.self) private var viewModel
+
+    var body: some View {
+        if ActivityAuthorizationInfo().areActivitiesEnabled {
+            LiveActivityButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                .environment(viewModel)
+        } else {
+            Button {
+                #if os(iOS)
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+                #endif
+            } label: {
+                Label("Turn On Live Activities", systemImage: "clock.badge.exclamationmark")
+            }
+        }
+    }
+}
 
 struct LiveActivityButton: View {
     var game: Game

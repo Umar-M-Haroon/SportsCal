@@ -349,37 +349,39 @@ struct ModernGameDetailSections: View {
         return model.plays.filter { $0.period?.number == selected }
     }
 
+    // Only rendered once there are actual plays — no placeholder or loading state,
+    // since many games (e.g. World Cup) never get a play-by-play feed. Loading is
+    // driven from the parent body so it still runs regardless of visibility.
+    private var showsPlayByPlay: Bool {
+        guard supportsPlayByPlay, game.idEvent != nil else { return false }
+        return !model.plays.isEmpty
+    }
+
     @ViewBuilder
     private var playByPlaySection: some View {
-        if supportsPlayByPlay, game.idEvent != nil {
+        if showsPlayByPlay {
             VStack(alignment: .leading, spacing: .appSpace3) {
                 HStack {
                     Text("PLAY-BY-PLAY").appEyebrow().foregroundStyle(accent)
                     Spacer()
                     if model.playsLoading {
                         ProgressView().controlSize(.small)
-                    } else if !model.plays.isEmpty {
+                    } else {
                         Text("\(model.plays.count) plays")
                             .font(.appCaption)
                             .foregroundStyle(Color.appInkFaint)
                     }
                 }
 
-                if !model.playsAvailable && model.plays.isEmpty {
-                    placeholder("Play-by-play not available yet")
-                } else if model.plays.isEmpty && !model.playsLoading {
-                    placeholder("Loading plays…")
-                } else {
-                    periodPicker
+                periodPicker
 
-                    let visible = playsInSelectedPeriod
-                    if visible.isEmpty {
-                        placeholder("No plays recorded for this period")
-                    } else {
-                        LazyVStack(alignment: .leading, spacing: .appSpace2) {
-                            ForEach(Array(visible.enumerated()), id: \.offset) { _, play in
-                                playRow(play)
-                            }
+                let visible = playsInSelectedPeriod
+                if visible.isEmpty {
+                    placeholder("No plays recorded for this period")
+                } else {
+                    LazyVStack(alignment: .leading, spacing: .appSpace2) {
+                        ForEach(Array(visible.enumerated()), id: \.offset) { _, play in
+                            playRow(play)
                         }
                     }
                 }

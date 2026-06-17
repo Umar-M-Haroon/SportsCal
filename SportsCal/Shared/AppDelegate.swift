@@ -29,7 +29,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             "2153b390d99b5b3d68e57f2a1c16c0c1"
         ]
         #endif
-        MobileAds.shared.start()
+        // Initialize off the launch-critical path. SDK init kicks off network +
+        // WebKit warmup that contends with first-frame work; nothing needs ads
+        // ready before the deferred preload (1s after first paint) requests them.
+        Task.detached(priority: .utility) {
+            await MobileAds.shared.start()
+        }
 
         // Request notification permissions
         requestNotificationAuthorization()

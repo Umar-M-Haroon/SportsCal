@@ -26,6 +26,11 @@ SportsCalAPI/SportsCalServer/pbp_archive.sqlite*
 # Node
 node_modules/
 
+# Fastlane
+SportsCal/build/
+**/fastlane/Preview.html
+**/fastlane/test_output/
+
 # Other
 Instruments/
 .netrc

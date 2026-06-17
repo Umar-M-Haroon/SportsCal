@@ -48,6 +48,16 @@ struct CompactGameRowView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+#if canImport(ActivityKit) && os(iOS)
+            if isLive {
+                LiveActivityFollowMenu(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                    .environment(viewModel)
+            }
+            if !isLive {
+                AutoFollowButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                    .environment(viewModel)
+            }
+#endif
             FavoriteMenu(game: game)
                 .environment(favorites)
             CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)

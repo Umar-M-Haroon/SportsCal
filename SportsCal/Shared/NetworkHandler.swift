@@ -441,6 +441,28 @@ struct NetworkHandler {
         return try decoder.decode(CachedPlays.self, from: data)
     }
 
+    /// Fetches play-by-play directly from **production**, regardless of the currently
+    /// resolved environment. Used by the developer replay feature: `/replay` only exists on
+    /// a local/dev server, but the recorded play-by-play lives on prod — so the app sources
+    /// the plays from prod and hands them to the local replay server.
+    static func fetchPlayByPlayFromProduction(
+        eventID: String,
+        sport: String? = nil,
+        league: String? = nil
+    ) async throws -> CachedPlays {
+        var components = URLComponents(string: "https://\(prodHost)/v2025/plays/\(eventID)")!
+        var queryItems: [URLQueryItem] = []
+        if let sport { queryItems.append(URLQueryItem(name: "sport", value: sport)) }
+        if let league { queryItems.append(URLQueryItem(name: "league", value: league)) }
+        if !queryItems.isEmpty { components.queryItems = queryItems }
+        let url = components.url!
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 404 {
+            throw PlayByPlayNotAvailable()
+        }
+        return try Self.sharedDecoder.decode(CachedPlays.self, from: data)
+    }
+
     static func getTeams() async throws -> [Team] {
         let urlString = "\(baseURL())/teams"
         let url = URL(string: urlString)!
@@ -495,15 +517,40 @@ struct NetworkHandler {
         )
     }
 
+    /// Developer "replay a game as live" target. When set, `connectWebSocketForLive`
+    /// dials the server's `/replay/:eventID` endpoint instead of the live `/ws`. The
+    /// caller must then send the selected `Game` shell as the first WebSocket message.
+    nonisolated(unsafe) static var replayTarget: (eventID: String, speed: Double)?
+
     static func connectWebSocketForLive(session: URLSession? = nil) -> URLSessionWebSocketTask {
         let (_, wsBase) = rootURL()
-        let urlPath = ProcessInfo.processInfo.environment["mock-live"] != nil ? "livedebug" : "ws"
-        let urlString = "\(wsBase)/v2025/\(urlPath)"
+        let urlString: String
+        if let replay = replayTarget, !replay.eventID.isEmpty {
+            let id = replay.eventID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? replay.eventID
+            urlString = "\(wsBase)/v2025/replay/\(id)?speed=\(replay.speed)"
+        } else {
+            let urlPath = ProcessInfo.processInfo.environment["mock-live"] != nil ? "livedebug" : "ws"
+            urlString = "\(wsBase)/v2025/\(urlPath)"
+        }
         let url = URL(string: urlString)!
         let request = authenticatedRequest(url: url)
         let task = (session ?? URLSession.shared).webSocketTask(with: request)
-        task.maximumMessageSize = 4 * 1024 * 1024 // 4 MB
+        // The initial `/ws` snapshot grew past the old 4 MB cap once World Cup
+        // plus a full live slate were in play (~4.76 MB observed), which made the
+        // socket die on its first frame and reconnect forever. 16 MB gives ample
+        // headroom; the server should still gzip/chunk this payload long-term.
+        task.maximumMessageSize = 16 * 1024 * 1024 // 16 MB
         return task
+    }
+
+    /// True when a WebSocket error is the fatal "incoming frame exceeds
+    /// `maximumMessageSize`" case (POSIX `EMSGSIZE` / "Message too long").
+    /// Reconnecting can't fix this — the server's next frame is the same size —
+    /// so the caller backs off to REST polling instead of hammering the socket.
+    static func isOversizedFrameError(_ error: Error) -> Bool {
+        let ns = error as NSError
+        if ns.domain == NSPOSIXErrorDomain && ns.code == 40 { return true } // EMSGSIZE
+        return ns.localizedDescription.localizedCaseInsensitiveContains("message too long")
     }
 
     static func subscribeToLiveActivityUpdate(token: String, eventID: String, homeTeam: String? = nil, awayTeam: String? = nil) async throws {
@@ -637,6 +684,24 @@ struct NetworkHandler {
         return try Self.sharedDecoder.decode(WorldCupSquad.self, from: data)
     }
 
+    /// Error thrown when ESPN has no box score for a World Cup match yet (pre-match).
+    /// Callers should treat this as an empty/unavailable state rather than a failure.
+    struct BoxScoreNotAvailable: Error {}
+
+    /// Fetches the per-match box score (team stats, lineups, event timeline) for a
+    /// World Cup fixture. The server fetches+caches ESPN's per-event summary on demand.
+    /// Throws `BoxScoreNotAvailable` on 404 — no box score yet for this event.
+    static func getWorldCupBoxScore(eventID: String) async throws -> WorldCupBoxScore {
+        let encoded = eventID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? eventID
+        let url = URL(string: "\(baseURL())/worldcup/boxscore/\(encoded)")!
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            if httpResponse.statusCode == 404 { throw BoxScoreNotAvailable() }
+        }
+        return try Self.sharedDecoder.decode(WorldCupBoxScore.self, from: data)
+    }
+
     static func getStandingsHistory(leagueID: Int, days: Int = 30) async throws -> [StandingsHistoryDay] {
         let urlString = "\(baseURL())/standings/\(leagueID)/history?days=\(days)"
         let url = URL(string: urlString)!
@@ -715,6 +780,23 @@ struct NetworkHandler {
         let eventIDs: [String]
         let sentNotifications: [String]
         let apnsConfigured: Bool
+        /// Event IDs with a per-activity *update* token registered server-side — the
+        /// path that drives live Lock Screen updates (distinct from push-to-start).
+        /// Defaulted so an older server without the field still decodes.
+        let activityUpdateEventIDs: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case registered, favorites, eventIDs, sentNotifications, apnsConfigured, activityUpdateEventIDs
+        }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            registered = try c.decode(Bool.self, forKey: .registered)
+            favorites = try c.decode([String].self, forKey: .favorites)
+            eventIDs = try c.decode([String].self, forKey: .eventIDs)
+            sentNotifications = try c.decode([String].self, forKey: .sentNotifications)
+            apnsConfigured = try c.decode(Bool.self, forKey: .apnsConfigured)
+            activityUpdateEventIDs = try c.decodeIfPresent([String].self, forKey: .activityUpdateEventIDs) ?? []
+        }
     }
 
     static func getDeviceRegistrationStatus(tokenPrefix: String) async throws -> DeviceRegistrationStatus {

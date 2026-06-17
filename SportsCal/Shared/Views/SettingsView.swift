@@ -95,6 +95,11 @@ struct DeveloperSettingsSection: View {
                         .environment(viewModel)
                         .environment(appStorage)
                 }
+                NavigationLink("Replay Testing") {
+                    DebugReplayTestView()
+                        .environment(viewModel)
+                        .environment(appStorage)
+                }
                 #endif
             }
         }

@@ -24,9 +24,6 @@ struct GameScoreView: View {
     
     var isLive: Bool
     var navigationDisabled: Bool = false
-    #if canImport(ActivityKit) && os(iOS)
-    private let activitiesEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
-    #endif
 
     private struct InfoSnippet: Identifiable, Equatable {
         let id: String
@@ -161,8 +158,8 @@ struct GameScoreView: View {
             }
             .contextMenu {
 #if canImport(ActivityKit) && os(iOS)
-                if isLive && activitiesEnabled {
-                    LiveActivityButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                if isLive {
+                    LiveActivityFollowMenu(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
                         .environment(viewModel)
                 }
                 if !isLive {

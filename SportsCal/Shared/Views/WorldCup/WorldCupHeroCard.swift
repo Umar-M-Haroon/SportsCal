@@ -75,11 +75,18 @@ private func wcCountdown(to date: Date?) -> String? {
     return "in \(mins)m"
 }
 
-private func wcKickoff(_ date: Date?) -> String {
-    guard let date else { return "TBD" }
+/// Cached once — a `DateFormatter` is expensive to allocate, and `wcKickoff` is
+/// called per fixture row on every hero render. Building a fresh one each call
+/// churned dozens of allocations + format-string parses per frame.
+private let wcKickoffFormatter: DateFormatter = {
     let f = DateFormatter()
     f.dateFormat = "h:mm a"
-    return f.string(from: date)
+    return f
+}()
+
+private func wcKickoff(_ date: Date?) -> String {
+    guard let date else { return "TBD" }
+    return wcKickoffFormatter.string(from: date)
 }
 
 // MARK: - Standings loader
@@ -275,7 +282,7 @@ struct WorldCupHeroCard: View {
                         .padding(.top, .appSpace3)
                 }
                 if let marquee = data.marquee {
-                    marqueeLink(marquee)
+                    withLiveFollow(marquee) { marqueeLink(marquee) }
                         .padding(.horizontal, .appSpace3)
                         .padding(.top, .appSpace2)
                 }
@@ -286,12 +293,14 @@ struct WorldCupHeroCard: View {
                         .padding(.top, .appSpace3)
                     VStack(spacing: 0) {
                         ForEach(Array(data.alsoLive.enumerated()), id: \.element.id) { index, gwt in
-                            Button {
-                                withAnimation(.snappy(duration: 0.3)) { featuredID = gwt.id }
-                            } label: {
-                                WCFixtureRow(gameWithTeams: gwt, showDivider: index < data.alsoLive.count - 1)
+                            withLiveFollow(gwt) {
+                                Button {
+                                    withAnimation(.snappy(duration: 0.3)) { featuredID = gwt.id }
+                                } label: {
+                                    WCFixtureRow(gameWithTeams: gwt, showDivider: index < data.alsoLive.count - 1)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, .appSpace3)
@@ -303,20 +312,22 @@ struct WorldCupHeroCard: View {
                         .padding(.top, .appSpace3)
                     VStack(spacing: 0) {
                         ForEach(Array(data.ticker.enumerated()), id: \.element.id) { index, gwt in
-                            Group {
-                                if let onSelectGame {
-                                    Button { onSelectGame(gwt) } label: {
-                                        WCFixtureRow(gameWithTeams: gwt, showDivider: index < data.ticker.count - 1)
-                                    }
-                                } else {
-                                    NavigationLink {
-                                        detailDestination(for: gwt)
-                                    } label: {
-                                        WCFixtureRow(gameWithTeams: gwt, showDivider: index < data.ticker.count - 1)
+                            withLiveFollow(gwt) {
+                                Group {
+                                    if let onSelectGame {
+                                        Button { onSelectGame(gwt) } label: {
+                                            WCFixtureRow(gameWithTeams: gwt, showDivider: index < data.ticker.count - 1)
+                                        }
+                                    } else {
+                                        NavigationLink {
+                                            detailDestination(for: gwt)
+                                        } label: {
+                                            WCFixtureRow(gameWithTeams: gwt, showDivider: index < data.ticker.count - 1)
+                                        }
                                     }
                                 }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, .appSpace3)
@@ -428,6 +439,61 @@ struct WorldCupHeroCard: View {
             homeTeam: gwt.homeTeam ?? Team(strTeam: gwt.game.strHomeTeam),
             awayTeam: gwt.awayTeam ?? Team(strTeam: gwt.game.strAwayTeam)
         )
+    }
+
+    /// Attaches a long-press "Follow" Live Activity menu to a live World Cup row.
+    /// The hero *claims* today's WC matches and removes them from the regular
+    /// sections (where `GameScoreView` provides this menu), so without this a live
+    /// WC match has no manual follow affordance anywhere. Only live matches get
+    /// the menu — upcoming matches are covered by the "Follow World Cup" toggle.
+    ///
+    /// The `contextMenuPreview` content shape pins the long-press highlight to the
+    /// individual match card's bounds — otherwise the lifted preview balloons out
+    /// to the surrounding hero surface instead of just the game.
+    @ViewBuilder
+    private func withLiveFollow(_ gwt: GameWithTeams, @ViewBuilder _ content: () -> some View) -> some View {
+        #if canImport(ActivityKit) && os(iOS)
+        if wcState(gwt.game) == .live {
+            content()
+                .contextMenu {
+                    LiveActivityFollowMenu(
+                        game: gwt.game,
+                        homeTeam: gwt.homeTeam ?? Team(strTeam: gwt.game.strHomeTeam),
+                        awayTeam: gwt.awayTeam ?? Team(strTeam: gwt.game.strAwayTeam)
+                    )
+                    .environment(viewModel)
+                } preview: {
+                    wcFollowPreview(gwt)
+                }
+        } else {
+            content()
+        }
+        #else
+        content()
+        #endif
+    }
+
+    /// Self-contained, opaque match card iOS lifts as the long-press preview.
+    /// Without an explicit preview the system lifts the row in place — but the
+    /// hero rows are transparent, so the lifted card came up empty while the rest
+    /// of the screen dimmed, reading as "the hero and everything behind vanished".
+    /// An opaque preview makes the long-press lift a clean card like any other.
+    private func wcFollowPreview(_ gwt: GameWithTeams) -> some View {
+        let g = gwt.game
+        return HStack(spacing: .appSpace3) {
+            WCBadge(url: g.strAwayTeamBadge, size: 30)
+            Text(wcCode(gwt.awayTeam, fallback: g.strAwayTeam))
+                .font(.appHeadline)
+            Text("\(Int(g.intAwayScore ?? "") ?? 0)–\(Int(g.intHomeScore ?? "") ?? 0)")
+                .font(.appHeadline)
+                .monospacedDigit()
+                .foregroundStyle(Color.appInk)
+            Text(wcCode(gwt.homeTeam, fallback: g.strHomeTeam))
+                .font(.appHeadline)
+            WCBadge(url: g.strHomeTeamBadge, size: 30)
+        }
+        .padding(.appSpace4)
+        .background(Color.wcSurface)
     }
 
     // MARK: Standings rail

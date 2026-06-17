@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SportsCalModel
+import TipKit
 
 #if os(iOS)
 struct CalendarPage: View {
@@ -33,10 +34,10 @@ struct CalendarPage: View {
             ifTrue: { $0.background(AmbientPalette.bg.ignoresSafeArea()).preferredColorScheme(.dark) },
             ifFalse: { $0 }
         )
-        .safeAreaInset(edge: .top, spacing: 0) {
-            SportChipFilterView(selectedFilter: $sportFilter, showSportPicker: $showSportPicker, browseSport: $browseSport)
-                .environment(storage)
-                .environment(viewModel)
+        .toolbar {
+            ToolbarItem {
+                sportFilterMenu
+            }
         }
         .sheet(isPresented: $showSportPicker) {
             SportPickerSheet()
@@ -60,6 +61,57 @@ struct CalendarPage: View {
                 spotlightDate = nil
             }
         }
+    }
+
+    private var sportFilterIcon: String {
+        switch sportFilter {
+        case .all:
+            return "line.3.horizontal.decrease.circle"
+        case .sport(let sport):
+            return sport.systemImage
+        }
+    }
+
+    @ViewBuilder
+    private var sportFilterMenu: some View {
+        let enabledSports = storage.enabledSports
+        let disabledSports = storage.orderedSports.filter { !enabledSports.contains($0) }
+        Menu {
+            Picker("Filter", selection: $sportFilter) {
+                Label("All Sports", systemImage: "square.grid.2x2")
+                    .tag(SportChipFilter.all)
+                ForEach(enabledSports, id: \.self) { sport in
+                    let liveCount = viewModel.liveGameCountsBySport[sport] ?? 0
+                    Label(liveCount > 0 ? "\(sport.capitalized) (\(liveCount) live)" : sport.capitalized,
+                          systemImage: sport.systemImage)
+                        .tag(SportChipFilter.sport(sport))
+                }
+            }
+            .pickerStyle(.inline)
+
+            if !disabledSports.isEmpty {
+                Section("Browse") {
+                    ForEach(disabledSports, id: \.self) { sport in
+                        Button {
+                            browseSport = sport
+                        } label: {
+                            Label(sport.capitalized, systemImage: sport.systemImage)
+                        }
+                    }
+                }
+            }
+
+            Divider()
+            Button {
+                showSportPicker = true
+            } label: {
+                Label("Add Sports", systemImage: "plus")
+            }
+        } label: {
+            Image(systemName: sportFilterIcon)
+                .symbolVariant(sportFilter == .all ? .none : .fill)
+        }
+        .popoverTip(SportFilterTip())
     }
 }
 #endif
