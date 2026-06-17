@@ -19,6 +19,7 @@
 		1D16B06B2FA6B19000490122 /* Shadow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B06A2FA6B19000490122 /* Shadow.swift */; };
 		1D16B06D2FA6B19000490122 /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B06C2FA6B19000490122 /* Motion.swift */; };
 		1D16B06F2FA6B19000490122 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B06E2FA6B19000490122 /* Haptics.swift */; };
+		1D16B0702FA6B19000490122 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B06E2FA6B19000490122 /* Haptics.swift */; };
 		1D16B0712FA6B19100490122 /* TeamLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B0702FA6B19100490122 /* TeamLogo.swift */; };
 		1D16B0742FA6B2C700490122 /* LiveTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B0732FA6B2C700490122 /* LiveTag.swift */; };
 		1D16B0762FA6B2C800490122 /* LeverageTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B0752FA6B2C800490122 /* LeverageTag.swift */; };
@@ -1635,6 +1636,7 @@
 				1D8352DB29067CBB00E60D7F /* UserDefaultStorage.swift in Sources */,
 				1D408099290BAB9000729FFE /* LiveSportActivityAttributes.swift in Sources */,
 				1DEA4E0129053AB900CD1D8F /* GameViewModel.swift in Sources */,
+				1D16B0702FA6B19000490122 /* Haptics.swift in Sources */,
 				AB12CD3400000002000000AA /* PushToStartRegistrationPlanner.swift in Sources */,
 				1D4080A0290C803400729FFE /* LiveAnimatedView.swift in Sources */,
 				1D619F5C2A286A01006E889E /* ModelError.swift in Sources */,

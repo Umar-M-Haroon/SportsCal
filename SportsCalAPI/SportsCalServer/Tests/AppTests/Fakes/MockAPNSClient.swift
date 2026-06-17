@@ -72,6 +72,7 @@ final class MockAPNSClient: APNSSending, @unchecked Sendable {
         appID: String,
         contentState: ContentState,
         isFinal: Bool,
+        alert: LiveActivityAlert?,
         timestamp: Int,
         environment: APNSEnvironment
     ) async throws -> APNSSendResult {
@@ -82,8 +83,8 @@ final class MockAPNSClient: APNSSending, @unchecked Sendable {
             appID: appID,
             contentState: contentState,
             attributes: nil,
-            alertTitle: nil,
-            alertBody: nil,
+            alertTitle: alert?.title,
+            alertBody: alert?.body,
             timestamp: timestamp,
             environment: environment
         )

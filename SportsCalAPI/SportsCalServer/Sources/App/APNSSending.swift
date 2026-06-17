@@ -3,6 +3,15 @@ import Vapor
 import APNSCore
 import VaporAPNS
 
+/// Alert content attached to a Live Activity update so iOS surfaces a banner +
+/// plays the notification sound/haptic — i.e. the phone vibrates on the lock
+/// screen when a goal is scored. A plain (non-alerting) update only redraws the
+/// activity silently.
+struct LiveActivityAlert: Sendable, Equatable {
+    let title: String
+    let body: String
+}
+
 /// Recorded metadata for a push send attempt. Tests use this to assert that the
 /// right payload went to the right device token without touching real APNS.
 struct APNSSendResult: Sendable {
@@ -71,6 +80,7 @@ protocol APNSSending: Sendable {
         appID: String,
         contentState: ContentState,
         isFinal: Bool,
+        alert: LiveActivityAlert?,
         timestamp: Int,
         environment: APNSEnvironment
     ) async throws -> APNSSendResult
@@ -109,6 +119,7 @@ final class VaporAPNSSending: APNSSending {
         appID: String,
         contentState: ContentState,
         isFinal: Bool,
+        alert: LiveActivityAlert?,
         timestamp: Int,
         environment: APNSEnvironment
     ) async throws -> APNSSendResult {
@@ -119,6 +130,9 @@ final class VaporAPNSSending: APNSSending {
             appID: appID,
             contentState: contentState,
             event: isFinal ? .end : .update,
+            alert: alert.map {
+                APNSAlertNotificationContent(title: .raw($0.title), body: .raw($0.body))
+            },
             timestamp: timestamp
         )
         do {

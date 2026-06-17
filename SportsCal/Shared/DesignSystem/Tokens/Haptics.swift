@@ -23,6 +23,9 @@ public enum AppHaptic {
     case error
     /// Game just went live. Rigid impact at 0.85 intensity.
     case liveAlert
+    /// A tracked game's score went up (goal / score). Success notification
+    /// followed by a heavy impact for a distinct "they scored" punch.
+    case goal
 
     public func fire() {
         #if canImport(UIKit) && !os(watchOS)
@@ -40,6 +43,10 @@ public enum AppHaptic {
         case .liveAlert:
             let g = UIImpactFeedbackGenerator(style: .rigid)
             g.impactOccurred(intensity: 0.85)
+        case .goal:
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            let g = UIImpactFeedbackGenerator(style: .heavy)
+            g.impactOccurred(intensity: 1.0)
         }
         #endif
     }

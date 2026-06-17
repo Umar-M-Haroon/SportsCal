@@ -207,12 +207,17 @@ struct APNSJob: AsyncScheduledJob {
             }
             await metrics?.recordDedup(hit: false)
             try? await kv.setJSON(stateKey, value: contentState, ttl: 60 * 60 * 12)
+            // If the score went up versus the last state we pushed, send an
+            // *alerting* update so the device vibrates / banners on the lock
+            // screen. Clock ticks and status changes stay silent.
+            let goalAlert = scoreAlert(event: event, homeScore: homeScore, awayScore: awayScore, previous: savedState)
             do {
                 _ = try await apns.sendLiveActivityUpdate(
                     deviceToken: tokenString,
                     appID: "com.KomodoLLC.SportsCal",
                     contentState: contentState,
                     isFinal: false,
+                    alert: goalAlert,
                     timestamp: now,
                     environment: environment
                 )
@@ -251,6 +256,7 @@ struct APNSJob: AsyncScheduledJob {
                     appID: "com.KomodoLLC.SportsCal",
                     contentState: contentState,
                     isFinal: true,
+                    alert: nil,
                     timestamp: now,
                     environment: environment
                 )
@@ -268,6 +274,35 @@ struct APNSJob: AsyncScheduledJob {
     }
 
     // MARK: - Helpers (internal for unit tests)
+
+    /// Builds an alert for an *alerting* Live Activity update when a team's score
+    /// has increased since the last state we pushed — i.e. a goal / score just
+    /// happened. Returns nil when there's no prior state (don't alert on the first
+    /// push after a follow/restart) or when neither score went up (clock ticks,
+    /// status flips, or a score correction downward).
+    static func scoreAlert(
+        event: Game,
+        homeScore: Int,
+        awayScore: Int,
+        previous: ContentState?
+    ) -> LiveActivityAlert? {
+        guard let previous else { return nil }
+        // Only low-frequency, high-value sports alert — basketball/baseball and
+        // the individual sports stay silent. Shared rule lives on SportType.
+        guard event.sportType?.alertsOnScoreChange == true else { return nil }
+        let homeScored = homeScore > previous.homeScore
+        let awayScored = awayScore > previous.awayScore
+        guard homeScored || awayScored else { return nil }
+
+        let title: String
+        switch event.sportType {
+        case .soccer: title = "⚽️ Goal!"
+        case .hockey: title = "🏒 Goal!"
+        default: title = "Score!"
+        }
+        let body = "\(event.strHomeTeam) \(homeScore) – \(awayScore) \(event.strAwayTeam)"
+        return LiveActivityAlert(title: title, body: body)
+    }
 
     /// Parses the Redis value into a registration. Supports both the JSON shape
     /// (new) and a legacy plain-eventID string that pre-dates the JSON migration.

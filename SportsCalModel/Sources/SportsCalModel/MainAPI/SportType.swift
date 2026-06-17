@@ -36,6 +36,20 @@ public enum SportType: String, CaseIterable {
             self = .soccer
         }
     }
+    /// Whether a score change in this sport is worth a haptic / alerting
+    /// notification. Limited to low-frequency, high-value scoring events so we
+    /// don't spam the user — a basket every 30s in basketball, or the continuous
+    /// scoring in individual sports (golf/tennis/F1), would be noise.
+    /// Shared by the iOS foreground haptic and the server's alerting Live
+    /// Activity push so the two never disagree.
+    public var alertsOnScoreChange: Bool {
+        switch self {
+        case .soccer, .hockey, .nfl:
+            return true
+        case .basketball, .mlb, .golf, .tennis, .racing:
+            return false
+        }
+    }
     public var capitalized: String {
         switch self {
         case .basketball:

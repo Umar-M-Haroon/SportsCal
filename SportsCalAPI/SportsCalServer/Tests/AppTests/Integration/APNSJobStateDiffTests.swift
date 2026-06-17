@@ -37,6 +37,10 @@ final class APNSJobStateDiffTests: XCTestCase {
         try await kv.setJSON(liveScoreKey, value: score, ttl: nil)
     }
 
+    private func seedLiveScore(_ score: LiveScore) async throws {
+        try await kv.setJSON(liveScoreKey, value: score, ttl: nil)
+    }
+
     private func runJob() async throws {
         try await APNSJob.runOnce(kv: kv, apns: apns, clock: clock, isDebug: isDebug, logger: logger)
     }
@@ -69,6 +73,53 @@ final class APNSJobStateDiffTests: XCTestCase {
         XCTAssertEqual(apns.recorded.count, 1)
         XCTAssertEqual(apns.recorded.first?.kind, .update)
         XCTAssertEqual(apns.recorded.first?.contentState?.homeScore, 10)
+    }
+
+    // MARK: - Goal alert (alerting push so the device vibrates on the lock screen)
+
+    func test_soccerGoal_attachesAlert() async throws {
+        // Soccer is in the alerting set: a goal should carry an alert title/body
+        // so iOS surfaces a banner + haptic, not a silent redraw.
+        try await registerDevice(eventID: "s1")
+        let game = TestGameFactory.make(idEvent: "s1", idLeague: "4328", strHomeTeam: "Arsenal", strAwayTeam: "Chelsea", intHomeScore: "1", intAwayScore: "0", strStatus: "in", strProgress: "23'")
+        try await seedLiveScore(TestGameFactory.liveScore(soccer: [game]))
+        try await kv.setJSON(eventStateKey("s1"), value: ContentState(homeScore: 0, awayScore: 0, status: "in", progress: "22'"), ttl: nil)
+
+        try await runJob()
+
+        XCTAssertEqual(apns.recorded.count, 1)
+        XCTAssertEqual(apns.recorded.first?.kind, .update)
+        XCTAssertEqual(apns.recorded.first?.alertTitle, "⚽️ Goal!")
+        XCTAssertEqual(apns.recorded.first?.alertBody, "Arsenal 1 – 0 Chelsea")
+    }
+
+    func test_basketballScore_doesNotAttachAlert() async throws {
+        // Basketball scores too often to alert on — the update still sends (so the
+        // activity redraws) but it must be silent (no alert payload).
+        try await registerDevice(eventID: "e1")
+        let game = TestGameFactory.make(idEvent: "e1", strHomeTeam: "A", strAwayTeam: "B", intHomeScore: "10", intAwayScore: "3", strStatus: "in", strProgress: "2Q")
+        try await seedLiveScore([game])
+        try await kv.setJSON(eventStateKey("e1"), value: ContentState(homeScore: 8, awayScore: 3, status: "in", progress: "2Q"), ttl: nil)
+
+        try await runJob()
+
+        XCTAssertEqual(apns.recorded.count, 1)
+        XCTAssertEqual(apns.recorded.first?.kind, .update)
+        XCTAssertNil(apns.recorded.first?.alertTitle, "Basketball score change must stay silent")
+    }
+
+    func test_soccerFirstPush_noAlert_whenNoPriorState() async throws {
+        // No cached prior state (fresh follow / server restart): we still push the
+        // current state, but with no baseline we can't know a goal just happened —
+        // so it must be a silent update, not a phantom vibration.
+        try await registerDevice(eventID: "s1")
+        let game = TestGameFactory.make(idEvent: "s1", idLeague: "4328", strHomeTeam: "Arsenal", strAwayTeam: "Chelsea", intHomeScore: "1", intAwayScore: "0", strStatus: "in", strProgress: "23'")
+        try await seedLiveScore(TestGameFactory.liveScore(soccer: [game]))
+
+        try await runJob()
+
+        XCTAssertEqual(apns.recorded.count, 1)
+        XCTAssertNil(apns.recorded.first?.alertTitle, "First push with no baseline must not alert")
     }
 
     func test_sendsUpdate_onStatusChange() async throws {

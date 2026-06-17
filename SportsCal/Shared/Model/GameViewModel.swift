@@ -3061,14 +3061,34 @@ extension GameViewModel {
     func updateLiveActivities() async throws {
         let lookup = LiveActivityMatcher.buildLookup(from: allLiveEvents)
         for activity in Activity<LiveSportActivityAttributes>.activities {
+            let previousState = activity.contentState
             if let newState = LiveActivityMatcher.resolveUpdate(
                 eventID: activity.attributes.eventID,
                 homeTeam: activity.attributes.homeTeam,
                 awayTeam: activity.attributes.awayTeam,
-                currentState: activity.contentState,
+                currentState: previousState,
                 in: lookup
             ) {
                 await activity.update(using: newState)
+                // Foreground-only: when the app is open the WebSocket drives these
+                // updates, so a score going up means a goal/score just happened —
+                // give the device a haptic. (On the lock screen the server's
+                // alerting APNS push handles the vibration instead.) Gated to the
+                // same low-frequency sports as the server so basketball etc. don't
+                // buzz on every basket.
+                let scoreWentUp = newState.homeScore > previousState.homeScore
+                    || newState.awayScore > previousState.awayScore
+                let eventID = activity.attributes.eventID
+                let home = activity.attributes.homeTeam.lowercased()
+                let away = activity.attributes.awayTeam.lowercased()
+                let sport = allLiveEvents.first { game in
+                    if let id = game.idEvent, id == eventID { return true }
+                    return game.strHomeTeam.lowercased() == home
+                        && game.strAwayTeam.lowercased() == away
+                }?.sportType
+                if scoreWentUp, sport?.alertsOnScoreChange == true {
+                    AppHaptic.goal.fire()
+                }
             }
         }
     }
