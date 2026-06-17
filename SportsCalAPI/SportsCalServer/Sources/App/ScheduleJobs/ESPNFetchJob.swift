@@ -616,27 +616,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
         let newlyStartedIDs = Set(newlyStarted.compactMap(\.idEvent))
 
-        // Load teams once and build lookup tables for push-to-start abbreviations.
-        // Three tables are needed: ID→short (primary), ID→name (for cross-sport
-        // validation), and name→short (fallback when the ID is wrong).
-        let teamsKey = RedisEndpoint.teams.getValue(isDebug: isDebug).rawValue
-        var teamShortByID: [String: String] = [:]
-        var teamNameByID: [String: String] = [:]
-        var teamShortByName: [String: String] = [:]
-        if let teams = try? await kv.getJSON(teamsKey, as: [Team].self) {
-            for team in teams {
-                guard let id = team.idTeam else { continue }
-                if let name = team.strTeam {
-                    teamNameByID[id] = name
-                    if let short = team.strTeamShort, !short.isEmpty {
-                        teamShortByID[id] = short
-                        teamShortByName[name] = short
-                    }
-                } else if let short = team.strTeamShort, !short.isEmpty {
-                    teamShortByID[id] = short
-                }
-            }
-        }
+        let (teamShortByID, teamNameByID, teamShortByName) = await loadTeamAbbreviationTables(kv: kv, isDebug: isDebug)
 
         for spec in envPrefixes {
             let installKeys = (try? await kv.scanKeys(matching: "\(spec.prefix)*")) ?? []
@@ -676,6 +656,90 @@ struct ESPNFetchJob: AsyncScheduledJob {
                     )
                 }
             }
+        }
+    }
+
+    /// Loads the cached teams payload and builds the three lookup tables
+    /// push-to-start needs for compact-island abbreviations: ID→short (primary),
+    /// ID→name (cross-sport collision validation), and name→short (fallback when
+    /// the ID is wrong). Shared by the transition path and the already-live path.
+    static func loadTeamAbbreviationTables(
+        kv: KeyValueStore,
+        isDebug: Bool
+    ) async -> (shortByID: [String: String], nameByID: [String: String], shortByName: [String: String]) {
+        let teamsKey = RedisEndpoint.teams.getValue(isDebug: isDebug).rawValue
+        var teamShortByID: [String: String] = [:]
+        var teamNameByID: [String: String] = [:]
+        var teamShortByName: [String: String] = [:]
+        if let teams = try? await kv.getJSON(teamsKey, as: [Team].self) {
+            for team in teams {
+                guard let id = team.idTeam else { continue }
+                if let name = team.strTeam {
+                    teamNameByID[id] = name
+                    if let short = team.strTeamShort, !short.isEmpty {
+                        teamShortByID[id] = short
+                        teamShortByName[name] = short
+                    }
+                } else if let short = team.strTeamShort, !short.isEmpty {
+                    teamShortByID[id] = short
+                }
+            }
+        }
+        return (teamShortByID, teamNameByID, teamShortByName)
+    }
+
+    /// Fires push-to-start for games that are ALREADY live when a single install
+    /// registers. The scheduled path only sends on the not-`in`→`in` transition,
+    /// so a user who taps "Follow" (or "Follow World Cup") mid-match would get no
+    /// Live Activity until the next kickoff. Called inline from the register route.
+    ///
+    /// Matches the install's favorites / auto-follow event IDs against the live
+    /// scoreboard and sends a start for each. The shared
+    /// `SentPushToStart-{token}-{eventID}` claim inside `sendPushToStartNotification`
+    /// dedupes against the transition path, so this never double-fires.
+    static func sendStartsForAlreadyLiveGames(
+        install: PushToStartInstall,
+        liveGames: [Game],
+        environment: APNSEnvironment,
+        kv: KeyValueStore,
+        apns: APNSSending,
+        clock: AppClock,
+        isDebug: Bool,
+        logger: Logger,
+        metrics: PushMetrics? = nil
+    ) async {
+        let favoritesSet = Set(install.favorites)
+        let eventIDsSet = Set(install.eventIDs)
+        guard !favoritesSet.isEmpty || !eventIDsSet.isEmpty else { return }
+
+        let liveNow = liveGames.filter { $0.strStatus == "in" && !$0.hasDoneStatus }
+        guard !liveNow.isEmpty else { return }
+
+        let (teamShortByID, teamNameByID, teamShortByName) = await loadTeamAbbreviationTables(kv: kv, isDebug: isDebug)
+
+        var matchedEventIDs = Set<String>()
+        for game in liveNow {
+            guard let eventID = game.idEvent else { continue }
+            let isFavoriteMatch = favoritesSet.contains(game.strHomeTeam) || favoritesSet.contains(game.strAwayTeam)
+            let isEventIDMatch = eventIDsSet.contains(eventID)
+            guard isFavoriteMatch || isEventIDMatch else { continue }
+            guard matchedEventIDs.insert(eventID).inserted else { continue }
+
+            let via = isFavoriteMatch ? (isEventIDMatch ? "favorites+eventID" : "favorites") : "eventID"
+            logger.info("Already-live match \(game.strHomeTeam) vs \(game.strAwayTeam) → install \(install.installID.prefix(8))... [\(environment.rawValue)] (via \(via))")
+            await sendPushToStartNotification(
+                game: game,
+                token: install.token,
+                environment: environment,
+                kv: kv,
+                apns: apns,
+                clock: clock,
+                logger: logger,
+                metrics: metrics,
+                teamShortByID: teamShortByID,
+                teamNameByID: teamNameByID,
+                teamShortByName: teamShortByName
+            )
         }
     }
 

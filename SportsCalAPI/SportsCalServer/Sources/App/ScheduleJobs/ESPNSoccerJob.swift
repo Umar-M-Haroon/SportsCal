@@ -44,13 +44,25 @@ struct ESPNSoccerJob: AsyncScheduledJob {
             for league in leaguesToFetch {
                 group.addTask {
                     do {
-                        // World Cup: query the full season (`?dates=<year>`) so the
-                        // whole upcoming fixture list lands in the schedule, not just
-                        // ESPN's imminent slate. Other leagues use the default window.
-                        let dates: Int? = league == .FIFA_World_Cup
-                            ? Calendar.current.component(.year, from: Date())
-                            : nil
-                        return (league, try await Integrator.getESPNScoreboard(for: league, context.application.client, dates: dates))
+                        if league == .FIFA_World_Cup {
+                            // The season query (`?dates=<year>`) carries the full fixture
+                            // list for the hub/hero, but ESPN serves its live clock and the
+                            // FT transition more slowly on that endpoint than on the default
+                            // (today) scoreboard — so a WC match would lag and linger at the
+                            // last in-play minute after it ended. Fetch both concurrently and
+                            // prefer today's fresher copy for any in-progress fixture, while
+                            // keeping the season board's full fixture list.
+                            let year = Calendar.current.component(.year, from: Date())
+                            async let seasonReq = Integrator.getESPNScoreboard(for: league, context.application.client, dates: year)
+                            async let todayReq = Integrator.getESPNScoreboard(for: league, context.application.client, dates: nil)
+                            var season = try await seasonReq
+                            if let today = try? await todayReq {
+                                season.events = Self.mergeWorldCupEvents(season: season.events, today: today.events)
+                            }
+                            return (league, season)
+                        }
+                        // Other leagues use ESPN's default (imminent) window.
+                        return (league, try await Integrator.getESPNScoreboard(for: league, context.application.client, dates: nil))
                     } catch {
                         Self.logger.debug("Failed to fetch soccer scoreboard", metadata: [
                             "league": "\(league)",
@@ -70,6 +82,27 @@ struct ESPNSoccerJob: AsyncScheduledJob {
 
         try await context.application.redis.setex(ttlKey, toJSON: espnInfo, expirationInSeconds: 60 * 15)
         try await context.application.redis.set(latestKey, toJSON: espnInfo)
+    }
+
+    /// Merges the World Cup season-query events with the fresher "today" events,
+    /// preferring today's copy for any fixture present in both (its live clock, score
+    /// and FT transition are more current). Season-only events are kept in place so
+    /// the full fixture list survives; today-only events are appended. Order-preserving
+    /// and pure, so it's unit-testable without booting the job. `internal` for tests.
+    static func mergeWorldCupEvents(season: [Event], today: [Event]) -> [Event] {
+        guard !today.isEmpty else { return season }
+        let todayByID = Dictionary(today.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+        var seen = Set<String>()
+        var merged: [Event] = []
+        merged.reserveCapacity(season.count + today.count)
+        for event in season {
+            seen.insert(event.id)
+            merged.append(todayByID[event.id] ?? event)
+        }
+        for event in today where !seen.contains(event.id) {
+            merged.append(event)
+        }
+        return merged
     }
 
     /// Returns soccer leagues that should be fetched this tick. Driven by

@@ -561,6 +561,28 @@ class ESPNNetworking {
         }
     }
 
+    // MARK: - Soccer Summary (per-event box score: team stats, lineups, key events)
+
+    /// Fetches ESPN's per-event soccer summary, decoding only the box-score slice
+    /// (`boxscore.teams`, `rosters`, `keyEvents`) consumed by `WorldCupBoxScoreBuilder`.
+    static func getSoccerSummary(req: some Client, league: Leagues, eventId: String) async throws -> SoccerSummaryResponse {
+        guard let espnSlug = league.espnSlug else { throw NetworkError.invalidLeague }
+        let sport = league.sport
+        let urlString = "https://site.api.espn.com/apis/site/v2/sports/\(sport)/\(espnSlug)/summary?event=\(eventId)"
+        do {
+            let response = try await performGet(req, URI(string: urlString))
+            return try response.content.decode(SoccerSummaryResponse.self)
+        } catch {
+            logger.error("ESPN soccer summary fetch failed", metadata: [
+                "league": "\(league)",
+                "eventId": "\(eventId)",
+                "url": "\(urlString)",
+                "error": "\(error)"
+            ])
+            throw error
+        }
+    }
+
     // MARK: - Golf Summary (per-event detail with hole-by-hole data)
 
     /// Fetches detailed golf tournament summary including course info, hole-by-hole scores, and round stats.

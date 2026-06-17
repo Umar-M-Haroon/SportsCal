@@ -44,12 +44,20 @@ curl -H "X-Admin-Key: $ADMIN_API_KEY_HASH" \
 
 **Assert:** response JSON shows `notified >= 1` with your token in the `tokens` array; Lock Screen activity appears.
 
-### 4. Late registration
+### 4. Follow an already-live game (already-live start on register)
+
+This exercises `ESPNFetchJob.sendStartsForAlreadyLiveGames`, fired inline from
+`POST /pushToStart/register`. Push-to-start is otherwise transition-only, so this
+is the path that covers a user who follows (or taps "Follow World Cup") *after*
+kickoff.
 
 1. Before starting a fake game, make sure you have no favorites/auto-follows set.
-2. Transition a fake game to "in" (scenario 1, steps 2–4) — push-to-start should fire for anyone else following, but you shouldn't receive one.
-3. Now add the team to your favorites.
-4. **Assert:** no push-to-start fires retroactively (correct dedup behavior — game already in progress when you started following). The scheduled `APNSJob` will still deliver updates the next time the score changes, because the liveActivity subscription is event-scoped, not push-to-start-scoped.
+2. Transition a fake game to "in" (scenario 1, steps 2–4) — you shouldn't receive a push yet (you're not following).
+3. Now add the team to your favorites (or auto-follow the event / tap "Follow World Cup" for a live WC match).
+4. **Assert:** a push-to-start fires within a few seconds of the registration POST — the activity appears even though the game was already live. (The client re-registers on favorites/auto-follow change, which is what triggers the inline check.)
+5. Re-register again (e.g. background → foreground) **without** the score changing. **Assert:** no *second* activity — the shared `SentPushToStart-{token}-{eventID}` claim dedupes the already-live path against itself and against the scheduled transition path.
+
+> Regression note: prior to this change the assertion was the inverse ("no push fires retroactively"). The behavior intentionally flipped — see `ESPNFetchJobAlreadyLiveStartTests`.
 
 ### 5. Duplicate favorites (idempotency)
 

@@ -608,6 +608,13 @@ struct AdminController: RouteCollection {
         let eventIDs: [String]
         let sentNotifications: [String]
         let apnsConfigured: Bool
+        /// Event IDs that currently have a per-activity *update* token registered
+        /// (`debug-APNS-{token}` / `APNS-{token}`). This is a different keyspace from
+        /// the push-to-start install above: push-to-start *starts* an activity, but
+        /// these tokens are what `APNSJob` pushes live *updates* to. The client
+        /// checklist cross-checks its running activities' event IDs against this so a
+        /// missing update-token registration (frozen Lock Screen) is actually visible.
+        let activityUpdateEventIDs: [String]
     }
 
     func pushToStartDeviceStatus(req: Request) async throws -> DeviceStatusResponse {
@@ -620,6 +627,19 @@ struct AdminController: RouteCollection {
         let keyPattern = isDebug ? "debug-PushToStartByInstall-*" : "PushToStartByInstall-*"
 
         let apnsConfigured = req.application.storage[APNSConfiguredKey.self] ?? false
+
+        // Per-activity update-token registrations — independent of the push-to-start
+        // install, so collect them regardless of whether the install below matches.
+        let apnsKeyPattern = isDebug ? "debug-APNS-*" : "APNS-*"
+        let apnsKeys = (try? await req.application.redis.send(command: "keys", with: [apnsKeyPattern.convertedToRESPValue()])
+            .array?
+            .compactMap({ $0.string })) ?? []
+        var activityUpdateEventIDs: [String] = []
+        for key in apnsKeys {
+            if let reg = try? await req.kv.getJSON(key, as: APNSRegistration.self) {
+                activityUpdateEventIDs.append(reg.eventID)
+            }
+        }
 
         let allInstallKeys = (try? await req.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
             .array?
@@ -636,7 +656,7 @@ struct AdminController: RouteCollection {
         }
 
         guard let install = matched else {
-            return DeviceStatusResponse(registered: false, favorites: [], eventIDs: [], sentNotifications: [], apnsConfigured: apnsConfigured)
+            return DeviceStatusResponse(registered: false, favorites: [], eventIDs: [], sentNotifications: [], apnsConfigured: apnsConfigured, activityUpdateEventIDs: activityUpdateEventIDs)
         }
 
         let sentPattern = "\(sentKeyPrefix)\(install.token)-*"
@@ -645,7 +665,7 @@ struct AdminController: RouteCollection {
             .compactMap({ $0.string })
             .map({ String($0.dropFirst("\(sentKeyPrefix)\(install.token)-".count)) })) ?? []
 
-        return DeviceStatusResponse(registered: true, favorites: install.favorites, eventIDs: install.eventIDs, sentNotifications: sentKeys, apnsConfigured: apnsConfigured)
+        return DeviceStatusResponse(registered: true, favorites: install.favorites, eventIDs: install.eventIDs, sentNotifications: sentKeys, apnsConfigured: apnsConfigured, activityUpdateEventIDs: activityUpdateEventIDs)
     }
 
     // MARK: - Write Endpoints

@@ -46,6 +46,9 @@ func routes(_ app: Application) throws {
         app.webSocket("ws", "logs") { req, ws async in
             await LogBroadcaster.shared.addSubscriber(ws)
 
+            // `ws.onText`'s setter asserts it runs on the connection's event loop, but this async
+            // closure executes in a detached Task off the loop — register on `ws.eventLoop`.
+            ws.eventLoop.execute {
             ws.onText { ws, text in
                 // Parse filter commands from client
                 guard let data = text.data(using: .utf8),
@@ -72,6 +75,7 @@ func routes(_ app: Application) throws {
                 Task {
                     await LogBroadcaster.shared.updateSubscriberFilter(ws, filter: filter)
                 }
+            }
             }
 
             // Keep alive until disconnect
@@ -178,67 +182,14 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         guard let eventID = req.parameters.get("eventID"), !eventID.isEmpty else {
             throw Abort(.badRequest)
         }
-        let isDebug = req.application.environment == .development
-        let key = RedisEndpoint.ESPN.playByPlay(eventID).getValue(isDebug: isDebug)
-
-        // Tier 1: Redis hot cache.
-        if let cached = try await req.kv.getJSON(key.rawValue, as: CachedPlays.self) {
-            return encodeResult(res: cached)
-        }
-
-        // Tier 2: SQLite archive (finalized games).
-        if let archive = req.application.pbpArchive,
-           let archived = try? await archive.lookup(eventID: eventID) {
-            return encodeResult(res: archived)
-        }
-
-        // Cache miss: try to resolve TSDB → ESPN via the enrichment map, then optionally
-        // fall back to client-supplied sport/league.
-        let mapKey = RedisEndpoint.ESPN.espnEventMap.getValue(isDebug: isDebug)
-        let eventMap: [String: ESPNEventMapping] = (try? await req.kv.getJSON(
-            mapKey.rawValue, as: [String: ESPNEventMapping].self
-        )) ?? [:]
-
-        let resolvedESPNID: String
-        let resolvedSport: String
-        let resolvedLeague: String
-        if let mapping = eventMap[eventID] {
-            resolvedESPNID = mapping.espnEventID
-            resolvedSport = mapping.sport
-            resolvedLeague = mapping.league
-        } else if let sport = try? req.query.get(String.self, at: "sport"),
-                  let league = try? req.query.get(String.self, at: "league"),
-                  !sport.isEmpty, !league.isEmpty {
-            // No mapping yet — the client-supplied eventID has to already be an ESPN ID
-            // (scheduled enrichment hasn't run for this game). Try ESPN directly.
-            resolvedESPNID = eventID
-            resolvedSport = sport
-            resolvedLeague = league
-        } else {
+        let sport = try? req.query.get(String.self, at: "sport")
+        let league = try? req.query.get(String.self, at: "league")
+        guard let cached = try await PlayResolver.resolve(
+            req: req, eventID: eventID, sport: sport, league: league
+        ) else {
             throw Abort(.notFound)
         }
-
-        do {
-            let summary = try await ESPNNetworking.getPlayByPlaySummary(
-                req: req.client, sport: resolvedSport, league: resolvedLeague, eventId: resolvedESPNID
-            )
-            let plays = summary.plays ?? []
-            guard !plays.isEmpty else { throw Abort(.notFound) }
-            let payload = CachedPlays(
-                eventID: eventID,
-                lastPlayId: plays.last?.id ?? "",
-                plays: plays,
-                isFinal: false,
-                fetchedAt: Date()
-            )
-            // Write under the client-facing key so subsequent requests hit cache.
-            try? await req.application.redis.set(key, toJSON: payload)
-            req.logger.info("PBP on-demand fetch succeeded for \(eventID) → ESPN \(resolvedESPNID) (\(plays.count) plays)")
-            return encodeResult(res: payload)
-        } catch {
-            req.logger.warning("PBP on-demand fetch failed for \(eventID): \(error)")
-            throw Abort(.notFound)
-        }
+        return encodeResult(res: cached)
     }
 
     //MARK: - Live Websocket
@@ -255,15 +206,24 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 )
 
                 if hasGames {
-                    let result = try await req.application.redis.get(
-                        RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug),
-                        asJSON: LiveScore.self
-                    )
-                    let stringResult = encodeResult(res: result)
+                    // Serve the cached JSON string verbatim instead of decoding to
+                    // LiveScore and re-encoding it — same waste the /schedules fix
+                    // removed, but here it ran every 5s per connected client. The
+                    // stored bytes are identical to what encodeResult would produce.
+                    let key = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug).rawValue
+                    let stringResult = (try await req.kv.getString(key)) ?? "{}"
 
-                    // Only send if data actually changed (avoids redundant 1MB+ pushes)
+                    // Only send if data actually changed (avoids redundant multi-MB pushes)
                     let currentHash = stringResult.hashValue
                     if currentHash != lastSentHash {
+                        // Observability: the live frame outgrew the old 4 MB client
+                        // cap (~4.76 MB seen). WebSocket frames bypass Caddy's gzip,
+                        // so they ship uncompressed — log the size to track the
+                        // culprit and confirm it stays within the client's 16 MB cap.
+                        let bytes = stringResult.utf8.count
+                        if bytes > 3_000_000 {
+                            req.logger.warning("Large live WS frame", metadata: ["bytes": "\(bytes)"])
+                        }
                         try await ws.send(stringResult)
                         lastSentHash = currentHash
                     }
@@ -316,6 +276,80 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                     req.logger.error("Debug WebSocket live score push failed", metadata: ["error": "\(error)"])
                 }
             }
+        }
+
+        //MARK: - replay (developer "replay a game as live")
+        // The client connects, sends the selected `Game` shell as the first text frame,
+        // and the server streams reconstructed `LiveScore` frames from that game's recorded
+        // play-by-play, paced by `?speed=` (frames-per-second, default 8). Dev-only.
+        // maxFrameSize is bumped well past the 16 KB default: the client's first frame carries
+        // the full play-by-play array (often 100 KB–1 MB), which the default would reject.
+        routes.webSocket("replay", ":eventID", maxFrameSize: .init(integerLiteral: 8 * 1024 * 1024)) { req, ws async in
+            let eventID = req.parameters.get("eventID") ?? ""
+            let speed = min(max((try? req.query.get(Double.self, at: "speed")) ?? 8.0, 0.1), 5000)
+
+            // Await the game shell (first inbound text frame), with a timeout fallback so a
+            // silent client doesn't leak the connection. The async `webSocket` closure runs in a
+            // detached Task (off the connection's event loop), but `ws.onText`'s setter is guarded
+            // by `preconditionInEventLoop()` — so we must register it on `ws.eventLoop`. Registering
+            // onText + scheduleTask on the same loop also keeps the `fired` guard race-free.
+            final class Once { var fired = false }
+            let once = Once()
+            let shellText: String? = await withCheckedContinuation { (cont: CheckedContinuation<String?, Never>) in
+                ws.eventLoop.execute {
+                    ws.onText { _, text in
+                        guard !once.fired else { return }
+                        once.fired = true
+                        cont.resume(returning: text)
+                    }
+                    ws.eventLoop.scheduleTask(in: .seconds(15)) {
+                        guard !once.fired else { return }
+                        once.fired = true
+                        cont.resume(returning: nil)
+                    }
+                }
+            }
+
+            // The handshake carries the shell and (optionally) client-fetched plays. Fall back
+            // to a bare `Game` for older clients.
+            let handshake: ReplayHandshake?
+            let shell: Game?
+            if let shellText, let shellData = shellText.data(using: .utf8) {
+                handshake = try? JSONDecoder().decode(ReplayHandshake.self, from: shellData)
+                shell = handshake?.shell ?? (try? JSONDecoder().decode(Game.self, from: shellData))
+            } else {
+                handshake = nil
+                shell = nil
+            }
+            guard let shell, let slot = ReplayDriver.slot(for: shell) else {
+                try? await ws.send(#"{"error":"replay: missing or unsupported game shell"}"#)
+                try? await ws.close()
+                return
+            }
+
+            // Prefer client-supplied plays; otherwise resolve them server-side.
+            var plays = handshake?.plays ?? []
+            if plays.isEmpty {
+                let espn = ReplayDriver.espnSportLeague(for: shell)
+                plays = (try? await PlayResolver.resolve(
+                    req: req, eventID: eventID, sport: espn?.sport, league: espn?.league
+                ))?.plays ?? []
+            }
+            guard !plays.isEmpty else {
+                try? await ws.send(#"{"error":"replay: no play-by-play available for this game"}"#)
+                try? await ws.close()
+                return
+            }
+
+            req.logger.info("Replay starting for \(eventID): \(plays.count) plays at \(speed)x")
+            let frames = ReplayDriver.snapshots(shell: shell, plays: plays, slot: slot)
+            let delayNanos = UInt64((1_000_000_000.0 / speed).rounded())
+            for frame in frames {
+                if ws.isClosed { break }
+                try? await ws.send(encodeResult(res: frame))
+                try? await Task.sleep(nanoseconds: delayNanos)
+            }
+            req.logger.info("Replay finished for \(eventID)")
         }
 
         //MARK: - live-debug
@@ -607,6 +641,28 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return encodeResult(res: squad)
     }
 
+    // Per-match box score (team stats, lineups, goal/card/sub timeline) — fetched
+    // lazily from ESPN's per-event summary and cached briefly so a live match stays
+    // fresh while finals aren't re-fetched on every detail open. Returns 404 when ESPN
+    // has no box score yet (pre-match), which the client treats as "not available".
+    routes.get("worldcup", "boxscore", ":eventID") { req async throws -> String in
+        guard let eventID = req.parameters.get("eventID"), !eventID.isEmpty else {
+            throw Abort(.badRequest)
+        }
+        let isDebug = req.application.environment == .development
+        let cacheKey: RedisKey = isDebug ? "debug-World Cup BoxScore-\(eventID)" : "World Cup BoxScore-\(eventID)"
+        if let cached = try? await req.application.redis.get(cacheKey, asJSON: WorldCupBoxScore.self) {
+            return encodeResult(res: cached)
+        }
+        let summary = try await ESPNNetworking.getSoccerSummary(req: req.client, league: .FIFA_World_Cup, eventId: eventID)
+        guard let box = WorldCupBoxScoreBuilder.build(from: summary, eventID: eventID) else {
+            throw Abort(.notFound)
+        }
+        // 90s TTL: short enough to track a live match, long enough to absorb repeat opens.
+        try? await req.application.redis.setex(cacheKey, toJSON: box, expirationInSeconds: 90).get()
+        return encodeResult(res: box)
+    }
+
     //MARK: - Standings
     routes.get("standings", ":leagueID") { req async throws -> String in
         guard let leagueIDString = req.parameters.get("leagueID"),
@@ -795,6 +851,30 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         try await req.kv.setString(indexKey, value: installID, ttl: 60 * 60 * 24)
 
         req.logger.info("Registered push-to-start install \(installID.prefix(8))... [\(environment.rawValue)] favorites=\(registration.favorites.count) eventIDs=\(install.eventIDs.count)")
+
+        // Push-to-start is otherwise transition-only: the scheduled job fires when a
+        // game flips to "in". A user who follows a match that is ALREADY live (or
+        // taps "Follow World Cup" mid-match) would get nothing until the next
+        // kickoff. Kick off Live Activities for any followed games that are live
+        // right now. Deduped against the transition path via the shared
+        // SentPushToStart-{token}-{eventID} claim, so this never double-fires.
+        if req.application.storage[APNSConfiguredKey.self] == true {
+            let serverIsDebug = req.application.environment == .development
+            let liveKey = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: serverIsDebug).rawValue
+            if let liveScore = try? await req.kv.getJSON(liveKey, as: LiveScore.self) {
+                await ESPNFetchJob.sendStartsForAlreadyLiveGames(
+                    install: install,
+                    liveGames: ESPNFetchJob.collectAllGamesFromLiveScore(liveScore),
+                    environment: environment,
+                    kv: req.kv,
+                    apns: req.application.apnsSending,
+                    clock: req.application.appClock,
+                    isDebug: serverIsDebug,
+                    logger: req.logger,
+                    metrics: req.application.pushMetrics
+                )
+            }
+        }
         return .ok
     }
 
