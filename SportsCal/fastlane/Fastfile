@@ -41,6 +41,7 @@ platform :ios do
     build_app(
       scheme: APP_SCHEME,
       export_method: "app-store",
+      destination: "generic/platform=iOS",  # scheme also supports xrOS; pin to iPhone
       output_directory: "./build",
       clean: true
     )
@@ -55,6 +56,7 @@ platform :ios do
     build_app(
       scheme: APP_SCHEME,
       export_method: "app-store",
+      destination: "generic/platform=iOS",  # scheme also supports xrOS; pin to iPhone
       output_directory: "./build",
       clean: true
     )
