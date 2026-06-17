@@ -101,9 +101,16 @@ struct SportsView: View {
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 1) {
                 if let date = DateFormatters.isoFormatter.date(from: gameDate) {
-                    Text(date.formatted(.dateTime.hour().minute()))
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
+                    HStack(spacing: 4) {
+                        Text(date.formatted(.dateTime.hour().minute()))
+                        if date > Date() {
+                            Text("·")
+                            Text("in \(date, style: .relative)")
+                        }
+                    }
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
                 }
                 HStack(spacing: 3) {
                     if let data = homeImageData, let image = widgetImage(from: data) {

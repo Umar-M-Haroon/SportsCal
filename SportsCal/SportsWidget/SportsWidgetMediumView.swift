@@ -117,6 +117,15 @@ struct SportsWidgetMediumView: View {
 
     @ViewBuilder
     private func gameCellView(game: Game) -> some View {
+        if let id = game.idEvent, let url = URL(string: "sportscal://game/\(id)") {
+            Link(destination: url) { cellContent(game: game) }
+        } else {
+            cellContent(game: game)
+        }
+    }
+
+    @ViewBuilder
+    private func cellContent(game: Game) -> some View {
         if game.isRace {
             WidgetRaceCell(game: game, compact: true)
         } else if game.isIndividualSport {
@@ -153,15 +162,15 @@ struct CompactGameCell: View {
             VStack(alignment: .leading, spacing: 2) {
                 // Teams row
                 HStack(spacing: 4) {
-                    compactTeamView(teamID: game.idAwayTeam, teamName: game.strAwayTeam, score: game.intAwayScore, seed: game.awaySeed, record: game.awayRecord)
+                    compactTeamView(teamID: game.idAwayTeam, teamName: game.strAwayTeam, score: game.intAwayScore, seed: game.awaySeed)
                     Text("@")
                         .font(.system(size: 8, design: .monospaced))
                         .foregroundStyle(WidgetTokens.inkFaint)
-                    compactTeamView(teamID: game.idHomeTeam, teamName: game.strHomeTeam, score: game.intHomeScore, seed: game.homeSeed, record: game.homeRecord)
+                    compactTeamView(teamID: game.idHomeTeam, teamName: game.strHomeTeam, score: game.intHomeScore, seed: game.homeSeed)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                // Time or status + follow button
+                // Time or status
                 HStack(spacing: 4) {
                     if let statusText = game.displayStatus {
                         HStack(spacing: 3) {
@@ -177,17 +186,6 @@ struct CompactGameCell: View {
                             .font(.system(size: 9, design: .monospaced))
                             .foregroundStyle(WidgetTokens.inkSoft)
                     }
-                    #if os(iOS)
-                    if isLive, let gameID = game.idEvent {
-                        Spacer()
-                        Button(intent: FollowGameIntent(gameID: gameID, homeTeam: game.strHomeTeam, awayTeam: game.strAwayTeam)) {
-                            Image(systemName: "bell.badge")
-                                .font(.system(size: 10))
-                                .foregroundStyle(accent)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    #endif
                 }
 
                 if let agg = game.aggregateScore {
@@ -211,7 +209,7 @@ struct CompactGameCell: View {
     }
 
     @ViewBuilder
-    private func compactTeamView(teamID: String?, teamName: String, score: String?, seed: Int? = nil, record: String? = nil) -> some View {
+    private func compactTeamView(teamID: String?, teamName: String, score: String?, seed: Int? = nil) -> some View {
         HStack(spacing: 2) {
             if let id = teamID, let data = images?[id], let image = widgetImage(from: data) {
                 image
@@ -230,12 +228,6 @@ struct CompactGameCell: View {
                 .font(.system(size: 10, design: .rounded).weight(.semibold))
                 .lineLimit(1)
                 .foregroundStyle(WidgetTokens.ink)
-
-            if let record, !record.isEmpty {
-                Text(record)
-                    .font(.system(size: 8, design: .monospaced))
-                    .foregroundStyle(WidgetTokens.inkFaint)
-            }
 
             if let scoreStr = score, let scoreInt = Int(scoreStr) {
                 Text("\(scoreInt)")
