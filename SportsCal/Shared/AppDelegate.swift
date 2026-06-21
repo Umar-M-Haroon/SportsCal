@@ -36,10 +36,17 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             await MobileAds.shared.start()
         }
 
-        // Request notification permissions
-        requestNotificationAuthorization()
+        // Request notification permissions — but NOT for first-run users, who get
+        // a contextual ask inside onboarding instead (a premature launch-time
+        // prompt converts far worse). Existing users who already finished
+        // onboarding keep the launch-time request. Absent key ⇒ treat as pending.
+        let onboardingPending = (UserDefaults.standard.object(forKey: "shouldShowOnboarding") as? Bool) ?? true
+        if !onboardingPending {
+            requestNotificationAuthorization()
+        }
 
-        // Register for remote notifications
+        // Register for remote notifications (token is needed for push-to-start
+        // Live Activities even before the user grants alert permission).
         application.registerForRemoteNotifications()
 
         // Set notification center delegate

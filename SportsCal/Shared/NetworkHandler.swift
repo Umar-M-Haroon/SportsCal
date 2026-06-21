@@ -596,16 +596,42 @@ struct NetworkHandler {
         _ = try await session.data(for: request)
     }
 
-    /// "sandbox" for Xcode debug builds, "production" otherwise. Xcode debug
-    /// builds carry the `aps-environment = development` entitlement and receive
-    /// sandbox push tokens; archive builds (TestFlight / App Store) get
-    /// production tokens. The server uses this to pick the right APNS gateway.
-    private static var apnsEnvironmentHint: String {
-        #if DEBUG
-        return "sandbox"
-        #else
-        return "production"
-        #endif
+    /// `"sandbox"` or `"production"`, derived from the embedded provisioning
+    /// profile's `aps-environment` entitlement — the same signal Apple uses to mint
+    /// push tokens, and the value the server keys its APNS gateway on.
+    ///
+    /// Deliberately NOT `#if DEBUG`: a *Release*-configuration build run from Xcode
+    /// on a device still carries a `development` aps-environment (so ActivityKit
+    /// mints a *sandbox* push-to-start token) even though `#if DEBUG` is false.
+    /// Reporting "production" for that token made APNS reject it as
+    /// `badDeviceToken`, which is how automatic Live Activities silently failed.
+    /// Resolved once — the profile is fixed for the process lifetime.
+    private static let apnsEnvironmentHint: String = {
+        let profileData = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision")
+            .flatMap { try? Data(contentsOf: $0) }
+        return apnsEnvironment(fromProfile: profileData)
+    }()
+
+    /// Pure parser (testable): extracts `aps-environment` from a provisioning
+    /// profile's CMS container. App Store / TestFlight builds ship no embedded
+    /// profile (`nil` data) → production. Any parse failure also defaults to
+    /// production, the safe choice for distribution builds.
+    static func apnsEnvironment(fromProfile data: Data?) -> String {
+        // The profile is a PKCS#7/CMS blob with the plist embedded as plain text;
+        // slice out the <plist>…</plist> span instead of decrypting the wrapper.
+        // Latin-1 maps every byte 1:1 so the binary wrapper can't corrupt decoding.
+        guard let data,
+              let raw = String(data: data, encoding: .isoLatin1),
+              let start = raw.range(of: "<?xml"),
+              let end = raw.range(of: "</plist>"),
+              let plistData = String(raw[start.lowerBound..<end.upperBound]).data(using: .isoLatin1),
+              let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any],
+              let entitlements = plist["Entitlements"] as? [String: Any],
+              let apsEnvironment = entitlements["aps-environment"] as? String
+        else {
+            return "production"
+        }
+        return apsEnvironment == "development" ? "sandbox" : "production"
     }
 
     static func getStandings(for leagueID: String) async throws -> Standing {
