@@ -36,6 +36,33 @@ platform :ios do
     upload_to_app_store(skip_binary_upload: true, skip_metadata: true)
   end
 
+  desc "Push App Store TEXT metadata only (name/subtitle/keywords/promo/What's New). No archive, no screenshots."
+  lane :metadata do
+    # Text-only: deliver the fastlane/metadata/*.txt files. Skips the binary and
+    # the screenshot upload (which is the step that 500-loops on ASC's side), so
+    # listing text can be updated independently of a build.
+    upload_to_app_store(
+      api_key: asc_api_key,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      skip_metadata: false,
+      force: true,                  # skip the HTML metadata-preview confirmation
+      run_precheck_before_submit: false,
+      precheck_include_in_app_purchases: false
+    )
+  end
+
+  desc "Upload the EXISTING staged screenshots only (retry after an ASC 500 on the release lane)."
+  lane :upload_screenshots do
+    upload_to_app_store(
+      api_key: asc_api_key,
+      skip_binary_upload: true,
+      skip_metadata: true,
+      skip_screenshots: false,
+      overwrite_screenshots: true
+    )
+  end
+
   desc "Archive the app and upload the build to App Store Connect (TestFlight)"
   lane :beta do
     build_app(
