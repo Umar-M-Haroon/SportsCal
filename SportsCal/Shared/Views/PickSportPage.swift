@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SportsCalModel
+import UserNotifications
 struct PickSportPage: View {
     @State var subscriptionPresented: Bool = false
     @Environment(UserDefaultStorage.self) private var appStorage
@@ -174,10 +175,16 @@ struct PickSportPage: View {
                 MiniSubscriptionPage(subscriptionPresented: $subscriptionPresented)
             } footer: {
                 Button(action: {
-                    sheetType = .none
                     appStorage.shouldShowOnboarding = false
                     appStorage.recomputeEnabledSports()
                     viewModel.getInfo()
+                    requestNotifications()
+                    // Peak-intent moment: offer the Pro trial once (throttled +
+                    // Pro-guarded). Falls back to dismissing if not shown.
+                    let offered = UpsellCoordinator.shared.request(.postOnboarding) {
+                        sheetType = .paywall
+                    }
+                    if !offered { sheetType = .none }
                 }, label: {
                     Text("Continue")
                         .disabled(!(appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup || appStorage.shouldShowMLB || appStorage.shouldShowNBA || appStorage.shouldShowWNBA || appStorage.shouldShowNFL || appStorage.shouldShowNHL || appStorage.shouldShowGolf || appStorage.shouldShowTennis || appStorage.shouldShowRacing))
@@ -191,6 +198,13 @@ struct PickSportPage: View {
         }
         .navigationBarBackButtonHidden(true)
         .navigationTitle("Pick Sports")
+    }
+
+    /// Contextual notification opt-in, asked after the user has picked sports.
+    private func requestNotifications() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
+            if granted { MonetizationTelemetry.activationNotificationsEnabled() }
+        }
     }
 }
 

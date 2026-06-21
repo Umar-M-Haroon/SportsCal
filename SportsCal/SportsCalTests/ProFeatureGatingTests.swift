@@ -109,33 +109,75 @@ final class ProFeatureGatingTests: XCTestCase {
     }
     #endif
 
-    // MARK: - Notification Gating Tests
+    // MARK: - Notification Gating Tests (free→Pro ladder)
 
-    func testNotifyButton_freeUserBlocked() {
-        // Verify that a free user attempting to schedule a notification
-        // should be gated behind isPro. After Step 2, NotifyButton checks
-        // subscriptionManager.isPro and sets shouldShowSportsCalProAlert = true
-        // when isPro is false.
-        XCTAssertFalse(freeManager.isPro,
-                        "Free manager should not have Pro access for notifications")
+    func testNotificationGate_proUserAlwaysAllowed() {
+        for kind in [ReminderKind.gameStart, .preGame] {
+            let decision = NotificationGate.decision(
+                isPro: true, kind: kind, gameInvolvesFavorite: false,
+                distinctFreeReminderTeams: 99, teamAlreadyCounted: false)
+            XCTAssertEqual(decision, .allowed, "Pro users bypass the ladder for \(kind)")
+        }
     }
 
-    func testNotifyButton_proUserAllowed() {
-        // Pro users should be able to schedule notifications without any alert
-        XCTAssertTrue(proManager.isPro,
-                       "Pro manager should have access to schedule notifications")
+    func testNotificationGate_freeGameStartForFavoriteUnderCap() {
+        let decision = NotificationGate.decision(
+            isPro: false, kind: .gameStart, gameInvolvesFavorite: true,
+            distinctFreeReminderTeams: 0, teamAlreadyCounted: false)
+        XCTAssertEqual(decision, .allowed,
+                        "Free users get game-start reminders for favorite teams under the cap")
     }
 
-    func testNotifyButton_allDurationsGated() {
-        // The gating check in NotifyButton is at the top of scheduleNotification(),
-        // which runs before any duration-specific logic. This means all durations
-        // (gameStarting, thirtyMinutes, oneHour, twoHour) are gated uniformly.
-        //
-        // Structural verification: the isPro guard is the first check in
-        // scheduleNotification(duration:), before the guard on game.standardDate,
-        // ensuring no duration can bypass it.
-        XCTAssertFalse(freeManager.isPro,
-                        "Free user should be blocked from all notification durations")
+    func testNotificationGate_freeGameStartForAlreadyCountedTeam() {
+        // A team already in the allowance set is free even at/over the cap —
+        // scheduling another of its games shouldn't re-charge the allowance.
+        let decision = NotificationGate.decision(
+            isPro: false, kind: .gameStart, gameInvolvesFavorite: true,
+            distinctFreeReminderTeams: NotificationGate.freeFavoriteTeamLimit,
+            teamAlreadyCounted: true)
+        XCTAssertEqual(decision, .allowed)
+    }
+
+    func testNotificationGate_freeGameStartBlockedAtCap() {
+        let decision = NotificationGate.decision(
+            isPro: false, kind: .gameStart, gameInvolvesFavorite: true,
+            distinctFreeReminderTeams: NotificationGate.freeFavoriteTeamLimit,
+            teamAlreadyCounted: false)
+        XCTAssertEqual(decision, .requiresPro(.unlimitedReminders),
+                        "A new favorite team beyond the cap upsells unlimited reminders")
+    }
+
+    func testNotificationGate_freeGameStartBlockedForNonFavorite() {
+        let decision = NotificationGate.decision(
+            isPro: false, kind: .gameStart, gameInvolvesFavorite: false,
+            distinctFreeReminderTeams: 0, teamAlreadyCounted: false)
+        XCTAssertEqual(decision, .requiresPro(.unlimitedReminders),
+                        "Game-start reminders for non-favorite games are a Pro upsell")
+    }
+
+    func testNotificationGate_preGameAlwaysProForFreeUsers() {
+        let decision = NotificationGate.decision(
+            isPro: false, kind: .preGame, gameInvolvesFavorite: true,
+            distinctFreeReminderTeams: 0, teamAlreadyCounted: true)
+        XCTAssertEqual(decision, .requiresPro(.preGameReminders),
+                        "Advance reminders are always a Pro feature for free users")
+    }
+
+    // MARK: - Flat Pro Gates (canUse)
+
+    func testCanUse_flatFeaturesGatedForFreeUser() {
+        for feature in [ProFeature.adFree, .proSettings, .goalAlerts, .calendarExport] {
+            XCTAssertFalse(freeManager.canUse(feature),
+                            "\(feature) should be Pro-only")
+            XCTAssertTrue(proManager.canUse(feature),
+                           "\(feature) should be available to Pro")
+        }
+    }
+
+    func testNotifyButton_alertContainsSubscribeAction_unchanged() {
+        // A blocked schedule still routes through shouldShowSportsCalProAlert →
+        // ContentView's alert with a Subscribe action that opens .paywall.
+        XCTAssertFalse(freeManager.isPro)
     }
 
     func testNotifyButton_alertContainsSubscribeAction() {
@@ -326,5 +368,106 @@ final class ProFeatureGatingTests: XCTestCase {
         // Used for ad gating at line 57.
         XCTAssertTrue(true,
                        "GameDetailView reads SubscriptionManager from environment for ad gating")
+    }
+
+    // MARK: - Ratings Policy
+
+    private let refDate = Date(timeIntervalSince1970: 1_750_000_000)
+
+    func testRatingsPolicy_happyPath() {
+        XCTAssertTrue(RatingsPolicy.eligible(
+            launches: 5, hasPositiveSignal: true, promptCount: 0, lastPromptDate: nil, now: refDate))
+    }
+
+    func testRatingsPolicy_requiresPositiveSignal() {
+        XCTAssertFalse(RatingsPolicy.eligible(
+            launches: 50, hasPositiveSignal: false, promptCount: 0, lastPromptDate: nil, now: refDate),
+            "No engagement signal → never prompt")
+    }
+
+    func testRatingsPolicy_underLaunchFloor() {
+        XCTAssertFalse(RatingsPolicy.eligible(
+            launches: 4, hasPositiveSignal: true, promptCount: 0, lastPromptDate: nil, now: refDate),
+            "Brand-new users aren't asked")
+    }
+
+    func testRatingsPolicy_yearlyCapReached() {
+        XCTAssertFalse(RatingsPolicy.eligible(
+            launches: 50, hasPositiveSignal: true,
+            promptCount: RatingsPolicy.maxPromptsPerYear, lastPromptDate: nil, now: refDate),
+            "Respect Apple's 3-prompt yearly cap")
+    }
+
+    func testRatingsPolicy_withinCooldown() {
+        let recent = refDate.addingTimeInterval(-10 * 86_400) // 10 days ago
+        XCTAssertFalse(RatingsPolicy.eligible(
+            launches: 50, hasPositiveSignal: true, promptCount: 1, lastPromptDate: recent, now: refDate),
+            "Don't re-ask within the 30-day cooldown")
+    }
+
+    func testRatingsPolicy_afterCooldown() {
+        let old = refDate.addingTimeInterval(-40 * 86_400) // 40 days ago
+        XCTAssertTrue(RatingsPolicy.eligible(
+            launches: 50, hasPositiveSignal: true, promptCount: 1, lastPromptDate: old, now: refDate),
+            "Eligible again once the cooldown has elapsed")
+    }
+
+    // MARK: - Upsell Policy
+
+    func testUpsellPolicy_firstAskOfSessionAllowed() {
+        XCTAssertTrue(UpsellPolicy.shouldShow(
+            trigger: .freeReminderCapHit, lastShownAt: nil, sessionCount: 0, now: refDate))
+    }
+
+    func testUpsellPolicy_sessionCapBlocksSecondAsk() {
+        XCTAssertFalse(UpsellPolicy.shouldShow(
+            trigger: .freeReminderCapHit, lastShownAt: nil, sessionCount: 1, now: refDate),
+            "At most one hard paywall per session")
+    }
+
+    func testUpsellPolicy_contextualRespectsCooldown() {
+        let recent = refDate.addingTimeInterval(-1 * 86_400) // 1 day ago
+        XCTAssertFalse(UpsellPolicy.shouldShow(
+            trigger: .freeReminderCapHit, lastShownAt: recent, sessionCount: 0, now: refDate),
+            "Contextual asks honor the multi-day cooldown")
+    }
+
+    func testUpsellPolicy_postOnboardingExemptFromCooldown() {
+        let recent = refDate.addingTimeInterval(-1 * 86_400) // 1 day ago
+        XCTAssertTrue(UpsellPolicy.shouldShow(
+            trigger: .postOnboarding, lastShownAt: recent, sessionCount: 0, now: refDate),
+            "The post-onboarding trial offer is a one-time peak-intent moment, not cooldown-gated")
+    }
+
+    func testUpsellPolicy_postOnboardingStillSessionCapped() {
+        XCTAssertFalse(UpsellPolicy.shouldShow(
+            trigger: .postOnboarding, lastShownAt: nil, sessionCount: 1, now: refDate),
+            "Even post-onboarding obeys the per-session cap")
+    }
+
+    // MARK: - Deep Link Parsing
+
+    func testDeepLink_parsesGame() {
+        let url = URL(string: "https://sportscal.app/g/TSDB123")!
+        XCTAssertEqual(DeepLink.parse(url), .game(idEvent: "TSDB123"))
+    }
+
+    func testDeepLink_parsesWorldCupBracket() {
+        let url = URL(string: "https://sportscal.app/wc/bracket")!
+        XCTAssertEqual(DeepLink.parse(url), .worldCupBracket)
+    }
+
+    func testDeepLink_rejectsUnknownPaths() {
+        XCTAssertNil(DeepLink.parse(URL(string: "https://sportscal.app/")!))
+        XCTAssertNil(DeepLink.parse(URL(string: "https://sportscal.app/g/")!))
+        XCTAssertNil(DeepLink.parse(URL(string: "https://sportscal.app/wc/other")!))
+        XCTAssertNil(DeepLink.parse(URL(string: "https://sportscal.app/random")!))
+    }
+
+    func testDeepLink_buildRoundTrips() throws {
+        let url = try XCTUnwrap(DeepLink.url(for: .game(idEvent: "EVT9")))
+        XCTAssertEqual(DeepLink.parse(url), .game(idEvent: "EVT9"))
+        let bracket = try XCTUnwrap(DeepLink.url(for: .worldCupBracket))
+        XCTAssertEqual(DeepLink.parse(bracket), .worldCupBracket)
     }
 }

@@ -14,6 +14,8 @@ import UserNotifications
 
 struct NotifyButton: View {
     @Environment(SubscriptionManager.self) private var subscriptionManager
+    @Environment(Favorites.self) private var favorites
+    @Environment(UserDefaultStorage.self) private var storage
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var sheetType: SheetType?
     var game: Game
@@ -29,6 +31,8 @@ struct NotifyButton: View {
                     Text("When game starts")
                     if scheduledNotifications.contains(.gameStarting) {
                         Image(systemName: "checkmark")
+                    } else if isGated(.gameStarting) {
+                        Image(systemName: "lock.fill")
                     }
                 }
             }
@@ -43,6 +47,8 @@ struct NotifyButton: View {
                     Text("\(NotificationDuration.thirtyMinutes.rawValue) before")
                     if scheduledNotifications.contains(.thirtyMinutes) {
                         Image(systemName: "checkmark")
+                    } else if isGated(.thirtyMinutes) {
+                        Image(systemName: "lock.fill")
                     }
                 }
             }
@@ -55,6 +61,8 @@ struct NotifyButton: View {
                     Text("\(NotificationDuration.oneHour.rawValue) before")
                     if scheduledNotifications.contains(.oneHour) {
                         Image(systemName: "checkmark")
+                    } else if isGated(.oneHour) {
+                        Image(systemName: "lock.fill")
                     }
                 }
             }
@@ -67,6 +75,8 @@ struct NotifyButton: View {
                     Text("\(NotificationDuration.twoHour.rawValue) before")
                     if scheduledNotifications.contains(.twoHour) {
                         Image(systemName: "checkmark")
+                    } else if isGated(.twoHour) {
+                        Image(systemName: "lock.fill")
                     }
                 }
             }
@@ -89,24 +99,74 @@ struct NotifyButton: View {
         }
     }
 
-    private func scheduleNotification(duration: NotificationDuration) {
-        guard subscriptionManager.isPro else {
-            shouldShowSportsCalProAlert = true
-            return
-        }
-        guard let gameDate = game.standardDate else { return }
+    /// Identifier of the favorited team this game features (home preferred),
+    /// or nil if neither side is a favorite. Used to apply the free game-start
+    /// reminder allowance per-team. Falls back to team names for legacy/unresolved
+    /// favorites.
+    private var favoriteTeamKey: String? {
+        if let homeID = game.idHomeTeam, !homeID.isEmpty, favorites.teamIDs.contains(homeID) { return homeID }
+        if let awayID = game.idAwayTeam, !awayID.isEmpty, favorites.teamIDs.contains(awayID) { return awayID }
+        if favorites.contains(game.strHomeTeam) { return game.strHomeTeam }
+        if favorites.contains(game.strAwayTeam) { return game.strAwayTeam }
+        return nil
+    }
 
+    /// Evaluate the free→Pro ladder for a given reminder duration.
+    private func gateDecision(for duration: NotificationDuration) -> GateDecision {
+        let kind: ReminderKind = (duration == .gameStarting) ? .gameStart : .preGame
+        let favKey = favoriteTeamKey
+        return NotificationGate.decision(
+            isPro: subscriptionManager.isPro,
+            kind: kind,
+            gameInvolvesFavorite: favKey != nil,
+            distinctFreeReminderTeams: storage.freeReminderTeamCount,
+            teamAlreadyCounted: favKey.map { storage.isFreeReminderTeamCounted($0) } ?? false
+        )
+    }
+
+    /// True when the duration would be blocked behind Pro for the current user —
+    /// drives the lock badge in the menu.
+    private func isGated(_ duration: NotificationDuration) -> Bool {
+        !gateDecision(for: duration).isAllowed
+    }
+
+    private func scheduleNotification(duration: NotificationDuration) {
+        // Cancelling an already-scheduled reminder is always allowed.
         if scheduledNotifications.contains(duration) {
-            // Cancel this specific notification
             if let gameID = game.idEvent {
                 let notiCenter = UNUserNotificationCenter.current()
                 notiCenter.removePendingNotificationRequests(withIdentifiers: ["\(gameID)_\(duration.rawValue)"])
                 scheduledNotifications.remove(duration)
+                // Release the free allowance slot when the last game-start reminder
+                // for this favorite team is removed (best-effort: another followed
+                // game for the same team may still hold it, which only ever frees
+                // the slot too early — never blocks unfairly).
+                if duration == .gameStarting, !subscriptionManager.isPro, let favKey = favoriteTeamKey {
+                    storage.releaseFreeReminderTeam(favKey)
+                }
             }
-        } else {
-            // Schedule the notification
-            NotificationManager.addLocalNotification(date: gameDate, item: game, duration: duration)
-            scheduledNotifications.insert(duration)
+            return
+        }
+
+        // Scheduling a new reminder runs the free→Pro ladder.
+        let decision = gateDecision(for: duration)
+        guard decision.isAllowed else {
+            if let feature = decision.blockedFeature {
+                MonetizationTelemetry.gateHit(feature)
+            }
+            // Route through the coordinator so the prompt is throttled + tracked.
+            UpsellCoordinator.shared.request(.freeReminderCapHit) {
+                shouldShowSportsCalProAlert = true
+            }
+            return
+        }
+        guard let gameDate = game.standardDate else { return }
+
+        NotificationManager.addLocalNotification(date: gameDate, item: game, duration: duration)
+        scheduledNotifications.insert(duration)
+        // Spend a free allowance slot for a brand-new game-start reminder.
+        if duration == .gameStarting, !subscriptionManager.isPro, let favKey = favoriteTeamKey {
+            storage.recordFreeReminderTeam(favKey)
         }
     }
 
@@ -114,6 +174,9 @@ struct NotifyButton: View {
         if let gameID = game.idEvent {
             NotificationManager.cancelNotifications(for: gameID)
             scheduledNotifications.removeAll()
+            if !subscriptionManager.isPro, let favKey = favoriteTeamKey {
+                storage.releaseFreeReminderTeam(favKey)
+            }
         }
     }
 
@@ -133,4 +196,7 @@ struct NotifyButton: View {
 
 #Preview {
     NotifyButton(shouldShowSportsCalProAlert: .constant(false), sheetType: .constant(nil), game: Game(idLeague: "4387", strHomeTeam: "Lakers", strAwayTeam: "Celtics", isoDate: nil))
+        .environment(SubscriptionManager.shared)
+        .environment(Favorites())
+        .environment(UserDefaultStorage())
 }

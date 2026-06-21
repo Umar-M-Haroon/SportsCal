@@ -90,7 +90,8 @@ public class SubscriptionManager: @unchecked Sendable {
     }
 
     internal func updateProStatus(from customerInfo: CustomerInfo) {
-        let newValue = customerInfo.entitlements["Pro"]?.isActive == true
+        let entitlement = customerInfo.entitlements["Pro"]
+        let newValue = entitlement?.isActive == true
         // Allow mock override for QA builds (skip for test instances). DEBUG-only so it
         // can never grant Pro in a release build.
         #if DEBUG
@@ -100,7 +101,16 @@ public class SubscriptionManager: @unchecked Sendable {
             return
         }
         #endif
+        let wasPro = isPro
         isPro = newValue
         UserDefaults.standard.set(newValue, forKey: "isSubscribed")
+
+        // Emit a funnel event only on a genuine false→true transition within a
+        // session. `isPro` is seeded from the cached value at init, so an existing
+        // subscriber relaunching won't re-fire this.
+        if newValue, !wasPro, !isTestInstance {
+            let isTrial = entitlement?.periodType == .trial || entitlement?.periodType == .intro
+            MonetizationTelemetry.purchaseCompleted(isTrial: isTrial)
+        }
     }
 }

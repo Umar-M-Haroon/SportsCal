@@ -14,7 +14,21 @@
 
   ],
   "products" : [
-
+    {
+      "displayPrice" : "39.99",
+      "familyShareable" : false,
+      "internalID" : "1581340500",
+      "localizations" : [
+        {
+          "description" : "One-time purchase — unlock SportsCal Pro forever",
+          "displayName" : "SportsCal Pro Lifetime",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.komodollc.SportsCal.Lifetime",
+      "referenceName" : "Scoreline Lifetime",
+      "type" : "NonConsumable"
+    }
   ],
   "settings" : {
     "_applicationInternalID" : "1580232928",
@@ -48,11 +62,16 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "0.99",
+          "displayPrice" : "2.99",
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "1581339320",
-          "introductoryOffer" : null,
+          "introductoryOffer" : {
+            "internalID" : "10CAAFC4",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
           "localizations" : [
             {
               "description" : "Monthly subscription to SportsCal Pro",
@@ -76,7 +95,7 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "6.99",
+          "displayPrice" : "19.99",
           "familyShareable" : false,
           "groupNumber" : 2,
           "internalID" : "1581339731",

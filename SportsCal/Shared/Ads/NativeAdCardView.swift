@@ -16,9 +16,24 @@ struct NativeAdCardView: View {
     let nativeAd: NativeAd
 
     var body: some View {
-        NativeAdRepresentable(nativeAd: nativeAd)
-            .listRowBackground(Color.gray.opacity(0.15))
-            .listRowSeparator(.hidden)
+        VStack(spacing: 4) {
+            NativeAdRepresentable(nativeAd: nativeAd)
+            // The ad slot doubles as a clean upgrade surface — only free users
+            // ever see it. An explicit tap goes straight to the paywall (not
+            // throttled) via a notification ContentView observes.
+            Button {
+                MonetizationTelemetry.adUpsellTapped()
+                NotificationCenter.default.post(name: .requestPaywall, object: nil)
+            } label: {
+                Text("Remove ads with Pro")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .buttonStyle(.plain)
+        }
+        .listRowBackground(Color.gray.opacity(0.15))
+        .listRowSeparator(.hidden)
     }
 }
 

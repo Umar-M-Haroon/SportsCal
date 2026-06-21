@@ -149,6 +149,17 @@ struct GameDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .toolbar {
+            if let id = game.idEvent, let url = DeepLink.url(for: .game(idEvent: id)) {
+                ShareLink(
+                    item: url,
+                    subject: Text("\(game.strAwayTeam) @ \(game.strHomeTeam)"),
+                    message: Text("Follow \(game.strAwayTeam) @ \(game.strHomeTeam) live on Scoreline")
+                ) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+            }
+        }
         .refreshable { await refreshSections() }
         .task { await initialLoad() }
         .sheet(item: $sheetType) { sheet in

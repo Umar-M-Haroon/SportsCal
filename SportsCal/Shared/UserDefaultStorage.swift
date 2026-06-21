@@ -94,6 +94,44 @@ class UserDefaultStorage {
         autoFollowEventIDs.contains(eventID)
     }
 
+    // MARK: - Free Reminder Allowance
+
+    /// Favorite-team identifiers a free user has spent their game-start reminder
+    /// allowance on. Backs `NotificationGate`'s free→Pro ladder. Stored in the
+    /// app group so the count is consistent app-wide. Best-effort: removed when
+    /// a game's reminders are cancelled, re-added on the next schedule.
+    private static let freeReminderTeamsKey = "freeReminderTeamIDs"
+
+    var freeReminderTeamIDs: Set<String> {
+        get {
+            let array = UserDefaults(suiteName: Self.suiteName)?.stringArray(forKey: Self.freeReminderTeamsKey) ?? []
+            return Set(array)
+        }
+        set {
+            UserDefaults(suiteName: Self.suiteName)?.set(Array(newValue), forKey: Self.freeReminderTeamsKey)
+        }
+    }
+
+    /// Number of distinct favorite teams the free user has used game-start
+    /// reminders on — the input to `NotificationGate.decision`.
+    var freeReminderTeamCount: Int { freeReminderTeamIDs.count }
+
+    func isFreeReminderTeamCounted(_ teamKey: String) -> Bool {
+        freeReminderTeamIDs.contains(teamKey)
+    }
+
+    func recordFreeReminderTeam(_ teamKey: String) {
+        var ids = freeReminderTeamIDs
+        ids.insert(teamKey)
+        freeReminderTeamIDs = ids
+    }
+
+    func releaseFreeReminderTeam(_ teamKey: String) {
+        var ids = freeReminderTeamIDs
+        ids.remove(teamKey)
+        freeReminderTeamIDs = ids
+    }
+
     /// Event IDs of upcoming/in-progress World Cup matches that should be auto-followed
     /// while `followWorldCup` is on. If `followWorldCupTeam` is set, only that team's
     /// matches are returned. Past games are excluded so cleanup doesn't fight us.

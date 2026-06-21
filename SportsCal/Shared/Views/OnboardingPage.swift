@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SportsCalModel
+import UserNotifications
 
 struct OnboardingPage: View {
     @Environment(UserDefaultStorage.self) private var appStorage
@@ -23,11 +24,10 @@ struct OnboardingPage: View {
                 Spacer()
                 Button {
                     appStorage.shouldShowWorldCup = true
-                    sheetType = .none
-                    appStorage.shouldShowOnboarding = false
                     appStorage.recomputeEnabledSports()
                     viewModel.filterSports(force: true)
                     viewModel.getInfo()
+                    finishOnboarding()
                 } label: {
                     Label("Follow the World Cup", systemImage: "soccerball")
                         .frame(maxWidth: .infinity)
@@ -52,7 +52,27 @@ struct OnboardingPage: View {
         }
         .frame(minWidth: 400, minHeight: 500)
     }
-    
+
+    /// Completes onboarding and, at this peak-intent moment, offers the Pro trial
+    /// once (throttled + Pro-guarded by the coordinator). Falls back to simply
+    /// dismissing the sheet when the offer isn't shown.
+    private func finishOnboarding() {
+        appStorage.shouldShowOnboarding = false
+        requestNotifications()
+        let offered = UpsellCoordinator.shared.request(.postOnboarding) {
+            sheetType = .paywall
+        }
+        if !offered { sheetType = .none }
+    }
+
+    /// Contextual notification opt-in — the reason most users install a sports
+    /// app. Asked here (after they've expressed intent) rather than cold at first
+    /// launch, which converts much better.
+    private func requestNotifications() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
+            if granted { MonetizationTelemetry.activationNotificationsEnabled() }
+        }
+    }
 }
 
 struct InfoView: View {

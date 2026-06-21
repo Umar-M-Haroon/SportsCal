@@ -210,7 +210,13 @@ struct ContentView: View {
             }
             .onAppear {
                 WidgetCenter.shared.reloadAllTimelines()
-                if viewModel.appStorage.launches == 5 {
+                // Engagement-gated, throttled rating prompt (replaces the old
+                // unconditional launch-#5 ask). Positive signal = the user follows
+                // at least one team (a returning, invested user).
+                if RatingsManager.shared.shouldRequestReview(
+                    launches: viewModel.appStorage.launches,
+                    hasPositiveSignal: !favorites.teamIDs.isEmpty
+                ) {
                     requestReview()
                 }
                 if viewModel.appStorage.shouldShowOnboarding {
@@ -218,6 +224,23 @@ struct ContentView: View {
                 }
                 // Check if launched via OpenSportIntent
                 checkIntentOpenSport()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .requestPaywall)) { _ in
+                // Explicit upgrade tap from a deeply-nested surface (e.g. ad card).
+                sheetType = .paywall
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .favoritesDidChange)) { _ in
+                // One-time activation signal — emitted here (app target) rather
+                // than in Favorites, which also compiles into watch/widget where
+                // the telemetry helper (and Sentry) aren't available.
+                if !favorites.teamIDs.isEmpty,
+                   !UserDefaults.standard.bool(forKey: "didEmitFirstFavorite") {
+                    UserDefaults.standard.set(true, forKey: "didEmitFirstFavorite")
+                    MonetizationTelemetry.activationFirstFavorite()
+                }
+            }
+            .onOpenURL { url in
+                handleDeepLink(url)
             }
             #if os(iOS)
             .onContinueUserActivity(CSSearchableItemActionType) { activity in
@@ -451,6 +474,26 @@ struct ContentView: View {
                 spotlightCalendarDate = date
                 selectedTab = 1
             }
+        }
+    }
+
+    /// Routes an incoming universal link (shared game / World Cup bracket). Reuses
+    /// the same `spotlightGameID` deep-open mechanism Spotlight uses, so a shared
+    /// game pushes its detail on the Games tab. The bracket route surfaces World
+    /// Cup content (full hub-screen routing would need threading DayPage's
+    /// `worldCupHubPresented` binding up to here).
+    private func handleDeepLink(_ url: URL) {
+        switch DeepLink.parse(url) {
+        case .game(let idEvent):
+            spotlightGameID = idEvent
+            selectedTab = 0
+        case .worldCupBracket:
+            storage.shouldShowWorldCup = true
+            storage.recomputeEnabledSports()
+            viewModel.filterSports(force: true)
+            selectedTab = 0
+        case .none:
+            break
         }
     }
 

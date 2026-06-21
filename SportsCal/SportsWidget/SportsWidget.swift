@@ -183,8 +183,8 @@ struct SportsWidget: Widget {
         AppIntentConfiguration(kind: kind, intent: SportsWidgetIntent.self, provider: Provider()) { entry in
             SportsWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("Sports Widget")
-        .description("Show upcoming games for a sport")
+        .configurationDisplayName("Upcoming Games")
+        .description("Your team's next games, live scores, and kickoff times at a glance.")
         #if os(iOS)
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge,
                             .accessoryCircular, .accessoryRectangular, .accessoryInline])

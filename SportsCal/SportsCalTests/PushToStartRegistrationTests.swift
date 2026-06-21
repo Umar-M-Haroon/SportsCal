@@ -97,4 +97,50 @@ final class PushToStartRegistrationTests: XCTestCase {
         XCTAssertFalse(firstID.isEmpty)
         XCTAssertEqual(firstID, secondID)
     }
+
+    // MARK: - APNS environment detection
+
+    /// Wraps an entitlements plist in a fake CMS container — the binary prefix the
+    /// real `embedded.mobileprovision` has around the plain-text plist — to prove
+    /// the parser slices the plist out rather than choking on the wrapper bytes.
+    private func provisioningProfile(apsEnvironment: String?) -> Data {
+        let entitlement = apsEnvironment.map { "<key>aps-environment</key><string>\($0)</string>" } ?? ""
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0">
+        <dict>
+          <key>Entitlements</key>
+          <dict>\(entitlement)</dict>
+        </dict>
+        </plist>
+        """
+        var data = Data([0x30, 0x82, 0x00, 0xFF, 0x06, 0x09]) // bogus PKCS#7 header bytes
+        data.append(plist.data(using: .isoLatin1)!)
+        data.append(Data([0x00, 0x01, 0x02]))                 // trailing signature bytes
+        return data
+    }
+
+    /// A Release-from-Xcode build carries a `development` entitlement (sandbox
+    /// token) even though `#if DEBUG` is false — must resolve to sandbox so the
+    /// server picks the right gateway and APNS doesn't reject it as badDeviceToken.
+    func testDevelopmentEntitlementResolvesToSandbox() {
+        XCTAssertEqual(NetworkHandler.apnsEnvironment(fromProfile: provisioningProfile(apsEnvironment: "development")), "sandbox")
+    }
+
+    func testProductionEntitlementResolvesToProduction() {
+        XCTAssertEqual(NetworkHandler.apnsEnvironment(fromProfile: provisioningProfile(apsEnvironment: "production")), "production")
+    }
+
+    func testMissingProfileDefaultsToProduction() {
+        // App Store / TestFlight builds ship no embedded provisioning profile.
+        XCTAssertEqual(NetworkHandler.apnsEnvironment(fromProfile: nil), "production")
+    }
+
+    func testMissingApsEntitlementDefaultsToProduction() {
+        XCTAssertEqual(NetworkHandler.apnsEnvironment(fromProfile: provisioningProfile(apsEnvironment: nil)), "production")
+    }
+
+    func testGarbageProfileDataDefaultsToProduction() {
+        XCTAssertEqual(NetworkHandler.apnsEnvironment(fromProfile: Data([0x00, 0x01, 0x02, 0x03])), "production")
+    }
 }
