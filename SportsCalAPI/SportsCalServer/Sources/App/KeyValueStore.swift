@@ -26,6 +26,12 @@ protocol KeyValueStore: Sendable {
     /// Foundation of every dedup / leader-election path: the read-then-write pattern
     /// has a TOCTOU window that two server instances race into.
     func setIfAbsent(_ key: String, value: String, ttl: TimeInterval) async throws -> Bool
+    /// Atomic `INCR` returning the new counter value, guaranteeing the key carries
+    /// a TTL (armed via `EXPIRE … NX`) so a counter can never get stuck without
+    /// one — the exact failure that bricked the write rate-limit. Used by
+    /// `RedisTelemetry` for persisted per-day counters.
+    @discardableResult
+    func increment(_ key: String, ttl: TimeInterval) async throws -> Int
 }
 
 struct RedisKeyValueStore: KeyValueStore, @unchecked Sendable {
@@ -120,6 +126,23 @@ struct RedisKeyValueStore: KeyValueStore, @unchecked Sendable {
         // Redis returns simple string "OK" when SET NX succeeds, null bulk reply when
         // the key already exists. Anything else is an unexpected response.
         return response.string == "OK"
+    }
+
+    @discardableResult
+    func increment(_ key: String, ttl: TimeInterval) async throws -> Int {
+        let count = try await redis.increment(RedisKey(key)).get()
+        // `EXPIRE … NX` arms the TTL only when the key has none, so the first INCR
+        // sets the window and any key that ever lost its TTL self-heals on the next
+        // hit. Best-effort: the count is already authoritative. Requires Redis 7+.
+        _ = try? await redis.send(
+            command: "EXPIRE",
+            with: [
+                key.convertedToRESPValue(),
+                Int(ttl).convertedToRESPValue(),
+                "NX".convertedToRESPValue()
+            ]
+        ).get()
+        return count
     }
 }
 

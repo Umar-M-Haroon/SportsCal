@@ -1065,3 +1065,105 @@ extension Game {
     }
 
 }
+
+public extension Game {
+    /// Returns a copy of this game with the provided fields overridden; any argument left at
+    /// its default (`nil`) keeps the current value. Centralizes the field-by-field copy that
+    /// the server's merge/translate paths previously open-coded as ~40-parameter `Game(...)`
+    /// calls, and is the building block the reconcile engine uses to overlay reconciled dynamic
+    /// fields onto a schedule-sourced identity skeleton.
+    ///
+    /// Semantics note: a `nil` argument means "keep the existing value" — this helper cannot
+    /// clear an optional field back to `nil`. `strSport`/`strLeague` are intentionally not
+    /// parameters: they are computed from `idLeague`. `isoDate` is preserved as-is (no recompute
+    /// from `strTimestamp`).
+    func updated(
+        idLiveScore: String? = nil,
+        idEvent: String? = nil,
+        idLeague: String? = nil,
+        idHomeTeam: String? = nil,
+        idAwayTeam: String? = nil,
+        strHomeTeam: String? = nil,
+        strAwayTeam: String? = nil,
+        strHomeTeamBadge: String? = nil,
+        strAwayTeamBadge: String? = nil,
+        intHomeScore: String? = nil,
+        intAwayScore: String? = nil,
+        strStatus: String? = nil,
+        strProgress: String? = nil,
+        strTimestamp: String? = nil,
+        lastPlay: String? = nil,
+        homeLinescores: [Double]? = nil,
+        awayLinescores: [Double]? = nil,
+        homeLeaders: [GameLeader]? = nil,
+        awayLeaders: [GameLeader]? = nil,
+        isCompleted: Bool? = nil,
+        isoDate: Date? = nil,
+        leaderboardEntries: [LeaderboardEntry]? = nil,
+        sessions: [EventSession]? = nil,
+        venueName: String? = nil,
+        homeTeamColor: String? = nil,
+        awayTeamColor: String? = nil,
+        homeRecord: String? = nil,
+        awayRecord: String? = nil,
+        circuitInfo: F1CircuitInfo? = nil,
+        golfCourseInfo: GolfCourseInfo? = nil,
+        legDisplay: String? = nil,
+        aggregateScore: String? = nil,
+        homeSeed: Int? = nil,
+        awaySeed: Int? = nil,
+        tournamentName: String? = nil,
+        round: String? = nil,
+        homeInjuries: [InjuryReport]? = nil,
+        awayInjuries: [InjuryReport]? = nil,
+        raceTiming: F1RaceTiming? = nil,
+        playoff: PlayoffContext? = nil,
+        lastPlayScoreboardID: String? = nil
+    ) -> Game {
+        Game(
+            idLiveScore: idLiveScore ?? self.idLiveScore,
+            idEvent: idEvent ?? self.idEvent,
+            strSport: nil,
+            idLeague: idLeague ?? self.idLeague,
+            strLeague: nil,
+            idHomeTeam: idHomeTeam ?? self.idHomeTeam,
+            idAwayTeam: idAwayTeam ?? self.idAwayTeam,
+            strHomeTeam: strHomeTeam ?? self.strHomeTeam,
+            strAwayTeam: strAwayTeam ?? self.strAwayTeam,
+            strHomeTeamBadge: strHomeTeamBadge ?? self.strHomeTeamBadge,
+            strAwayTeamBadge: strAwayTeamBadge ?? self.strAwayTeamBadge,
+            intHomeScore: intHomeScore ?? self.intHomeScore,
+            intAwayScore: intAwayScore ?? self.intAwayScore,
+            strStatus: strStatus ?? self.strStatus,
+            strProgress: strProgress ?? self.strProgress,
+            strTimestamp: strTimestamp ?? self.strTimestamp,
+            lastPlay: lastPlay ?? self.lastPlay,
+            homeLinescores: homeLinescores ?? self.homeLinescores,
+            awayLinescores: awayLinescores ?? self.awayLinescores,
+            homeLeaders: homeLeaders ?? self.homeLeaders,
+            awayLeaders: awayLeaders ?? self.awayLeaders,
+            isCompleted: isCompleted ?? self.isCompleted,
+            isoDate: isoDate ?? self.isoDate,
+            leaderboardEntries: leaderboardEntries ?? self.leaderboardEntries,
+            sessions: sessions ?? self.sessions,
+            venueName: venueName ?? self.venueName,
+            homeTeamColor: homeTeamColor ?? self.homeTeamColor,
+            awayTeamColor: awayTeamColor ?? self.awayTeamColor,
+            homeRecord: homeRecord ?? self.homeRecord,
+            awayRecord: awayRecord ?? self.awayRecord,
+            circuitInfo: circuitInfo ?? self.circuitInfo,
+            golfCourseInfo: golfCourseInfo ?? self.golfCourseInfo,
+            legDisplay: legDisplay ?? self.legDisplay,
+            aggregateScore: aggregateScore ?? self.aggregateScore,
+            homeSeed: homeSeed ?? self.homeSeed,
+            awaySeed: awaySeed ?? self.awaySeed,
+            tournamentName: tournamentName ?? self.tournamentName,
+            round: round ?? self.round,
+            homeInjuries: homeInjuries ?? self.homeInjuries,
+            awayInjuries: awayInjuries ?? self.awayInjuries,
+            raceTiming: raceTiming ?? self.raceTiming,
+            playoff: playoff ?? self.playoff,
+            lastPlayScoreboardID: lastPlayScoreboardID ?? self.lastPlayScoreboardID
+        )
+    }
+}

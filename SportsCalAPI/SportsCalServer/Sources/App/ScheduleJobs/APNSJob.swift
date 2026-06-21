@@ -33,7 +33,8 @@ struct APNSJob: AsyncScheduledJob {
                     clock: app.appClock,
                     isDebug: isDebug,
                     logger: Self.logger,
-                    metrics: app.pushMetrics
+                    metrics: app.pushMetrics,
+                    telemetry: app.telemetry
                 )
             }
         )
@@ -49,7 +50,8 @@ struct APNSJob: AsyncScheduledJob {
         clock: AppClock,
         isDebug: Bool,
         logger: Logger,
-        metrics: PushMetrics? = nil
+        metrics: PushMetrics? = nil,
+        telemetry: Telemetry? = nil
     ) async throws {
         let runStart = clock.now
         // Always iterate BOTH keyspaces regardless of the server's own
@@ -60,6 +62,14 @@ struct APNSJob: AsyncScheduledJob {
         let prodKeys = try await kv.scanKeys(matching: "APNS-*")
         let sandboxKeys = try await kv.scanKeys(matching: "debug-APNS-*")
         await metrics?.recordScanSize(prod: prodKeys.count, sandbox: sandboxKeys.count)
+        // Heartbeat on EVERY tick, even idle ones: an empty run used to return
+        // here silently, indistinguishable from a dead scheduler or crashed
+        // worker. The persisted counter answers "is the job alive?" regardless of
+        // registration count.
+        await telemetry?.info("apns.tick", [
+            "prod": "\(prodKeys.count)",
+            "sandbox": "\(sandboxKeys.count)",
+        ])
         guard !prodKeys.isEmpty || !sandboxKeys.isEmpty else { return }
 
         let liveScoreKey = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug).rawValue
@@ -212,15 +222,23 @@ struct APNSJob: AsyncScheduledJob {
             // screen. Clock ticks and status changes stay silent.
             let goalAlert = scoreAlert(event: event, homeScore: homeScore, awayScore: awayScore, previous: savedState)
             do {
-                _ = try await apns.sendLiveActivityUpdate(
-                    deviceToken: tokenString,
-                    appID: "com.KomodoLLC.SportsCal",
-                    contentState: contentState,
-                    isFinal: false,
-                    alert: goalAlert,
-                    timestamp: now,
-                    environment: environment
-                )
+                // On badDeviceToken, retry the opposite gateway: the update token
+                // inherits the same env mislabeling as the push-to-start token, so
+                // without this an activity would start but never update its score.
+                let (_, delivered) = try await sendWithEnvironmentFallback(primary: environment) { env in
+                    try await apns.sendLiveActivityUpdate(
+                        deviceToken: tokenString,
+                        appID: "com.KomodoLLC.SportsCal",
+                        contentState: contentState,
+                        isFinal: false,
+                        alert: goalAlert,
+                        timestamp: now,
+                        environment: env
+                    )
+                }
+                if delivered != environment {
+                    logger.warning("APNS update for \(event.id) delivered on \(delivered.rawValue) after \(environment.rawValue) returned badDeviceToken — token \(tokenString.prefix(8))... registered under the wrong APNS environment")
+                }
                 await metrics?.recordSend(kind: .update)
                 // Slide the registration TTL forward so an active activity never
                 // expires mid-game even if the client can't run BGAppRefresh.
@@ -251,15 +269,20 @@ struct APNSJob: AsyncScheduledJob {
                 lastPlay: event.lastPlay
             )
             do {
-                _ = try await apns.sendLiveActivityUpdate(
-                    deviceToken: tokenString,
-                    appID: "com.KomodoLLC.SportsCal",
-                    contentState: contentState,
-                    isFinal: true,
-                    alert: nil,
-                    timestamp: now,
-                    environment: environment
-                )
+                let (_, delivered) = try await sendWithEnvironmentFallback(primary: environment) { env in
+                    try await apns.sendLiveActivityUpdate(
+                        deviceToken: tokenString,
+                        appID: "com.KomodoLLC.SportsCal",
+                        contentState: contentState,
+                        isFinal: true,
+                        alert: nil,
+                        timestamp: now,
+                        environment: env
+                    )
+                }
+                if delivered != environment {
+                    logger.warning("APNS end for \(event.id) delivered on \(delivered.rawValue) after \(environment.rawValue) returned badDeviceToken")
+                }
                 await metrics?.recordSend(kind: .end)
             } catch let sendError as APNSSendError {
                 logger.error("Failed to send APNS end for \(event.id) [\(environment.rawValue)]: \(sendError.reason.rawValue) \(sendError.underlying ?? "")")

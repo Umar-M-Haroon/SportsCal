@@ -117,6 +117,19 @@ final class InMemoryKeyValueStore: KeyValueStore, @unchecked Sendable {
         return true
     }
 
+    @discardableResult
+    func increment(_ key: String, ttl: TimeInterval) async throws -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        purgeExpiredLocked()
+        let current = storage[key].flatMap { Int($0.value) } ?? 0
+        let next = current + 1
+        // EXPIRE … NX semantics: keep an existing TTL, arm one only when missing.
+        let expiresAt = storage[key]?.expiresAt ?? clock.now.addingTimeInterval(ttl)
+        storage[key] = Entry(value: String(next), expiresAt: expiresAt)
+        return next
+    }
+
     func setIfAbsent(_ key: String, value: String, ttl: TimeInterval) async throws -> Bool {
         lock.lock()
         defer { lock.unlock() }

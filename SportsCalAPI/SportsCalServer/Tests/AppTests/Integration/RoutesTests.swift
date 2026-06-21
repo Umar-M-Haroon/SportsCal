@@ -294,4 +294,60 @@ final class RoutesTests: XCTestCase {
         let registration = try await kv.getJSON("APNS-tok-D", as: APNSRegistration.self)
         XCTAssertNil(registration)
     }
+
+    // MARK: - Client Telemetry
+
+    private var telemetryDay: Int { Int(Date().timeIntervalSince1970) / 86_400 }
+
+    func testTelemetryAllowedEventIncrementsCounter() async throws {
+        try app.test(.POST, "v2025/telemetry", headers: authed, beforeRequest: { req in
+            try req.content.encode(ClientTelemetryEvent(event: "paywall_shown", fields: ["trigger": "postOnboarding"]))
+        }) { res in
+            XCTAssertEqual(res.status, .ok)
+        }
+        let snapshot = kv.rawSnapshot
+        XCTAssertEqual(snapshot["telemetry:client.paywall_shown:\(telemetryDay)"], "1",
+                       "allowed client events feed the namespaced per-day Redis counter")
+    }
+
+    func testTelemetryUnknownEventIsDroppedButStillOK() async throws {
+        try app.test(.POST, "v2025/telemetry", headers: authed, beforeRequest: { req in
+            try req.content.encode(ClientTelemetryEvent(event: "not_on_the_allow_list", fields: nil))
+        }) { res in
+            XCTAssertEqual(res.status, .ok, "fail-open: unknown events never error the client")
+        }
+        let snapshot = kv.rawSnapshot
+        XCTAssertNil(snapshot["telemetry:client.not_on_the_allow_list:\(telemetryDay)"],
+                     "disallowed events must not mint arbitrary counter keys")
+    }
+
+    func testTelemetryRequiresAPIKey() throws {
+        try app.test(.POST, "v2025/telemetry", beforeRequest: { req in
+            try req.content.encode(ClientTelemetryEvent(event: "paywall_shown"))
+        }) { res in
+            XCTAssertEqual(res.status, .forbidden, "APIKeyMiddleware rejects missing keys with 403")
+        }
+    }
+
+    // MARK: - Universal Links
+
+    func testAppSiteAssociationIsPublicJSON() throws {
+        // Apple's CDN fetches this unauthenticated; it must be 200 JSON, no key.
+        try app.test(.GET, ".well-known/apple-app-site-association") { res in
+            XCTAssertEqual(res.status, .ok)
+            XCTAssertEqual(res.headers.contentType, .json)
+            XCTAssertTrue(res.body.string.contains("com.KomodoLLC.SportsCal"),
+                          "AASA must declare the app ID for applinks validation")
+            XCTAssertTrue(res.body.string.contains("/g/*"))
+        }
+    }
+
+    func testGameWebFallbackServesAppStoreBanner() throws {
+        try app.test(.GET, "g/TSDB1") { res in
+            XCTAssertEqual(res.status, .ok)
+            XCTAssertEqual(res.headers.contentType, .html)
+            XCTAssertTrue(res.body.string.contains("app-id=1580232928"),
+                          "web fallback shows the App Store smart banner")
+        }
+    }
 }

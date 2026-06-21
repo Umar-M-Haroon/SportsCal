@@ -42,16 +42,28 @@ final class APNSJobErrorHandlingTests: XCTestCase {
         XCTAssertNil(snapshot["APNS-\(token)"], "Unregistered → registration key should be deleted")
     }
 
-    func test_badDeviceToken_deletesRegistrationKey() async throws {
-        // Current production behavior only deletes on `.unregistered`. The seam
-        // surfaces `.badDeviceToken` through `isStaleToken` and we now clean up
-        // both — this test pins that behavior so we don't regress.
+    func test_badDeviceToken_retriesOppositeGateway_andRetainsRegistration() async throws {
+        // A single badDeviceToken is no longer terminal: the token may have
+        // registered under the wrong APNS environment, so the send retries the
+        // opposite gateway. One queued error → production rejects, sandbox (no
+        // queued error) delivers → registration is retained.
         apns.queueError(APNSSendError(reason: .badDeviceToken, underlying: nil), for: token)
 
         try await runJob()
 
         let snapshot = kv.rawSnapshot
-        XCTAssertNil(snapshot["APNS-\(token)"], "BadDeviceToken → registration key should be deleted")
+        XCTAssertNotNil(snapshot["APNS-\(token)"], "Recoverable env mismatch must NOT delete the registration")
+        XCTAssertEqual(apns.recorded.last?.environment, .sandbox, "update delivered on the opposite gateway")
+    }
+
+    func test_badDeviceToken_onBothGateways_deletesRegistrationKey() async throws {
+        // When BOTH gateways reject the token it is genuinely dead → clean up.
+        apns.queueError(APNSSendError(reason: .badDeviceToken, underlying: nil), for: token, times: 2)
+
+        try await runJob()
+
+        let snapshot = kv.rawSnapshot
+        XCTAssertNil(snapshot["APNS-\(token)"], "Dead-on-both → registration key should be deleted")
     }
 
     // MARK: - Transient-failure retention

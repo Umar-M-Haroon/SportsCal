@@ -104,6 +104,41 @@ func routes(_ app: Application) throws {
     let legacy = app.grouped(RateLimitMiddleware(limit: 300, windowSeconds: 60, keyPrefix: "rl:legacy"))
         .grouped(APIKeyMiddleware())
     registerAPIRoutes(on: legacy, app: app)
+
+    // MARK: - Universal Links (public, unauthenticated)
+    // Serves the apple-app-site-association at the well-known path with the
+    // correct content type and NO redirect, so iOS validates `applinks:` for
+    // shared game + World Cup bracket links. appID = <TeamID>.<BundleID>.
+    // NOTE: requires the link host's DNS to point here + the Associated Domains
+    // entitlement on the app before universal links resolve to the app.
+    app.get(".well-known", "apple-app-site-association") { _ async -> Response in
+        let json = """
+        {"applinks":{"apps":[],"details":[{"appID":"9GDU5ZNHX7.com.KomodoLLC.SportsCal","paths":["/g/*","/wc/*"]}]}}
+        """
+        var headers = HTTPHeaders()
+        headers.contentType = .json
+        return Response(status: .ok, headers: headers, body: .init(string: json))
+    }
+
+    // Web fallback for recipients without the app: a tiny page that shows the
+    // App Store smart banner and bounces to the listing. When the app IS
+    // installed, iOS opens it directly (universal link) and never renders this.
+    let appStoreURL = "https://apps.apple.com/app/id1580232928"
+    func appStoreFallback(_ title: String) -> Response {
+        let html = """
+        <!doctype html><html><head><meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="apple-itunes-app" content="app-id=1580232928">
+        <title>\(title) · Scoreline</title>
+        <meta http-equiv="refresh" content="0; url=\(appStoreURL)">
+        </head><body><p>Opening Scoreline… <a href="\(appStoreURL)">Get the app</a>.</p></body></html>
+        """
+        var headers = HTTPHeaders()
+        headers.contentType = .html
+        return Response(status: .ok, headers: headers, body: .init(string: html))
+    }
+    app.get("g", ":id") { _ async -> Response in appStoreFallback("Game") }
+    app.get("wc", "bracket") { _ async -> Response in appStoreFallback("World Cup Bracket") }
 }
 
 /// Registers all API routes on a given route builder.
@@ -113,6 +148,29 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     // embedded in every binary and extractable, so a leaked key shouldn't be
     // able to flood Redis with garbage registrations.
     let writeRoutes = routes.grouped(RateLimitMiddleware(limit: 20, windowSeconds: 60, keyPrefix: "rl:write"))
+
+    // MARK: - Client Telemetry
+    // Lightweight ingestion for client-side funnel events (paywall_shown,
+    // gate_hit, purchase_completed, activation_*). Namespaced `client.<event>` and
+    // fed into the same Telemetry composite as server events, so they land in the
+    // Redis per-day counters (admin-viewable) and structured logs for free.
+    // Fail-open by construction: a malformed body, unknown event, or oversized
+    // field must never surface an error to the client's fire-and-forget call.
+    // Mounted on `routes` (300/min) rather than `writeRoutes` (20/min) because
+    // these are user-paced and higher-frequency than registrations.
+    routes.post("telemetry") { req async throws -> HTTPStatus in
+        guard let payload = try? req.content.decode(ClientTelemetryEvent.self),
+              ClientTelemetryEvent.allowedEvents.contains(payload.event) else {
+            return .ok
+        }
+        // Bound field cardinality/size so a leaked key can't bloat log/counter keys.
+        var fields = (payload.fields ?? [:]).filter { $0.key.count <= 32 && $0.value.count <= 64 }
+        if let install = req.headers.first(name: "X-Install-ID") {
+            fields["install"] = String(install.prefix(8))
+        }
+        await req.telemetry.info("client.\(payload.event)", fields)
+        return .ok
+    }
 
     //MARK: - Schedules
     // The schedule is already stored in Redis as JSON (written via setJSON). Return
@@ -844,13 +902,38 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
            existing.token != registration.token {
             let staleIndex = RedisEndpoint.pushToStartTokenIndex(existing.token).getValue(isDebug: isSandbox).rawValue
             _ = try? await req.kv.delete([staleIndex])
+            // Same install, new token → ActivityKit rotated the push-to-start token.
+            // Surface it so we can watch rotation frequency (it determines how often
+            // a long-TTL registration would otherwise go stale before a refresh).
+            req.logger.info("Push-to-start token rotated for install \(installID.prefix(8))... [\(environment.rawValue)] (\(existing.token.prefix(8))... → \(registration.token.prefix(8))...)")
+            await req.telemetry.warning("pushtostart.token_rotated", [
+                "install": String(installID.prefix(8)),
+                "env": environment.rawValue,
+            ])
         }
 
-        try await req.kv.setJSON(installKey, value: install, ttl: 60 * 60 * 24)
         let indexKey = RedisEndpoint.pushToStartTokenIndex(registration.token).getValue(isDebug: isSandbox).rawValue
-        try await req.kv.setString(indexKey, value: installID, ttl: 60 * 60 * 24)
+        do {
+            try await req.kv.setJSON(installKey, value: install, ttl: PushToStartInstall.registrationTTL)
+            try await req.kv.setString(indexKey, value: installID, ttl: PushToStartInstall.registrationTTL)
+        } catch {
+            // Capture before rethrowing: a failed persist here means the device
+            // can never receive a push-to-start, and it used to vanish silently.
+            await req.telemetry.error("pushtostart.register.failed", [
+                "install": String(installID.prefix(8)),
+                "env": environment.rawValue,
+                "error": "\(error)",
+            ])
+            throw error
+        }
 
         req.logger.info("Registered push-to-start install \(installID.prefix(8))... [\(environment.rawValue)] favorites=\(registration.favorites.count) eventIDs=\(install.eventIDs.count)")
+        await req.telemetry.info("pushtostart.registered", [
+            "install": String(installID.prefix(8)),
+            "env": environment.rawValue,
+            "favorites": "\(registration.favorites.count)",
+            "events": "\(install.eventIDs.count)",
+        ])
 
         // Push-to-start is otherwise transition-only: the scheduled job fires when a
         // game flips to "in". A user who follows a match that is ALREADY live (or
@@ -871,7 +954,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                     clock: req.application.appClock,
                     isDebug: serverIsDebug,
                     logger: req.logger,
-                    metrics: req.application.pushMetrics
+                    metrics: req.application.pushMetrics,
+                    telemetry: req.application.telemetry
                 )
             }
         }

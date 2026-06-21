@@ -21,6 +21,7 @@ rsync -avz --delete \
     --exclude 'SportsCalAdmin/' \
     --exclude '*.p8' \
     --exclude '.env.production' \
+    --exclude 'pbp_archive.sqlite*' \
     "${REPO_ROOT}/" \
     "${HOST}:${REMOTE_DIR}/repo/"
 

@@ -67,6 +67,35 @@ extension APNSSendError {
     }
 }
 
+/// Runs an APNS send for `primary`; if APNS rejects the token as `badDeviceToken`,
+/// retries the opposite gateway and reports whichever environment delivered.
+///
+/// Why: a device can register under the wrong APNS environment — most commonly a
+/// *sandbox* push token labeled `production` because the client derives its hint
+/// from `#if DEBUG` rather than the actual `aps-environment` entitlement (an
+/// Xcode build on the same device mints a sandbox token under the keychain-shared
+/// install ID). A send to only the labeled gateway then fails with
+/// `badDeviceToken` forever. Trying the opposite gateway delivers anyway and
+/// makes the mismatch observable via the returned `delivered` value.
+///
+/// Only `badDeviceToken` triggers the retry. `unregistered` means the token was
+/// valid for its environment but the activity/app is gone — the other gateway
+/// won't help — so that error propagates unchanged. If the opposite gateway also
+/// fails, its error propagates so the caller's cleanup runs.
+func sendWithEnvironmentFallback(
+    primary: APNSEnvironment,
+    _ send: (APNSEnvironment) async throws -> APNSSendResult
+) async throws -> (result: APNSSendResult, delivered: APNSEnvironment) {
+    do {
+        let result = try await send(primary)
+        return (result, primary)
+    } catch let error as APNSSendError where error.isBadDeviceToken {
+        let opposite: APNSEnvironment = primary == .production ? .sandbox : .production
+        let result = try await send(opposite)
+        return (result, opposite)
+    }
+}
+
 /// Thin abstraction over the two APNS send shapes our code actually uses:
 /// live-activity update/end, and push-to-start. Tests swap in `MockAPNSClient`
 /// to record calls and simulate errors.

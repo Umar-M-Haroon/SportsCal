@@ -550,7 +550,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
             clock: context.application.appClock,
             isDebug: isDebug,
             logger: Self.logger,
-            metrics: context.application.pushMetrics
+            metrics: context.application.pushMetrics,
+            telemetry: context.application.telemetry
         )
     }
 
@@ -607,7 +608,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
         clock: AppClock,
         isDebug: Bool,
         logger: Logger,
-        metrics: PushMetrics? = nil
+        metrics: PushMetrics? = nil,
+        telemetry: Telemetry? = nil
     ) async {
         let envPrefixes: [(prefix: String, env: APNSEnvironment)] = [
             ("PushToStartByInstall-", .production),
@@ -650,6 +652,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                         clock: clock,
                         logger: logger,
                         metrics: metrics,
+                        telemetry: telemetry,
                         teamShortByID: teamShortByID,
                         teamNameByID: teamNameByID,
                         teamShortByName: teamShortByName
@@ -706,7 +709,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
         clock: AppClock,
         isDebug: Bool,
         logger: Logger,
-        metrics: PushMetrics? = nil
+        metrics: PushMetrics? = nil,
+        telemetry: Telemetry? = nil
     ) async {
         let favoritesSet = Set(install.favorites)
         let eventIDsSet = Set(install.eventIDs)
@@ -736,6 +740,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 clock: clock,
                 logger: logger,
                 metrics: metrics,
+                telemetry: telemetry,
                 teamShortByID: teamShortByID,
                 teamNameByID: teamNameByID,
                 teamShortByName: teamShortByName
@@ -758,6 +763,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
         clock: AppClock,
         logger: Logger,
         metrics: PushMetrics? = nil,
+        telemetry: Telemetry? = nil,
         teamShortByID: [String: String] = [:],
         teamNameByID: [String: String] = [:],
         teamShortByName: [String: String] = [:]
@@ -809,22 +815,39 @@ struct ESPNFetchJob: AsyncScheduledJob {
         )
 
         do {
-            _ = try await apns.sendPushToStart(
-                deviceToken: token,
-                appID: "com.KomodoLLC.SportsCal",
-                attributes: attributes,
-                contentState: contentState,
-                alertTitle: "\(homeTeam) vs \(awayTeam)",
-                alertBody: "Game is starting now!",
-                timestamp: Int(clock.now.timeIntervalSince1970),
-                environment: environment
-            )
-            logger.info("Sent push-to-start for \(homeTeam) vs \(awayTeam) to token \(token.prefix(8))... [\(environment.rawValue)]")
+            // Send on the registered gateway; on badDeviceToken, retry the opposite
+            // one. A device that registered under the wrong APNS environment (e.g. a
+            // sandbox token labeled production) would otherwise never receive a start.
+            let (_, delivered) = try await sendWithEnvironmentFallback(primary: environment) { env in
+                try await apns.sendPushToStart(
+                    deviceToken: token,
+                    appID: "com.KomodoLLC.SportsCal",
+                    attributes: attributes,
+                    contentState: contentState,
+                    alertTitle: "\(homeTeam) vs \(awayTeam)",
+                    alertBody: "Game is starting now!",
+                    timestamp: Int(clock.now.timeIntervalSince1970),
+                    environment: env
+                )
+            }
+            if delivered != environment {
+                logger.warning("push-to-start for \(eventID) delivered on \(delivered.rawValue) after \(environment.rawValue) returned badDeviceToken — token \(token.prefix(8))... registered under the wrong APNS environment")
+                await telemetry?.warning("pushtostart.env_corrected", [
+                    "registered": environment.rawValue,
+                    "delivered": delivered.rawValue,
+                    "event": eventID,
+                ])
+            }
+            logger.info("Sent push-to-start for \(homeTeam) vs \(awayTeam) to token \(token.prefix(8))... [\(delivered.rawValue)]")
             await metrics?.recordSend(kind: .start)
+            await telemetry?.info("pushtostart.sent", ["event": eventID, "env": delivered.rawValue])
         } catch let sendError as APNSSendError {
             logger.error("Failed to send push-to-start for event \(eventID) [\(environment.rawValue)]: \(sendError.reason.rawValue) \(sendError.underlying ?? "")")
             await metrics?.recordError(sendError.reason)
+            await telemetry?.error("pushtostart.failed", ["event": eventID, "reason": sendError.reason.rawValue])
             if sendError.isStaleToken {
+                // Both gateways rejected the token → genuinely dead. Remove the
+                // install across the matching keyspace.
                 logger.warning("Removing stale push-to-start token \(token.prefix(8))... [\(environment.rawValue)]")
                 // Reverse-index lookup gives us the installID so we can delete the
                 // install record without iterating every install in the namespace.
@@ -834,10 +857,23 @@ struct ESPNFetchJob: AsyncScheduledJob {
                     let installKey = RedisEndpoint.pushToStartByInstall(installID).getValue(isDebug: environment == .sandbox).rawValue
                     toDelete.append(installKey)
                 }
+                // Also clear this token's dedup claims (both env namespaces) so a
+                // re-registration of the SAME token isn't blocked from retrying for
+                // the 8h claim TTL — the bug that left re-registered devices stuck.
+                for prefix in ["SentPushToStart-", "debug-SentPushToStart-"] {
+                    if let claims = try? await kv.scanKeys(matching: "\(prefix)\(token)-*") {
+                        toDelete.append(contentsOf: claims)
+                    }
+                }
                 _ = try? await kv.delete(toDelete)
                 await metrics?.recordCleanup(reason: sendError.reason.rawValue)
-                // Leave the claim — the registration is gone and we shouldn't keep
-                // trying to push to a dead token even if the claim TTL refreshes.
+                // A registration removed here is the long-TTL downside materializing:
+                // a token that rotated or died without the client re-registering.
+                // Watch this against `pushtostart.token_rotated` to tune the TTL.
+                await telemetry?.warning("pushtostart.token_cleaned", [
+                    "reason": sendError.reason.rawValue,
+                    "env": environment.rawValue,
+                ])
             } else {
                 // Transient: release the claim so the next cycle can retry rather
                 // than waiting out the 8h TTL with no actual notification delivered.
@@ -846,6 +882,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
         } catch {
             logger.error("Failed to send push-to-start for event \(eventID) [\(environment.rawValue)]: \(error)")
             await metrics?.recordError(.other)
+            await telemetry?.error("pushtostart.failed", ["event": eventID, "reason": "other"])
             _ = try? await kv.delete([sentKey])
         }
     }
@@ -874,7 +911,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 let homeID = game.idHomeTeam.flatMap { mapping["\(bucket):\($0)"] } ?? game.idHomeTeam
                 let awayID = game.idAwayTeam.flatMap { mapping["\(bucket):\($0)"] } ?? game.idAwayTeam
                 guard homeID != game.idHomeTeam || awayID != game.idAwayTeam else { return game }
-                return Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: homeID, idAwayTeam: awayID, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: game.intHomeScore, intAwayScore: game.intAwayScore, strStatus: game.strStatus, strProgress: game.strProgress, strTimestamp: game.strTimestamp, lastPlay: game.lastPlay, homeLinescores: game.homeLinescores, awayLinescores: game.awayLinescores, homeLeaders: game.homeLeaders, awayLeaders: game.awayLeaders, isCompleted: game.isCompleted, isoDate: game.isoDate, leaderboardEntries: game.leaderboardEntries, sessions: game.sessions, venueName: game.venueName, homeTeamColor: game.homeTeamColor, awayTeamColor: game.awayTeamColor, homeRecord: game.homeRecord, awayRecord: game.awayRecord, legDisplay: game.legDisplay, aggregateScore: game.aggregateScore, homeSeed: game.homeSeed, awaySeed: game.awaySeed, tournamentName: game.tournamentName, round: game.round, playoff: game.playoff)
+                return game.updated(idHomeTeam: homeID, idAwayTeam: awayID)
             }
         }
 

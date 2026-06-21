@@ -28,6 +28,7 @@ struct AdminController: RouteCollection {
         admin.get("push-to-start", "diagnostics", use: pushToStartDiagnostics)
         admin.get("push-to-start", "device-status", use: pushToStartDeviceStatus)
         admin.get("push", "metrics", use: pushMetrics)
+        admin.get("telemetry", use: telemetryCounters)
 
         // Write endpoints
         admin.post("redis", "invalidate", ":key", use: invalidateKey)
@@ -1054,5 +1055,33 @@ struct AdminController: RouteCollection {
     /// should go through swift-metrics if we ever need historical graphs.
     func pushMetrics(req: Request) async throws -> PushMetrics.Snapshot {
         await req.application.pushMetrics.snapshot()
+    }
+
+    // MARK: - Telemetry (persisted)
+
+    struct TelemetryResponse: Content {
+        /// `event` → (`epochDay` string → count). Persisted in Redis, so unlike
+        /// `pushMetrics` these survive restarts and deploys.
+        var counters: [String: [String: Int]]
+    }
+
+    /// Reads the per-day telemetry counters written by `RedisTelemetry`
+    /// (`telemetry:{event}:{epochDay}`). The dashboard graphs delivery health and
+    /// rate-limit rejections over time from this. Sentry would later supersede the
+    /// alerting half, but these counters stay cheap to keep for in-product views.
+    func telemetryCounters(req: Request) async throws -> TelemetryResponse {
+        let keys = try await req.kv.scanKeys(matching: "telemetry:*")
+        var counters: [String: [String: Int]] = [:]
+        for key in keys {
+            // key = telemetry:{event}:{epochDay} — event may itself contain dots
+            // (e.g. "apns.tick"), so split off only the trailing day component.
+            let stripped = key.dropFirst("telemetry:".count)
+            guard let lastColon = stripped.lastIndex(of: ":") else { continue }
+            let event = String(stripped[..<lastColon])
+            let day = String(stripped[stripped.index(after: lastColon)...])
+            guard let raw = try await req.kv.getString(key), let value = Int(raw) else { continue }
+            counters[event, default: [:]][day] = value
+        }
+        return TelemetryResponse(counters: counters)
     }
 }
