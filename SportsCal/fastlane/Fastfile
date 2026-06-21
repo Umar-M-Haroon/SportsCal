@@ -63,9 +63,9 @@ platform :ios do
     upload_to_app_store(
       api_key: asc_api_key,
       force: true,                  # skip the HTML metadata-preview confirmation
-      skip_screenshots: true,       # leave existing screenshots untouched
-      skip_metadata: false,         # push fastlane/metadata (release notes) only
-      overwrite_screenshots: false,
+      skip_screenshots: false,      # push fastlane/screenshots (en-US set staged for ASO)
+      skip_metadata: false,         # push fastlane/metadata (release notes, keywords, subtitle, promo)
+      overwrite_screenshots: true,
       precheck_include_in_app_purchases: false,
       run_precheck_before_submit: false,
       submit_for_review: false,     # upload only — submit manually after review
