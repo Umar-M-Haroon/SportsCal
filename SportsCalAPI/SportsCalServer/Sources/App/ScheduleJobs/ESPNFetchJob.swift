@@ -538,6 +538,21 @@ struct ESPNFetchJob: AsyncScheduledJob {
         guard !newlyStarted.isEmpty else { return }
         Self.logger.info("Detected \(newlyStarted.count) newly started games for push-to-start")
 
+        // Per-game "went live" record so we can later answer "how late did ESPN flip
+        // this game to `in` relative to its scheduled kickoff?" without guessing.
+        // The detection is minutely, so this server timestamp ≈ ESPN's flip time ±60s.
+        let now = context.application.appClock.now
+        for game in newlyStarted {
+            let lateByMin = game.isoDate.map { now.timeIntervalSince($0) / 60 }
+            Self.logger.info("Game went live", metadata: [
+                "eventID": "\(game.idEvent ?? "?")",
+                "league": "\(game.idLeague ?? "?")",
+                "match": "\(game.strHomeTeam) vs \(game.strAwayTeam)",
+                "scheduledKickoff": "\(game.strTimestamp ?? "?")",
+                "espnFlippedLateByMin": "\(lateByMin.map { String(format: "%.1f", $0) } ?? "?")",
+            ])
+        }
+
         guard context.application.storage[APNSConfiguredKey.self] == true else {
             Self.logger.warning("APNS not configured — skipping push-to-start notifications")
             return

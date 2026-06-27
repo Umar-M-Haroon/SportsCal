@@ -4,6 +4,20 @@ import VaporAPNS
 import APNSCore
 import RediStack
 
+/// In-process last-known-good cache for near-static payloads served straight
+/// from Redis. A transient Redis failure (timeout, pool exhaustion, dropped
+/// connection) on the `/teams` read was rethrowing as HTTP 500 — Sentry
+/// `SPORTS-CAL-38` logged 356 of these across 7 users, and the app reads an
+/// empty/failed teams fetch as "no games / unknown team" (see the ★1 review).
+/// Teams data changes rarely, so serving the last good payload turns those
+/// blips into a slightly-stale success instead of a hard failure.
+actor LastKnownGoodCache {
+    static let shared = LastKnownGoodCache()
+    private var teams: String?
+    func storeTeams(_ value: String) { teams = value }
+    var teamsValue: String? { teams }
+}
+
 /// Resolve which APNS gateway issued the device token in this request. The iOS
 /// client signals it via the `X-APNS-Env: sandbox|production` header so the
 /// hint stays out of URLs and access logs. Older clients that don't send the
@@ -225,12 +239,52 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         }
     }
 
+    //MARK: - On-demand schedule for a specific day
+    // The cached /schedules blob only spans the recent/upcoming window. This
+    // endpoint fetches every ESPN league's scoreboard for an arbitrary day
+    // (path param `date` = YYYYMMDD) and returns a merged LiveScore, so the
+    // client can browse multi-sport schedules far outside that window. Results
+    // are cached per-day (past days are immutable → long TTL).
+    routes.get("schedules", "date", ":date") { req async throws -> String in
+        guard let dateStr = req.parameters.get("date"),
+              dateStr.count == 8, let dateInt = Int(dateStr) else {
+            throw Abort(.badRequest)
+        }
+        let isDebug = req.application.environment == .development
+        let cacheKey = "ESPN Schedule Date \(dateInt)\(isDebug ? " DEBUG" : "")"
+        if let cached = try? await req.kv.getString(cacheKey), !cached.isEmpty {
+            return cached
+        }
+        let liveScore = await buildESPNScheduleForDate(dateInt: dateInt, client: req.client)
+        let json = encodeResult(res: liveScore)
+
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyyMMdd"
+        fmt.timeZone = TimeZone(identifier: "America/New_York")
+        let todayInt = Int(fmt.string(from: Date())) ?? dateInt
+        let ttl: TimeInterval = dateInt < todayInt ? 86_400 : 600
+        try? await req.kv.setString(cacheKey, value: json, ttl: ttl)
+        return json
+    }
+
     //MARK: - Teams
     // Same as /schedules: serve the cached JSON string directly rather than
     // decoding to [Team] and re-encoding it per request.
     routes.get("teams") { req async throws -> String in
         let key = RedisEndpoint.teams.getValue(isDebug: req.application.environment == .development).rawValue
-        return (try await req.kv.getString(key)) ?? "[]"
+        do {
+            let value = (try await req.kv.getString(key)) ?? "[]"
+            // Only cache real payloads — never let an empty result poison the
+            // fallback (that would re-create the "no teams" failure mode).
+            if value != "[]" { await LastKnownGoodCache.shared.storeTeams(value) }
+            return value
+        } catch {
+            if let cached = await LastKnownGoodCache.shared.teamsValue {
+                req.logger.warning("teams: Redis read failed, serving last-known-good — \(String(reflecting: error))")
+                return cached
+            }
+            throw error
+        }
     }
 
     //MARK: - Play-by-Play (per-event)
@@ -1119,4 +1173,49 @@ func encodeResult(res: some Codable) -> String {
     let encoder = JSONEncoder()
     guard let resultString = try? encoder.encode(res) else { return "" }
     return String(data: resultString, encoding: .utf8) ?? ""
+}
+
+/// Fetches every ESPN league's scoreboard for one day (YYYYMMDD as Int) and
+/// merges them into a single LiveScore grouped by sport. Mirrors the per-league
+/// fetch used by `ESPNScheduleWindowJob`, but for an arbitrary date and with all
+/// leagues folded into their sport's `LiveEvent`. Failures per league are
+/// swallowed so one bad league doesn't sink the whole day.
+func buildESPNScheduleForDate(dateInt: Int, client: some Client) async -> LiveScore {
+    let targets = Leagues.allCases.filter { $0.espnSlug != nil }
+    var bySport: [SportType: [Game]] = [:]
+    let maxConcurrent = 6
+
+    await withTaskGroup(of: (Leagues, Scoreboard?).self) { group in
+        var iterator = targets.makeIterator()
+        func addNext() {
+            guard let league = iterator.next() else { return }
+            group.addTask {
+                let sb = try? await Integrator.getESPNScoreboard(for: league, client, dates: dateInt)
+                return (league, sb)
+            }
+        }
+        for _ in 0..<maxConcurrent { addNext() }
+        while let (league, scoreboard) = await group.next() {
+            if let scoreboard, let event = LiveEvent(events: scoreboard, league: league) {
+                bySport[SportType(league: league), default: []].append(contentsOf: event.events)
+            }
+            addNext()
+        }
+    }
+
+    func merged(_ sport: SportType) -> LiveEvent? {
+        guard let games = bySport[sport], !games.isEmpty else { return nil }
+        return LiveEvent(events: games)
+    }
+
+    return LiveScore(
+        nba: merged(.basketball),
+        mlb: merged(.mlb),
+        soccer: merged(.soccer),
+        nfl: merged(.nfl),
+        nhl: merged(.hockey),
+        golf: merged(.golf),
+        tennis: merged(.tennis),
+        racing: merged(.racing)
+    )
 }
