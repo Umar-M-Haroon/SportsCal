@@ -11,9 +11,13 @@ import SportsCalModel
 struct DayChipStrip: View {
     @Binding var selectedDate: Date
     var datesWithGames: Set<DateComponents>
-    var pastDays: Int = 7
-    var futureDays: Int = 14
+    /// Half-window rendered on each side of the *selected* day. The window is
+    /// anchored on `selectedDate`, so paging past the edge re-centers it —
+    /// there is no fixed limit on how far back or forward you can travel.
+    var pastDays: Int = 60
+    var futureDays: Int = 60
     private let calendar = Calendar.current
+    @State private var showDatePicker = false
 
     private static let dayAbbreviationFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -38,8 +42,11 @@ struct DayChipStrip: View {
     }
 
     private var days: [Date] {
-        (-pastDays...futureDays).compactMap { offset in
-            calendar.date(byAdding: .day, value: offset, to: today)
+        // Anchor the window on the selected day so it follows the user as they
+        // page — no fixed floor or ceiling on how far they can travel.
+        let anchor = calendar.startOfDay(for: selectedDate)
+        return (-pastDays...futureDays).compactMap { offset in
+            calendar.date(byAdding: .day, value: offset, to: anchor)
         }
     }
 
@@ -64,8 +71,23 @@ struct DayChipStrip: View {
     @State private var scrollPosition: Date?
 
     var body: some View {
+        HStack(spacing: 8) {
+            strip
+            if !isToday(selectedDate) {
+                todayButton
+            }
+            datePickerButton
+        }
+        // A horizontal ScrollView is greedy vertically; pin the whole strip to a
+        // compact height so it stays a thin bar at the top instead of expanding
+        // to fill the pane and pushing the board down.
+        .frame(height: 60)
+        .sensoryFeedback(.selection, trigger: selectedDate)
+    }
+
+    private var strip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+            LazyHStack(spacing: 6) {
                 ForEach(Array(days.enumerated()), id: \.element.timeIntervalSince1970) { index, date in
                     if isNewMonth(date, previousDate: index > 0 ? days[index - 1] : nil) {
                         monthDivider(for: date)
@@ -86,7 +108,54 @@ struct DayChipStrip: View {
                 scrollPosition = calendar.startOfDay(for: newValue)
             }
         }
-        .sensoryFeedback(.selection, trigger: selectedDate)
+    }
+
+    private var todayButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                selectedDate = today
+            }
+        } label: {
+            Text("Today")
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 10)
+                .frame(height: 32)
+                .background(Capsule().fill(Color.accentColor.opacity(0.15)))
+                .foregroundStyle(Color.accentColor)
+        }
+        .buttonStyle(.plain)
+        .help("Jump to today")
+    }
+
+    private var datePickerButton: some View {
+        Button {
+            showDatePicker.toggle()
+        } label: {
+            Image(systemName: "calendar")
+                .font(.system(size: 14, weight: .semibold))
+                .frame(width: 32, height: 32)
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .help("Jump to date…")
+        .accessibilityLabel("Jump to date")
+        .popover(isPresented: $showDatePicker, arrowEdge: .bottom) {
+            DatePicker(
+                "Jump to date",
+                selection: Binding(
+                    get: { selectedDate },
+                    set: { newValue in
+                        selectedDate = calendar.startOfDay(for: newValue)
+                        showDatePicker = false
+                    }
+                ),
+                displayedComponents: .date
+            )
+            .datePickerStyle(.graphical)
+            .labelsHidden()
+            .padding()
+            .frame(minWidth: 300)
+        }
     }
 
     private func monthDivider(for date: Date) -> some View {

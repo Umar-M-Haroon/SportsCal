@@ -18,6 +18,9 @@ struct GameBoardLayout<GameContent: View>: View {
     let columns: [BoardColumn]
     let favorites: Favorites
     let onJumpToDate: (Date) -> Void
+    /// Drag a column header onto another column to reorder sports. Receives
+    /// (movedSport, targetSport). Nil disables reordering (e.g. on iOS).
+    var onMoveSport: ((SportType, SportType) -> Void)? = nil
     @ViewBuilder let gameContent: (GameWithTeams, Bool) -> GameContent
 
     var body: some View {
@@ -40,6 +43,14 @@ struct GameBoardLayout<GameContent: View>: View {
                             gameContent: gameContent
                         )
                         .frame(width: columnWidth)
+                        .dropDestination(for: String.self) { items, _ in
+                            guard let onMoveSport,
+                                  let raw = items.first,
+                                  let source = SportType(rawValue: raw),
+                                  source != column.sport else { return false }
+                            onMoveSport(source, column.sport)
+                            return true
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -53,11 +64,15 @@ struct GameBoardLayout<GameContent: View>: View {
         let spacing: CGFloat = 12
         let usable = availableWidth - padding - CGFloat(columnCount - 1) * spacing
         #if os(macOS)
-        // Cap at 2 columns visible on macOS; extra sports scroll horizontally.
-        let maxColumns = 2
-        let visibleCount = min(columnCount, maxColumns)
-        let visibleUsable = availableWidth - padding - CGFloat(visibleCount - 1) * spacing
-        return visibleUsable / CGFloat(visibleCount)
+        // Fill the (wide) Mac window: fit as many ~320pt columns as possible,
+        // distributing evenly when they all fit, else fixed-width + scroll.
+        let target: CGFloat = 320
+        let fittable = max(1, Int(usable / target))
+        if columnCount <= fittable {
+            return usable / CGFloat(columnCount)
+        } else {
+            return target
+        }
         #else
         let fittable = max(1, Int(usable / 300))
         if columnCount <= fittable {

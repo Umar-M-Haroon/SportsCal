@@ -80,7 +80,9 @@ struct DebugReplayTestView: View {
             // MARK: - Completed games to replay
             Section {
                 TextField("Filter by team", text: $filterText)
+                    #if os(iOS)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
 
                 let games = replayableGames

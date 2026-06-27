@@ -12,6 +12,69 @@ import TipKit
 import EventKit
 #endif
 
+/// Cross-platform scope the day board can be narrowed to (driven by the macOS
+/// sidebar selection; defaults to `.all` everywhere else).
+enum DayScope: Hashable {
+    case all
+    case sport(SportType)
+    case liveNow
+    case favorites
+    case team(String)   // team id
+
+    var isTeam: Bool {
+        if case .team = self { return true }
+        return false
+    }
+}
+
+extension View {
+    /// Adds Mac-native affordances to a board game cell — hover lift + link
+    /// cursor, drag-to-export, and an "Open in New Window" context menu. No-op
+    /// on iOS.
+    @ViewBuilder
+    func macBoardAffordances(game: Game) -> some View {
+        #if os(macOS)
+        modifier(MacBoardAffordances(game: game))
+        #else
+        self
+        #endif
+    }
+}
+
+#if os(macOS)
+private struct MacBoardAffordances: ViewModifier {
+    let game: Game
+    @Environment(\.openWindow) private var openWindow
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isHovered ? 1.01 : 1.0)
+            .animation(.easeOut(duration: 0.12), value: isHovered)
+            .pointerStyle(.link)
+            .onHover { isHovered = $0 }
+            .draggable(dragPayload)
+            .contextMenu {
+                Button("Open in New Window") {
+                    openWindow(id: "game-detail", value: game.id)
+                }
+            }
+    }
+
+    private var dragPayload: String {
+        var line = "\(game.strAwayTeam) @ \(game.strHomeTeam)"
+        if let date = game.standardDate {
+            line += " — " + date.formatted(date: .abbreviated, time: .shortened)
+        }
+        if let idEvent = game.idEvent,
+           let url = DeepLink.url(for: .game(idEvent: idEvent)) {
+            line += "\n" + url.absoluteString
+        }
+        return line
+    }
+}
+#endif
+
 struct DayPage: View {
     @Environment(GameViewModel.self) private var viewModel
     @Environment(UserDefaultStorage.self) private var storage
@@ -24,6 +87,8 @@ struct DayPage: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var spotlightGameID: String?
+    /// Sidebar-driven scope (macOS). `.all` = the full multi-sport board.
+    var dayScope: DayScope = .all
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var sheetType: SheetType?
     @State private var collapsedSportSections: Set<SportType> = []
@@ -35,6 +100,16 @@ struct DayPage: View {
     @State private var showHiddenGames: Bool = false
     @State private var boardNavigationTarget: GameWithTeams?
     @State private var worldCupHubPresented = false
+    /// Keyboard-selected board cell (macOS): ⌥↑/⌥↓ move it, Return pops it out.
+    @State private var boardSelectedGameID: String?
+    /// The date we were on before a team's date-jump, so leaving the team scope
+    /// returns there instead of stranding on the team's game day.
+    @State private var dateBeforeTeamScope: Date?
+    /// macOS: trailing inspector showing the selected game's rich detail.
+    /// Persisted so its open/closed state survives relaunch. (Inspector *width*
+    /// is restored automatically by the window's state restoration.)
+    @AppStorage("board.inspector.visible") private var boardInspectorVisible: Bool = true
+    @Environment(\.openWindow) private var openWindow
 
     // Memoization for `dayData`. A plain reference-type box held by @State keeps a
     // stable identity across renders without SwiftUI observing its mutations — so
@@ -51,6 +126,7 @@ struct DayPage: View {
         let firstGameID: String?
         let lastGameID: String?
         let sportFilter: SportChipFilter
+        let dayScope: DayScope
         let favoritesHash: Int
         let suggestedHash: Int
         let orderedSportsHash: Int
@@ -115,7 +191,18 @@ struct DayPage: View {
     }
 
     private var dayGames: [GameWithTeams] {
-        viewModel.gamesWithTeams(for: selectedDate)
+        viewModel.gamesWithTeams(for: selectedDate).filter { passesDayScope($0.game) }
+    }
+
+    /// Sidebar-scope predicate (macOS). On iOS `dayScope` stays `.all` → no-op.
+    private func passesDayScope(_ game: Game) -> Bool {
+        switch dayScope {
+        case .all:          return true
+        case .sport(let s): return game.sportType == s
+        case .liveNow:      return liveGameIDs.contains(game.id)
+        case .favorites:    return favorites.matches(game)
+        case .team(let id): return game.idHomeTeam == id || game.idAwayTeam == id
+        }
     }
 
     private var dayDataKey: DayDataKey {
@@ -127,6 +214,7 @@ struct DayPage: View {
             firstGameID: games.first?.id,
             lastGameID: games.last?.id,
             sportFilter: sportFilter,
+            dayScope: dayScope,
             favoritesHash: favorites.teams.hashValue,
             suggestedHash: suggested.hashValue,
             orderedSportsHash: storage.orderedSports.hashValue,
@@ -199,7 +287,7 @@ struct DayPage: View {
         guard isToday else { return [] }
         let claimedWorldCupIDs = heroClaimedWorldCupIDs
         return viewModel.liveEventsWithTeams.filter {
-            sportFilter.matches($0.game) && !claimedWorldCupIDs.contains($0.id)
+            sportFilter.matches($0.game) && passesDayScope($0.game) && !claimedWorldCupIDs.contains($0.id)
         }
     }
 
@@ -260,7 +348,7 @@ struct DayPage: View {
             grouped[sport, default: []].append(gwt)
         }
 
-        return storage.enabledSports.map { sport in
+        return storage.enabledSports.compactMap { sport -> BoardColumn? in
             let sportGames = grouped[sport] ?? []
             let liveForSport = live.filter { $0.game.sportType == sport }
             let liveForSportIDs = Set(liveForSport.map { $0.id })
@@ -274,7 +362,12 @@ struct DayPage: View {
                     return false
                 }
 
-            let nextDate: Date? = (sportGames.isEmpty && liveForSport.isEmpty)
+            let isEmpty = sportGames.isEmpty && liveForSport.isEmpty
+            // In a focused scope (a single sport/team/live/favorites), don't show
+            // a wall of empty sport columns — only the ones with content.
+            if isEmpty, dayScope != .all { return nil }
+
+            let nextDate: Date? = isEmpty
                 ? viewModel.nextGame(for: sport, after: selectedDate)?.standardDate
                 : nil
 
@@ -393,35 +486,113 @@ struct DayPage: View {
                 viewModel.filterSports()
             }
         }
-        .onChange(of: selectedDate) { _, _ in
+        .onChange(of: selectedDate) { _, newValue in
             showHiddenGames = false
+            boardSelectedGameID = nil
+            viewModel.ensureGamesLoaded(for: newValue)
         }
-        #if os(macOS)
-        .onKeyPress(.leftArrow) {
-            navigateDay(by: -1)
-            return .handled
-        }
-        .onKeyPress(.rightArrow) {
-            navigateDay(by: 1)
-            return .handled
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .jumpToToday)) { _ in
-            withAnimation(.easeInOut(duration: 0.2)) {
+        .onChange(of: dayScope) { oldScope, newScope in
+            // A sidebar tap should land somewhere useful: a team jumps to its
+            // next/most-recent game; Live Now jumps to today. Leaving a team
+            // restores the date we had before the jump (so team → All Sports
+            // doesn't strand you on the team's game day).
+            boardSelectedGameID = nil
+            switch newScope {
+            case .team(let id):
+                if !oldScope.isTeam { dateBeforeTeamScope = selectedDate }
+                if let date = nextGame(forTeamID: id)?.standardDate {
+                    selectedDate = calendar.startOfDay(for: date)
+                }
+            case .liveNow:
                 selectedDate = calendar.startOfDay(for: Date())
+                dateBeforeTeamScope = nil
+            case .all, .sport, .favorites:
+                if oldScope.isTeam {
+                    selectedDate = dateBeforeTeamScope ?? calendar.startOfDay(for: Date())
+                    dateBeforeTeamScope = nil
+                }
             }
         }
+        .task {
+            viewModel.ensureGamesLoaded(for: selectedDate)
+        }
+    }
+
+    /// Soonest live-or-upcoming (or most-recent) game involving a team — used to
+    /// land on a useful day when a team is picked in the sidebar.
+    private func nextGame(forTeamID id: String) -> Game? {
+        let cutoff = calendar.date(byAdding: .hour, value: -4, to: Date()) ?? Date()
+        let games = (viewModel.totalGames ?? []).filter { $0.idHomeTeam == id || $0.idAwayTeam == id }
+        let upcoming = games
+            .filter { ($0.standardDate ?? .distantPast) >= cutoff }
+            .min { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
+        // Fall back to the most recent past game if the team has nothing upcoming.
+        return upcoming ?? games.max { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
+    }
+
+    #if os(macOS)
+    /// Trailing inspector: the keyboard/click-selected game's full detail
+    /// (standings, leaders, plays, injuries, H2H) shown inline beside the board.
+    @ViewBuilder
+    private var boardInspector: some View {
+        if let id = boardSelectedGameID, let gwt = boardGameWithTeams(byID: id) {
+            boardDetailView(for: gwt)
+                .id(id)   // rebuild section loaders when the selection changes
+                // Keep a comfortable reading measure on very wide inspector panes
+                // (the detail was originally tuned for phone widths).
+                .frame(maxWidth: 540)
+                .frame(maxWidth: .infinity, alignment: .top)
+        } else {
+            ContentUnavailableView(
+                "No Game Selected",
+                systemImage: "sportscourt",
+                description: Text("Pick a game — or press ⌥↑ / ⌥↓ — to see standings, leaders, and plays. Press Return to open it in its own window.")
+            )
+        }
+    }
+    #endif
+
+    #if os(macOS)
+    /// Display order of board cells (column by column, live then upcoming) — the
+    /// traversal order for ⌥↑/⌥↓ keyboard navigation.
+    private var boardSelectionOrder: [GameWithTeams] {
+        boardColumns.flatMap { $0.liveGames + $0.otherGames }
+    }
+
+    private func boardGameWithTeams(byID id: String) -> GameWithTeams? {
+        boardSelectionOrder.first { $0.id == id }
+    }
+
+    private func moveBoardSelection(by delta: Int) {
+        let order = boardSelectionOrder.map(\.id)
+        guard !order.isEmpty else { return }
+        guard let current = boardSelectedGameID,
+              let idx = order.firstIndex(of: current) else {
+            boardSelectedGameID = order.first
+            return
+        }
+        boardSelectedGameID = order[min(max(idx + delta, 0), order.count - 1)]
+    }
+    #endif
+
+    /// Tapping a board cell shows its detail: inline in the inspector on macOS,
+    /// pushed full-screen elsewhere.
+    private func selectBoardGame(_ gwt: GameWithTeams) {
+        #if os(macOS)
+        boardSelectedGameID = gwt.id
+        boardInspectorVisible = true
+        #else
+        boardNavigationTarget = gwt
         #endif
     }
 
     // MARK: - Board Layout (iPad/Mac)
 
     private var boardBody: some View {
-        VStack(spacing: 0) {
+        let board = VStack(spacing: 0) {
             DayChipStrip(
                 selectedDate: $selectedDate,
-                datesWithGames: viewModel.datesWithGames(),
-                pastDays: daysForDuration(storage.hidePastEvents ? .oneDay : storage.hidePastGamesDuration),
-                futureDays: daysForDuration(storage.durations)
+                datesWithGames: viewModel.datesWithGames()
             )
             .padding(.horizontal)
             .padding(.bottom, 8)
@@ -430,7 +601,7 @@ struct DayPage: View {
             // so it reads as a card rather than stretching across a wide iPad.
             if showWorldCupHero {
                 WorldCupHeroCard(
-                    onSelectGame: { boardNavigationTarget = $0 },
+                    onSelectGame: { selectBoardGame($0) },
                     onOpenHub: { worldCupHubPresented = true },
                     date: selectedDate
                 )
@@ -469,6 +640,9 @@ struct DayPage: View {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             selectedDate = calendar.startOfDay(for: date)
                         }
+                    },
+                    onMoveSport: { source, target in
+                        withAnimation { storage.moveSport(source, before: target) }
                     }
                 ) { gwt, isLive in
                     boardGameRow(for: gwt, isLive: isLive)
@@ -493,7 +667,61 @@ struct DayPage: View {
                 Spacer()
             }
         }
+        #if os(macOS)
+        return macBoardChrome(board)
+        #else
+        return board
+        #endif
     }
+
+    #if os(macOS)
+    /// Bundles the Mac board's keyboard navigation, detail inspector, and the
+    /// inspector-toggle toolbar item. Isolated in its own generic function so the
+    /// (heavy) inspector closure type-checks independently of `body`.
+    @ViewBuilder
+    private func macBoardChrome(_ content: some View) -> some View {
+        content
+            .onKeyPress(.leftArrow) {
+                navigateDay(by: -1); return .handled
+            }
+            .onKeyPress(.rightArrow) {
+                navigateDay(by: 1); return .handled
+            }
+            // ⌥↑ / ⌥↓ move the keyboard selection (plain ←/→ are day nav);
+            // Return pops the selected game out into its own window.
+            .onKeyPress(keys: [.upArrow]) { press in
+                guard press.modifiers.contains(.option) else { return .ignored }
+                moveBoardSelection(by: -1); return .handled
+            }
+            .onKeyPress(keys: [.downArrow]) { press in
+                guard press.modifiers.contains(.option) else { return .ignored }
+                moveBoardSelection(by: 1); return .handled
+            }
+            .onKeyPress(.return) {
+                guard let id = boardSelectedGameID else { return .ignored }
+                openWindow(id: "game-detail", value: id); return .handled
+            }
+            .inspector(isPresented: $boardInspectorVisible) {
+                boardInspector
+                    .inspectorColumnWidth(min: 340, ideal: 420, max: 600)
+            }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { boardInspectorVisible.toggle() }
+                    } label: {
+                        Image(systemName: "sidebar.right")
+                    }
+                    .help(boardInspectorVisible ? "Hide game details" : "Show game details")
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .jumpToToday)) { _ in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    selectedDate = calendar.startOfDay(for: Date())
+                }
+            }
+    }
+    #endif
 
     // MARK: - List Layout (iPhone)
 
@@ -503,9 +731,7 @@ struct DayPage: View {
             Section {
                 DayChipStrip(
                     selectedDate: $selectedDate,
-                    datesWithGames: viewModel.datesWithGames(),
-                    pastDays: daysForDuration(storage.hidePastEvents ? .oneDay : storage.hidePastGamesDuration),
-                    futureDays: daysForDuration(storage.durations)
+                    datesWithGames: viewModel.datesWithGames()
                 )
             }
             .listRowInsets(EdgeInsets())
@@ -548,7 +774,7 @@ struct DayPage: View {
         if showWorldCupHero {
             Section {
                 WorldCupHeroCard(
-                    onSelectGame: { boardNavigationTarget = $0 },
+                    onSelectGame: { selectBoardGame($0) },
                     onOpenHub: { worldCupHubPresented = true },
                     date: selectedDate
                 )
@@ -910,7 +1136,7 @@ struct DayPage: View {
         let game = gameWithTeams.game
 
         Button {
-            boardNavigationTarget = gameWithTeams
+            selectBoardGame(gameWithTeams)
         } label: {
             Group {
                 if game.isRace {
@@ -964,6 +1190,15 @@ struct DayPage: View {
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
+        .overlay {
+            // Keyboard-selection ring (macOS ⌥↑/⌥↓). `boardSelectedGameID` is
+            // only ever set on macOS, so this is inert elsewhere.
+            if boardSelectedGameID == game.id {
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.accentColor, lineWidth: 2)
+            }
+        }
+        .macBoardAffordances(game: game)
     }
 
     @ViewBuilder
@@ -1263,6 +1498,9 @@ struct DayPage: View {
         }
         return planner.plan
     }
+    #else
+    /// macOS has no AdMob SDK — the day feed never shows ads, so the plan is empty.
+    private var classicAdPlan: FeedAdPlan { FeedAdPlan() }
     #endif
 }
 

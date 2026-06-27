@@ -20,6 +20,9 @@ struct SportColumnView<GameContent: View>: View {
     private var totalCount: Int { liveGames.count + otherGames.count }
     private var isEmpty: Bool { totalCount == 0 }
 
+    /// Per-sport persisted collapse state (survives relaunch).
+    private var collapseKey: String { "board.column.collapsed.\(sport.rawValue)" }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -32,6 +35,7 @@ struct SportColumnView<GameContent: View>: View {
             }
         }
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .onAppear { isCollapsed = UserDefaults.standard.bool(forKey: collapseKey) }
     }
 
     private var gamesBody: some View {
@@ -92,6 +96,7 @@ struct SportColumnView<GameContent: View>: View {
             withAnimation(.easeInOut(duration: 0.2)) {
                 isCollapsed.toggle()
             }
+            UserDefaults.standard.set(isCollapsed, forKey: collapseKey)
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: sport.systemImage)
@@ -110,5 +115,7 @@ struct SportColumnView<GameContent: View>: View {
             .padding(.vertical, 10)
         }
         .buttonStyle(.plain)
+        // Drag the header to reorder columns (handled by the board's drop target).
+        .draggable(sport.rawValue)
     }
 }

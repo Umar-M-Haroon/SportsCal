@@ -174,6 +174,32 @@ final class ProFeatureGatingTests: XCTestCase {
         }
     }
 
+    // MARK: - Setapp Unlock Invariant
+
+    /// The Setapp flavor unlocks the app by forcing `isPro = true` (see
+    /// `SubscriptionManager.configure()` under `#if SETAPP`). That only works if
+    /// *every* flat gate routes through `canUse` → `isPro`. This asserts the
+    /// chokepoint covers the whole `ProFeature` surface, so a Pro/Setapp user is
+    /// never wrongly blocked by a feature that forgot to check `canUse`.
+    func testCanUse_proUnlocksEveryFeature() {
+        for feature in ProFeature.allCases {
+            XCTAssertTrue(proManager.canUse(feature),
+                          "\(feature) must unlock for a Pro/Setapp user — it bypasses the canUse chokepoint otherwise")
+        }
+    }
+
+    /// `isManagedExternally` is the compile-time switch that hides IAP UI in the
+    /// Setapp build. It must be false in the App Store build (this test target),
+    /// where purchases/restore are real.
+    func testIsManagedExternally_falseInAppStoreBuild() {
+        #if SETAPP
+        XCTAssertTrue(SubscriptionManager.isManagedExternally)
+        #else
+        XCTAssertFalse(SubscriptionManager.isManagedExternally,
+                       "App Store build must expose IAP UI (Restore, paywall)")
+        #endif
+    }
+
     func testNotifyButton_alertContainsSubscribeAction_unchanged() {
         // A blocked schedule still routes through shouldShowSportsCalProAlert →
         // ContentView's alert with a Subscribe action that opens .paywall.

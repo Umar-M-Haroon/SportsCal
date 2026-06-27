@@ -18,6 +18,8 @@ struct MacSettingsView: View {
                 .tabItem { Label("Sports", systemImage: "sportscourt") }
             AdvancedSettingsTab()
                 .tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }
+            AboutSettingsTab()
+                .tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 450)
     }
@@ -64,6 +66,13 @@ private struct AdvancedSettingsTab: View {
             }
             .formStyle(.grouped)
         }
+    }
+}
+
+private struct AboutSettingsTab: View {
+    var body: some View {
+        MacAboutView()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 #endif

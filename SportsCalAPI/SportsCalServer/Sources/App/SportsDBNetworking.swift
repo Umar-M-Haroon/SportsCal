@@ -329,4 +329,138 @@ class SportsDBNetworking {
             return nil
         }
     }
+
+    // MARK: - Team Detail (lookup + roster)
+
+    /// Fetches a team's extended profile and current roster from TheSportsDB v2 and
+    /// assembles a `TeamDetail`. Both fetches degrade to nil/empty on failure rather than
+    /// throwing, so a partial result (profile but no roster, or vice-versa) is still useful.
+    static func getTeamDetail(app: Application, teamID: String) async -> TeamDetail {
+        async let profile = fetchTeamProfile(app: app, teamID: teamID)
+        async let players = fetchTeamPlayers(app: app, teamID: teamID)
+        return TeamDetail(idTeam: teamID, profile: await profile, players: await players)
+    }
+
+    private static func fetchTeamProfile(app: Application, teamID: String) async -> TeamProfile? {
+        // v2 format: /lookup/team/{idTeam} → root field "teams"
+        let urlString = "https://www.thesportsdb.com/api/v2/json/lookup/team/\(teamID)"
+        do {
+            let response = try await app.client.get(URI(string: urlString)) { req in
+                if let apiKey = Environment.get("SportsDB_API_KEY") {
+                    req.headers.add(name: "X-API-KEY", value: apiKey)
+                }
+            }
+            guard let envelope = try? response.content.decode(SDBTeamLookupEnvelope.self),
+                  let team = envelope.resolved else {
+                return nil
+            }
+            return team.toProfile()
+        } catch {
+            logger.error("❌ Team profile fetch failed", metadata: ["teamID": "\(teamID)", "error": "\(error)"])
+            return nil
+        }
+    }
+
+    private static func fetchTeamPlayers(app: Application, teamID: String) async -> [TeamPlayer] {
+        // v2 format: /list/players/{idTeam} → root field "players"
+        let urlString = "https://www.thesportsdb.com/api/v2/json/list/players/\(teamID)"
+        do {
+            let response = try await app.client.get(URI(string: urlString)) { req in
+                if let apiKey = Environment.get("SportsDB_API_KEY") {
+                    req.headers.add(name: "X-API-KEY", value: apiKey)
+                }
+            }
+            guard let envelope = try? response.content.decode(SDBPlayersEnvelope.self) else {
+                return []
+            }
+            return envelope.allPlayers.compactMap { sdb in
+                guard let name = sdb.strPlayer, !name.isEmpty else { return nil }
+                return sdb.toPlayer(name: name)
+            }
+        } catch {
+            logger.error("❌ Team players fetch failed", metadata: ["teamID": "\(teamID)", "error": "\(error)"])
+            return []
+        }
+    }
+}
+
+// MARK: - TheSportsDB v2 team/player DTOs
+
+/// Decodes a field TheSportsDB may return as either a JSON string or a number.
+private struct SDBFlexString: Decodable {
+    let value: String?
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if let s = try? c.decode(String.self) { value = s }
+        else if let i = try? c.decode(Int.self) { value = String(i) }
+        else if let d = try? c.decode(Double.self) { value = String(d) }
+        else { value = nil }
+    }
+}
+
+private struct SDBTeamLookupEnvelope: Decodable {
+    let teams: [SDBTeam]?
+    let lookup: [SDBTeam]?
+    /// Tolerates either documented ("teams") or generic ("lookup") root keys.
+    var resolved: SDBTeam? { teams?.first ?? lookup?.first }
+}
+
+private struct SDBPlayersEnvelope: Decodable {
+    let players: [SDBPlayer]?
+    let list: [SDBPlayer]?
+    var allPlayers: [SDBPlayer] { players ?? list ?? [] }
+}
+
+private struct SDBTeam: Decodable {
+    let idTeam: SDBFlexString?
+    let strTeam: String?
+    let strBadge: String?
+    let strTeamBadge: String?
+    let strFanart1: String?
+    let strCountry: String?
+    let strLeague: String?
+    let strStadium: String?
+    let strLocation: String?
+    let strStadiumLocation: String?
+    let intStadiumCapacity: SDBFlexString?
+    let intFormedYear: SDBFlexString?
+    let strWebsite: String?
+    let strDescriptionEN: String?
+
+    func toProfile() -> TeamProfile {
+        TeamProfile(
+            name: strTeam,
+            badge: strBadge ?? strTeamBadge,
+            fanart: strFanart1,
+            country: strCountry,
+            league: strLeague,
+            stadium: strStadium,
+            stadiumLocation: strStadiumLocation ?? strLocation,
+            stadiumCapacity: intStadiumCapacity?.value,
+            formedYear: intFormedYear?.value,
+            website: strWebsite,
+            descriptionText: strDescriptionEN
+        )
+    }
+}
+
+private struct SDBPlayer: Decodable {
+    let idPlayer: SDBFlexString?
+    let strPlayer: String?
+    let strPosition: String?
+    let strNumber: SDBFlexString?
+    let strNationality: String?
+    let strCutout: String?
+    let strThumb: String?
+
+    func toPlayer(name: String) -> TeamPlayer {
+        TeamPlayer(
+            idPlayer: idPlayer?.value,
+            name: name,
+            position: strPosition,
+            number: strNumber?.value,
+            nationality: strNationality,
+            headshotURL: strCutout ?? strThumb
+        )
+    }
 }

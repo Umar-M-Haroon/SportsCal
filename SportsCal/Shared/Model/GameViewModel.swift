@@ -1595,6 +1595,92 @@ public class GameViewModel: NSObject {
         filterSports(force: true, skipLiveUpdate: skipLiveUpdate)
     }
     
+    // MARK: - On-demand date loading
+
+    /// Days (yyyyMMdd) already fetched on-demand, so we don't re-hit the network
+    /// for the same empty day. Not observed — pure bookkeeping.
+    @ObservationIgnored private var onDemandFetchedDays: Set<String> = []
+    @ObservationIgnored private var onDemandDebounce: Task<Void, Never>?
+
+    private static let onDemandDayKeyFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyyMMdd"
+        return f
+    }()
+
+    /// Called when the user navigates to a date. If we have no games loaded for
+    /// that day (it's outside the cached /schedules window) and we haven't already
+    /// fetched it, pull that day's multi-sport schedule on demand and merge it in.
+    /// Debounced so rapid scrubbing only fetches the day the user settles on.
+    @MainActor
+    func ensureGamesLoaded(for date: Date) {
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: date)
+        let key = Self.onDemandDayKeyFormatter.string(from: dayStart)
+        guard !onDemandFetchedDays.contains(key) else { return }
+
+        // The cached /schedules blob is authoritative (and enriched) for the live
+        // window — today through ~3 weeks ahead. Within that window only fetch a
+        // day that's completely empty. For PAST days and the far future, always
+        // fetch: prod prunes/partially-covers those (e.g. soccer present but no
+        // basketball), and the old "skip if ANY game that day" check let those
+        // gaps stand. The fetch then *replaces* that day (see mergeOnDemandGames),
+        // so partial coverage is filled without duplicating.
+        let today = calendar.startOfDay(for: Date())
+        let daysFromToday = calendar.dateComponents([.day], from: today, to: dayStart).day ?? 0
+        let hasGamesThatDay = (totalGames ?? []).contains { game in
+            game.standardDate.map { calendar.isDate($0, inSameDayAs: dayStart) } ?? false
+        }
+        if daysFromToday >= 0, daysFromToday <= 21, hasGamesThatDay { return }
+
+        onDemandDebounce?.cancel()
+        onDemandDebounce = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard let self, !Task.isCancelled else { return }
+            guard !self.onDemandFetchedDays.contains(key) else { return }
+            do {
+                let result = try await NetworkHandler.getSchedule(forDate: dayStart)
+                self.onDemandFetchedDays.insert(key)
+                self.mergeOnDemandGames(result, for: dayStart)
+            } catch {
+                AppLogger.viewModel.error("On-demand schedule fetch failed for \(key): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Merges an on-demand day's games into `totalGames` and rebuilds derived
+    /// state. The fetched set is authoritative for `date`, so existing non-World-Cup
+    /// games on that day are dropped first (fills gaps + avoids cross-source dupes);
+    /// World Cup games are preserved (they carry separate enrichment).
+    @MainActor
+    private func mergeOnDemandGames(_ result: LiveScore, for date: Date) {
+        let incoming = [result.nhl?.events, result.nfl?.events, result.soccer?.events,
+                        result.mlb?.events, result.nba?.events, result.golf?.events,
+                        result.tennis?.events, result.racing?.events]
+            .compactMap { $0 }
+            .flatMap { $0 }
+        guard !incoming.isEmpty else { return }
+
+        let calendar = Calendar.current
+        let worldCupID = String(Leagues.FIFA_World_Cup.rawValue)
+        var games = totalGames ?? []
+        games.removeAll { game in
+            game.idLeague != worldCupID
+                && (game.standardDate.map { calendar.isDate($0, inSameDayAs: date) } ?? false)
+        }
+        let existingIDs = Set(games.map(\.id))
+        let fresh = incoming.filter { !existingIDs.contains($0.id) }
+        guard !fresh.isEmpty else { return }
+
+        games.append(contentsOf: fresh)
+        gameWithTeamsCache.removeAll()
+        gamesWithTeamsDateCache.removeAll()
+        totalGames = games
+        filterSports(force: true, skipLiveUpdate: true)
+    }
+
     func handleSports(force: Bool = false) {
         if force {
             totalGames = totalGames?.filter({ game in
@@ -3092,6 +3178,21 @@ extension GameViewModel {
             }
         }
     }
+}
+#endif
+
+// MARK: - Live Activity no-ops (platforms without ActivityKit, e.g. macOS)
+// macOS has no Live Activities / push-to-start, so the auto-follow + activity
+// methods that shared views call are inert here. Mirrors the inverse of the
+// `canImport(ActivityKit) && os(iOS)` extension above.
+#if !(canImport(ActivityKit) && os(iOS))
+extension GameViewModel {
+    func requestActivity(game: Game, homeTeam: Team, awayTeam: Team) {}
+    func startActivityUpdatesListener() {}
+    func reRegisterAllActivityTokens() {}
+    func reconcileWorldCupFollows() {}
+    func sendAutoFollowRegistration() {}
+    func preCacheBadges(homeTeam: Team, awayTeam: Team) {}
 }
 #endif
 

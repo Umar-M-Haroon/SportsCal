@@ -52,7 +52,13 @@ class NativeAdManager: NSObject {
     /// Call from a feed's `onAppear`. Tops up after partial-fill failures, and
     /// when the cached batch has gone stale it discards and reloads fresh
     /// creatives to avoid ad fatigue over a long session.
-    func refreshOnAppear(target: Int = 5) {
+    ///
+    /// `target` defaults to `maxAdsPerScreen + 1`: a feed never renders more
+    /// than `maxAdsPerScreen` creatives, so loading materially more than that
+    /// just burns matched requests that get discarded unshown (observed AdMob
+    /// show rate ~10%). One spare covers multi-section feeds that need distinct
+    /// creatives without over-requesting.
+    func refreshOnAppear(target: Int = AdConfiguration.maxAdsPerScreen + 1) {
         guard !isLoading else { return }
         let isStale = lastLoadStarted.map { Date().timeIntervalSince($0) > refreshInterval } ?? true
         if isStale && !loadedAds.isEmpty {

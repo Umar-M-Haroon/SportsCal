@@ -238,7 +238,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func application(_ application: NSApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         AppLogger.notifications.error("Failed to register for remote notifications: \(error.localizedDescription)")
-        SentrySDK.capture(error: error)
+        // A macOS build without the Push Notifications capability fails here with
+        // a "not properly entitled" error (NSOSStatusErrorDomain code 13). That's
+        // an expected configuration state on the Mac port, not a crash — capturing
+        // it on every launch spammed Sentry (SPORTS-CAL-3C: 137 events / 2 users).
+        // Log it but don't page on it; real, unexpected failures still get captured.
+        let ns = error as NSError
+        let notEntitled = ns.code == 13
+            || ns.localizedDescription.localizedCaseInsensitiveContains("not properly entitled")
+        if !notEntitled {
+            SentrySDK.capture(error: error)
+        }
     }
 }
 

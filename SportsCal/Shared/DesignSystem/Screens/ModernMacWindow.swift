@@ -16,15 +16,18 @@
 import SwiftUI
 import SportsCalModel
 import NukeUI
+import AppKit
 
 struct ModernMacWindow: View {
     @Environment(GameViewModel.self) private var viewModel
     @Environment(UserDefaultStorage.self) private var storage
     @Environment(Favorites.self) private var favorites
+    @Environment(\.openWindow) private var openWindow
 
-    @State private var selectedSport: SportType? = nil
+    @State private var scope: MacScope = .allSports
     @State private var selectedGame: Game? = nil
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var searchText: String = ""
 
     @AppStorage("mac.window.layoutMode") private var layoutModeRaw: String = LayoutMode.sectioned.rawValue
     private var layoutMode: LayoutMode {
@@ -39,6 +42,10 @@ struct ModernMacWindow: View {
     private static let pinnedKey = "mac.window.pinnedGameID"
 
     @State private var inspectorVisible: Bool = true
+
+    /// Key of the game tile/row/hero currently under the pointer — drives the
+    /// Mac hover affordance (lift + outline + link cursor).
+    @State private var hoveredGameID: String?
 
     private static let pinAnimation: Animation = .spring(response: 0.32, dampingFraction: 0.86)
 
@@ -56,24 +63,48 @@ struct ModernMacWindow: View {
     }
 
     private enum LayoutMode: String, CaseIterable {
-        case sectioned, agenda
+        case sectioned, agenda, board
         var symbol: String {
             switch self {
             case .sectioned: return "rectangle.grid.1x2"
             case .agenda:    return "calendar.day.timeline.left"
+            case .board:     return "rectangle.split.3x1"
             }
         }
         var label: String {
             switch self {
             case .sectioned: return "Sectioned"
             case .agenda:    return "Agenda"
+            case .board:     return "Board"
+            }
+        }
+    }
+
+    /// Sidebar selection scope — drives what the grid/board shows.
+    private enum MacScope: Hashable {
+        case allSports
+        case liveNow
+        case favorites
+        case sport(SportType)
+        case team(String)   // favorite team id
+
+        var title: String {
+            switch self {
+            case .allSports:     return "Today"
+            case .liveNow:       return "Live Now"
+            case .favorites:     return "Favorites"
+            case .sport(let s):  return s.displayName
+            case .team:          return "Team"
             }
         }
     }
 
     private let calendar = Calendar.current
 
-    private var todayGames: [Game] {
+    /// The selected day's games honoring sport prefs / hidden competitions /
+    /// favorites-only — but NOT the sidebar scope or search. Sidebar row counts
+    /// derive from this so they stay stable regardless of what's selected.
+    private var baseDayGames: [Game] {
         // Touch preferenceVersion so this view re-evaluates when hiddenCompetitions
         // / favoritesOnlyCompetitions change (those AppStorage props are
         // @ObservationIgnored; CloudSyncManager bumps preferenceVersion on remote apply).
@@ -85,7 +116,6 @@ struct ModernMacWindow: View {
             .filter { game in
                 guard let d = game.standardDate, d >= start, d < end else { return false }
                 guard let sport = game.sportType else { return false }
-                if let selectedSport, sport != selectedSport { return false }
                 if !isSportEnabled(sport) { return false }
                 // Hidden competition filter (mirrors filterAndSortGamesFromUserPreferences)
                 let leagueName: String? = {
@@ -111,6 +141,16 @@ struct ModernMacWindow: View {
             .sorted { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
     }
 
+    /// `baseDayGames` narrowed by the sidebar scope and the search field — this
+    /// is what the grid/board actually renders.
+    private var todayGames: [Game] {
+        let liveIDs: Set<String> = scopeNeedsLiveSet ? Set(viewModel.liveEvents.map(\.id)) : []
+        return baseDayGames.filter { game in
+            guard let sport = game.sportType else { return false }
+            return matchesScope(game, sport: sport, liveIDs: liveIDs) && matchesSearch(game)
+        }
+    }
+
     /// Date components (day/month/year) of every visible game in `totalGames`,
     /// used by the date scrubber to render "has games" dots. Honors sport prefs,
     /// hidden competitions, and favorites-only filters so dots match what's
@@ -119,10 +159,12 @@ struct ModernMacWindow: View {
         _ = storage.preferenceVersion
         let perLeagueFavOnly = storage.favoritesOnlyCompetitions
         var set: Set<DateComponents> = []
+        let liveIDs: Set<String> = scopeNeedsLiveSet ? Set(viewModel.liveEvents.map(\.id)) : []
         for game in (viewModel.totalGames ?? []) {
             guard let d = game.standardDate, let sport = game.sportType else { continue }
-            if let selectedSport, sport != selectedSport { continue }
             if !isSportEnabled(sport) { continue }
+            if !matchesScope(game, sport: sport, liveIDs: liveIDs) { continue }
+            if !matchesSearch(game) { continue }
             let leagueName: String? = {
                 guard let id = game.idLeague,
                       let intID = Int(id),
@@ -181,6 +223,52 @@ struct ModernMacWindow: View {
         case .tennis:     return storage.shouldShowTennis
         case .racing:     return storage.shouldShowRacing
         }
+    }
+
+    // MARK: - Scope & search
+
+    /// Whether the current scope needs the (slightly costly) live-id set built.
+    private var scopeNeedsLiveSet: Bool {
+        if case .liveNow = scope { return true }
+        return false
+    }
+
+    private func gameInvolvesTeam(_ game: Game, id: String) -> Bool {
+        game.idHomeTeam == id || game.idAwayTeam == id
+    }
+
+    private func matchesScope(_ game: Game, sport: SportType, liveIDs: Set<String>) -> Bool {
+        switch scope {
+        case .allSports:     return true
+        case .liveNow:       return liveIDs.contains(game.id)
+        case .favorites:     return favorites.matches(game)
+        case .sport(let s):  return sport == s
+        case .team(let id):  return gameInvolvesTeam(game, id: id)
+        }
+    }
+
+    private func matchesSearch(_ game: Game) -> Bool {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return true }
+        return game.strHomeTeam.lowercased().contains(q)
+            || game.strAwayTeam.lowercased().contains(q)
+    }
+
+    /// Favorite teams resolved to display models (name + badge), sorted by name.
+    private var favoriteTeams: [Team] {
+        favorites.teamIDs
+            .compactMap { TeamsManager.shared.team(byID: $0) }
+            .sorted { ($0.strTeam ?? "") < ($1.strTeam ?? "") }
+    }
+
+    /// The soonest live-or-upcoming game involving a favorite team, for the
+    /// "My Teams" sidebar subtitle.
+    private func nextGame(forTeamID id: String) -> Game? {
+        let now = Date()
+        return (viewModel.totalGames ?? [])
+            .filter { gameInvolvesTeam($0, id: id) }
+            .filter { ($0.standardDate ?? .distantPast) >= calendar.date(byAdding: .hour, value: -4, to: now)! }
+            .min { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
     }
 
     private enum GameState { case live, final, pre }
@@ -309,9 +397,82 @@ struct ModernMacWindow: View {
                 }
         }
         .navigationSplitViewStyle(.balanced)
-        .onChange(of: selectedDate) { _, _ in
+        .searchable(text: $searchText, prompt: "Search teams")
+        .onChange(of: selectedDate) { _, newValue in
             clearPinIfStale()
+            viewModel.ensureGamesLoaded(for: newValue)
         }
+        .task {
+            viewModel.ensureGamesLoaded(for: selectedDate)
+        }
+        .onChange(of: scope) { _, newScope in
+            // Selecting a team jumps to its next live/upcoming game so the
+            // detail isn't empty when that team doesn't play on the current day.
+            if case .team(let id) = newScope,
+               let game = nextGame(forTeamID: id),
+               let date = game.standardDate {
+                withAnimation { selectedDate = calendar.startOfDay(for: date) }
+            }
+        }
+        // Menu-bar commands (SportsCalApp .commands) act on this window's state.
+        .onReceive(NotificationCenter.default.publisher(for: .jumpToToday)) { _ in
+            withAnimation { selectedDate = calendar.startOfDay(for: Date()) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .previousDay)) { _ in
+            shiftDay(by: -1)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .nextDay)) { _ in
+            shiftDay(by: 1)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleInspector)) { _ in
+            withAnimation(.easeInOut(duration: 0.2)) { inspectorVisible.toggle() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleLayoutMode)) { _ in
+            let all = LayoutMode.allCases
+            if let i = all.firstIndex(of: layoutMode) {
+                layoutModeRaw = all[(i + 1) % all.count].rawValue
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleFavoritesOnly)) { _ in
+            toggleFavoritesOnly()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .printSchedule)) { _ in
+            printSchedule()
+        }
+    }
+
+    /// Prints the visible day's schedule via a print-friendly SwiftUI view
+    /// hosted in an NSView. NSPrintOperation paginates by the host view's height.
+    private func printSchedule() {
+        let title = selectedDate.formatted(date: .complete, time: .omitted)
+        let games = todayGames
+        let printable = SchedulePrintView(title: title, games: games)
+        let hosting = NSHostingView(rootView: printable)
+        let height = max(240, CGFloat(games.count) * 26 + 140)
+        hosting.frame = NSRect(x: 0, y: 0, width: 540, height: height)
+        let operation = NSPrintOperation(view: hosting)
+        operation.printInfo.horizontalPagination = .fit
+        operation.run()
+    }
+
+    private func shiftDay(by days: Int) {
+        guard let next = calendar.date(byAdding: .day, value: days, to: selectedDate) else { return }
+        withAnimation { selectedDate = calendar.startOfDay(for: next) }
+    }
+
+    /// Toggles the favorites-only filter for the selected sport, or — when
+    /// viewing all sports — flips every ordered sport together.
+    private func toggleFavoritesOnly() {
+        if case .sport(let sport) = scope {
+            storage.setFavoritesOnly(sport, value: !storage.favoritesOnly(for: sport))
+        } else {
+            let sports = storage.orderedSports
+            let allOn = !sports.isEmpty && sports.allSatisfy { storage.favoritesOnly(for: $0) }
+            for sport in sports {
+                storage.setFavoritesOnly(sport, value: !allOn)
+            }
+        }
+        storage.bumpPreferenceVersion()
     }
 
     /// Drops the pin when the pinned game is no longer in the visible day's
@@ -327,38 +488,125 @@ struct ModernMacWindow: View {
     // MARK: - Sidebar
 
     private var sidebar: some View {
-        List(selection: $selectedSport) {
+        List(selection: $scope) {
             Section {
-                Button {
-                    selectedSport = nil
-                } label: {
-                    HStack {
-                        Image(systemName: "sportscourt")
-                            .foregroundStyle(Color.appInkSoft)
-                        Text("All sports")
-                            .font(.appHeadline)
-                        Spacer()
-                        Text("\(todayGames.count)")
-                            .font(.system(.body, design: .monospaced).weight(.semibold))
-                            .foregroundStyle(Color.appInkFaint)
-                            .monospacedDigit()
-                    }
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(.plain)
-                .background(selectedSport == nil ? Color.appAlt : Color.clear)
+                scopeRow(.allSports, title: "All Sports",
+                         systemImage: "sportscourt", count: baseDayGames.count)
+                scopeRow(.liveNow, title: "Live Now",
+                         systemImage: "dot.radiowaves.left.and.right",
+                         count: liveTodayCount, isLive: true)
+                scopeRow(.favorites, title: "Favorites",
+                         systemImage: "star.fill",
+                         count: favoritesTodayCount, tint: .yellow)
             }
 
             Section("Sports") {
                 ForEach(storage.orderedSports, id: \.self) { sport in
                     sportRow(sport)
-                        .tag(Optional(sport))
+                        .tag(MacScope.sport(sport))
+                }
+            }
+
+            if !favoriteTeams.isEmpty {
+                Section("My Teams") {
+                    ForEach(favoriteTeams, id: \.idTeam) { team in
+                        if let id = team.idTeam {
+                            teamRow(team)
+                                .tag(MacScope.team(id))
+                        }
+                    }
                 }
             }
         }
         .listStyle(.sidebar)
         .navigationTitle("Scoreline")
-        .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
+        .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
+    }
+
+    private var liveTodayCount: Int {
+        let liveIDs = Set(viewModel.liveEvents.map(\.id))
+        return baseDayGames.filter { liveIDs.contains($0.id) }.count
+    }
+
+    private var favoritesTodayCount: Int {
+        baseDayGames.filter { favorites.matches($0) }.count
+    }
+
+    /// A smart-filter row (All Sports / Live Now / Favorites).
+    private func scopeRow(
+        _ scopeValue: MacScope,
+        title: String,
+        systemImage: String,
+        count: Int,
+        isLive: Bool = false,
+        tint: Color? = nil
+    ) -> some View {
+        HStack(spacing: .appSpace2) {
+            Image(systemName: systemImage)
+                .imageScale(.medium)
+                .foregroundStyle(tint ?? (isLive ? Color.appLive : Color.appInkSoft))
+                .frame(width: 18)
+            Text(title)
+                .font(.appHeadline)
+            Spacer()
+            if count > 0 {
+                Text("\(count)")
+                    .font(.system(.body, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(isLive ? Color.appLive : Color.appInkFaint)
+                    .monospacedDigit()
+            }
+        }
+        .padding(.vertical, 4)
+        .tag(scopeValue)
+    }
+
+    /// A favorite-team row with badge + next-game / live subtitle.
+    private func teamRow(_ team: Team) -> some View {
+        let next = team.idTeam.flatMap { nextGame(forTeamID: $0) }
+        let isLive = next.map { gameState($0) == .live } ?? false
+        return HStack(spacing: .appSpace2) {
+            teamBadge(team.strTeamBadge)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(team.strTeam ?? "Team")
+                    .font(.appHeadline)
+                    .lineLimit(1)
+                if let next {
+                    Text(teamSubtitle(next, isLive: isLive))
+                        .font(.appFootnote)
+                        .foregroundStyle(isLive ? Color.appLive : Color.appInkFaint)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            if isLive {
+                Circle().fill(Color.appLive).frame(width: 6, height: 6)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func teamBadge(_ badge: String?) -> some View {
+        Group {
+            if let badge, let url = URL(string: badge) {
+                LazyImage(url: url) { state in
+                    if let image = state.image {
+                        image.resizable().aspectRatio(contentMode: .fit)
+                    } else {
+                        Image(systemName: "shield.fill").foregroundStyle(Color.appInkFaint)
+                    }
+                }
+            } else {
+                Image(systemName: "shield.fill").foregroundStyle(Color.appInkFaint)
+            }
+        }
+        .frame(width: 20, height: 20)
+    }
+
+    private func teamSubtitle(_ game: Game, isLive: Bool) -> String {
+        if isLive { return "LIVE · \(scoreLine(for: game) ?? "—")" }
+        guard let d = game.standardDate else { return "Scheduled" }
+        if calendar.isDateInToday(d) { return d.formatted(date: .omitted, time: .shortened) }
+        return d.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
     }
 
     private func sportRow(_ sport: SportType) -> some View {
@@ -429,36 +677,171 @@ struct ModernMacWindow: View {
         // same `buckets` so we don't re-scan or reclassify games.
         let buckets = computeDayBuckets()
         let isEmpty = buckets.hero.isEmpty && buckets.restAll.isEmpty
-        return ScrollView {
-            VStack(alignment: .leading, spacing: .appSpace5) {
-                gridHeader(buckets)
-                    .padding(.horizontal, .appSpace4)
-                    .padding(.top, .appSpace3)
+        return Group {
+            if layoutMode == .board {
+                // The board manages its own (horizontal) scrolling, so it lives
+                // outside the vertical ScrollView used by the other modes.
+                boardGrid(isEmpty: isEmpty, buckets: buckets)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: .appSpace5) {
+                        gridHeader(buckets)
+                            .padding(.horizontal, .appSpace4)
+                            .padding(.top, .appSpace3)
 
-                ModernDateScrubber(
-                    selectedDate: $selectedDate,
-                    datesWithGames: datesWithGames
-                )
-                .padding(.horizontal, .appSpace4)
-
-                if isEmpty {
-                    EmptyStateView.quietDay()
-                        .frame(minHeight: 320)
-                } else {
-                    heroStrip(buckets)
+                        ModernDateScrubber(
+                            selectedDate: $selectedDate,
+                            datesWithGames: datesWithGames
+                        )
                         .padding(.horizontal, .appSpace4)
 
-                    switch layoutMode {
-                    case .sectioned: sections(buckets)
-                    case .agenda:    agenda(buckets)
+                        if isEmpty {
+                            EmptyStateView.quietDay()
+                                .frame(minHeight: 320)
+                        } else {
+                            heroStrip(buckets)
+                                .padding(.horizontal, .appSpace4)
+
+                            switch layoutMode {
+                            case .sectioned: sections(buckets)
+                            case .agenda:    agenda(buckets)
+                            case .board:     EmptyView() // handled above
+                            }
+                        }
                     }
+                    .padding(.bottom, .appSpace5)
                 }
             }
-            .padding(.bottom, .appSpace5)
         }
         .background(Color.appBackground)
-        .navigationTitle(selectedSport?.displayName ?? "Today")
+        // Arrow keys move the selection through the day's games; the selected
+        // tile's ring is the focus indicator, so we suppress the container ring.
+        .focusable()
+        .focusEffectDisabled()
+        .onMoveCommand { direction in moveSelection(direction) }
+        .navigationTitle(scopeTitle)
         .navigationSplitViewColumnWidth(min: 360, ideal: 540)
+    }
+
+    /// Board (column-per-sport) layout — a scoreboard wall that uses the full
+    /// width of the Mac window. Header + date scrubber stay pinned; the board
+    /// fills the remaining height and scrolls horizontally.
+    @ViewBuilder
+    private func boardGrid(isEmpty: Bool, buckets: DayBuckets) -> some View {
+        VStack(alignment: .leading, spacing: .appSpace3) {
+            gridHeader(buckets)
+                .padding(.horizontal, .appSpace4)
+                .padding(.top, .appSpace3)
+
+            ModernDateScrubber(
+                selectedDate: $selectedDate,
+                datesWithGames: datesWithGames
+            )
+            .padding(.horizontal, .appSpace4)
+
+            if isEmpty {
+                EmptyStateView.quietDay()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                GameBoardLayout(
+                    columns: boardColumns,
+                    favorites: favorites,
+                    onJumpToDate: { date in
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedDate = calendar.startOfDay(for: date)
+                        }
+                    }
+                ) { gwt, isLive in
+                    boardContent(gwt, isLive: isLive)
+                }
+                .frame(maxHeight: .infinity)
+                .padding(.bottom, .appSpace3)
+            }
+        }
+    }
+
+    /// One column per sport that has games in the current (scope/search-filtered)
+    /// day, live games on top. Reuses the shared `GameBoardLayout`/`SportColumnView`.
+    private var boardColumns: [BoardColumn] {
+        let allowedIDs = Set(todayGames.map(\.id))
+        let gwts = viewModel.gamesWithTeams(for: selectedDate)
+            .filter { allowedIDs.contains($0.id) }
+        let liveIDs = Set(viewModel.liveEvents.map(\.id))
+
+        var grouped: [SportType: [GameWithTeams]] = [:]
+        for gwt in gwts {
+            guard let sport = gwt.game.sportType else { continue }
+            grouped[sport, default: []].append(gwt)
+        }
+
+        return storage.orderedSports.compactMap { sport -> BoardColumn? in
+            let sportGames = grouped[sport] ?? []
+            guard !sportGames.isEmpty else { return nil }
+            let live = sportGames.filter { liveIDs.contains($0.id) }
+            let liveSet = Set(live.map(\.id))
+            let other = sportGames
+                .filter { !liveSet.contains($0.id) }
+                .sorted { a, b in
+                    let aDone = a.game.hasDoneStatus
+                    let bDone = b.game.hasDoneStatus
+                    if aDone != bDone { return !aDone }
+                    return (a.game.standardDate ?? .distantPast) < (b.game.standardDate ?? .distantPast)
+                }
+            return BoardColumn(sport: sport, liveGames: live, otherGames: other, nextGameDate: nil)
+        }
+    }
+
+    /// A single board cell: tap selects into the inspector; drag exports the
+    /// game; right-click opens it in its own window. BoardGameCard supplies the
+    /// card chrome, so this stays lean.
+    @ViewBuilder
+    private func boardContent(_ gwt: GameWithTeams, isLive: Bool) -> some View {
+        let game = gwt.game
+        Button {
+            selectedGame = game
+        } label: {
+            Group {
+                switch gameState(game) {
+                case .live:  liveRow(game)
+                case .final: finalRow(game)
+                case .pre:   preRow(game)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .pointerStyle(.link)
+        .draggable(dragPayload(for: game))
+        .contextMenu {
+            Button("Open in New Window") {
+                openWindow(id: "game-detail", value: game.id)
+            }
+        }
+    }
+
+    private var scopeTitle: String {
+        if case .team(let id) = scope {
+            return TeamsManager.shared.team(byID: id)?.strTeam ?? "Team"
+        }
+        return scope.title
+    }
+
+    /// Moves `selectedGame` through the visible day's games via arrow keys.
+    private func moveSelection(_ direction: MoveCommandDirection) {
+        let games = todayGames
+        guard !games.isEmpty else { return }
+        guard let current = selectedGame,
+              let idx = games.firstIndex(where: { $0.id == current.id }) else {
+            selectedGame = games.first
+            return
+        }
+        let delta: Int
+        switch direction {
+        case .up, .left:    delta = -1
+        case .down, .right: delta = 1
+        @unknown default:   delta = 0
+        }
+        let next = min(max(idx + delta, 0), games.count - 1)
+        selectedGame = games[next]
     }
 
     /// Categorized renderings of `todayGames` minus games already shown in the
@@ -539,13 +922,28 @@ struct ModernMacWindow: View {
         _ game: Game,
         @ViewBuilder content: () -> Content
     ) -> some View {
+        let key = gameKey(game)
+        let isHovered = (hoveredGameID == key)
         ZStack(alignment: .topTrailing) {
             Button {
                 selectedGame = game
             } label: {
                 content()
+                    .scaleEffect(isHovered ? 1.008 : 1.0)
+                    .animation(.easeOut(duration: 0.12), value: isHovered)
             }
             .buttonStyle(.plain)
+            .pointerStyle(.link)
+            .onHover { hovering in
+                if hovering { hoveredGameID = key }
+                else if hoveredGameID == key { hoveredGameID = nil }
+            }
+            .draggable(dragPayload(for: game))
+            .contextMenu {
+                Button("Open in New Window") {
+                    openWindow(id: "game-detail", value: game.id)
+                }
+            }
             pinToggle(for: game)
                 .padding(.appSpace3)
         }
@@ -898,6 +1296,8 @@ struct ModernMacWindow: View {
     ) -> some View {
         let key = gameKey(game)
         let isPinned = (pinnedGameID == key)
+        let isSelected = (selectedGame?.id == game.id)
+        let isHovered = (hoveredGameID == key)
         Button {
             selectedGame = game
         } label: {
@@ -905,17 +1305,43 @@ struct ModernMacWindow: View {
                 .overlay(
                     RoundedRectangle.appShape(radius)
                         .stroke(
-                            selectedGame?.id == game.id ? Color.appInk : Color.clear,
-                            lineWidth: 2
+                            isSelected ? Color.appInk
+                                : (isHovered ? Color.appInk.opacity(0.28) : Color.clear),
+                            lineWidth: isSelected ? 2 : 1.5
                         )
                 )
+                .scaleEffect(isHovered && !isSelected ? 1.012 : 1.0)
+                .animation(.easeOut(duration: 0.12), value: isHovered)
         }
         .buttonStyle(.plain)
+        .pointerStyle(.link)
+        .onHover { hovering in
+            if hovering { hoveredGameID = key }
+            else if hoveredGameID == key { hoveredGameID = nil }
+        }
+        .draggable(dragPayload(for: game))
         .contextMenu {
+            Button("Open in New Window") {
+                openWindow(id: "game-detail", value: game.id)
+            }
             Button(isPinned ? "Unpin from hero" : "Pin as hero") {
                 setPinned(isPinned ? "" : key)
             }
         }
+    }
+
+    /// Shareable text for dragging a game out to Calendar / Notes / Messages —
+    /// matchup, kickoff, and the universal link when the event has a stable id.
+    private func dragPayload(for game: Game) -> String {
+        var line = "\(game.strAwayTeam) @ \(game.strHomeTeam)"
+        if let date = game.standardDate {
+            line += " — " + date.formatted(date: .abbreviated, time: .shortened)
+        }
+        if let idEvent = game.idEvent,
+           let url = DeepLink.url(for: .game(idEvent: idEvent)) {
+            line += "\n" + url.absoluteString
+        }
+        return line
     }
 
     // MARK: - Per-state row builders
@@ -1084,6 +1510,48 @@ struct ModernMacWindow: View {
             .background(Color.appBackground)
             .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 540)
         }
+    }
+}
+
+/// Plain black-on-white schedule used only for printing (⌘P / File → Print).
+private struct SchedulePrintView: View {
+    let title: String
+    let games: [Game]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Scoreline")
+                .font(.title.bold())
+            Text(title)
+                .font(.title3)
+                .foregroundStyle(.secondary)
+            Divider()
+            if games.isEmpty {
+                Text("No games scheduled.")
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 8)
+            } else {
+                ForEach(games, id: \.id) { game in
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(game.standardDate?.formatted(date: .omitted, time: .shortened) ?? "—")
+                            .frame(width: 80, alignment: .leading)
+                            .monospacedDigit()
+                        Text("\(game.strAwayTeam) @ \(game.strHomeTeam)")
+                        Spacer(minLength: 0)
+                        if let away = game.intAwayScore, let home = game.intHomeScore,
+                           !away.isEmpty, !home.isEmpty {
+                            Text("\(away)–\(home)")
+                                .monospacedDigit()
+                        }
+                    }
+                    .font(.body)
+                }
+            }
+        }
+        .padding(28)
+        .frame(width: 540, alignment: .leading)
+        .foregroundStyle(.black)
+        .background(Color.white)
     }
 }
 #endif

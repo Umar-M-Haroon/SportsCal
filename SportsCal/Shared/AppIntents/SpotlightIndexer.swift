@@ -203,16 +203,31 @@ enum SpotlightIndexer {
         }
     }
 
-    /// Indexes favorite teams in CoreSpotlight.
-    static func indexFavoriteTeams(_ teamNames: Set<String>) {
-        // Delete old team entries first
+    /// Indexes every known team in CoreSpotlight, boosting favorites in ranking.
+    ///
+    /// This is the single source of truth for the `domainTeams` index: it deletes and
+    /// fully rebuilds it, so a favorites change reindexes the whole set (with updated
+    /// boosts) rather than wiping non-favorites. Item identifiers stay `team-<name>`
+    /// so `ContentView.handleSpotlightActivity` can resolve the tap back to a `Team`.
+    static func indexAllTeams(_ teams: [Team], favorites: Set<String>) {
         CSSearchableIndex.default().deleteSearchableItems(withDomainIdentifiers: [domainTeams]) { _ in
-            let items = teamNames.map { name -> CSSearchableItem in
+            let items: [CSSearchableItem] = teams.compactMap { team in
+                guard let name = team.strTeam, !name.isEmpty else { return nil }
+                let isFavorite = favorites.contains(name)
+
                 let attributes = CSSearchableItemAttributeSet(contentType: .content)
                 attributes.title = name
-                attributes.contentDescription = "Favorite team in Scoreline"
-                attributes.keywords = [name]
-                attributes.rankingHint = NSNumber(value: 2)
+                attributes.contentDescription = isFavorite ? "Favorite team in Scoreline" : "Team in Scoreline"
+
+                var keywords = [name]
+                if let short = team.strTeamShort, !short.isEmpty { keywords.append(short) }
+                if let alternate = team.strAlternate {
+                    keywords.append(contentsOf: alternate.components(separatedBy: ", ")
+                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { !$0.isEmpty })
+                }
+                attributes.keywords = keywords
+                attributes.rankingHint = NSNumber(value: isFavorite ? 2 : 1)
 
                 return CSSearchableItem(
                     uniqueIdentifier: "team-\(name)",
@@ -221,11 +236,17 @@ enum SpotlightIndexer {
                 )
             }
 
-            CSSearchableIndex.default().indexSearchableItems(items) { error in
-                if let error {
-                    AppLogger.general.error("Spotlight team indexing failed: \(error.localizedDescription)")
+            let batchSize = 100
+            for startIndex in stride(from: 0, to: items.count, by: batchSize) {
+                let endIndex = min(startIndex + batchSize, items.count)
+                let batch = Array(items[startIndex..<endIndex])
+                CSSearchableIndex.default().indexSearchableItems(batch) { error in
+                    if let error {
+                        AppLogger.general.error("Spotlight team indexing failed: \(error.localizedDescription)")
+                    }
                 }
             }
+            AppLogger.general.info("Spotlight: indexed \(items.count) teams")
         }
     }
 

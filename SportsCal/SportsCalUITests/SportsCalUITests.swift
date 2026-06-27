@@ -22,14 +22,39 @@ class SportsCalUITests: XCTestCase {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    /// Captures App Store screenshots of the Mac app's main screens.
+    /// Run on macOS: xcodebuild test -scheme "SportsCal (iOS)" -destination 'platform=macOS'
+    ///   -only-testing:SportsCalUITests/SportsCalUITests/testCaptureMacScreenshots
+    func testCaptureMacScreenshots() throws {
         let app = XCUIApplication()
         app.launch()
-        XCUIApplication().buttons["Pick a sport"].tap()
-                        
-        // Use recording to get started writing UI tests.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        // Let the games feed fetch + render before the first capture.
+        sleep(10)
+        capture("01_Games", app: app)
+
+        // Best-effort tab navigation; each tab is optional so a missing/renamed
+        // control never fails the run (we still get the screens that exist).
+        for (idx, label) in ["Calendar", "Browse"].enumerated() {
+            let control = app.buttons[label].firstMatch
+            if control.waitForExistence(timeout: 3) {
+                #if os(macOS)
+                control.click()
+                #else
+                control.tap()
+                #endif
+                sleep(4)
+                capture(String(format: "%02d_%@", idx + 2, label), app: app)
+            }
+        }
+    }
+
+    private func capture(_ name: String, app: XCUIApplication) {
+        // Window-only screenshot (excludes desktop background) when available.
+        let target = app.windows.firstMatch.exists ? app.windows.firstMatch : app
+        let attachment = XCTAttachment(screenshot: target.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testLaunchPerformance() throws {

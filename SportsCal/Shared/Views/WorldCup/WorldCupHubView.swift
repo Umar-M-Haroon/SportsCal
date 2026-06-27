@@ -364,7 +364,7 @@ struct WorldCupHubView: View {
     }
 
     private func bracketScreen(_ bracket: WorldCupBracket) -> some View {
-        WorldCupBracketView(bracket: bracket)
+        WorldCupBracketView(bracket: bracket, groups: model.groups)
             .environment(viewModel)
             .environment(favorites)
             .background(Color.appBackground.ignoresSafeArea())

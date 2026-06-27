@@ -365,6 +365,24 @@ struct NetworkHandler {
         return try decoder.decode(LiveScore.self, from: data)
     }
 
+    /// On-demand fetch of a single day's multi-sport schedule (YYYYMMDD), for
+    /// browsing dates outside the cached /schedules window. Server fetches ESPN
+    /// per-league for that day and returns a merged LiveScore.
+    static func getSchedule(forDate date: Date) async throws -> LiveScore {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd"
+        let dateStr = formatter.string(from: date)
+        let urlString = "\(baseURL())/schedules/date/\(dateStr)"
+        let url = URL(string: urlString)!
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+        }
+        return try Self.sharedDecoder.decode(LiveScore.self, from: data)
+    }
+
     static func getScheduleFor(sport: SportType) async throws -> LiveEvent {
         let urlString = "\(baseURL())/sport/\(sport.rawValue)"
         let url = URL(string: urlString)!
@@ -472,6 +490,19 @@ struct NetworkHandler {
         }
         let decoder = Self.sharedDecoder
         return try decoder.decode([Team].self, from: data)
+    }
+
+    /// Extended profile + roster for a single team (TheSportsDB `idTeam`).
+    /// Backed by the server's `GET /team/:id/info` (Redis-cached, 24h).
+    static func getTeamDetail(teamID: String) async throws -> TeamDetail {
+        let encoded = teamID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? teamID
+        let urlString = "\(baseURL())/team/\(encoded)/info"
+        let url = URL(string: urlString)!
+        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+        }
+        return try Self.sharedDecoder.decode(TeamDetail.self, from: data)
     }
 
     static func getLiveSnapshot() async throws -> LiveScore {

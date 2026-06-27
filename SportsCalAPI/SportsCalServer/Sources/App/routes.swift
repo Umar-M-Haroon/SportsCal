@@ -753,6 +753,26 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return encodeResult(res: squad)
     }
 
+    // Extended team profile + roster (TheSportsDB) — fetched lazily and cached 24h.
+    // Powers the iOS TeamDetailView "Roster & Stats" section. `:teamID` is a
+    // TheSportsDB idTeam (the same id carried by `Team.idTeam`).
+    routes.get("team", ":teamID", "info") { req async throws -> String in
+        guard let teamID = req.parameters.get("teamID"), !teamID.isEmpty else {
+            throw Abort(.badRequest)
+        }
+        let isDebug = req.application.environment == .development
+        let cacheKey: RedisKey = isDebug ? "debug-Team Detail-\(teamID)" : "Team Detail-\(teamID)"
+        if let cached = try? await req.application.redis.get(cacheKey, asJSON: TeamDetail.self) {
+            return encodeResult(res: cached)
+        }
+        let detail = await SportsDBNetworking.getTeamDetail(app: req.application, teamID: teamID)
+        // Only cache real payloads so a transient upstream miss doesn't pin an empty result.
+        if detail.profile != nil || !detail.players.isEmpty {
+            try? await req.application.redis.setex(cacheKey, toJSON: detail, expirationInSeconds: 60 * 60 * 24).get()
+        }
+        return encodeResult(res: detail)
+    }
+
     // Per-match box score (team stats, lineups, goal/card/sub timeline) — fetched
     // lazily from ESPN's per-event summary and cached briefly so a live match stays
     // fresh while finals aren't re-fetched on every detail open. Returns 404 when ESPN

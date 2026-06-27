@@ -17,9 +17,32 @@ public class SubscriptionManager: @unchecked Sendable {
     public var isPro: Bool = false
     private var isTestInstance: Bool = false
 
+    /// True when Pro entitlements are managed by an external platform (Setapp)
+    /// rather than App Store in-app purchases. In this mode the app is fully
+    /// unlocked and must surface **no** purchase / restore / price UI — Setapp
+    /// forbids paid components and pays via a usage-based revenue share.
+    ///
+    /// Compile-time constant so the IAP UI is dead-code-stripped from the Setapp
+    /// build. The App Store build is unaffected (`false`). Most paywall surfaces
+    /// already key off `!isPro`, which the Setapp unlock (`isPro = true`) hides
+    /// automatically; use this only for affordances that show regardless of Pro
+    /// state (Restore Purchases, manage-subscription links).
+    public static var isManagedExternally: Bool {
+        #if SETAPP
+        return true
+        #else
+        return false
+        #endif
+    }
+
     private init() {
+        #if SETAPP
+        // Setapp builds ship fully unlocked for the whole session.
+        isPro = true
+        #else
         // Check cached value first for instant UI
         isPro = UserDefaults.standard.bool(forKey: "isSubscribed")
+        #endif
     }
 
     /// Test-only initializer that skips RevenueCat configuration.
@@ -40,6 +63,13 @@ public class SubscriptionManager: @unchecked Sendable {
 
     /// Call once at app launch (e.g., in SportsCalApp.init)
     public func configure() {
+        #if SETAPP
+        // Setapp flavor: never initialize RevenueCat or fetch entitlements —
+        // the app is unlocked for the entire session. (See `isManagedExternally`.)
+        isPro = true
+        UserDefaults.standard.set(true, forKey: "isSubscribed")
+        return
+        #else
         Purchases.logLevel = .warn
         Purchases.configure(withAPIKey: Constants.revenueCatAPIKey)
 
@@ -54,6 +84,7 @@ public class SubscriptionManager: @unchecked Sendable {
         Task { @MainActor in
             await refreshStatus()
         }
+        #endif
     }
 
     @MainActor

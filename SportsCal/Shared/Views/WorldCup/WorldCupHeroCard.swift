@@ -26,6 +26,23 @@ private extension Color {
     static let wcMintInk = Color(light: "#FFFFFF", dark: "#06231A")
 }
 
+// MARK: - Diacritic folding (cached)
+
+/// `String.folding(options: .diacriticInsensitive)` runs Unicode normalization +
+/// a fresh allocation on every call. The tricode helpers below (`wcCode`,
+/// `teamCode`) run per fixture/standings row on every hero render, so the same
+/// nation names get folded dozens of times per frame on the main thread —
+/// the one symbolicated frame in the WC hero hang reports. Memoize the stable
+/// name→folded mapping. `NSCache` is thread-safe, so no actor isolation is
+/// needed; the result depends only on the (rarely-changing) current locale.
+private let wcFoldCache = NSCache<NSString, NSString>()
+private func wcFolded(_ s: String) -> String {
+    if let hit = wcFoldCache.object(forKey: s as NSString) { return hit as String }
+    let folded = s.folding(options: .diacriticInsensitive, locale: .current)
+    wcFoldCache.setObject(folded as NSString, forKey: s as NSString)
+    return folded
+}
+
 // MARK: - Match state
 
 private enum WCMatchState { case live, pre, final }
@@ -46,14 +63,12 @@ private func wcCode(_ team: Team?, fallback: String) -> String {
     // Prefer the team's short code only when it's a clean 3-letter abbreviation
     // (e.g. "MEX"). Reject 2-letter ISO codes / empty values that some sources
     // supply for nations like Türkiye / Czechia — derive from the name instead.
-    if let short = team?.strTeamShort?
-        .folding(options: .diacriticInsensitive, locale: .current),
+    if let short = team?.strTeamShort.map(wcFolded),
        short.count == 3, short.allSatisfy(\.isLetter) {
         return short.uppercased()
     }
     // Strip diacritics so "Türkiye" → "TUR" rather than "TÜR".
-    let name = (team?.strTeam ?? fallback)
-        .folding(options: .diacriticInsensitive, locale: .current)
+    let name = wcFolded(team?.strTeam ?? fallback)
         .trimmingCharacters(in: .whitespaces)
     let words = name.split(separator: " ")
     if words.count >= 2 {
@@ -850,13 +865,11 @@ struct WCGroupCard: View {
     }
 
     private func teamCode(_ entry: Entry) -> String {
-        if let abbr = entry.team?.abbreviation?
-            .folding(options: .diacriticInsensitive, locale: .current),
+        if let abbr = entry.team?.abbreviation.map(wcFolded),
            abbr.count == 3, abbr.allSatisfy(\.isLetter) {
             return abbr.uppercased()
         }
-        let name = (entry.team?.shortDisplayName ?? entry.team?.displayName ?? "—")
-            .folding(options: .diacriticInsensitive, locale: .current)
+        let name = wcFolded(entry.team?.shortDisplayName ?? entry.team?.displayName ?? "—")
         return String(name.prefix(3)).uppercased()
     }
 

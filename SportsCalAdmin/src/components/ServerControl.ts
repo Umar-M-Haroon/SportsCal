@@ -20,6 +20,7 @@ export class ServerControl {
           <button class="btn btn-primary" id="srv-start" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Start</button>
           <button class="btn btn-primary" id="srv-stop" style="padding: 0.5rem 1rem; font-size: 0.875rem;" disabled>Stop</button>
           <button class="btn btn-primary" id="srv-restart" style="padding: 0.5rem 1rem; font-size: 0.875rem;" disabled>Restart</button>
+          <a class="btn" id="srv-open-admin" href="http://localhost:8080/admin/" target="_blank" rel="noopener" style="padding: 0.5rem 1rem; font-size: 0.875rem; pointer-events: none; opacity: 0.5;">Open Admin Page ↗</a>
           <button class="btn" id="srv-force-kill" style="padding: 0.5rem 1rem; font-size: 0.875rem; background: #dc2626; color: white; display: none;">Force Kill Port 8080</button>
           <div style="margin-left: auto; display: flex; align-items: center; gap: 0.5rem;">
             <label style="font-size: 0.75rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.25rem;">
@@ -158,6 +159,13 @@ export class ServerControl {
     if (startBtn) startBtn.disabled = serverState === 'running' || serverState === 'building'
     if (stopBtn) stopBtn.disabled = serverState === 'stopped'
     if (restartBtn) restartBtn.disabled = serverState === 'stopped'
+
+    const openAdmin = document.getElementById('srv-open-admin')
+    if (openAdmin) {
+      const live = serverState === 'running'
+      openAdmin.style.pointerEvents = live ? 'auto' : 'none'
+      openAdmin.style.opacity = live ? '1' : '0.5'
+    }
 
     if (error) {
       this.appendLine(`ERROR: ${error}`, 'stderr')

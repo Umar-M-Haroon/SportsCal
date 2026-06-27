@@ -19,6 +19,11 @@ struct SubscriptionSheet: View {
             .onRestoreCompleted { _ in
                 subscriptionPresented = false
             }
+            // RevenueCatUI's PaywallView has no intrinsic size on macOS, so a
+            // plain sheet renders it tiny. Give it a sensible window-sized frame.
+            #if os(macOS)
+            .frame(minWidth: 480, idealWidth: 520, minHeight: 600, idealHeight: 680)
+            #endif
     }
 }
 

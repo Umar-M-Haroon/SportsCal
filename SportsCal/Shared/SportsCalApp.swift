@@ -25,6 +25,9 @@ struct SportsCalApp: App {
     #endif
     @Environment(\.scenePhase) var scenePhase
     @Environment(\.openURL) private var openURL
+    #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
+    #endif
     @State private var versionChecker = APIVersionChecker.shared
 
     @State var appStorage = UserDefaultStorage()
@@ -97,6 +100,17 @@ struct SportsCalApp: App {
                     NetworkHandler.currentEnvironment = appStorage.serverEnvironment
                     Task { await NetworkHandler.refreshEnvironment() }
                     TeamsManager.shared.refreshIfStale()
+                    #if os(iOS)
+                    // Index whatever teams are already cached on disk; the
+                    // teamsManagerDidUpdate hook re-indexes after a network refresh.
+                    let cachedTeams = TeamsManager.shared.teams
+                    let currentFavorites = favorites.teams
+                    if !cachedTeams.isEmpty {
+                        Task.detached(priority: .utility) {
+                            SpotlightIndexer.indexAllTeams(cachedTeams, favorites: currentFavorites)
+                        }
+                    }
+                    #endif
                     if isTestFlight {
                         appStorage.debugMode = true
                     }
@@ -121,7 +135,9 @@ struct SportsCalApp: App {
                 #if os(iOS)
                 .onChange(of: subscriptionManager.isPro) { _, newValue in
                     if !newValue && AdConfiguration.isEnabled {
-                        adManager.preloadAds(count: 5)
+                        // Match the feed's refresh target; a feed never renders
+                        // more than `maxAdsPerScreen`, so don't over-request.
+                        adManager.preloadAds(count: AdConfiguration.maxAdsPerScreen + 1)
                     }
                 }
                 #endif
@@ -142,8 +158,18 @@ struct SportsCalApp: App {
                     #if os(iOS)
                     PhoneWatchSyncService.shared.syncAllPreferences()
                     let currentFavorites = favorites.teams
+                    let allTeams = TeamsManager.shared.teams
                     Task.detached(priority: .utility) {
-                        SpotlightIndexer.indexFavoriteTeams(currentFavorites)
+                        SpotlightIndexer.indexAllTeams(allTeams, favorites: currentFavorites)
+                    }
+                    #endif
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .teamsManagerDidUpdate)) { _ in
+                    #if os(iOS)
+                    let currentFavorites = favorites.teams
+                    let allTeams = TeamsManager.shared.teams
+                    Task.detached(priority: .utility) {
+                        SpotlightIndexer.indexAllTeams(allTeams, favorites: currentFavorites)
                     }
                     #endif
                 }
@@ -169,15 +195,60 @@ struct SportsCalApp: App {
         #if os(macOS)
         .defaultSize(width: 1000, height: 700)
         .commands {
-            CommandGroup(after: .toolbar) {
-                Button("Refresh") {
-                    viewModel.getInfo()
+            // App menu → custom About panel (dedicated window).
+            CommandGroup(replacing: .appInfo) {
+                Button("About Scoreline") { openWindow(id: "about") }
+            }
+            // File → Print the visible schedule.
+            CommandGroup(replacing: .printItem) {
+                Button("Print Schedule…") {
+                    NotificationCenter.default.post(name: .printSchedule, object: nil)
                 }
-                .keyboardShortcut("r", modifiers: .command)
+                .keyboardShortcut("p", modifiers: .command)
+            }
+            // Dedicated "Games" menu for the app's core navigation verbs.
+            CommandMenu("Games") {
+                Button("Refresh") { viewModel.getInfo() }
+                    .keyboardShortcut("r", modifiers: .command)
                 Button("Jump to Today") {
                     NotificationCenter.default.post(name: .jumpToToday, object: nil)
                 }
                 .keyboardShortcut("t", modifiers: .command)
+                Divider()
+                Button("Previous Day") {
+                    NotificationCenter.default.post(name: .previousDay, object: nil)
+                }
+                .keyboardShortcut("[", modifiers: .command)
+                Button("Next Day") {
+                    NotificationCenter.default.post(name: .nextDay, object: nil)
+                }
+                .keyboardShortcut("]", modifiers: .command)
+                Divider()
+                Button("Toggle Inspector") {
+                    NotificationCenter.default.post(name: .toggleInspector, object: nil)
+                }
+                .keyboardShortcut("i", modifiers: [.command, .option])
+                Button("Toggle Agenda / Sections") {
+                    NotificationCenter.default.post(name: .toggleLayoutMode, object: nil)
+                }
+                .keyboardShortcut("l", modifiers: .command)
+                Button("Show Only Favorites") {
+                    NotificationCenter.default.post(name: .toggleFavoritesOnly, object: nil)
+                }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
+            }
+            // Help → support + privacy.
+            CommandGroup(replacing: .help) {
+                Button("Contact Support") {
+                    let subject = "Scoreline for Mac Support"
+                        .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                    if let url = URL(string: "mailto:support@komodollc.com?subject=\(subject)") {
+                        openURL(url)
+                    }
+                }
+                Button("Privacy Policy") {
+                    if let url = URL(string: "https://sportscal.app/privacy") { openURL(url) }
+                }
             }
         }
         #endif
@@ -216,6 +287,13 @@ struct SportsCalApp: App {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
+                    Button("Subscribe…") {
+                        // Bring the main window forward, then ask ContentView to
+                        // present the paywall (it listens for .requestPaywall).
+                        NSApp.activate(ignoringOtherApps: true)
+                        NotificationCenter.default.post(name: .requestPaywall, object: nil)
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
                 .padding()
                 .frame(width: 240)
@@ -247,6 +325,23 @@ struct SportsCalApp: App {
                 .environment(serverDiscovery)
                 .environment(subscriptionManager)
         }
+
+        Window("About Scoreline", id: "about") {
+            MacAboutView()
+                .environment(subscriptionManager)
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
+
+        // Detail-in-its-own-window — opened via "Open in New Window" on any game.
+        WindowGroup(id: "game-detail", for: String.self) { $gameID in
+            MacGameDetailWindow(gameID: gameID)
+                .environment(viewModel)
+                .environment(favorites)
+                .environment(appStorage)
+                .environment(subscriptionManager)
+        }
+        .defaultSize(width: 460, height: 660)
         #endif
     }
 
@@ -279,6 +374,13 @@ struct SportsCalApp: App {
 #if os(macOS)
 extension Notification.Name {
     static let jumpToToday = Notification.Name("com.scoreline.jumpToToday")
+    /// Menu-driven commands acting on the focused main window's state.
+    static let previousDay = Notification.Name("com.scoreline.previousDay")
+    static let nextDay = Notification.Name("com.scoreline.nextDay")
+    static let toggleInspector = Notification.Name("com.scoreline.toggleInspector")
+    static let toggleLayoutMode = Notification.Name("com.scoreline.toggleLayoutMode")
+    static let toggleFavoritesOnly = Notification.Name("com.scoreline.toggleFavoritesOnly")
+    static let printSchedule = Notification.Name("com.scoreline.printSchedule")
 }
 #endif
 

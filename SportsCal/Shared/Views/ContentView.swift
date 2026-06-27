@@ -45,8 +45,32 @@ enum SheetType: Identifiable {
 
 #if os(macOS)
 enum MacSidebarItem: Hashable {
-    case games
+    case games          // All Sports
+    case liveNow
+    case favorites
     case sport(SportType)
+    case team(String)   // favorite team id
+}
+
+/// Small pulsing red dot signalling live activity (respects Reduce Motion).
+struct LivePulseDot: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var animating = false
+
+    var body: some View {
+        Circle()
+            .fill(Color.appLive)
+            .frame(width: 7, height: 7)
+            .scaleEffect(animating ? 1.0 : 0.6)
+            .opacity(animating ? 1.0 : 0.45)
+            .onAppear {
+                guard !reduceMotion else { animating = true; return }
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                    animating = true
+                }
+            }
+            .accessibilityHidden(true)
+    }
 }
 #endif
 
@@ -72,6 +96,8 @@ struct ContentView: View {
     @State private var selectedTab: Int = 0
     @State private var spotlightGameID: String?
     @State private var spotlightCalendarDate: Date?
+    /// Typed nav path for the Browse stack so a Spotlight team tap can push TeamDetailView.
+    @State private var browseTeamPath: [Team] = []
 
     #if os(macOS)
     @State private var sidebarSelection: MacSidebarItem? = .games
@@ -293,6 +319,11 @@ struct ContentView: View {
                 }
                 .navigationTitle("Scoreline")
                 .toolbar { settingsToolbarItem }
+                .navigationDestination(for: Team.self) { team in
+                    TeamDetailView(team: team)
+                        .environment(viewModel)
+                        .environment(favorites)
+                }
             }
             .tabItem {
                 Label("Games", systemImage: "sportscourt")
@@ -306,6 +337,11 @@ struct ContentView: View {
                     .environment(favorites)
                     .environment(storage)
                     .navigationTitle("Scoreline")
+                    .navigationDestination(for: Team.self) { team in
+                        TeamDetailView(team: team)
+                            .environment(viewModel)
+                            .environment(favorites)
+                    }
                     .toolbar {
                         settingsToolbarItem
                         ToolbarItem {
@@ -339,7 +375,7 @@ struct ContentView: View {
             // }
             // .tag(3)
 
-            NavigationStack {
+            NavigationStack(path: $browseTeamPath) {
                 Group {
                     switch storage.appTheme {
                     case .ambient:
@@ -361,6 +397,11 @@ struct ContentView: View {
                 }
                 .navigationTitle("Scoreline")
                 .toolbar { settingsToolbarItem }
+                .navigationDestination(for: Team.self) { team in
+                    TeamDetailView(team: team)
+                        .environment(viewModel)
+                        .environment(favorites)
+                }
             }
             .tabItem {
                 Label("Browse", systemImage: "rectangle.grid.2x2")
@@ -379,8 +420,16 @@ struct ContentView: View {
     #if os(macOS)
     private var macSidebar: some View {
         List(selection: $sidebarSelection) {
-            Label("Games", systemImage: "sportscourt")
-                .tag(MacSidebarItem.games)
+            Section {
+                Label("All Sports", systemImage: "sportscourt")
+                    .tag(MacSidebarItem.games)
+                sidebarScopeRow("Live Now", systemImage: "dot.radiowaves.left.and.right",
+                                count: viewModel.liveEvents.count, isLive: true)
+                    .tag(MacSidebarItem.liveNow)
+                sidebarScopeRow("Favorites", systemImage: "star.fill",
+                                count: favoritesTodayCount, tint: .yellow)
+                    .tag(MacSidebarItem.favorites)
+            }
 
             Section("Sports") {
                 ForEach(storage.enabledSports, id: \.self) { sport in
@@ -388,10 +437,119 @@ struct ContentView: View {
                         .tag(MacSidebarItem.sport(sport))
                 }
             }
+
+            Section("My Teams") {
+                if sidebarFavoriteTeams.isEmpty {
+                    favoritesNudge
+                } else {
+                    ForEach(sidebarFavoriteTeams, id: \.idTeam) { team in
+                        if let id = team.idTeam {
+                            sidebarTeamRow(team)
+                                .tag(MacSidebarItem.team(id))
+                        }
+                    }
+                }
+            }
         }
         .listStyle(.sidebar)
         .navigationTitle("Scoreline")
-        .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 260)
+        .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
+    }
+
+    private var favoritesTodayCount: Int {
+        viewModel.gamesWithTeams(for: Date()).filter { favorites.contains($0.game) }.count
+    }
+
+    private var sidebarFavoriteTeams: [Team] {
+        favorites.teamIDs
+            .compactMap { TeamsManager.shared.team(byID: $0) }
+            .sorted { ($0.strTeam ?? "") < ($1.strTeam ?? "") }
+    }
+
+    /// Shown in the "My Teams" section when the user follows no teams yet — a
+    /// gentle prompt explaining how to populate it.
+    private var favoritesNudge: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "star.circle.fill")
+                .foregroundStyle(.yellow)
+                .imageScale(.large)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Follow your teams")
+                    .font(.subheadline.weight(.medium))
+                Text("Tap the ☆ on any game to keep its team here for quick access.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 4)
+        .listRowBackground(Color.clear)
+    }
+
+    private func sidebarScopeRow(_ title: String, systemImage: String, count: Int,
+                                 isLive: Bool = false, tint: Color? = nil) -> some View {
+        HStack {
+            Label {
+                Text(title)
+            } icon: {
+                Image(systemName: systemImage)
+                    .foregroundStyle(tint ?? (isLive ? Color.appLive : Color.appInkSoft))
+            }
+            Spacer()
+            if isLive, count > 0 {
+                HStack(spacing: 4) {
+                    LivePulseDot()
+                    Text("\(count)")
+                        .font(.appFootnote.weight(.semibold))
+                        .monospacedDigit()
+                }
+                .foregroundStyle(Color.appLive)
+            } else if count > 0 {
+                Text("\(count)")
+                    .font(.appFootnote.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func sidebarTeamRow(_ team: Team) -> some View {
+        let next = team.idTeam.flatMap { id in
+            (viewModel.totalGames ?? [])
+                .filter { $0.idHomeTeam == id || $0.idAwayTeam == id }
+                .filter { ($0.standardDate ?? .distantPast) >= Calendar.current.date(byAdding: .hour, value: -4, to: Date())! }
+                .min { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
+        }
+        return HStack(spacing: 8) {
+            sidebarTeamBadge(team.strTeamBadge)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(team.strTeam ?? "Team")
+                    .lineLimit(1)
+                if let next, let date = next.standardDate {
+                    Text(Calendar.current.isDateInToday(date)
+                         ? date.formatted(date: .omitted, time: .shortened)
+                         : date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                        .font(.appFootnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+    }
+
+    private func sidebarTeamBadge(_ badge: String?) -> some View {
+        Group {
+            if let badge, let url = URL(string: badge) {
+                AsyncImage(url: url) { image in
+                    image.resizable().aspectRatio(contentMode: .fit)
+                } placeholder: {
+                    Image(systemName: "shield.fill").foregroundStyle(.tertiary)
+                }
+            } else {
+                Image(systemName: "shield.fill").foregroundStyle(.tertiary)
+            }
+        }
+        .frame(width: 20, height: 20)
     }
 
     private func sidebarSportRow(_ sport: SportType) -> some View {
@@ -422,33 +580,39 @@ struct ContentView: View {
 
     @ViewBuilder
     private var macDetail: some View {
-        switch sidebarSelection {
-        case .games, .none:
-            NavigationStack {
-                Group {
-                    switch storage.appTheme {
-                    case .efRemix:
-                        ModernDayPage()
-                            .environment(viewModel)
-                            .environment(storage)
-                            .environment(favorites)
-                    case .ambient, .classic:
-                        DayPage(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, spotlightGameID: $spotlightGameID)
-                            .environment(viewModel)
-                            .environment(storage)
-                            .environment(favorites)
-                    }
-                }
-                .navigationTitle("Games")
-            }
-        case .sport(let sport):
-            NavigationStack {
-                BrowseSportView(sport: sport)
-                    .environment(viewModel)
-                    .environment(storage)
-                    .environment(favorites)
-            }
-            .id(sport)
+        // Every sidebar selection drives the day board, scoped by the chosen
+        // filter (all / live / favorites / sport / team). The board itself is
+        // the same DayPage; only its `macScope` changes.
+        NavigationStack {
+            DayPage(
+                shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
+                spotlightGameID: $spotlightGameID,
+                dayScope: dayScope(for: sidebarSelection ?? .games)
+            )
+            .environment(viewModel)
+            .environment(storage)
+            .environment(favorites)
+            .navigationTitle(macDetailTitle)
+        }
+    }
+
+    private func dayScope(for item: MacSidebarItem) -> DayScope {
+        switch item {
+        case .games:        return .all
+        case .liveNow:      return .liveNow
+        case .favorites:    return .favorites
+        case .sport(let s): return .sport(s)
+        case .team(let id): return .team(id)
+        }
+    }
+
+    private var macDetailTitle: String {
+        switch sidebarSelection ?? .games {
+        case .games:        return "All Sports"
+        case .liveNow:      return "Live Now"
+        case .favorites:    return "Favorites"
+        case .sport(let s): return s.displayName
+        case .team(let id): return TeamsManager.shared.team(byID: id)?.strTeam ?? "Team"
         }
     }
     #endif
@@ -464,8 +628,15 @@ struct ContentView: View {
             spotlightGameID = eventID
             selectedTab = 0
         } else if identifier.hasPrefix("team-") {
-            calendarShowFavoritesOnly = true
-            selectedTab = 0
+            let name = String(identifier.dropFirst("team-".count))
+            if let team = TeamsManager.shared.team(byNameOrAlias: name) {
+                browseTeamPath = [team]
+                selectedTab = 2
+            } else {
+                // Team not in cache — fall back to the favorites-filtered games view.
+                calendarShowFavoritesOnly = true
+                selectedTab = 0
+            }
         } else if identifier.hasPrefix("date-") {
             let dateString = String(identifier.dropFirst("date-".count))
             let formatter = DateFormatter()

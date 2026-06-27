@@ -489,13 +489,15 @@ struct SettingsView: View {
                         Text(appVersionString)
                             .foregroundStyle(.secondary)
                     }
-                    Button("Restore Purchases") {
-                        Task {
-                            let restored = await SubscriptionManager.shared.restorePurchases()
-                            restoreMessage = restored
-                                ? "Your purchases have been restored."
-                                : "No previous purchases were found to restore."
-                            showRestoreResult = true
+                    if !SubscriptionManager.isManagedExternally {
+                        Button("Restore Purchases") {
+                            Task {
+                                let restored = await SubscriptionManager.shared.restorePurchases()
+                                restoreMessage = restored
+                                    ? "Your purchases have been restored."
+                                    : "No previous purchases were found to restore."
+                                showRestoreResult = true
+                            }
                         }
                     }
                     #if os(iOS)

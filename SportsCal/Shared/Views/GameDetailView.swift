@@ -238,23 +238,31 @@ struct GameDetailView: View {
     private var gameHeader: some View {
         VStack(spacing: 12) {
             HStack(alignment: .top) {
-                teamBadge(url: awayTeam.strTeamBadge, name: awayTeam.strTeamShort ?? awayTeam.strTeam, size: 60)
+                teamLink(awayTeam) {
+                    teamBadge(url: awayTeam.strTeamBadge, name: awayTeam.strTeamShort ?? awayTeam.strTeam, size: 60)
+                }
                 Spacer()
                 scoreOrTime
                 Spacer()
-                teamBadge(url: homeTeam.strTeamBadge, name: homeTeam.strTeamShort ?? homeTeam.strTeam, size: 60)
+                teamLink(homeTeam) {
+                    teamBadge(url: homeTeam.strTeamBadge, name: homeTeam.strTeamShort ?? homeTeam.strTeam, size: 60)
+                }
             }
 
             HStack {
-                Text(awayTeam.strTeam ?? "Away")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .frame(maxWidth: .infinity)
+                teamLink(awayTeam) {
+                    Text(awayTeam.strTeam ?? "Away")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .frame(maxWidth: .infinity)
+                }
                 Spacer()
-                Text(homeTeam.strTeam ?? "Home")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .frame(maxWidth: .infinity)
+                teamLink(homeTeam) {
+                    Text(homeTeam.strTeam ?? "Home")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .frame(maxWidth: .infinity)
+                }
             }
 
             if let statusText = game.displayStatus {
@@ -318,6 +326,21 @@ struct GameDetailView: View {
             Text(game.displayStatus ?? "TBD")
                 .font(.headline)
                 .foregroundColor(.secondary)
+        }
+    }
+
+    /// Wraps a hero element in a NavigationLink to the team's page for real team
+    /// sports. Individual sports (golf/tennis/F1) have no team to drill into, so the
+    /// content is returned untapped.
+    @ViewBuilder
+    private func teamLink<Content: View>(_ team: Team, @ViewBuilder content: () -> Content) -> some View {
+        if game.isIndividualSport {
+            content()
+        } else {
+            NavigationLink(value: team) {
+                content()
+            }
+            .buttonStyle(.plain)
         }
     }
 

@@ -15,12 +15,16 @@ struct ModernDateScrubber: View {
     /// Optional set of date components (day/month/year) that have games. When
     /// non-nil, pills with games show a small dot underneath the day number.
     var datesWithGames: Set<DateComponents>? = nil
-    var pastDays: Int = 7
-    var futureDays: Int = 21
+    /// Half-window rendered on each side of the *selected* day. The window is
+    /// anchored on `selectedDate` (not today), so stepping/scrubbing past the
+    /// edge re-centers it — you can travel arbitrarily far in either direction.
+    var pastDays: Int = 60
+    var futureDays: Int = 60
 
     private let calendar = Calendar.current
 
     @State private var scrollPosition: Date?
+    @State private var showDatePicker = false
 
     var body: some View {
         HStack(spacing: .appSpace2) {
@@ -28,6 +32,7 @@ struct ModernDateScrubber: View {
             scrubberStrip
             chevron("chevron.right", offset: 1, accessibility: "Next day")
             todayButton
+            datePickerButton
         }
         .padding(.horizontal, .appSpace3)
         .padding(.vertical, .appSpace2)
@@ -45,7 +50,7 @@ struct ModernDateScrubber: View {
 
     private var scrubberStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
+            LazyHStack(spacing: 4) {
                 ForEach(Array(days.enumerated()), id: \.element.timeIntervalSince1970) { index, date in
                     if isNewMonth(date, previous: index > 0 ? days[index - 1] : nil) {
                         monthDivider(for: date)
@@ -160,6 +165,43 @@ struct ModernDateScrubber: View {
         .help("Jump to today (⌘T)")
     }
 
+    /// Calendar popover for jumping directly to any date — the fast path for
+    /// traveling far from today without paging one day at a time.
+    private var datePickerButton: some View {
+        Button {
+            showDatePicker.toggle()
+        } label: {
+            Image(systemName: "calendar")
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: 28, height: 28)
+                .foregroundStyle(Color.appInkSoft)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.appAlt.opacity(0.6))
+                )
+        }
+        .buttonStyle(.plain)
+        .help("Jump to date…")
+        .accessibilityLabel("Jump to date")
+        .popover(isPresented: $showDatePicker, arrowEdge: .bottom) {
+            DatePicker(
+                "Jump to date",
+                selection: Binding(
+                    get: { selectedDate },
+                    set: { newValue in
+                        selectedDate = calendar.startOfDay(for: newValue)
+                        showDatePicker = false
+                    }
+                ),
+                displayedComponents: .date
+            )
+            .datePickerStyle(.graphical)
+            .labelsHidden()
+            .padding()
+            .frame(minWidth: 300)
+        }
+    }
+
     // MARK: - Helpers
 
     private func shiftBy(days: Int) {
@@ -170,9 +212,12 @@ struct ModernDateScrubber: View {
     }
 
     private var days: [Date] {
-        let today = calendar.startOfDay(for: Date())
+        // Anchor the window on the selected day so it follows the user as they
+        // page/scrub — there is no fixed floor or ceiling on how far back or
+        // forward they can go.
+        let anchor = calendar.startOfDay(for: selectedDate)
         return (-pastDays...futureDays).compactMap { offset in
-            calendar.date(byAdding: .day, value: offset, to: today)
+            calendar.date(byAdding: .day, value: offset, to: anchor)
         }
     }
 

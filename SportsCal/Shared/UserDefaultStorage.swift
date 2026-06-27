@@ -240,6 +240,19 @@ class UserDefaultStorage {
         bumpPreferenceVersion()
     }
 
+    /// Reorders the sport list so `source` sits where `target` is (drag-to-reorder
+    /// board columns / sidebar). Persists the full order and refreshes derived state.
+    func moveSport(_ source: SportType, before target: SportType) {
+        guard source != target else { return }
+        var order = orderedSports
+        guard let from = order.firstIndex(of: source) else { return }
+        order.remove(at: from)
+        let insertIndex = order.firstIndex(of: target) ?? order.count
+        order.insert(source, at: insertIndex)
+        sportOrder = order.map { $0.rawValue }
+        recomputeEnabledSports()
+    }
+
     /// Mirror sport preference flags to the shared app group so widgets can read them
     private func syncSportPrefsToAppGroup() {
         let defaults = UserDefaults(suiteName: Self.suiteName)

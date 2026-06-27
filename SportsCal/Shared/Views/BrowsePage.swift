@@ -43,6 +43,30 @@ struct BrowsePage: View {
             .buttonStyle(.plain)
             .padding([.horizontal, .top])
 
+            NavigationLink {
+                TeamsListView()
+                    .environment(viewModel)
+                    .environment(favorites)
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "person.3.fill")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Teams").font(.headline)
+                        Text("Browse & follow any team")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color.secondaryGroupedBackground, in: RoundedRectangle(cornerRadius: 16))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal)
+
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(storage.orderedSports, id: \.self) { sport in
                     NavigationLink {
