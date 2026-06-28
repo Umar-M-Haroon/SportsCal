@@ -1,1 +1,1 @@
-calendar,world,cup,fixtures,nfl,nba,nhl,mlb,f1,soccer,football,basketball,tennis,golf,hockey,racing
+calendar,world,cup,nfl,nba,nhl,mlb,f1,soccer,football,basketball,baseball,tennis,golf,hockey,results
