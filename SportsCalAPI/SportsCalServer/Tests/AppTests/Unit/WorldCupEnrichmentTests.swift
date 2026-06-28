@@ -66,6 +66,23 @@ final class WorldCupEnrichmentTests: XCTestCase {
         XCTAssertEqual(match.awayTeamName, "Croatia")
     }
 
+    /// The 2026 World Cup tags the knockout round on `season.slug` ("round-of-32"…)
+    /// with empty `notes` and a `season.type` that is NOT the postseason flag (3).
+    /// The old heuristics (notes headline / `type == 3`) miss every knockout fixture;
+    /// this verifies the slug path recognizes and labels them.
+    func test_buildBracket_detectsKnockoutFromSeasonSlug_2026Format() throws {
+        let scoreboard = try JSONDecoder().decode(Scoreboard.self, from: Self.slugScoreboardJSON)
+        let bracket = WorldCupEnrichmentJob.buildBracket(from: scoreboard)
+
+        // Group stage excluded; the two slug-tagged knockout rounds are kept and ordered.
+        XCTAssertEqual(bracket.rounds.map(\.roundName), ["Round of 32", "Final"])
+
+        let r32 = try XCTUnwrap(bracket.rounds.first)
+        XCTAssertEqual(r32.matches.count, 1)
+        XCTAssertEqual(r32.matches.first?.homeTeamName, "Mexico")
+        XCTAssertEqual(r32.matches.first?.awayTeamName, "Brazil")
+    }
+
     // MARK: - Scorers
 
     func test_buildScorers_parsesGoalsCategory() {
@@ -118,6 +135,40 @@ final class WorldCupEnrichmentTests: XCTestCase {
         let third = event(id: "4", note: "Third Place", home: "Morocco", away: "Croatia", homeScore: "1", awayScore: "2", completed: true)
         let json = """
         { "leagues": [], "events": [\(groupEvent), \(r16), \(final), \(third)] }
+        """
+        return Data(json.utf8)
+    }
+
+    /// Mirrors the live 2026 payload: empty `notes`, round on `season.slug`, and a
+    /// `season.type` that is not the postseason flag (3).
+    private static func slugEvent(id: String, slug: String, home: String, away: String,
+                                  homeScore: String, awayScore: String, completed: Bool) -> String {
+        """
+        {
+          "id": "\(id)", "uid": "u\(id)", "date": "2026-06-28T19:00Z", "name": "\(home) vs \(away)",
+          "shortName": "\(home) @ \(away)",
+          "season": { "year": 2026, "type": 13801, "slug": "\(slug)" },
+          "competitions": [{
+            "id": "c\(id)", "uid": "uc\(id)", "date": "2026-06-28T19:00Z",
+            "notes": [],
+            "status": { "type": { "id": "3", "state": "post", "completed": \(completed) } },
+            "competitors": [
+              { "id": "h\(id)", "uid": "uh\(id)", "type": "team", "order": 0, "homeAway": "home", "score": "\(homeScore)",
+                "team": { "id": "h\(id)", "uid": "th\(id)", "displayName": "\(home)", "shortDisplayName": "\(home)", "isActive": true, "links": [] } },
+              { "id": "a\(id)", "uid": "ua\(id)", "type": "team", "order": 1, "homeAway": "away", "score": "\(awayScore)",
+                "team": { "id": "a\(id)", "uid": "ta\(id)", "displayName": "\(away)", "shortDisplayName": "\(away)", "isActive": true, "links": [] } }
+            ]
+          }]
+        }
+        """
+    }
+
+    private static var slugScoreboardJSON: Data {
+        let group = slugEvent(id: "1", slug: "group-stage", home: "Qatar", away: "Ecuador", homeScore: "0", awayScore: "2", completed: true)
+        let r32 = slugEvent(id: "2", slug: "round-of-32", home: "Mexico", away: "Brazil", homeScore: "1", awayScore: "2", completed: true)
+        let final = slugEvent(id: "3", slug: "final", home: "Argentina", away: "France", homeScore: "0", awayScore: "0", completed: false)
+        let json = """
+        { "leagues": [], "events": [\(group), \(r32), \(final)] }
         """
         return Data(json.utf8)
     }

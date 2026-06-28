@@ -204,8 +204,14 @@ struct WorldCupEnrichmentJob: AsyncScheduledJob {
         )
     }
 
-    /// Best round label from ESPN: notes headline/text first, then event short/long name.
+    /// Best round label from ESPN. The 2026 World Cup tags the knockout round on the
+    /// `season.slug` ("round-of-32", "round-of-16", "quarterfinals", "semifinals",
+    /// "final") and leaves `notes` empty, so the slug is the authoritative signal; we
+    /// fall back to the notes headline/text and the event name for older formats.
     private static func roundLabel(for event: Event, competition: Competition) -> String? {
+        if let slug = event.season?.slug, let label = roundLabel(fromSlug: slug) {
+            return label
+        }
         if let headline = competition.notes?.first(where: { ($0.headline?.isEmpty == false) })?.headline {
             return headline.trimmingCharacters(in: .whitespaces)
         }
@@ -215,6 +221,20 @@ struct WorldCupEnrichmentJob: AsyncScheduledJob {
         // Fall back to a name only if it looks like a knockout label (avoids group games).
         let candidate = (event.shortName ?? event.name)
         return roundSortIndex(candidate) != nil ? candidate : nil
+    }
+
+    /// Maps an ESPN `season.slug` to a canonical knockout-round label, or nil for the
+    /// group stage ("group-stage" / unknown). The returned label feeds `roundSortIndex`.
+    private static func roundLabel(fromSlug slug: String) -> String? {
+        switch slug.lowercased() {
+        case "round-of-32": return "Round of 32"
+        case "round-of-16": return "Round of 16"
+        case "quarterfinals", "quarter-finals": return "Quarterfinals"
+        case "semifinals", "semi-finals": return "Semifinals"
+        case "third-place", "third-place-final", "3rd-place": return "Third Place"
+        case "final": return "Final"
+        default: return nil
+        }
     }
 
     private static func isThirdPlace(_ label: String) -> Bool {
