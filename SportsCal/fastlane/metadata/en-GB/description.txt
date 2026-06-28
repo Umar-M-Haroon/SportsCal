@@ -1,0 +1,25 @@
+  Track live scores, schedules, and standings for 8 major sports — all in one app.                                      
+                                                                                                                        
+  SPORTS COVERED                                                                                                        
+  • NBA Basketball                                                                                                      
+  • NFL Football                                                                                                        
+  • MLB Baseball  
+  • NHL Hockey
+  • Soccer (Premier League, Champions League, MLS, and more)
+  • Golf (PGA Tour)                                                                                                     
+  • Tennis (ATP, WTA)
+  • Formula 1 Racing                                                                                                    
+                  
+  KEY FEATURES                                                                                                          
+  • Live Scores — Real-time updates with Live Activities on your Lock Screen
+  • Calendar View — See your teams' schedules at a glance with colored sport indicators                                 
+  • Favorites — Follow your teams and get personalized game feeds                                                       
+  • Push Notifications — Never miss tip-off, kickoff, or first pitch                                                    
+  • Widgets — Home screen and Lock Screen widgets for instant scores                                                    
+  • Apple Watch — Check scores from your wrist                                                                          
+  • Siri Shortcuts — "Show my games" and more                                                                           
+  • Focus Filters — Choose which sports appear during Work or Personal focus                                                                                                       
+  
+  Just scores, schedules, and standings. No betting lines. No odds. No gambling. Just the games you love.  
+
+Scoreline Pro is available as a $2.99/month or $19.99/year subscription, or a one-time $39.99 Lifetime purchase. Subscriptions auto-renew unless turned off at least 24 hours before the end of the current period; you can manage or cancel anytime in your App Store account settings. Terms of use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/ — Privacy policy: https://komodollc.com/privacy
