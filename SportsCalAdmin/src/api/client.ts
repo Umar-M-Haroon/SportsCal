@@ -45,6 +45,12 @@ class ApiClient {
     return this.fetch<MetricsResponse>('/api/admin/metrics')
   }
 
+  // Per-day telemetry counters: { event -> { epochDay -> count } }.
+  // Includes the client.* monetization funnel events.
+  async getTelemetry(): Promise<{ counters: Record<string, Record<string, number>> }> {
+    return this.fetch('/api/admin/telemetry')
+  }
+
   async getRedisKeys(): Promise<RedisKeysResponse> {
     return this.fetch<RedisKeysResponse>('/api/admin/redis/keys')
   }
