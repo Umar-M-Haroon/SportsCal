@@ -9,6 +9,7 @@ import { ServerControl } from './ServerControl'
 import { Logs } from './Logs'
 import { Parity } from './Parity'
 import { WorldCupStatus } from './WorldCupStatus'
+import { MonetizationFunnel } from './MonetizationFunnel'
 
 export class Dashboard {
   private currentView: string = ''
@@ -30,6 +31,7 @@ export class Dashboard {
     this.components.set('logs', new Logs())
     this.components.set('parity', new Parity())
     this.components.set('worldcup', new WorldCupStatus())
+    this.components.set('funnel', new MonetizationFunnel())
 
     this.setupNavigation()
     this.showView('health')
