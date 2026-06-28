@@ -237,13 +237,21 @@ struct ContentView: View {
             .onAppear {
                 WidgetCenter.shared.reloadAllTimelines()
                 // Engagement-gated, throttled rating prompt (replaces the old
-                // unconditional launch-#5 ask). Positive signal = the user follows
-                // at least one team (a returning, invested user).
+                // unconditional launch-#5 ask). Prefer asking right after a
+                // followed team wins (the happiest moment); fall back to an
+                // engaged user with a favorite so loyal users whose teams
+                // haven't won recently still get asked.
+                let winEventID = RatingsManager.shared.recentFavoriteWinEventID(
+                    in: viewModel.totalGames ?? [], favorites: favorites
+                )
+                let engagedFallback = !favorites.teamIDs.isEmpty
+                    && viewModel.appStorage.launches >= 12
                 if RatingsManager.shared.shouldRequestReview(
                     launches: viewModel.appStorage.launches,
-                    hasPositiveSignal: !favorites.teamIDs.isEmpty
+                    hasPositiveSignal: winEventID != nil || engagedFallback
                 ) {
                     requestReview()
+                    if let winEventID { RatingsManager.shared.markWinCelebrated(winEventID) }
                 }
                 if viewModel.appStorage.shouldShowOnboarding {
                     sheetType = .onboarding

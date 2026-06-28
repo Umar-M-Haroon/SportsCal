@@ -13,6 +13,7 @@
 //
 
 import Foundation
+import SportsCalModel
 
 /// Pure eligibility policy — no persistence, no UIKit.
 enum RatingsPolicy {
@@ -54,6 +55,37 @@ final class RatingsManager {
         static let count = "reviewPromptCount"
         static let year = "reviewPromptYear"
         static let lastDate = "lastReviewPromptDate"
+        static let lastWinEventID = "lastCelebratedWinEventID"
+    }
+
+    /// How recent a finished game must be to count as a "happy moment". A win
+    /// the user opens the app to see the morning after still lands; a week-old
+    /// result doesn't.
+    private static let winRecencyWindow: TimeInterval = 36 * 3600
+
+    /// The strongest "happy moment" signal: a team the user follows just won a
+    /// game. Returns that game's `idEvent` so the caller can mark it used after
+    /// actually prompting (`markWinCelebrated`) — never reusing the same win.
+    /// Read-only. Team sports only (individual sports carry no home/away W/L).
+    func recentFavoriteWinEventID(in games: [Game], favorites: Favorites, now: Date = Date()) -> String? {
+        let alreadyUsed = defaults.string(forKey: Keys.lastWinEventID)
+        for game in games {
+            guard let eventID = game.idEvent, eventID != alreadyUsed else { continue }
+            guard game.isCompleted == true, !game.isIndividualSport else { continue }
+            guard let date = game.standardDate,
+                  now >= date, now.timeIntervalSince(date) <= Self.winRecencyWindow else { continue }
+            guard let home = Int(game.intHomeScore ?? ""),
+                  let away = Int(game.intAwayScore ?? "") else { continue }
+            if favorites.containsHome(game.strHomeTeam), home > away { return eventID }
+            if favorites.containsAway(game.strAwayTeam), away > home { return eventID }
+        }
+        return nil
+    }
+
+    /// Record that we've used this win to ask for a review, so the same game
+    /// can't trigger another prompt. Call only after the prompt is actually shown.
+    func markWinCelebrated(_ eventID: String) {
+        defaults.set(eventID, forKey: Keys.lastWinEventID)
     }
 
     /// Decide whether to invoke the SwiftUI `requestReview` action now. The
