@@ -65,4 +65,45 @@ class SportsCalUITests: XCTestCase {
             }
         }
     }
+
+    #if os(iOS)
+    /// App Store screenshots. Seeds sports + skips onboarding via launch args
+    /// (NSArgumentDomain), auto-dismisses the notification prompt, then captures
+    /// the main tabs as attachments. Appearance follows the simulator — run with
+    /// the sim set to dark (`xcrun simctl ui <udid> appearance dark`) or via the
+    /// Snapfile `dark_mode` option. Extract with:
+    ///   xcrun xcresulttool export attachments --path <result.xcresult> --output-path <dir>
+    func testAppStoreScreenshots() throws {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-shouldShowOnboarding", "0",
+            "-shouldShowNBA", "1", "-shouldShowNFL", "1", "-shouldShowNHL", "1",
+            "-shouldShowSoccer", "1", "-shouldShowMLB", "1", "-shouldShowWorldCup", "1",
+        ]
+        // Dismiss the system notification permission alert if it appears.
+        addUIInterruptionMonitor(withDescription: "permission") { alert in
+            for label in ["Don't Allow", "Allow", "OK", "Dismiss"] where alert.buttons[label].exists {
+                alert.buttons[label].tap()
+                return true
+            }
+            return false
+        }
+        app.launch()
+        sleep(12)            // network fetch + render + logo load
+        app.tap()            // nudge the interruption monitor to clear the alert
+        sleep(1)
+        capture("01_Games", app: app)
+
+        func tab(_ label: String, _ shot: String) {
+            let button = app.tabBars.buttons[label].firstMatch
+            if button.waitForExistence(timeout: 5) {
+                button.tap()
+                sleep(3)
+                capture(shot, app: app)
+            }
+        }
+        tab("Browse", "02_Browse")
+        tab("Calendar", "03_Calendar")
+    }
+    #endif
 }

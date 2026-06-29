@@ -92,8 +92,6 @@
 		1D5AB3FB2FD4FC4C00BDFA2A /* WorldCupHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3FA2FD4FC4C00BDFA2A /* WorldCupHubView.swift */; };
 		1D5AB3FD2FD4FC6100BDFA2A /* WorldCupFeaturedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3FC2FD4FC6100BDFA2A /* WorldCupFeaturedCard.swift */; };
 		1D5AB3FF2FD50F6A00BDFA2A /* CompactGameRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3FE2FD50F6A00BDFA2A /* CompactGameRowView.swift */; };
-		1DEADBEEF0000000000000A2 /* TeamDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEADBEEF0000000000000A1 /* TeamDetailView.swift */; };
-		1DEADBEEF0000000000000B2 /* TeamsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEADBEEF0000000000000B1 /* TeamsListView.swift */; };
 		1D5AB4012FD5100000BDFA2A /* TournamentHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB4002FD5100000BDFA2A /* TournamentHubView.swift */; };
 		1D5AB4032FD8FD9400BDFA2A /* WorldCupHeroCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB4022FD8FD9400BDFA2A /* WorldCupHeroCard.swift */; };
 		1D5C463126C9C5F900BA827B /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463026C9C5F900BA827B /* SubscriptionManager.swift */; };
@@ -240,6 +238,8 @@
 		1DE94A7C29CD952200BE87D1 /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1DE94A7B29CD952200BE87D1 /* NukeUI */; };
 		1DE94A8029CD960100BE87D1 /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1DE94A7F29CD960100BE87D1 /* NukeUI */; };
 		1DEA4E0129053AB900CD1D8F /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D486AFF28A834470024BC32 /* GameViewModel.swift */; };
+		1DEADBEEF0000000000000A2 /* TeamDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEADBEEF0000000000000A1 /* TeamDetailView.swift */; };
+		1DEADBEEF0000000000000B2 /* TeamsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEADBEEF0000000000000B1 /* TeamsListView.swift */; };
 		1DEC76CC268EFB6700D217A1 /* Tests_macOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76CB268EFB6700D217A1 /* Tests_macOS.swift */; };
 		1DEC76CD268EFB6700D217A1 /* SportsCalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76AB268EFB6600D217A1 /* SportsCalApp.swift */; };
 		1DEC76CF268EFB6700D217A1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76AC268EFB6600D217A1 /* ContentView.swift */; };
@@ -258,6 +258,8 @@
 		1DF5C5582713F48500842FDA /* SportsWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DE16FF526F29D4A007B1B57 /* SportsWidgetExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1DFA3D682A4E8B0A007BA22C /* TiledGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFA3D672A4E8B0A007BA22C /* TiledGridView.swift */; };
 		1DFBEE702AEB456100753DE1 /* SubscriptionRequiredView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFBEE6F2AEB456100753DE1 /* SubscriptionRequiredView.swift */; };
+		429BDB0B949DE3955598C1C6 /* SportsCalUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1DDA02761832E00740CD3 /* SportsCalUITestsLaunchTests.swift */; };
+		5546C923C2D798435C5A3777 /* SportsCalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1DD9E2761832E00740CD3 /* SportsCalUITests.swift */; };
 		8A4FD23681DA590FA36AD974 /* GameDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD6F330B4DD18EE38269B549 /* GameDetailView.swift */; };
 		9B1E2F4A2F3810A100C1D2E3 /* TournamentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1E2F492F3810A100C1D2E3 /* TournamentDetailView.swift */; };
 		A1B2C3D401000001AABBCCDD /* SubscriptionManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D402000001AABBCCDD /* SubscriptionManagerTests.swift */; };
@@ -318,10 +320,18 @@
 		EE00060200000001 /* DayTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00060100000001 /* DayTimelineView.swift */; };
 		EE00B00FF00000000000000B /* PlayoffPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00B00FF00000000000000A /* PlayoffPill.swift */; };
 		EFA0020100000001 /* EFRemixTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFA0010100000001 /* EFRemixTheme.swift */; };
+		F3F3D11B781A5234A2539E60 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C1E2EF7E405289CC653CE178 /* Foundation.framework */; };
 		FAC419D238E640E4802E1D64 /* ScheduleFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D905CEEF684D5CB7178662 /* ScheduleFilterTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		0F850D1B950F80F924A11D88 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1DEC76A6268EFB6500D217A1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1DEC76B1268EFB6700D217A1;
+			remoteInfo = "SportsCal (iOS)";
+		};
 		1D1DAB9029CDB467005434D6 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 1DEC76A6268EFB6500D217A1 /* Project object */;
@@ -466,8 +476,6 @@
 		1D5AB3FA2FD4FC4C00BDFA2A /* WorldCupHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupHubView.swift; sourceTree = "<group>"; };
 		1D5AB3FC2FD4FC6100BDFA2A /* WorldCupFeaturedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupFeaturedCard.swift; sourceTree = "<group>"; };
 		1D5AB3FE2FD50F6A00BDFA2A /* CompactGameRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactGameRowView.swift; sourceTree = "<group>"; };
-		1DEADBEEF0000000000000A1 /* TeamDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamDetailView.swift; sourceTree = "<group>"; };
-		1DEADBEEF0000000000000B1 /* TeamsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamsListView.swift; sourceTree = "<group>"; };
 		1D5AB4002FD5100000BDFA2A /* TournamentHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TournamentHubView.swift; sourceTree = "<group>"; };
 		1D5AB4022FD8FD9400BDFA2A /* WorldCupHeroCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupHeroCard.swift; sourceTree = "<group>"; };
 		1D5C463026C9C5F900BA827B /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
@@ -574,6 +582,8 @@
 		1DE897E92F42DAEA006657FF /* WidgetDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataStore.swift; sourceTree = "<group>"; };
 		1DE897EC2F44FA89006657FF /* WatchSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncService.swift; sourceTree = "<group>"; };
 		1DE897EF2F44FD70006657FF /* DayChipStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayChipStrip.swift; sourceTree = "<group>"; };
+		1DEADBEEF0000000000000A1 /* TeamDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamDetailView.swift; sourceTree = "<group>"; };
+		1DEADBEEF0000000000000B1 /* TeamsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamsListView.swift; sourceTree = "<group>"; };
 		1DEC76AB268EFB6600D217A1 /* SportsCalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsCalApp.swift; sourceTree = "<group>"; };
 		1DEC76AC268EFB6600D217A1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1DEC76AD268EFB6700D217A1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -594,6 +604,7 @@
 		1DF5C5572713D92200842FDA /* SportsCal--iOS--Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "SportsCal--iOS--Info.plist"; sourceTree = "<group>"; };
 		1DFA3D672A4E8B0A007BA22C /* TiledGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TiledGridView.swift; sourceTree = "<group>"; };
 		1DFBEE6F2AEB456100753DE1 /* SubscriptionRequiredView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRequiredView.swift; sourceTree = "<group>"; };
+		4C829CEF9B7FBBDE4D1C7046 /* SportsCalUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = SportsCalUITests.xctest; path = SportsCalUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9B1E2F492F3810A100C1D2E3 /* TournamentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TournamentDetailView.swift; sourceTree = "<group>"; };
 		A1B2C3D402000001AABBCCDD /* SubscriptionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerTests.swift; sourceTree = "<group>"; };
 		A1B2C3D402000002AABBCCDD /* RevenueCatIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatIntegrationTests.swift; sourceTree = "<group>"; };
@@ -628,6 +639,7 @@
 		BB00060900000009 /* GolfCourseDifficultyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfCourseDifficultyView.swift; sourceTree = "<group>"; };
 		BB00060B0000000B /* GolfGlossaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfGlossaryView.swift; sourceTree = "<group>"; };
 		BB00070100000001 /* StandingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingsViewModel.swift; sourceTree = "<group>"; };
+		C1E2EF7E405289CC653CE178 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		C5D905CEEF684D5CB7178662 /* ScheduleFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleFilterTests.swift; sourceTree = "<group>"; };
 		CC00010100000001 /* StatScatterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatScatterView.swift; sourceTree = "<group>"; };
 		CC00020100000001 /* TeamStatsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamStatsViewModel.swift; sourceTree = "<group>"; };
@@ -645,7 +657,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		1D7F46592F45004E00F44569 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		1D7F46592F45004E00F44569 /* Exceptions for "SportsCalWatchWidgets" folder in "SportsCalWatchWidgetsExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -655,10 +667,51 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		1D7F45F42F44FFE600F44569 /* SportsCalWatch Watch App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "SportsCalWatch Watch App"; sourceTree = "<group>"; };
-		1D7F46022F44FFE800F44569 /* SportsCalWatch Watch AppTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "SportsCalWatch Watch AppTests"; sourceTree = "<group>"; };
-		1D7F460C2F44FFE800F44569 /* SportsCalWatch Watch AppUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "SportsCalWatch Watch AppUITests"; sourceTree = "<group>"; };
-		1D7F464A2F45004C00F44569 /* SportsCalWatchWidgets */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (1D7F46592F45004E00F44569 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = SportsCalWatchWidgets; sourceTree = "<group>"; };
+		1D7F45F42F44FFE600F44569 /* SportsCalWatch Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = "SportsCalWatch Watch App";
+			sourceTree = "<group>";
+		};
+		1D7F46022F44FFE800F44569 /* SportsCalWatch Watch AppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = "SportsCalWatch Watch AppTests";
+			sourceTree = "<group>";
+		};
+		1D7F460C2F44FFE800F44569 /* SportsCalWatch Watch AppUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = "SportsCalWatch Watch AppUITests";
+			sourceTree = "<group>";
+		};
+		1D7F464A2F45004C00F44569 /* SportsCalWatchWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				1D7F46592F45004E00F44569 /* Exceptions for "SportsCalWatchWidgets" folder in "SportsCalWatchWidgetsExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = SportsCalWatchWidgets;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -739,9 +792,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FEFFB9DC91FFF1063A81D0F8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F3F3D11B781A5234A2539E60 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		17962FF94DB5C51B3A14C73A /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				C1E2EF7E405289CC653CE178 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
 		1D16B05D2FA6B18E00490122 /* DesignSystem */ = {
 			isa = PBXGroup;
 			children = (
@@ -1129,6 +1198,7 @@
 				1D7F45FF2F44FFE800F44569 /* SportsCalWatch Watch AppTests.xctest */,
 				1D7F46092F44FFE800F44569 /* SportsCalWatch Watch AppUITests.xctest */,
 				1D7F46472F45004C00F44569 /* SportsCalWatchWidgetsExtension.appex */,
+				4C829CEF9B7FBBDE4D1C7046 /* SportsCalUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -1148,6 +1218,7 @@
 				1DE16FF626F29D4A007B1B57 /* WidgetKit.framework */,
 				1DE16FF826F29D4A007B1B57 /* SwiftUI.framework */,
 				1DE0401F292D633300073494 /* Intents.framework */,
+				17962FF94DB5C51B3A14C73A /* iOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -1206,6 +1277,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		16BA403CB6304DCD348102CB /* SportsCalUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7B0A0CE898BCC394A4857238 /* Build configuration list for PBXNativeTarget "SportsCalUITests" */;
+			buildPhases = (
+				245BB331DC40373FA1952C31 /* Sources */,
+				FEFFB9DC91FFF1063A81D0F8 /* Frameworks */,
+				4DB06DC065A2BA7C8986395C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				550A6319513A1D70658CB3F2 /* PBXTargetDependency */,
+			);
+			name = SportsCalUITests;
+			productName = SportsCalUITests;
+			productReference = 4C829CEF9B7FBBDE4D1C7046 /* SportsCalUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		1D1DAB9529CDB50C005434D6 /* SportsCalTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 1D1DAB9C29CDB50D005434D6 /* Build configuration list for PBXNativeTarget "SportsCalTests" */;
@@ -1291,8 +1380,6 @@
 				1D7F460C2F44FFE800F44569 /* SportsCalWatch Watch AppUITests */,
 			);
 			name = "SportsCalWatch Watch AppUITests";
-			packageProductDependencies = (
-			);
 			productName = "SportsCalWatch Watch AppUITests";
 			productReference = 1D7F46092F44FFE800F44569 /* SportsCalWatch Watch AppUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -1461,6 +1548,7 @@
 				1D7F45FE2F44FFE800F44569 /* SportsCalWatch Watch AppTests */,
 				1D7F46082F44FFE800F44569 /* SportsCalWatch Watch AppUITests */,
 				1D7F46462F45004C00F44569 /* SportsCalWatchWidgetsExtension */,
+				16BA403CB6304DCD348102CB /* SportsCalUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -1524,6 +1612,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		1DEC76C5268EFB6700D217A1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4DB06DC065A2BA7C8986395C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -1871,6 +1966,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		245BB331DC40373FA1952C31 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5546C923C2D798435C5A3777 /* SportsCalUITests.swift in Sources */,
+				429BDB0B949DE3955598C1C6 /* SportsCalUITestsLaunchTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -1904,6 +2008,12 @@
 			platformFilter = ios;
 			target = 1DE16FF426F29D4A007B1B57 /* SportsWidgetExtension */;
 			targetProxy = 1DF5C5592713F48500842FDA /* PBXContainerItemProxy */;
+		};
+		550A6319513A1D70658CB3F2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = "SportsCal (iOS)";
+			target = 1DEC76B1268EFB6700D217A1 /* SportsCal (iOS) */;
+			targetProxy = 0F850D1B950F80F924A11D88 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -2548,6 +2658,47 @@
 			};
 			name = Release;
 		};
+		3B40901A1837B0EC381F9F10 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCalUITests;
+				PRODUCT_NAME = SportsCalUITests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "SportsCal (iOS)";
+			};
+			name = Debug;
+		};
+		FF91BB66D8F1CC2FCFEC425D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9GDU5ZNHX7;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCalUITests;
+				PRODUCT_NAME = SportsCalUITests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "SportsCal (iOS)";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -2628,6 +2779,15 @@
 			buildConfigurations = (
 				1DEC76DF268EFB6700D217A1 /* Debug */,
 				1DEC76E0268EFB6700D217A1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7B0A0CE898BCC394A4857238 /* Build configuration list for PBXNativeTarget "SportsCalUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FF91BB66D8F1CC2FCFEC425D /* Release */,
+				3B40901A1837B0EC381F9F10 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
