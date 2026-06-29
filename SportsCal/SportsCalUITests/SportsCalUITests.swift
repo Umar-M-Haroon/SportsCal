@@ -90,7 +90,9 @@ class SportsCalUITests: XCTestCase {
         }
         app.launch()
         sleep(12)            // network fetch + render + logo load
-        app.tap()            // nudge the interruption monitor to clear the alert
+        // Nudge the interruption monitor to clear the alert WITHOUT navigating:
+        // tap a neutral spot near the top (title area), not a game cell.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.06)).tap()
         sleep(1)
         capture("01_Games", app: app)
 
