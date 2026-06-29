@@ -502,7 +502,7 @@ struct SettingsView: View {
                     }
                     #if os(iOS)
                     Button("Contact Support") {
-                        let subject = "SportsCal Support (v\(appVersionString))"
+                        let subject = "Scoreline Support (v\(appVersionString))"
                             .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
                         if let url = URL(string: "mailto:\(Self.supportEmail)?subject=\(subject)") {
                             openURL(url)

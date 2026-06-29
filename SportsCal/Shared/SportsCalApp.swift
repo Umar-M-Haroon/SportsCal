@@ -186,9 +186,9 @@ struct SportsCalApp: App {
                     }
                 } message: {
                     if let minVersion = versionChecker.minAppVersion {
-                        Text("Please update to version \(minVersion) or later to continue using SportsCal.")
+                        Text("Please update to version \(minVersion) or later to continue using Scoreline.")
                     } else {
-                        Text("Please update to the latest version to continue using SportsCal.")
+                        Text("Please update to the latest version to continue using Scoreline.")
                     }
                 }
         }

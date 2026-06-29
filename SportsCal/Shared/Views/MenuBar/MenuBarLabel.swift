@@ -39,7 +39,7 @@ struct MenuBarLabel: View {
         } else if todayCount > 0 {
             todayCountLabel
         } else {
-            Label("SportsCal", systemImage: "sportscourt.fill")
+            Label("Scoreline", systemImage: "sportscourt.fill")
         }
     }
 

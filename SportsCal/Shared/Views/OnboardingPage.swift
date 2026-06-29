@@ -48,7 +48,7 @@ struct OnboardingPage: View {
                 .buttonStyle(BorderedButtonStyle())
                 .padding([.horizontal, .bottom])
             }
-            .navigationTitle("Welcome to SportsCal!")
+            .navigationTitle("Welcome to Scoreline!")
         }
         .frame(minWidth: 400, minHeight: 500)
     }

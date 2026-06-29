@@ -51,7 +51,7 @@ public struct PaywallGate: View {
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button(action: unlockAction) {
-                Text("Unlock SportsCal Pro")
+                Text("Unlock Scoreline Pro")
                     .font(.appHeadline)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: .appHit)
