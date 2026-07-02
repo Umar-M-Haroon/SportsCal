@@ -698,13 +698,17 @@ struct AdminController: RouteCollection {
     func refreshSchedules(req: Request) async throws -> RefreshResponse {
         let isDebug = req.application.environment == .development
 
-        // Delete main schedule keys to force refresh
+        // Delete main schedule keys to force refresh. The structured tennis cache is
+        // sticky by design (re-injected into every rebuild), so an admin refresh must
+        // clear it too or stale tennis events survive the "refresh".
         let keysToDelete = [
             RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug),
             RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug),
             RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: isDebug),
             RedisEndpoint.ESPN.latestSoccerScoreboards.getValue(isDebug: isDebug),
-            RedisEndpoint.ESPN.latestTennisScoreboards.getValue(isDebug: isDebug)
+            RedisEndpoint.ESPN.latestTennisScoreboards.getValue(isDebug: isDebug),
+            RedisEndpoint.ESPN.tennisSchedule.getValue(isDebug: isDebug),
+            RedisEndpoint.ESPN.tennisScheduleLastUpdate.getValue(isDebug: isDebug)
         ]
 
         var deletedKeys: [String] = []

@@ -702,7 +702,10 @@ public struct Game: Identifiable, Equatable, Hashable {
     public let aggregateScore: String?
     public let homeSeed: Int?
     public let awaySeed: Int?
-    public let tournamentName: String?
+    /// Tennis: ESPN tournament grouping ("Wimbledon"). Mutable so the server can
+    /// suffix past-season editions ("Wimbledon 2025") and keep them browsable
+    /// without merging into the current edition of the same name.
+    public var tournamentName: String?
     /// Tennis: round name (e.g. "Quarterfinal", "Round of 16"). Nil for non-tennis.
     public let round: String?
     public let homeInjuries: [InjuryReport]?

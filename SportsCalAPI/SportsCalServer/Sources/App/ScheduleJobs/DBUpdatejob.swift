@@ -87,6 +87,34 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         return now.timeIntervalSince(lastUpdate) / 3600 > 1
     }
 
+    /// The tennis build fetches TWO ESPN seasons (tournaments straddle New Year), so
+    /// the feed can hold two editions of the same tournament — and Browse groups by
+    /// `tournamentName`, which merged 2025 and 2026 Wimbledon into one mixed bucket
+    /// (last year's finished matches and "TBD" doubles beside this year's draw).
+    /// Past editions stay in the feed for history, but get the season year suffixed
+    /// onto their name ("Wimbledon 2025") so each edition browses separately.
+    /// December events count toward the NEXT season (the United Cup straddles New
+    /// Year) so a single edition never splits across the boundary.
+    static func disambiguateTennisSeasons(_ games: [Game], now: Date = Date()) -> [Game] {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        func season(of date: Date) -> Int {
+            let year = utc.component(.year, from: date)
+            return utc.component(.month, from: date) == 12 ? year + 1 : year
+        }
+        let currentSeason = season(of: now)
+        return games.map { game in
+            guard let name = game.tournamentName, !name.isEmpty,
+                  let date = game.isoDate ?? game.getDate() else { return game }
+            let eventSeason = season(of: date)
+            // Idempotent: cached events may already carry the suffix.
+            guard eventSeason != currentSeason, !name.hasSuffix(" \(eventSeason)") else { return game }
+            var suffixed = game
+            suffixed.tournamentName = "\(name) \(eventSeason)"
+            return suffixed
+        }
+    }
+
     /// Normalizes a league's raw schedule events: dedupes games repeated across
     /// overlapping season fetches (previous/current/next), drops games with no
     /// timestamp, and backfills `isoDate` from `strTimestamp` where missing.
@@ -255,6 +283,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                             guard let id = game.idEvent else { return true }
                             return seenTennisIDs.insert(id).inserted
                         }
+                        tennisGames = Self.disambiguateTennisSeasons(tennisGames)
                         if !tennisGames.isEmpty {
                             let built = LiveEvent(events: tennisGames)
                             tennisEvent = built
@@ -271,7 +300,9 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                     if tennisEvent == nil,
                        let staleCache = try? await context.application.redis.get(tennisKey, asJSON: LiveEvent.self),
                        !staleCache.events.isEmpty {
-                        tennisEvent = staleCache
+                        // The sticky cache may predate season disambiguation — apply
+                        // it here too (idempotent) so old editions stay suffixed.
+                        tennisEvent = LiveEvent(events: Self.disambiguateTennisSeasons(staleCache.events))
                         tennisSource = "espn-stale-cache"
                     }
                     if let tennisEvent {
@@ -465,6 +496,20 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
             "totalMerged": "\(mergedTeams.count)",
             "totalGames": "\(allGames.count)"
         ])
+
+        // Re-attach the World Cup ridealong from its enrichment cache — the rebuild
+        // constructs a fresh LiveScore, and without this every hourly rebuild wiped
+        // `worldCup` until WorldCupEnrichmentJob's next :50 run re-attached it
+        // (client Bracket CTA flickered out). Mirrors the f1Standings re-attach.
+        if schedule.worldCup == nil {
+            let wcKey = RedisEndpoint.ESPN.worldCupEnrichment.getValue(isDebug: isDebug)
+            if let cachedWC = try? await context.application.redis.get(wcKey, asJSON: WorldCupEnrichment.self),
+               !cachedWC.isEmpty {
+                schedule.worldCup = cachedWC
+            } else {
+                schedule.worldCup = existingSchedule?.worldCup
+            }
+        }
 
         // Compare with existing cache — only write to Redis if data actually changed
         let scheduleChanged = (existingSchedule != schedule)

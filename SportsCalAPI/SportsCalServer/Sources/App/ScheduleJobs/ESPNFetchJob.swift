@@ -955,7 +955,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
             nhl: mergeSportEvents(schedule: schedule.nhl, espn: espn.nhl, resolver: resolver),
             golf: mergeSportEvents(schedule: schedule.golf, espn: espn.golf, resolver: resolver),
             tennis: mergeSportEvents(schedule: schedule.tennis, espn: espn.tennis, resolver: resolver),
-            racing: mergeSportEvents(schedule: schedule.racing, espn: espn.racing, resolver: resolver)
+            racing: mergeSportEvents(schedule: schedule.racing, espn: espn.racing, resolver: resolver),
+            // Ridealong enrichments live on the schedule blob; carry them through or
+            // every live tick wipes them until the hourly enrichment jobs re-attach
+            // (symptom: Bracket CTA / F1 standings flicker in and out on the client).
+            f1Standings: schedule.f1Standings ?? espn.f1Standings,
+            worldCup: schedule.worldCup ?? espn.worldCup
         )
     }
 
@@ -1003,15 +1008,18 @@ struct ESPNFetchJob: AsyncScheduledJob {
         guard let schedule else { return espn }
         guard let espn, !espn.events.isEmpty else { return schedule }
 
-        // Build ESPN lookup dictionaries
+        // Build ESPN lookup dictionaries. Values are ARRAYS: the same two teams can
+        // meet twice on one UTC day (an MLB evening game lands after UTC midnight on
+        // the same UTC date as the next afternoon's game, plus true doubleheaders),
+        // so a day key alone is ambiguous — the caller disambiguates by kickoff time.
         // Key: (lowercased homeTeamID, lowercased awayTeamID, dayString)
-        var espnByTeamIDs: [String: Game] = [:]
+        var espnByTeamIDs: [String: [Game]] = [:]
         // Key: (lowercased homeTeamName, lowercased awayTeamName, dayString)
-        var espnByTeamNames: [String: Game] = [:]
+        var espnByTeamNames: [String: [Game]] = [:]
         // Key: (normalized homeTeamName, normalized awayTeamName, dayString)
-        var espnByNormalizedNames: [String: Game] = [:]
+        var espnByNormalizedNames: [String: [Game]] = [:]
         // Key: alias-resolved canonical key (catches "PSG" ≡ "Paris Saint-Germain" etc.)
-        var espnByCanonicalKey: [String: Game] = [:]
+        var espnByCanonicalKey: [String: [Game]] = [:]
         // Key: lowercased event/tournament name (for individual sports)
         var espnByEventName: [String: Game] = [:]
 
@@ -1021,17 +1029,17 @@ struct ESPNFetchJob: AsyncScheduledJob {
             if let homeID = game.idHomeTeam, let awayID = game.idAwayTeam,
                !homeID.isEmpty, !awayID.isEmpty {
                 let key = "\(homeID.lowercased())|\(awayID.lowercased())|\(day)"
-                espnByTeamIDs[key] = game
+                espnByTeamIDs[key, default: []].append(game)
             }
 
             let nameKey = "\(game.strHomeTeam.lowercased())|\(game.strAwayTeam.lowercased())|\(day)"
-            espnByTeamNames[nameKey] = game
+            espnByTeamNames[nameKey, default: []].append(game)
 
             let normalizedKey = "\(normalizeTeamName(game.strHomeTeam))|\(normalizeTeamName(game.strAwayTeam))|\(day)"
-            espnByNormalizedNames[normalizedKey] = game
+            espnByNormalizedNames[normalizedKey, default: []].append(game)
 
             let canonicalKey = resolver.dedupKey(home: game.strHomeTeam, away: game.strAwayTeam, leagueID: game.idLeague, day: day)
-            espnByCanonicalKey[canonicalKey] = game
+            espnByCanonicalKey[canonicalKey, default: []].append(game)
 
             // Golf/F1 carry the event name in strHomeTeam (strAwayTeam is "TBD"/leader), so a
             // name-only match is correct. Tennis matches are real head-to-heads — keying by home
@@ -1059,19 +1067,19 @@ struct ESPNFetchJob: AsyncScheduledJob {
             if let homeID = scheduleGame.idHomeTeam, let awayID = scheduleGame.idAwayTeam,
                !homeID.isEmpty, !awayID.isEmpty {
                 let key = "\(homeID.lowercased())|\(awayID.lowercased())|\(day)"
-                espnMatch = espnByTeamIDs[key]
+                espnMatch = closestByKickoff(espnByTeamIDs[key], to: scheduleGame)
             }
 
             // Fallback: match by team names + day
             if espnMatch == nil {
                 let nameKey = "\(scheduleGame.strHomeTeam.lowercased())|\(scheduleGame.strAwayTeam.lowercased())|\(day)"
-                espnMatch = espnByTeamNames[nameKey]
+                espnMatch = closestByKickoff(espnByTeamNames[nameKey], to: scheduleGame)
             }
 
             // Fallback: match by normalized team names + day (handles "LA" vs "Los Angeles" etc.)
             if espnMatch == nil {
                 let normalizedKey = "\(normalizeTeamName(scheduleGame.strHomeTeam))|\(normalizeTeamName(scheduleGame.strAwayTeam))|\(day)"
-                espnMatch = espnByNormalizedNames[normalizedKey]
+                espnMatch = closestByKickoff(espnByNormalizedNames[normalizedKey], to: scheduleGame)
             }
 
             // Fallback: alias-aware canonical key (handles "PSG" ≡ "Paris Saint-Germain" etc.).
@@ -1079,7 +1087,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             // pairings are landing in production and grow the curated seed accordingly.
             if espnMatch == nil {
                 let canonicalKey = resolver.dedupKey(home: scheduleGame.strHomeTeam, away: scheduleGame.strAwayTeam, leagueID: scheduleGame.idLeague, day: day)
-                if let aliasMatch = espnByCanonicalKey[canonicalKey] {
+                if let aliasMatch = closestByKickoff(espnByCanonicalKey[canonicalKey], to: scheduleGame) {
                     Self.logger.warning("alias dedup: collapsed ESPN game", metadata: [
                         "espnHome": "\(aliasMatch.strHomeTeam)",
                         "espnAway": "\(aliasMatch.strAwayTeam)",
@@ -1164,16 +1172,29 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // Append ESPN-only games (no TheSportsDB match),
         // but skip games that already exist in the schedule by normalized team+day
         // or by alias-resolved canonical key (catches "LA Clippers" vs "Los Angeles
-        // Clippers", "PSG" vs "Paris Saint-Germain", etc.)
-        var scheduleByDay: Set<String> = []
-        var scheduleCanonicalKeys: Set<String> = []
+        // Clippers", "PSG" vs "Paris Saint-Germain", etc.). Day keys hold kickoff
+        // times so a second same-teams game on one UTC day isn't wrongly dropped.
+        var scheduleByDay: [String: [Date?]] = [:]
+        var scheduleCanonicalKeys: [String: [Date?]] = [:]
         for game in schedule.events {
             let day = dayString(from: game)
             let home = normalizeTeamName(game.strHomeTeam)
             let away = normalizeTeamName(game.strAwayTeam)
-            scheduleByDay.insert("\(home)|\(away)|\(day)")
-            scheduleByDay.insert("\(away)|\(home)|\(day)")
-            scheduleCanonicalKeys.insert(resolver.dedupKey(home: game.strHomeTeam, away: game.strAwayTeam, leagueID: game.idLeague, day: day))
+            let date = game.isoDate ?? game.getDate()
+            scheduleByDay["\(home)|\(away)|\(day)", default: []].append(date)
+            scheduleByDay["\(away)|\(home)|\(day)", default: []].append(date)
+            scheduleCanonicalKeys[resolver.dedupKey(home: game.strHomeTeam, away: game.strAwayTeam, leagueID: game.idLeague, day: day), default: []].append(date)
+        }
+
+        // Same-fixture test against the schedule rows behind a key: within the
+        // kickoff window (or either side undated — the conservative legacy skip).
+        func alreadyScheduled(_ dates: [Date?]?, _ game: Game) -> Bool {
+            guard let dates, !dates.isEmpty else { return false }
+            guard let gameDate = game.isoDate ?? game.getDate() else { return true }
+            return dates.contains { scheduled in
+                guard let scheduled else { return true }
+                return abs(scheduled.timeIntervalSince(gameDate)) <= Self.sameFixtureWindow
+            }
         }
 
         let unmatchedESPN = espn.events.filter { game in
@@ -1182,9 +1203,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
             let home = normalizeTeamName(game.strHomeTeam)
             let away = normalizeTeamName(game.strAwayTeam)
             let key = "\(home)|\(away)|\(day)"
-            if scheduleByDay.contains(key) { return false }
+            if alreadyScheduled(scheduleByDay[key], game) { return false }
             let canonicalKey = resolver.dedupKey(home: game.strHomeTeam, away: game.strAwayTeam, leagueID: game.idLeague, day: day)
-            if scheduleCanonicalKeys.contains(canonicalKey) {
+            if alreadyScheduled(scheduleCanonicalKeys[canonicalKey], game) {
                 Self.logger.warning("alias dedup: dropped unmatched ESPN game", metadata: [
                     "espnHome": "\(game.strHomeTeam)",
                     "espnAway": "\(game.strAwayTeam)",
@@ -1197,6 +1218,30 @@ struct ESPNFetchJob: AsyncScheduledJob {
         }
 
         return LiveEvent(events: merged + unmatchedESPN)
+    }
+
+    /// Two records within this window count as the same fixture; farther apart they
+    /// are different games (last night's post-UTC-midnight game vs. today's, or the
+    /// two halves of a doubleheader — real games are never twice within 3h).
+    static let sameFixtureWindow: TimeInterval = 3 * 3600
+
+    /// Resolves a day-keyed lookup that may hold several same-teams games: picks the
+    /// candidate closest to the schedule game's kickoff, refusing anything beyond
+    /// `sameFixtureWindow`. Without this, a finished game's ESPN result gets overlaid
+    /// onto the same matchup's later game on the same UTC day — users see "already
+    /// finished" games that haven't started. Undated candidates keep legacy behavior.
+    func closestByKickoff(_ candidates: [Game]?, to scheduleGame: Game) -> Game? {
+        guard let candidates, !candidates.isEmpty else { return nil }
+        guard let target = scheduleGame.isoDate ?? scheduleGame.getDate() else { return candidates.first }
+        var best: (game: Game, distance: TimeInterval)?
+        for candidate in candidates {
+            // Undated candidate: can't disambiguate — accept it (pre-fix behavior).
+            guard let date = candidate.isoDate ?? candidate.getDate() else { return candidate }
+            let distance = abs(date.timeIntervalSince(target))
+            if best == nil || distance < best!.distance { best = (candidate, distance) }
+        }
+        guard let best, best.distance <= Self.sameFixtureWindow else { return nil }
+        return best.game
     }
 
     /// Extracts a "YYYY-MM-DD" day string from a Game for same-day matching.
