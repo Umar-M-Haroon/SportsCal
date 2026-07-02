@@ -610,11 +610,14 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         return result.trimmingCharacters(in: .whitespaces)
     }
 
-    /// Merges ESPN enrichment fields into TheSportsDB schedule games by matching team names + day.
+    /// Merges ESPN enrichment fields into TheSportsDB schedule games by matching team
+    /// names + day, disambiguated by nearest kickoff (same teams can meet twice on one
+    /// UTC day — see `ESPNFetchJob.closestByKickoff`). Single-value day keys here
+    /// overlaid one game's ESPN status/fields onto the matchup's other game.
     func mergeEnrichment(schedule: LiveEvent, espn: LiveEvent) -> LiveEvent {
         // Build ESPN lookup by team names + day
-        var espnByNames: [String: Game] = [:]
-        var espnByNormalized: [String: Game] = [:]
+        var espnByNames: [String: [Game]] = [:]
+        var espnByNormalized: [String: [Game]] = [:]
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
         df.timeZone = TimeZone(secondsFromGMT: 0)
@@ -629,15 +632,15 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 day = ""
             }
             let key = "\(game.strHomeTeam.lowercased())|\(game.strAwayTeam.lowercased())|\(day)"
-            espnByNames[key] = game
+            espnByNames[key, default: []].append(game)
 
             let normalizedKey = "\(normalizeTeamName(game.strHomeTeam))|\(normalizeTeamName(game.strAwayTeam))|\(day)"
-            espnByNormalized[normalizedKey] = game
+            espnByNormalized[normalizedKey, default: []].append(game)
 
             // Also index by team ID for better matching
             if let homeID = game.idHomeTeam, let awayID = game.idAwayTeam {
                 let idKey = "\(homeID)|\(awayID)|\(day)"
-                espnByNames[idKey] = game
+                espnByNames[idKey, default: []].append(game)
             }
         }
 
@@ -653,18 +656,18 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
 
             // Try matching by team names
             let nameKey = "\(scheduleGame.strHomeTeam.lowercased())|\(scheduleGame.strAwayTeam.lowercased())|\(day)"
-            var espnMatch = espnByNames[nameKey]
+            var espnMatch = ESPNFetchJob.closestByKickoff(espnByNames[nameKey], to: scheduleGame)
 
             // Try matching by team IDs
             if espnMatch == nil, let homeID = scheduleGame.idHomeTeam, let awayID = scheduleGame.idAwayTeam {
                 let idKey = "\(homeID)|\(awayID)|\(day)"
-                espnMatch = espnByNames[idKey]
+                espnMatch = ESPNFetchJob.closestByKickoff(espnByNames[idKey], to: scheduleGame)
             }
 
             // Fallback: normalized team names (handles "LA" vs "Los Angeles" etc.)
             if espnMatch == nil {
                 let normalizedKey = "\(normalizeTeamName(scheduleGame.strHomeTeam))|\(normalizeTeamName(scheduleGame.strAwayTeam))|\(day)"
-                espnMatch = espnByNormalized[normalizedKey]
+                espnMatch = ESPNFetchJob.closestByKickoff(espnByNormalized[normalizedKey], to: scheduleGame)
             }
 
             guard let espnGame = espnMatch else { return scheduleGame }

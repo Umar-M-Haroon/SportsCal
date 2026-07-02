@@ -1067,19 +1067,19 @@ struct ESPNFetchJob: AsyncScheduledJob {
             if let homeID = scheduleGame.idHomeTeam, let awayID = scheduleGame.idAwayTeam,
                !homeID.isEmpty, !awayID.isEmpty {
                 let key = "\(homeID.lowercased())|\(awayID.lowercased())|\(day)"
-                espnMatch = closestByKickoff(espnByTeamIDs[key], to: scheduleGame)
+                espnMatch = Self.closestByKickoff(espnByTeamIDs[key], to: scheduleGame)
             }
 
             // Fallback: match by team names + day
             if espnMatch == nil {
                 let nameKey = "\(scheduleGame.strHomeTeam.lowercased())|\(scheduleGame.strAwayTeam.lowercased())|\(day)"
-                espnMatch = closestByKickoff(espnByTeamNames[nameKey], to: scheduleGame)
+                espnMatch = Self.closestByKickoff(espnByTeamNames[nameKey], to: scheduleGame)
             }
 
             // Fallback: match by normalized team names + day (handles "LA" vs "Los Angeles" etc.)
             if espnMatch == nil {
                 let normalizedKey = "\(normalizeTeamName(scheduleGame.strHomeTeam))|\(normalizeTeamName(scheduleGame.strAwayTeam))|\(day)"
-                espnMatch = closestByKickoff(espnByNormalizedNames[normalizedKey], to: scheduleGame)
+                espnMatch = Self.closestByKickoff(espnByNormalizedNames[normalizedKey], to: scheduleGame)
             }
 
             // Fallback: alias-aware canonical key (handles "PSG" ≡ "Paris Saint-Germain" etc.).
@@ -1087,7 +1087,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             // pairings are landing in production and grow the curated seed accordingly.
             if espnMatch == nil {
                 let canonicalKey = resolver.dedupKey(home: scheduleGame.strHomeTeam, away: scheduleGame.strAwayTeam, leagueID: scheduleGame.idLeague, day: day)
-                if let aliasMatch = closestByKickoff(espnByCanonicalKey[canonicalKey], to: scheduleGame) {
+                if let aliasMatch = Self.closestByKickoff(espnByCanonicalKey[canonicalKey], to: scheduleGame) {
                     Self.logger.warning("alias dedup: collapsed ESPN game", metadata: [
                         "espnHome": "\(aliasMatch.strHomeTeam)",
                         "espnAway": "\(aliasMatch.strAwayTeam)",
@@ -1230,7 +1230,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
     /// `sameFixtureWindow`. Without this, a finished game's ESPN result gets overlaid
     /// onto the same matchup's later game on the same UTC day — users see "already
     /// finished" games that haven't started. Undated candidates keep legacy behavior.
-    func closestByKickoff(_ candidates: [Game]?, to scheduleGame: Game) -> Game? {
+    /// (Static: also used by ScheduleUpdateJob.mergeEnrichment, which had the same bug.)
+    static func closestByKickoff(_ candidates: [Game]?, to scheduleGame: Game) -> Game? {
         guard let candidates, !candidates.isEmpty else { return nil }
         guard let target = scheduleGame.isoDate ?? scheduleGame.getDate() else { return candidates.first }
         var best: (game: Game, distance: TimeInterval)?
