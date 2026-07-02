@@ -52,15 +52,25 @@ struct WorldCupEnrichmentJob: AsyncScheduledJob {
         async let scoreboardTask: Scoreboard? = try? await ESPNNetworking.getScoreboard(
             req: client, DecodeType: Scoreboard.self, league: .FIFA_World_Cup, dates: seasonYear
         )
+        // Golden Boot: the /statistics endpoint is the live source (goalsLeaders +
+        // assistsLeaders); the old /leaders route 404s for fifa.world but stays as a
+        // fallback in case ESPN flips back.
+        async let statisticsTask: LeagueStatisticsResponse? = try? await ESPNNetworking.getLeagueStatistics(
+            req: client, league: .FIFA_World_Cup
+        )
         async let leadersTask: LeadersResponse? = try? await ESPNNetworking.getLeaders(
             req: client, DecodeType: LeadersResponse.self, league: .FIFA_World_Cup
         )
 
         let scoreboard = await scoreboardTask
+        let statistics = await statisticsTask
         let leaders = await leadersTask
 
         let bracket = scoreboard.map { Self.buildBracket(from: $0) } ?? WorldCupBracket()
-        let scorers = leaders.map { Self.buildScorers(from: $0) } ?? []
+        var scorers = statistics.map { Self.buildScorers(fromStatistics: $0) } ?? []
+        if scorers.isEmpty {
+            scorers = leaders.map { Self.buildScorers(from: $0) } ?? []
+        }
 
         let enrichment = WorldCupEnrichment(
             bracket: bracket.isEmpty ? nil : bracket,
@@ -257,7 +267,43 @@ struct WorldCupEnrichmentJob: AsyncScheduledJob {
 
     // MARK: - Scorers building
 
+    /// Extracts the Golden Boot race from the ESPN league statistics response —
+    /// `goalsLeaders` ranked by goals, with assists joined in from `assistsLeaders`
+    /// by athlete id. Entries with zero goals are dropped so the race never pads
+    /// itself with the whole player pool.
+    static func buildScorers(fromStatistics statistics: LeagueStatisticsResponse) -> [WorldCupScorer] {
+        let categories = statistics.stats ?? []
+        func leaders(matching key: String) -> [LeagueStatisticsResponse.StatLeader] {
+            categories.first { category in
+                ((category.name ?? "") + (category.displayName ?? "")).lowercased().contains(key)
+            }?.leaders ?? []
+        }
+
+        var assistsByAthlete: [String: Int] = [:]
+        for entry in leaders(matching: "assist") {
+            if let id = entry.athlete?.id, let value = entry.value {
+                assistsByAthlete[id] = Int(value)
+            }
+        }
+
+        return leaders(matching: "goal").prefix(30).enumerated().compactMap { idx, entry in
+            guard let athlete = entry.athlete,
+                  let name = athlete.displayName ?? athlete.shortName,
+                  let goals = entry.value.map({ Int($0) }), goals > 0 else { return nil }
+            return WorldCupScorer(
+                rank: idx + 1,
+                playerName: name,
+                teamName: athlete.team?.displayName ?? "",
+                teamBadge: athlete.team?.logos?.first?.href,
+                headshotURL: nil,
+                goals: goals,
+                assists: athlete.id.flatMap { assistsByAthlete[$0] }
+            )
+        }
+    }
+
     /// Extracts the Golden Boot race from the ESPN leaders response (goals category).
+    /// Legacy: the route 404s for fifa.world as of mid-2026; kept as a fallback.
     static func buildScorers(from leaders: LeadersResponse) -> [WorldCupScorer] {
         // Prefer an explicit goals category; fall back to the first category.
         let goalCategory = leaders.leaders?.first(where: { cat in

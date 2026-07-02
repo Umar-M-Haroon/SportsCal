@@ -250,6 +250,26 @@ class ESPNNetworking {
         throw NetworkError.invalidLeague
     }
 
+    /// League statistics (leaders by category). The soccer `/leaders` route was
+    /// retired upstream (404s for fifa.world); this is its replacement, e.g.
+    /// site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/statistics
+    static func getLeagueStatistics(req: some Client, league: Leagues) async throws -> LeagueStatisticsResponse {
+        guard let espnSlug = league.espnSlug else { throw NetworkError.invalidLeague }
+        let urlString = "https://site.api.espn.com/apis/site/v2/sports"
+        let fullString = [urlString, league.sport, espnSlug, "statistics"].joined(separator: "/")
+        do {
+            let response = try await performGet(req, URI(string: fullString))
+            return try response.content.decode(LeagueStatisticsResponse.self)
+        } catch {
+            logger.error("ESPN league statistics fetch failed", metadata: [
+                "league": "\(league)",
+                "url": "\(fullString)",
+                "error": "\(error)"
+            ])
+            throw error
+        }
+    }
+
     // MARK: - Roster (team squad)
 
     /// Fetches a team's roster from ESPN, e.g.
