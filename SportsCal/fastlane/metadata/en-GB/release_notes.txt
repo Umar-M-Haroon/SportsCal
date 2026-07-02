@@ -1,13 +1,17 @@
-World Cup 2026 is here:
+The World Cup knockout stage is on:
+• Full knockout bracket — Round of 32 to the Final — with live scores, projected qualifiers, and one-tap access from the Games tab and Browse
 • Live box scores and a refreshed hero card for every match
 • Smarter group-stage standings and fixtures
 
+Faster live scores:
+• Scores now update within seconds during live matches
+
 Live Activities you can actually find:
 • Follow any live World Cup match straight from the hero card and your game list
-• A clear "Turn On Live Activities" hint when they're switched off, so Follow never silently goes missing
+• A clear "Turn On Live Activities" hint when they're switched off
 
-Faster and smoother:
-• Quicker app launch and snappier World Cup screens
-• Redesigned game detail screen
+Also in this release:
+• Tap any team to see its schedule, results, record, and roster
+• Quicker app launch and a redesigned game detail screen
 
 Plus a batch of stability and reliability fixes. Thanks for using the app!
