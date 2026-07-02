@@ -21,9 +21,17 @@ public struct Competitor: Codable {
     public var leaders: [CompetitorLeader]?
     public var records: [Record]?
     public var curatedRank: CuratedRank?
+    /// Tennis doubles: the pair's names live here ("Hugo Nys / Edouard
+    /// Roger-Vasselin"), NOT on `team`/`athlete` — without it doubles decode as "TBD".
+    public var roster: Roster?
 
     public struct CuratedRank: Codable {
         public var current: Int?
+    }
+
+    public struct Roster: Codable {
+        public var displayName: String?
+        public var shortDisplayName: String?
     }
 
     public init(id: String, uid: String, type: String, order: Int? = nil, homeAway: String? = nil, team: CompetitorTeam? = nil, score: String? = nil, linescores: [Linescore]? = nil, statistics: [Statistic]? = nil, leaders: [CompetitorLeader]? = nil, records: [Record]? = nil, curatedRank: CuratedRank? = nil) {

@@ -193,8 +193,21 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         guard let home = competition.competitors?.first(where: { $0.homeAway == "home" }),
                               let away = competition.competitors?.first(where: { $0.homeAway == "away" })
                         else { return nil }
-                        let homeName = home.athlete?.displayName ?? home.team?.displayName ?? "TBD"
-                        let awayName = away.athlete?.displayName ?? away.team?.displayName ?? "TBD"
+                        // Doubles pairs carry their names on `roster`, not athlete/team.
+                        func participantName(_ competitor: Competitor) -> String {
+                            competitor.athlete?.displayName
+                                ?? competitor.roster?.shortDisplayName
+                                ?? competitor.roster?.displayName
+                                ?? competitor.team?.displayName
+                                ?? "TBD"
+                        }
+                        let homeName = participantName(home)
+                        let awayName = participantName(away)
+                        // ESPN pre-creates the whole draw as literal "TBD vs TBD" slots
+                        // (placeholder athlete ids -3/-4). A match with no participants
+                        // is pure scaffolding — drop it; it reappears once the draw
+                        // fills in. One-sided TBDs (opponent pending) stay.
+                        if homeName == "TBD", awayName == "TBD" { return nil }
                         let hLinescores = home.linescores?.compactMap { $0.value }
                         let aLinescores = away.linescores?.compactMap { $0.value }
                         let tennisState = competition.status?.type.state ?? event.status?.type.state
