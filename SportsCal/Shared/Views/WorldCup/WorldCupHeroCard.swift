@@ -161,6 +161,10 @@ struct WorldCupHeroCard: View {
     /// the hero falls back to its own NavigationLinks.
     var onSelectGame: ((GameWithTeams) -> Void)? = nil
     var onOpenHub: (() -> Void)? = nil
+    /// Optional host-driven navigation to the full knockout bracket. Set by `List`
+    /// hosts (classic `DayPage`) where a nested `NavigationLink` would double-push;
+    /// when nil and `onOpenHub` is also nil (Modern), the chip links inline.
+    var onOpenBracket: (() -> Void)? = nil
 
     /// The day the hero presents — today by default, or the page's selected date
     /// so the hero leads every matchday with that day's fixtures.
@@ -287,9 +291,12 @@ struct WorldCupHeroCard: View {
             let data = content
             VStack(alignment: .leading, spacing: 0) {
                 header
-                followChip
-                    .padding(.horizontal, .appSpace4)
-                    .padding(.top, .appSpace2)
+                HStack(spacing: .appSpace2) {
+                    bracketChip
+                    followChip
+                }
+                .padding(.horizontal, .appSpace4)
+                .padding(.top, .appSpace2)
 
                 if let caption = data.marqueeCaption {
                     WCRailCaption(text: caption.text, live: caption.live)
@@ -427,6 +434,44 @@ struct WorldCupHeroCard: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+    }
+
+    /// Prominent filled mint pill that jumps straight to the knockout bracket.
+    /// Only shown once the bracket has rounds (the knockout stage has begun).
+    @ViewBuilder
+    private var bracketChip: some View {
+        if let bracket = viewModel.worldCup?.bracket, !bracket.isEmpty {
+            if let onOpenBracket {
+                Button(action: onOpenBracket) { bracketChipLabel }
+                    .buttonStyle(.plain)
+            } else if onOpenHub == nil {
+                NavigationLink {
+                    WorldCupBracketScreen(bracket: bracket)
+                        .environment(viewModel)
+                        .environment(favorites)
+                } label: { bracketChipLabel }
+                    .buttonStyle(.plain)
+            } else if let onOpenHub {
+                // List host without a bracket route wired — fall back to the hub.
+                Button(action: onOpenHub) { bracketChipLabel }
+                    .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var bracketChipLabel: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "trophy.fill")
+                .font(.caption2)
+            Text("Bracket")
+                .font(.appFootnote)
+                .tracking(0.5)
+        }
+        .padding(.horizontal, .appSpace3)
+        .padding(.vertical, .appSpace2)
+        .background(Capsule().fill(Color.wcMint))
+        .foregroundStyle(Color.wcMintInk)
+        .contentShape(Capsule())
     }
 
     // MARK: Marquee
@@ -951,6 +996,11 @@ private enum WCHeroMock {
         WorldCupHeroStandings.seedForPreviews(groups: standings())
         let storage = UserDefaultStorage()
         let favorites = Favorites()
+        let viewModel = GameViewModel(appStorage: storage, favorites: favorites, totalGames: games)
+        // Seed a non-empty bracket so the "Bracket" CTA chip renders in previews.
+        viewModel.worldCup = WorldCupEnrichment(bracket: WorldCupBracket(rounds: [
+            WorldCupBracketRound(roundName: "Round of 32", slug: "round-of-32", matches: [WorldCupBracketMatch()])
+        ]))
         return NavigationStack {
             ScrollView {
                 WorldCupHeroCard()
@@ -958,7 +1008,7 @@ private enum WCHeroMock {
             }
             .background(Color.appBackground)
         }
-        .environment(GameViewModel(appStorage: storage, favorites: favorites, totalGames: games))
+        .environment(viewModel)
         .environment(storage)
         .environment(favorites)
         .preferredColorScheme(.dark)

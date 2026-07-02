@@ -65,6 +65,36 @@ struct AmbientBrowsePage: View {
                         }
                         .buttonStyle(.plain)
 
+                        if let bracket = viewModel.worldCup?.bracket, !bracket.isEmpty {
+                            NavigationLink {
+                                WorldCupBracketScreen(bracket: bracket)
+                                    .environment(viewModel)
+                                    .environment(favorites)
+                                    .preferredColorScheme(.dark)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "trophy.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(AmbientPalette.ink)
+                                        .frame(width: 20)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Knockout Bracket")
+                                            .font(.ambientDisplay(18, weight: .semibold))
+                                            .foregroundStyle(AmbientPalette.ink)
+                                        Text("Round of 32 → Final")
+                                            .font(.caption)
+                                            .foregroundStyle(AmbientPalette.ink.opacity(0.6))
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(AmbientPalette.ink.opacity(0.5))
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
                         // Top divider (the departure row draws its divider on the top edge)
                         ForEach(sports, id: \.self) { sport in
                             NavigationLink {

@@ -332,12 +332,21 @@ struct GameDetailView: View {
     /// Wraps a hero element in a NavigationLink to the team's page for real team
     /// sports. Individual sports (golf/tennis/F1) have no team to drill into, so the
     /// content is returned untapped.
+    ///
+    /// View-based on purpose: game rows push this detail with view-destination
+    /// NavigationLinks, and mixing in a value-based link here makes the stack
+    /// re-push the current view instead of resolving `navigationDestination(for:
+    /// Team.self)` at the root.
     @ViewBuilder
     private func teamLink<Content: View>(_ team: Team, @ViewBuilder content: () -> Content) -> some View {
         if game.isIndividualSport {
             content()
         } else {
-            NavigationLink(value: team) {
+            NavigationLink {
+                TeamDetailView(team: team)
+                    .environment(viewModel)
+                    .environment(favorites)
+            } label: {
                 content()
             }
             .buttonStyle(.plain)

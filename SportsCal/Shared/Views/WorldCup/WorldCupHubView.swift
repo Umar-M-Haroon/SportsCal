@@ -364,16 +364,9 @@ struct WorldCupHubView: View {
     }
 
     private func bracketScreen(_ bracket: WorldCupBracket) -> some View {
-        WorldCupBracketView(bracket: bracket, groups: model.groups)
+        WorldCupBracketScreen(bracket: bracket)
             .environment(viewModel)
             .environment(favorites)
-            .background(Color.appBackground.ignoresSafeArea())
-            .navigationTitle("Bracket")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.appBackground, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            #endif
     }
 
 }
