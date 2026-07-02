@@ -121,6 +121,12 @@ public func configure(_ app: Application) async throws {
             .at(50)
 
         try app.queues.startScheduledJobs()
+
+        // Fast adaptive live-score loop (sub-minute) for in-progress games. Lives
+        // outside Vapor Queues because the scheduler only supports minutely ticks;
+        // leader-elected via JobLock so only one replica fast-polls. Started on didBoot
+        // (Redis must be ready) and cancelled on shutdown via the lifecycle handler.
+        app.lifecycle.use(LiveTickerLifecycle())
     }
     // Bind to all interfaces so Tailscale and LAN clients can reach the server
     app.http.server.configuration.hostname = "0.0.0.0"

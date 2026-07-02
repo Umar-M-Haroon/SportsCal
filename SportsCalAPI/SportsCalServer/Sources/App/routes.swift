@@ -340,7 +340,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                         lastSentHash = currentHash
                     }
 
-                    try await Task.sleep(nanoseconds: 5_000_000_000) // 5s when live
+                    try await Task.sleep(nanoseconds: 2_000_000_000) // 2s when live
                 } else {
                     // No live games — sleep longer and send lightweight heartbeat
                     lastSentHash = nil

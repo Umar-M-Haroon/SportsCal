@@ -100,6 +100,7 @@ struct DayPage: View {
     @State private var showHiddenGames: Bool = false
     @State private var boardNavigationTarget: GameWithTeams?
     @State private var worldCupHubPresented = false
+    @State private var worldCupBracketPresented = false
     /// Keyboard-selected board cell (macOS): ⌥↑/⌥↓ move it, Return pops it out.
     @State private var boardSelectedGameID: String?
     /// The date we were on before a team's date-jump, so leaving the team scope
@@ -416,6 +417,11 @@ struct DayPage: View {
                 .environment(favorites)
                 .environment(storage)
         }
+        .navigationDestination(isPresented: $worldCupBracketPresented) {
+            WorldCupBracketScreen(bracket: viewModel.worldCup?.bracket ?? WorldCupBracket())
+                .environment(viewModel)
+                .environment(favorites)
+        }
         .sheet(item: $sheetType) { sheetType in
             switch sheetType {
             case .settings:
@@ -603,6 +609,7 @@ struct DayPage: View {
                 WorldCupHeroCard(
                     onSelectGame: { selectBoardGame($0) },
                     onOpenHub: { worldCupHubPresented = true },
+                    onOpenBracket: { worldCupBracketPresented = true },
                     date: selectedDate
                 )
                 .frame(maxWidth: 480)
@@ -776,6 +783,7 @@ struct DayPage: View {
                 WorldCupHeroCard(
                     onSelectGame: { selectBoardGame($0) },
                     onOpenHub: { worldCupHubPresented = true },
+                    onOpenBracket: { worldCupBracketPresented = true },
                     date: selectedDate
                 )
             }

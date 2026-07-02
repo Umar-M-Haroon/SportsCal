@@ -46,6 +46,14 @@ class ESPNNetworking {
         ])
     }
 
+    /// Seconds remaining on the global 429 circuit breaker, or nil if not tripped.
+    /// Lets a long-running caller (LiveTicker) back off proactively instead of firing
+    /// requests that would immediately throw `cooledDown`.
+    static var globalCooldownRemaining: TimeInterval? {
+        guard let until = currentGlobalCooldown() else { return nil }
+        return max(0, until.timeIntervalSinceNow)
+    }
+
     private static func currentGlobalCooldown() -> Date? {
         cooldownQueue.sync {
             guard let until = globalCooldownUntil, until > Date() else {

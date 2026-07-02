@@ -33,8 +33,8 @@ struct WorldCupBracketView: View {
     // sits centered between the two feeder cells of the previous round and the
     // connector elbows line up analytically — no GeometryReader needed.
     private let cardWidth: CGFloat = 196
-    private let unitSlot: CGFloat = 104      // height of one Round-of-32 slot
-    private let connectorWidth: CGFloat = 28
+    private let unitSlot: CGFloat = 132      // height of one Round-of-32 slot (vertical gap between games)
+    private let connectorWidth: CGFloat = 52 // horizontal gap between rounds
     private let headerHeight: CGFloat = 30
     private let headerGap: CGFloat = 12
 
@@ -293,6 +293,28 @@ struct WorldCupBracketView: View {
         guard let stat = entry.stats?.first(where: { $0.name == name }) else { return 0 }
         if let v = stat.value { return Int(v) }
         return Int(stat.displayValue ?? "") ?? 0
+    }
+}
+
+/// Wraps `WorldCupBracketView` with the standard nav chrome and self-loads the
+/// group standings (for projecting qualifiers into TBD slots), so any entry point —
+/// the hub, the Games-tab hero, or the Browse pages — can deep-link straight to the
+/// bracket with `WorldCupBracketScreen(bracket:)`. Requires `GameViewModel` and
+/// `Favorites` in the environment (read by `WorldCupBracketView`).
+struct WorldCupBracketScreen: View {
+    let bracket: WorldCupBracket
+    @State private var standings = WorldCupHeroStandings()
+
+    var body: some View {
+        WorldCupBracketView(bracket: bracket, groups: standings.groups)
+            .background(Color.appBackground.ignoresSafeArea())
+            .navigationTitle("Bracket")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.appBackground, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            #endif
+            .task { await standings.loadIfNeeded() }
     }
 }
 
