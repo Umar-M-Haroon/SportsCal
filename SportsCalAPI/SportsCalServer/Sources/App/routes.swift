@@ -14,8 +14,20 @@ import RediStack
 actor LastKnownGoodCache {
     static let shared = LastKnownGoodCache()
     private var teams: String?
+    private var schedules: String?
+    private var schedulesStoredAt: Date?
     func storeTeams(_ value: String) { teams = value }
     var teamsValue: String? { teams }
+    func storeSchedules(_ value: String) {
+        schedules = value
+        schedulesStoredAt = Date()
+    }
+    /// Snapshot plus its age, so callers can distinguish "fresh enough to serve
+    /// without touching Redis" from "stale but better than a 500".
+    var schedulesSnapshot: (value: String, age: TimeInterval)? {
+        guard let schedules, let schedulesStoredAt else { return nil }
+        return (schedules, Date().timeIntervalSince(schedulesStoredAt))
+    }
 }
 
 /// Resolve which APNS gateway issued the device token in this request. The iOS
@@ -192,11 +204,30 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     // re-encoding it on every request — that round-trip burned ~5s of CPU per call
     // (the dominant TTFB cost) and is pure waste since the bytes are identical.
     routes.get("schedules") { req async throws -> String in
-        let key = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue
-        guard let raw = try await req.kv.getString(key), !raw.isEmpty else {
-            throw NetworkError.invalidData
+        // Serve from the in-process snapshot when fresh. Every client hits this at
+        // launch and the payload is ~12MB; dragging it through the Redis pool per
+        // request was the dominant pool load (a driver of the July 2026 pool-
+        // exhaustion outage). The blob only changes minutely, so a 30s-old copy is
+        // indistinguishable to clients — live scores come from /live and the WS.
+        if let snap = await LastKnownGoodCache.shared.schedulesSnapshot, snap.age < 30 {
+            return snap.value
         }
-        return raw
+        let key = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue
+        do {
+            guard let raw = try await req.kv.getString(key), !raw.isEmpty else {
+                throw NetworkError.invalidData
+            }
+            await LastKnownGoodCache.shared.storeSchedules(raw)
+            return raw
+        } catch {
+            // Redis blip (or missing key): a stale schedule beats a 500 — the app is
+            // unusable without this endpoint.
+            if let snap = await LastKnownGoodCache.shared.schedulesSnapshot {
+                req.logger.warning("schedules: Redis read failed, serving last-known-good (age \(Int(snap.age))s) — \(String(reflecting: error))")
+                return snap.value
+            }
+            throw error
+        }
     }
 
     //MARK: - Sport

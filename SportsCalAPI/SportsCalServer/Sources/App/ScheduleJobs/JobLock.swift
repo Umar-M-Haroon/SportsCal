@@ -41,7 +41,16 @@ enum JobLock {
         body: () async throws -> T
     ) async throws -> T? {
         let key = RedisEndpoint.jobLock(name).getValue(isDebug: false).rawValue
-        let claimed = (try? await kv.setIfAbsent(key, value: instanceID, ttl: ttl)) ?? false
+        // A Redis error is NOT contention — logging it as "held by another instance"
+        // hid hours of pool exhaustion during the July 2026 outage. Skip either way
+        // (can't guarantee exclusivity without the claim), but say what happened.
+        let claimed: Bool
+        do {
+            claimed = try await kv.setIfAbsent(key, value: instanceID, ttl: ttl)
+        } catch {
+            logger.warning("Skipping \(name) — JobLock claim failed with Redis error: \(String(reflecting: error))")
+            return nil
+        }
         guard claimed else {
             logger.info("Skipping \(name) — JobLock held by another instance")
             return nil

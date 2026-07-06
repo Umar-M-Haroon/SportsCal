@@ -24,7 +24,23 @@ public func configure(_ app: Application) async throws {
     let redisHost = Environment.get("REDIS_HOST") ?? "127.0.0.1"
     let redisPort = Int(Environment.get("REDIS_PORT") ?? "6379") ?? 6379
     let redisPassword = Environment.get("REDIS_PASSWORD")
-    let redisConfig = try RedisConfiguration(hostname: redisHost, port: redisPort, password: redisPassword)
+    // Pool sizing: the library default is 2 active connections per event loop with an
+    // unbounded lease wait. Under World Cup evening load (multi-MB schedule blobs on
+    // every /schedules request + the 15s LiveTicker + 8 minutely jobs) that saturated
+    // and permanently wedged the pools on several event loops — every Redis call then
+    // failed with timedOutWaitingForConnection until the process was restarted
+    // (July 2026 outage). More headroom + a bounded retry keeps one slow command from
+    // starving the loop, and turns a wedge into fast, visible errors.
+    let redisConfig = try RedisConfiguration(
+        hostname: redisHost,
+        port: redisPort,
+        password: redisPassword,
+        pool: .init(
+            maximumConnectionCount: .maximumActiveConnections(8),
+            minimumConnectionCount: 1,
+            connectionRetryTimeout: .seconds(5)
+        )
+    )
     app.redis.configuration = redisConfig
     app.queues.use(.redis(redisConfig))
     if let apnsKeyID = Environment.get("APNSkeyID"), let teamID = Environment.get("TeamID") {

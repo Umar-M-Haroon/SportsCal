@@ -30,6 +30,7 @@ FROM swift:6.0-jammy-slim
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libcurl4 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user

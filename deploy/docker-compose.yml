@@ -4,6 +4,16 @@ services:
       context: ./repo
       dockerfile: ../Dockerfile
     restart: unless-stopped
+    # Healthy steady-state is ~900MB. The July 2026 pool-exhaustion wedge grew the
+    # process to 2.4GB and it limped for 18h; this cap turns that failure mode into
+    # an OOM-kill + auto-restart (restart: unless-stopped) instead.
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     depends_on:
       redis:
         condition: service_healthy
