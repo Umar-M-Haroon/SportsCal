@@ -30,6 +30,59 @@ actor LastKnownGoodCache {
     }
 }
 
+/// Shared snapshot of the live-info WS frame: one Redis fetch (and one hash)
+/// per ~1.5s process-wide, no matter how many /ws clients are connected.
+/// Callers polling within the freshness window — or while another caller's
+/// refresh is in flight — get the previous frame immediately (stale-while-
+/// revalidate; actor reentrancy during the awaited fetch is what lets them in).
+actor LiveFrameCache {
+    static let shared = LiveFrameCache()
+    private var frame = "{}"
+    private var hash = "{}".hashValue
+    private var fetchedAt = Date.distantPast
+    private var refreshing = false
+
+    func current(fetch: () async -> String?) async -> (frame: String, hash: Int) {
+        if Date().timeIntervalSince(fetchedAt) >= 1.5, !refreshing {
+            refreshing = true
+            defer { refreshing = false }
+            if let fresh = await fetch(), fresh != frame {
+                frame = fresh
+                hash = fresh.hashValue
+            }
+            // Stamp even on failure/no-change so a Redis blip doesn't turn every
+            // client's next tick into another fetch attempt.
+            fetchedAt = Date()
+        }
+        return (frame, hash)
+    }
+}
+
+struct WSSendTimeout: Error {}
+
+/// Races a WebSocket send against a deadline. `ws.send` completes only when the
+/// frame reaches the kernel socket buffer, so a client that stopped reading
+/// suspends it forever — the caller must treat WSSendTimeout as "client is dead".
+func withWSSendDeadline(seconds: TimeInterval, _ body: @escaping @Sendable () async throws -> Void) async throws {
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        group.addTask { try await body() }
+        group.addTask {
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            throw WSSendTimeout()
+        }
+        // First finisher wins: a completed send cancels the timer; a fired timer
+        // surfaces WSSendTimeout (cancelling the group doesn't unqueue the frame —
+        // the caller closes the socket, which is what actually frees the buffers).
+        do {
+            try await group.next()
+        } catch {
+            group.cancelAll()
+            throw error
+        }
+        group.cancelAll()
+    }
+}
+
 /// Resolve which APNS gateway issued the device token in this request. The iOS
 /// client signals it via the `X-APNS-Env: sandbox|production` header so the
 /// hint stays out of URLs and access logs. Older clients that don't send the
@@ -349,15 +402,16 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 )
 
                 if hasGames {
-                    // Serve the cached JSON string verbatim instead of decoding to
-                    // LiveScore and re-encoding it — same waste the /schedules fix
-                    // removed, but here it ran every 5s per connected client. The
-                    // stored bytes are identical to what encodeResult would produce.
+                    // One shared fetch per tick across ALL clients (LiveFrameCache) —
+                    // previously every client independently pulled the multi-MB blob
+                    // from Redis every 2s, which multiplied pool load by client count
+                    // during exactly the busy evenings that wedged the pool.
                     let key = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug).rawValue
-                    let stringResult = (try await req.kv.getString(key)) ?? "{}"
+                    let (stringResult, currentHash) = await LiveFrameCache.shared.current {
+                        try? await req.kv.getString(key)
+                    }
 
                     // Only send if data actually changed (avoids redundant multi-MB pushes)
-                    let currentHash = stringResult.hashValue
                     if currentHash != lastSentHash {
                         // Observability: the live frame outgrew the old 4 MB client
                         // cap (~4.76 MB seen). WebSocket frames bypass Caddy's gzip,
@@ -367,15 +421,34 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                         if bytes > 3_000_000 {
                             req.logger.warning("Large live WS frame", metadata: ["bytes": "\(bytes)"])
                         }
-                        try await ws.send(stringResult)
-                        lastSentHash = currentHash
+                        // Bounded send: ws.send only completes once the frame reaches
+                        // the kernel socket buffer, so a dead/slow client (phone locked
+                        // mid-game, network flip) suspends it indefinitely while multi-MB
+                        // frames pile up in kernel memory. Enough of those exhausted
+                        // global tcp_mem and stalled every TCP flow on the box —
+                        // Redis included (July 2026 outage). Close such clients instead;
+                        // they reconnect with a fresh socket when they're back.
+                        do {
+                            try await withWSSendDeadline(seconds: 10) { try await ws.send(stringResult) }
+                            lastSentHash = currentHash
+                        } catch is WSSendTimeout {
+                            req.logger.warning("Live WS client too slow to accept frame — closing", metadata: ["bytes": "\(bytes)"])
+                            Task { try? await ws.close(code: .goingAway) }
+                            break
+                        }
                     }
 
                     try await Task.sleep(nanoseconds: 2_000_000_000) // 2s when live
                 } else {
                     // No live games — sleep longer and send lightweight heartbeat
                     lastSentHash = nil
-                    try await ws.send("{}")
+                    do {
+                        try await withWSSendDeadline(seconds: 10) { try await ws.send("{}") }
+                    } catch is WSSendTimeout {
+                        req.logger.warning("Live WS client too slow to accept heartbeat — closing")
+                        Task { try? await ws.close(code: .goingAway) }
+                        break
+                    }
                     try await Task.sleep(nanoseconds: 60_000_000_000) // 60s when idle
                 }
             } catch {
