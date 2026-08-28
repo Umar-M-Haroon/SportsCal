@@ -40,7 +40,13 @@ struct ESPNTennisJob: AsyncScheduledJob {
             for league in leaguesToFetch {
                 group.addTask {
                     do {
-                        return (league, try await Integrator.getESPNScoreboard(for: league, context.application.client))
+                        // Ask for today explicitly. Passing `dates: nil` would let
+                        // `usesSingleYearSeason` widen this to the whole-season board
+                        // (~18 MB for ATP, ~23 MB for WTA) — on a minutely job that is
+                        // ~41 MB of fetch-and-decode per tick, for live scores that only
+                        // ever need the current day. Today's board is ~1.3 MB and still
+                        // carries the in-progress tournament's full draw.
+                        return (league, try await Integrator.getESPNScoreboard(for: league, context.application.client, dates: Self.todayDates()))
                     } catch {
                         Self.logger.debug("Failed to fetch tennis scoreboard", metadata: [
                             "league": "\(league)",
@@ -59,6 +65,14 @@ struct ESPNTennisJob: AsyncScheduledJob {
 
         try await context.application.redis.setex(ttlKey, toJSON: espnInfo, expirationInSeconds: 60 * 15)
         try await context.application.redis.set(latestKey, toJSON: espnInfo)
+    }
+
+    /// Today in ESPN's `yyyyMMdd` query form (UTC), matching `ESPNScheduleWindowJob`.
+    static func todayDates(now: Date = Date()) -> Int {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd"
+        formatter.timeZone = .init(secondsFromGMT: 0)
+        return Int(formatter.string(from: now)) ?? 0
     }
 
     private func tennisLeaguesToFetch(redis: RedisClient, isDebug: Bool) async -> [Leagues] {

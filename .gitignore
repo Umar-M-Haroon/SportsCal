@@ -37,3 +37,10 @@ Instruments/
 
 # Snapshot test exports for Figma design review (regenerated on demand)
 **/__Snapshots__/
+
+# Local dev-server artifacts (reliability sweep). Untracked on purpose: the helper
+# scripts carry the dev API key, which lives only in the gitignored Constants.swift.
+dev-server.log
+dev-server.sh
+verify-dev.sh
+tools/

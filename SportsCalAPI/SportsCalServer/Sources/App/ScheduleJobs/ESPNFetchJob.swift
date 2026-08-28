@@ -168,7 +168,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
         if let newResult {
             let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
             if let schedule = try? await context.application.redis.get(scheduleKey, asJSON: LiveScore.self) {
-                let window = await fetchPostseasonWindowIfStale(context: context, isDebug: isDebug, daysAhead: 7)
+                // ~4 months: far enough that the calendar and browse are populated for the
+                // whole upcoming NBA/NHL season even while TheSportsDB is still catching up.
+                let window = await fetchForwardScheduleWindowIfStale(context: context, isDebug: isDebug, daysAhead: 120)
                 let enriched = newResult.merging(with: window)
                 let updated = mergeESPNIntoSchedule(schedule: schedule, espn: enriched, resolver: aliasResolver)
                 if updated != schedule {
@@ -460,13 +462,28 @@ struct ESPNFetchJob: AsyncScheduledJob {
         }
     }
 
-    // MARK: - Future postseason window
+    // MARK: - Forward schedule window
 
-    /// Fetches ESPN scoreboards for the next `daysAhead` days for each playoff-eligible
-    /// team league, filters to games ESPN has flagged as postseason, and caches the result.
-    /// Refreshed every 60 minutes — ESPN's series metadata doesn't change frequently enough
-    /// to justify fetching 28+ scoreboards per minute.
-    private func fetchPostseasonWindowIfStale(
+    /// Max ESPN day-board fetches in flight while building the forward window.
+    private static let forwardWindowConcurrency = 6
+
+    /// Fetches ESPN scoreboards for the next `daysAhead` days for each of the four big
+    /// team leagues and caches the result.
+    ///
+    /// This is also our schedule backfill. TheSportsDB is the primary schedule source, but
+    /// it publishes new seasons late — in Aug 2026 it carried 17 NBA games for all of
+    /// 2026-27 while ESPN had the full season — so a TSDB-only schedule leaves the calendar
+    /// empty months ahead. Everything ESPN reports in the window is carried (not just
+    /// `playoff != nil`, which was the old behaviour and dropped every regular-season game);
+    /// `mergeESPNIntoSchedule` then matches what TSDB already has and appends only the rest.
+    ///
+    /// Safe to re-run: the hourly TheSportsDB rebuild resets the schedule from scratch, and
+    /// the append path's `alreadyScheduled` check drops any fixture TSDB has since published,
+    /// so appended games can't accumulate or duplicate.
+    ///
+    /// Refreshed every 60 minutes — the fetch is bounded at
+    /// `forwardWindowConcurrency` in flight, so the wider horizon costs seconds, not minutes.
+    private func fetchForwardScheduleWindowIfStale(
         context: Queues.QueueContext,
         isDebug: Bool,
         daysAhead: Int
@@ -490,20 +507,41 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
         var eventsBySport: [SportType: [Game]] = [:]
         for (league, sport) in playoffLeagues {
+            let days: [Int] = (1...daysAhead).compactMap { offset in
+                guard let date = Calendar.current.date(byAdding: .day, value: offset, to: Date()) else { return nil }
+                return Int(df.string(from: date))
+            }
             var collected: [Game] = []
-            for offset in 1...daysAhead {
-                guard let date = Calendar.current.date(byAdding: .day, value: offset, to: Date()) else { continue }
-                guard let ymd = Int(df.string(from: date)) else { continue }
-                do {
-                    let scoreboard = try await Integrator.getESPNScoreboard(for: league, context.application.client, dates: ymd)
-                    guard let liveEvent = LiveEvent(events: scoreboard, league: league) else { continue }
-                    // Only carry forward games that actually have structured playoff context.
-                    collected.append(contentsOf: liveEvent.events.filter { $0.playoff != nil })
-                } catch {
-                    Self.logger.debug("Postseason window fetch failed", metadata: [
-                        "league": "\(league)", "date": "\(ymd)", "error": "\(error)"
-                    ])
+            var iterator = days.makeIterator()
+
+            await withTaskGroup(of: [Game].self) { group in
+                func addNext() {
+                    guard let ymd = iterator.next() else { return }
+                    group.addTask {
+                        do {
+                            let scoreboard = try await Integrator.getESPNScoreboard(for: league, context.application.client, dates: ymd)
+                            return LiveEvent(events: scoreboard, league: league)?.events ?? []
+                        } catch {
+                            Self.logger.debug("Forward window fetch failed", metadata: [
+                                "league": "\(league)", "date": "\(ymd)", "error": "\(error)"
+                            ])
+                            return []
+                        }
+                    }
                 }
+                for _ in 0..<min(Self.forwardWindowConcurrency, days.count) { addNext() }
+                while let games = await group.next() {
+                    collected.append(contentsOf: games)
+                    addNext()
+                }
+            }
+
+            // A day can appear in more than one board (ESPN's day boundaries are
+            // timezone-shifted), so collapse by event id before handing it on.
+            var seen = Set<String>()
+            collected = collected.filter { game in
+                guard let id = game.idEvent else { return true }
+                return seen.insert(id).inserted
             }
             if !collected.isEmpty {
                 eventsBySport[sport] = collected
@@ -520,7 +558,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
         try? await context.application.redis.setex(cacheKey, toJSON: window, expirationInSeconds: 60 * 60)
         try? await context.application.redis.set(updateKey, toJSON: Date())
         let total = [window.nba, window.mlb, window.nfl, window.nhl].compactMap { $0?.events.count }.reduce(0, +)
-        Self.logger.info("Postseason window refreshed", metadata: [
+        Self.logger.info("Forward schedule window refreshed", metadata: [
             "daysAhead": "\(daysAhead)", "totalGames": "\(total)"
         ])
         return window

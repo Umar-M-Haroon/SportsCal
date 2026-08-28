@@ -342,12 +342,20 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         let liveScore = await buildESPNScheduleForDate(dateInt: dateInt, client: req.client)
         let json = encodeResult(res: liveScore)
 
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyyMMdd"
-        fmt.timeZone = TimeZone(identifier: "America/New_York")
-        let todayInt = Int(fmt.string(from: Date())) ?? dateInt
-        let ttl: TimeInterval = dateInt < todayInt ? 86_400 : 600
-        try? await req.kv.setString(cacheKey, value: json, ttl: ttl)
+        // Never cache an empty day. Every bucket coming back empty means the upstream
+        // fetch failed (that is exactly what ESPN's Akamai 403 produced), not that the
+        // day has no games — and a past date would pin that emptiness for 24h.
+        let hasEvents = [liveScore.nba, liveScore.mlb, liveScore.soccer, liveScore.nfl,
+                         liveScore.nhl, liveScore.golf, liveScore.tennis, liveScore.racing]
+            .contains { !($0?.events.isEmpty ?? true) }
+        if hasEvents {
+            let fmt = DateFormatter()
+            fmt.dateFormat = "yyyyMMdd"
+            fmt.timeZone = TimeZone(identifier: "America/New_York")
+            let todayInt = Int(fmt.string(from: Date())) ?? dateInt
+            let ttl: TimeInterval = dateInt < todayInt ? 86_400 : 600
+            try? await req.kv.setString(cacheKey, value: json, ttl: ttl)
+        }
         return json
     }
 

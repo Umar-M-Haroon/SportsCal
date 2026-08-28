@@ -94,6 +94,24 @@ class ESPNNetworking {
     /// closed). ESPN's edge periodically tears down HTTP/2 connections with in-flight
     /// streams; retrying after a short delay lands on a fresh connection ~all of the time.
     /// Does not retry once a response has arrived — 429/5xx paths are handled below.
+    /// ESPN sits behind Akamai, which 403s any request whose `User-Agent` it doesn't
+    /// recognise as a known HTTP client — including a missing one, which is exactly what
+    /// Vapor's `Client` sends by default. Without this header every ESPN call returns an
+    /// "Access Denied" HTML page, and the whole ESPN-sourced pipeline (live scores, tennis
+    /// schedule build, soccer boards) silently falls back to stale cache. Recognised
+    /// library tokens pass; product tokens of our own ("SportsCal/3.2") do not.
+    static let userAgent = "AsyncHTTPClient/1.0"
+
+    /// Mirror host for the `site.api` endpoints, used only as a 403 fallback.
+    /// Returns nil for URIs on any other host (e.g. `sports.core.api.espn.com`),
+    /// which have no such mirror. `internal` for tests.
+    static func webAPIFallback(for uri: URI) -> URI? {
+        guard uri.host == "site.api.espn.com" else { return nil }
+        var fallback = uri
+        fallback.host = "site.web.api.espn.com"
+        return fallback
+    }
+
     private static func performGet(
         _ req: some Client,
         _ uri: URI,
@@ -102,9 +120,13 @@ class ESPNNetworking {
         if let until = currentGlobalCooldown() {
             throw NetworkError.cooledDown(until: until)
         }
+        let withUserAgent: (inout ClientRequest) throws -> Void = { request in
+            request.headers.replaceOrAdd(name: .userAgent, value: userAgent)
+            try beforeSend(&request)
+        }
         let response: ClientResponse
         do {
-            response = try await req.get(uri, beforeSend: beforeSend)
+            response = try await req.get(uri, beforeSend: withUserAgent)
         } catch {
             logger.debug("ESPN GET transport error — retrying once", metadata: [
                 "uri":   "\(uri)",
@@ -115,12 +137,44 @@ class ESPNNetworking {
                 // A concurrent request may have tripped the breaker during our sleep.
                 throw NetworkError.cooledDown(until: until)
             }
-            response = try await req.get(uri, beforeSend: beforeSend)
+            response = try await req.get(uri, beforeSend: withUserAgent)
         }
         if response.status.code == 429 {
             let duration = TimeInterval(retryAfterSeconds(from: response.headers) ?? Int(defaultGlobalCooldown))
             markGlobalCooldown(reason: "http 429", duration: duration)
             throw NetworkError.cooledDown(until: Date().addingTimeInterval(duration))
+        }
+        // Akamai bot-block. `site.web.api.espn.com` serves the identical payload from a
+        // host that isn't behind the same filter, so a 403 on the primary host is worth
+        // one retry there before giving up — this keeps us serving if ESPN ever tightens
+        // the User-Agent allowlist that the header above currently satisfies.
+        if response.status.code == 403, let fallback = webAPIFallback(for: uri) {
+            logger.warning("ESPN 403 on primary host — retrying via web API host", metadata: ["uri": "\(uri)"])
+            if let retried = try? await req.get(fallback, beforeSend: withUserAgent),
+               (200..<300).contains(retried.status.code) {
+                return retried
+            }
+        }
+        // Anything else non-2xx: fail with the status rather than handing an HTML error
+        // page to `content.decode`, which reports a confusing "unsupported media type
+        // 'text/html'" and hides the real cause (this is how the Akamai 403 stayed
+        // invisible while every ESPN-backed feature quietly served stale data).
+        guard (200..<300).contains(response.status.code) else {
+            let metadata: Logger.Metadata = [
+                "status":      "\(response.status.code)",
+                "uri":         "\(uri)",
+                "contentType": "\(response.headers.first(name: .contentType) ?? "-")"
+            ]
+            // 404 is routine: several callers probe optional/retired endpoints behind a
+            // `try?` fallback (e.g. soccer `/leaders`, which ESPN retired in favour of
+            // `/statistics`). Keep the warning channel for the statuses that mean we're
+            // actually blocked or upstream is broken — that's the signal a 403 needs.
+            if response.status.code == 404 {
+                logger.debug("ESPN 404", metadata: metadata)
+            } else {
+                logger.warning("ESPN non-2xx response", metadata: metadata)
+            }
+            throw NetworkError.badStatus(code: response.status.code, url: uri.description)
         }
         return response
     }
@@ -165,11 +219,12 @@ class ESPNNetworking {
                     uri.query! += "&dates=\(year)"
                 }
                 let response = try await performGet(req, uri)
-                if response.status.code >= 500 {
-                    markCooldown(league, reason: "http \(response.status.code)")
-                    throw NetworkError.cooledDown(until: Date().addingTimeInterval(cooldownInterval))
-                }
                 return try response.content.decode(DecodeType.self)
+            } catch let NetworkError.badStatus(code, _) {
+                // performGet already rejected the non-2xx; back this league off so we
+                // don't hammer a slug that is erroring (5xx) or blocked (403).
+                markCooldown(league, reason: "http \(code)")
+                throw NetworkError.cooledDown(until: Date().addingTimeInterval(cooldownInterval))
             } catch let error as NetworkError {
                 throw error
             } catch {

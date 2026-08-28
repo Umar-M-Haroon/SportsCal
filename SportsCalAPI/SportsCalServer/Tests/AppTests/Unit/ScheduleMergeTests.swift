@@ -38,12 +38,17 @@ final class ScheduleMergeTests: XCTestCase {
             strTimestamp: "2024-06-01T18:00:00",
             isoDate: date("2024-06-01T18:00:00Z")
         )
+        // Same kickoff as the schedule entry. TheSportsDB and ESPN agree on scheduled
+        // start time to the minute in practice (measured across La Liga and MLB fixtures:
+        // zero drift), so the two sides of a real fixture always land well inside
+        // `sameFixtureWindow`. See `testSameTeamsBeyondFixtureWindowDoNotMatch` for the
+        // doubleheader case this window exists to separate.
         let espn = TestGameFactory.make(
             idEvent: "401555", idHomeTeam: "134860", idAwayTeam: "134861",
             strHomeTeam: "Los Angeles Lakers", strAwayTeam: "Boston Celtics",
             intHomeScore: "102", intAwayScore: "99",
             strStatus: "in", strProgress: "Q4 2:00",
-            isoDate: date("2024-06-01T22:30:00Z")
+            isoDate: date("2024-06-01T18:00:00Z")
         )
 
         let merged = merge(schedule: [schedule], espn: [espn])
@@ -59,6 +64,36 @@ final class ScheduleMergeTests: XCTestCase {
         XCTAssertEqual(game.intAwayScore, "99")
         XCTAssertEqual(game.strStatus, "in")
         XCTAssertEqual(game.strProgress, "Q4 2:00")
+    }
+
+    /// The other half of the `sameFixtureWindow` contract: the same two teams meeting
+    /// twice on one UTC day (doubleheader, or an evening game that crosses UTC midnight
+    /// into the next afternoon's date) must NOT be collapsed onto each other — that is
+    /// what made finished results appear on games that hadn't started yet.
+    func testSameTeamsBeyondFixtureWindowDoNotMatch() {
+        let schedule = TestGameFactory.make(
+            idEvent: "TSDB1", idHomeTeam: "134860", idAwayTeam: "134861",
+            strHomeTeam: "Lakers", strAwayTeam: "Celtics",
+            intHomeScore: nil, intAwayScore: nil,
+            strTimestamp: "2024-06-01T23:00:00",
+            isoDate: date("2024-06-01T23:00:00Z")
+        )
+        // Same teams, same UTC day, but the afternoon game — 8h earlier, well outside
+        // the window. Its final score must not be overlaid on the evening fixture.
+        let espn = TestGameFactory.make(
+            idEvent: "401555", idHomeTeam: "134860", idAwayTeam: "134861",
+            strHomeTeam: "Los Angeles Lakers", strAwayTeam: "Boston Celtics",
+            intHomeScore: "102", intAwayScore: "99",
+            strStatus: "post", strProgress: "Final",
+            isoDate: date("2024-06-01T15:00:00Z")
+        )
+
+        let merged = merge(schedule: [schedule], espn: [espn])
+
+        let evening = merged.first { $0.idEvent == "TSDB1" }
+        XCTAssertNotNil(evening, "the scheduled game must survive the merge")
+        XCTAssertNil(evening?.intHomeScore, "the earlier game's score must not leak onto it")
+        XCTAssertNotEqual(evening?.strStatus, "post", "an unplayed game must not be marked final")
     }
 
     func testPreGameESPNScoresDoNotClobberSchedule() {
