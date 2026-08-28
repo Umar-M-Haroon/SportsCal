@@ -221,10 +221,17 @@ class ESPNNetworking {
                 let response = try await performGet(req, uri)
                 return try response.content.decode(DecodeType.self)
             } catch let NetworkError.badStatus(code, _) {
-                // performGet already rejected the non-2xx; back this league off so we
-                // don't hammer a slug that is erroring (5xx) or blocked (403).
-                markCooldown(league, reason: "http \(code)")
-                throw NetworkError.cooledDown(until: Date().addingTimeInterval(cooldownInterval))
+                // Back off only for statuses that mean "this slug is broken or we are
+                // blocked" — 5xx and 403. NOT every non-2xx: a 404 is routine (ESPN has
+                // no board for that league/date), and cooling down on it would be actively
+                // harmful, because the same cooldown gates the LIVE score fetch. One 404
+                // on a future-dated backfill board would otherwise blank out live scores
+                // for that league for `cooldownInterval`.
+                if code >= 500 || code == 403 {
+                    markCooldown(league, reason: "http \(code)")
+                    throw NetworkError.cooledDown(until: Date().addingTimeInterval(cooldownInterval))
+                }
+                throw NetworkError.badStatus(code: code, url: fullString)
             } catch let error as NetworkError {
                 throw error
             } catch {

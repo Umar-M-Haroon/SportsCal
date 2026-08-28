@@ -30,7 +30,14 @@ jobs:
           path: SportsCalAPI/SportsCalServer/.build
           key: ${{ runner.os }}-spm-${{ hashFiles('SportsCalAPI/SportsCalServer/Package.resolved') }}
           restore-keys: ${{ runner.os }}-spm-
-      - name: Run APNS + live-activity test suites
+      # Hermetic suites only — the network-dependent ones gate themselves behind
+      # RELIABILITY_SWEEP / TENNIS_FIXTURE_DIR and skip when unset, so they are safe
+      # to leave out of this list but must never be *silently* dropped from it.
+      #
+      # This used to be a shorter allowlist that omitted ScheduleMergeTests, which is how
+      # a failing merge test went unnoticed from 2026-07-02 until the Aug reliability
+      # sweep. Add new hermetic suites here when you write them.
+      - name: Run hermetic test suites
         run: |
           swift test \
-            --filter 'ContentStateDiffTests|TeamMatchingTests|DedupKeyTests|RegistrationCodableTests|APNSJobStateDiffTests|APNSJobErrorHandlingTests|ESPNFetchJobPushToStartTests'
+            --filter 'ContentStateDiffTests|ContentStateHashTests|TeamMatchingTests|DedupKeyTests|RegistrationCodableTests|APNSJobStateDiffTests|APNSJobErrorHandlingTests|APNSBatchingTests|ESPNFetchJobPushToStartTests|ESPNFetchJobAlreadyLiveStartTests|ScheduleMergeTests|ScheduleUpdateJobTests|ESPNRequestHeadersTests|ForwardWindowTests|ESPNSoccerJobMergeTests|LiveMergeTests|JobLockTests|RateLimitIdentityTests|ChunkedTests|ReplayDriverTests|SetIfAbsentTests|TelemetryTests|F1EnrichmentWriteGuardTests|WorldCupBoxScoreBuilderTests|WorldCupEnrichmentTests|PushToStartEnvFallbackTests'

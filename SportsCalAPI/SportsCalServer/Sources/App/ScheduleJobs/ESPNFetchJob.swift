@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Vapor
 import Queues
 import RediStack
 import SportsCalModel
@@ -19,13 +20,19 @@ struct ESPNFetchJob: AsyncScheduledJob {
     func run(context: Queues.QueueContext) async throws {
         let isDebug = context.application.environment == .development
 
-        // Leader-election: only one replica may execute a given tick. ttl 50s
-        // gives a 10s safety margin before the next minutely tick fires, so a
-        // missed release on crash never overlaps live work.
+        // Leader-election: only one replica may execute a given tick.
+        //
+        // ttl was 50s, sized against the next minutely tick back when this job made ~28
+        // upstream requests. The hourly forward-window refresh now makes ~480, which can
+        // outlast 50s on a slow ESPN — the lock would then expire mid-run and the next tick
+        // would execute runUnderLock concurrently: racing `latestSchedule` writes and, worse,
+        // duplicate push-to-start notifications (sendPushToStartForNewGames diffs against a
+        // `latestLiveInfo` the other run is rewriting). 180s covers the heavy tick; the cost
+        // of a crashed run is skipping at most two minutely ticks, which is harmless.
         _ = try await JobLock.withLock(
             context.application.kv,
             name: "espn-fetch",
-            ttl: 50,
+            ttl: 180,
             instanceID: context.application.instanceID,
             logger: Self.logger,
             body: { try await self.runUnderLock(context: context, isDebug: isDebug) }
@@ -42,7 +49,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // empty) — treat as "fetch everything" so we populate cache for the next tick.
         let active = await Integrator.activeLeagues(redis: context.application.redis, isDebug: isDebug)
         if let active, active.isEmpty {
+            // Nothing is live, so skip the live-score work — but still refresh the forward
+            // schedule window. It is the schedule backfill, and a quiet period is exactly
+            // when the calendar is emptiest and it matters most; returning here would leave
+            // it dead through every offseason. It is internally gated to once an hour.
             Self.logger.info("No live or upcoming games — skipping ESPN live score fetch")
+            await refreshForwardWindowIntoSchedule(context: context, isDebug: isDebug, liveResult: nil)
             return
         }
 
@@ -162,22 +174,58 @@ struct ESPNFetchJob: AsyncScheduledJob {
         try await context.application.redis.setex(RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: isDebug), toJSON: newResult, expirationInSeconds: 60 * 30)
         try await context.application.redis.set(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug), toJSON: newResult)
 
-        // Merge ESPN data into cached schedule so /schedules reflects live scores.
-        // Also pull forward a rolling window of upcoming postseason days so games
-        // scheduled for the next few days surface series context (round, Game N, wins).
-        if let newResult {
-            let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
-            if let schedule = try? await context.application.redis.get(scheduleKey, asJSON: LiveScore.self) {
-                // ~4 months: far enough that the calendar and browse are populated for the
-                // whole upcoming NBA/NHL season even while TheSportsDB is still catching up.
-                let window = await fetchForwardScheduleWindowIfStale(context: context, isDebug: isDebug, daysAhead: 120)
-                let enriched = newResult.merging(with: window)
-                let updated = mergeESPNIntoSchedule(schedule: schedule, espn: enriched, resolver: aliasResolver)
-                if updated != schedule {
-                    try? await context.application.redis.set(scheduleKey, toJSON: updated)
-                    Self.logger.info("Schedule updated with ESPN live data")
-                }
-            }
+        // Merge ESPN data into cached schedule so /schedules reflects live scores, and pull
+        // forward the upcoming-days window so the calendar is populated months ahead.
+        await refreshForwardWindowIntoSchedule(
+            context: context, isDebug: isDebug, liveResult: newResult, resolver: aliasResolver
+        )
+    }
+
+    /// Merges the forward schedule window — and the live result when there is one — into the
+    /// cached schedule. Split out of `runUnderLock` so the quiet-period path can still run the
+    /// backfill without doing the live-score work.
+    private func refreshForwardWindowIntoSchedule(
+        context: Queues.QueueContext,
+        isDebug: Bool,
+        liveResult: LiveScore?,
+        resolver: TeamAliasResolver? = nil
+    ) async {
+        let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
+        guard let schedule = try? await context.application.redis.get(scheduleKey, asJSON: LiveScore.self) else { return }
+
+        // ~4 months: far enough that the calendar and browse are populated for the
+        // whole upcoming NBA/NHL season even while TheSportsDB is still catching up.
+        var window = await fetchForwardScheduleWindowIfStale(context: context, isDebug: isDebug, daysAhead: 120)
+
+        // The window is raw ESPN, so it carries ESPN team ids. The rest of the schedule is
+        // keyed by TheSportsDB ids (the live result was translated before it got here), and
+        // anything appended from the window is what the client sees for months of upcoming
+        // fixtures — untranslated, team-id lookups like TeamDetailView silently miss them.
+        let mappingKey: RedisKey = isDebug ? "debug-ESPN-ID-Map" : "ESPN-ID-Map"
+        if let espnToTSDB = try? await context.application.redis.get(mappingKey, asJSON: [String: String].self),
+           !espnToTSDB.isEmpty {
+            window = translateTeamIDs(in: window, using: espnToTSDB)
+        }
+
+        // Dedup across the two sources before merging: `merging` is a plain concatenation,
+        // and the same fixture can be in both the live board and the window's first day
+        // (ESPN's day boundaries are timezone-shifted). Without this, a game TheSportsDB
+        // doesn't have yet — exactly the backfill case — gets appended twice.
+        let enriched = Self.dedupedByEventID(liveResult?.merging(with: window) ?? window)
+
+        // Reuse the caller's resolver when there is one; otherwise load the cached teams so
+        // the quiet path gets the same alias-collapsing the live path does.
+        var aliasResolver = resolver
+        if aliasResolver == nil {
+            let teams = (try? await context.application.redis.get(
+                RedisEndpoint.teams.getValue(isDebug: isDebug), asJSON: [Team].self
+            )) ?? []
+            aliasResolver = TeamAliasResolver(teams: teams, logger: Self.logger)
+        }
+        let updated = mergeESPNIntoSchedule(schedule: schedule, espn: enriched, resolver: aliasResolver!)
+        if updated != schedule {
+            try? await context.application.redis.set(scheduleKey, toJSON: updated)
+            Self.logger.info("Schedule updated with ESPN live data")
         }
     }
 
@@ -465,7 +513,83 @@ struct ESPNFetchJob: AsyncScheduledJob {
     // MARK: - Forward schedule window
 
     /// Max ESPN day-board fetches in flight while building the forward window.
-    private static let forwardWindowConcurrency = 6
+    static let forwardWindowConcurrency = 6
+
+    /// Collapses duplicate events within each sport bucket, keeping first occurrence.
+    /// `LiveScore.merging` concatenates without dedup, so the live board and the forward
+    /// window can each contribute the same fixture. `internal` for tests.
+    static func dedupedByEventID(_ score: LiveScore) -> LiveScore {
+        func dedup(_ event: LiveEvent?) -> LiveEvent? {
+            guard let event else { return nil }
+            var seen = Set<String>()
+            return LiveEvent(events: event.events.filter { game in
+                guard let id = game.idEvent else { return true }
+                return seen.insert(id).inserted
+            })
+        }
+        return LiveScore(
+            nba: dedup(score.nba), mlb: dedup(score.mlb), soccer: dedup(score.soccer),
+            nfl: dedup(score.nfl), nhl: dedup(score.nhl), golf: dedup(score.golf),
+            tennis: dedup(score.tennis), racing: dedup(score.racing),
+            f1Standings: score.f1Standings, worldCup: score.worldCup
+        )
+    }
+
+    /// Fetches one league's next `daysAhead` day-boards and returns its games, deduped by
+    /// event id. Bounded at `forwardWindowConcurrency` in flight — an unbounded fan-out here
+    /// would fire `daysAhead` requests at ESPN at once and trip its global 429 breaker, which
+    /// halts *all* ESPN traffic.
+    ///
+    /// Days are keyed in US Eastern because that is how ESPN buckets its boards; the id dedup
+    /// absorbs the resulting overlap at the UTC boundary. `internal` so tests can drive the
+    /// real implementation rather than a copy of it.
+    static func forwardWindowGames(
+        league: Leagues,
+        daysAhead: Int,
+        client: some Client,
+        now: Date = Date()
+    ) async -> [Game] {
+        let df = DateFormatter()
+        df.dateFormat = "yyyyMMdd"
+        df.timeZone = TimeZone(identifier: "America/New_York") ?? .current
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = df.timeZone
+
+        let days: [Int] = (1...max(1, daysAhead)).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: offset, to: now) else { return nil }
+            return Int(df.string(from: date))
+        }
+
+        var collected: [Game] = []
+        var iterator = days.makeIterator()
+        await withTaskGroup(of: [Game].self) { group in
+            func addNext() {
+                guard let ymd = iterator.next() else { return }
+                group.addTask {
+                    do {
+                        let scoreboard = try await Integrator.getESPNScoreboard(for: league, client, dates: ymd)
+                        return LiveEvent(events: scoreboard, league: league)?.events ?? []
+                    } catch {
+                        logger.debug("Forward window fetch failed", metadata: [
+                            "league": "\(league)", "date": "\(ymd)", "error": "\(error)"
+                        ])
+                        return []
+                    }
+                }
+            }
+            for _ in 0..<min(forwardWindowConcurrency, days.count) { addNext() }
+            while let games = await group.next() {
+                collected.append(contentsOf: games)
+                addNext()
+            }
+        }
+
+        var seen = Set<String>()
+        return collected.filter { game in
+            guard let id = game.idEvent else { return true }
+            return seen.insert(id).inserted
+        }
+    }
 
     /// Fetches ESPN scoreboards for the next `daysAhead` days for each of the four big
     /// team leagues and caches the result.
@@ -491,58 +615,39 @@ struct ESPNFetchJob: AsyncScheduledJob {
         let cacheKey = RedisEndpoint.ESPN.postseasonWindow.getValue(isDebug: isDebug)
         let updateKey = RedisEndpoint.ESPN.postseasonWindowLastUpdate.getValue(isDebug: isDebug)
 
-        // Use cached window if it's still fresh (<1h old).
+        // The claim alone paces refreshes — deliberately NOT `claim && cachedExists`.
+        // Requiring the cached value too means a missing/evicted `cacheKey` (first boot,
+        // maxmemory eviction, or the `try?`-swallowed setex failing on a multi-MB value)
+        // makes this fall through on EVERY minutely tick and start another 480-request
+        // window. Returning an empty window for the rest of the hour is the safe failure:
+        // the schedule keeps whatever it already had, and the next hour retries.
         if let lastUpdate = try? await context.application.redis.get(updateKey, asJSON: Date.self),
-           Date().timeIntervalSince(lastUpdate) < 60 * 60,
-           let cached = try? await context.application.redis.get(cacheKey, asJSON: LiveScore.self) {
-            return cached
+           Date().timeIntervalSince(lastUpdate) < 60 * 60 {
+            return (try? await context.application.redis.get(cacheKey, asJSON: LiveScore.self)) ?? LiveScore()
         }
+
+        // Claim the refresh BEFORE fetching, not after. This job's JobLock ttl (50s) was
+        // sized when the window was 28 sequential requests; it is now 480, which can
+        // outlast the lock. If the marker were only written on completion, every
+        // subsequent minutely tick would see a stale marker, take the expired lock, and
+        // start its own 480-request window — runs stacking until ESPN's global 429
+        // breaker trips and halts all ESPN traffic. Claiming up front bounds this to one
+        // refresh per hour no matter how long a run takes or how it fails.
+        //
+        // The claim carries a TTL slightly over the refresh interval so a process that
+        // dies mid-refresh cannot wedge the window permanently; the previous window stays
+        // served from `cacheKey` in the meantime.
+        try? await context.application.redis.setex(updateKey, toJSON: Date(), expirationInSeconds: 60 * 70)
 
         let playoffLeagues: [(league: Leagues, sport: SportType)] = [
             (.nba, .basketball), (.nhl, .hockey), (.mlb, .mlb), (.nfl, .nfl)
         ]
-        let df = DateFormatter()
-        df.dateFormat = "yyyyMMdd"
-        df.timeZone = TimeZone(identifier: "America/New_York") ?? .current
 
         var eventsBySport: [SportType: [Game]] = [:]
         for (league, sport) in playoffLeagues {
-            let days: [Int] = (1...daysAhead).compactMap { offset in
-                guard let date = Calendar.current.date(byAdding: .day, value: offset, to: Date()) else { return nil }
-                return Int(df.string(from: date))
-            }
-            var collected: [Game] = []
-            var iterator = days.makeIterator()
-
-            await withTaskGroup(of: [Game].self) { group in
-                func addNext() {
-                    guard let ymd = iterator.next() else { return }
-                    group.addTask {
-                        do {
-                            let scoreboard = try await Integrator.getESPNScoreboard(for: league, context.application.client, dates: ymd)
-                            return LiveEvent(events: scoreboard, league: league)?.events ?? []
-                        } catch {
-                            Self.logger.debug("Forward window fetch failed", metadata: [
-                                "league": "\(league)", "date": "\(ymd)", "error": "\(error)"
-                            ])
-                            return []
-                        }
-                    }
-                }
-                for _ in 0..<min(Self.forwardWindowConcurrency, days.count) { addNext() }
-                while let games = await group.next() {
-                    collected.append(contentsOf: games)
-                    addNext()
-                }
-            }
-
-            // A day can appear in more than one board (ESPN's day boundaries are
-            // timezone-shifted), so collapse by event id before handing it on.
-            var seen = Set<String>()
-            collected = collected.filter { game in
-                guard let id = game.idEvent else { return true }
-                return seen.insert(id).inserted
-            }
+            let collected = await Self.forwardWindowGames(
+                league: league, daysAhead: daysAhead, client: context.application.client
+            )
             if !collected.isEmpty {
                 eventsBySport[sport] = collected
             }
@@ -555,8 +660,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
             nhl: eventsBySport[.hockey].map { LiveEvent(events: $0) }
         )
 
-        try? await context.application.redis.setex(cacheKey, toJSON: window, expirationInSeconds: 60 * 60)
-        try? await context.application.redis.set(updateKey, toJSON: Date())
+        // Cache TTL is deliberately longer than the refresh interval: the marker above is
+        // what paces refreshes, and keeping the last good window past its refresh window
+        // means a failed refresh degrades to slightly-stale rather than to nothing.
+        try? await context.application.redis.setex(cacheKey, toJSON: window, expirationInSeconds: 60 * 90)
         let total = [window.nba, window.mlb, window.nfl, window.nhl].compactMap { $0?.events.count }.reduce(0, +)
         Self.logger.info("Forward schedule window refreshed", metadata: [
             "daysAhead": "\(daysAhead)", "totalGames": "\(total)"

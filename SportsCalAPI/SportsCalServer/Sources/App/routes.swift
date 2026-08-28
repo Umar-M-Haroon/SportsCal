@@ -339,22 +339,27 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         if let cached = try? await req.kv.getString(cacheKey), !cached.isEmpty {
             return cached
         }
-        let liveScore = await buildESPNScheduleForDate(dateInt: dateInt, client: req.client)
+        let (liveScore, failures) = await buildESPNScheduleForDate(dateInt: dateInt, client: req.client)
         let json = encodeResult(res: liveScore)
 
-        // Never cache an empty day. Every bucket coming back empty means the upstream
-        // fetch failed (that is exactly what ESPN's Akamai 403 produced), not that the
-        // day has no games — and a past date would pin that emptiness for 24h.
-        let hasEvents = [liveScore.nba, liveScore.mlb, liveScore.soccer, liveScore.nfl,
-                         liveScore.nhl, liveScore.golf, liveScore.tennis, liveScore.racing]
-            .contains { !($0?.events.isEmpty ?? true) }
-        if hasEvents {
-            let fmt = DateFormatter()
-            fmt.dateFormat = "yyyyMMdd"
-            fmt.timeZone = TimeZone(identifier: "America/New_York")
-            let todayInt = Int(fmt.string(from: Date())) ?? dateInt
+        // Cache on upstream SUCCESS, not on non-emptiness. A genuinely empty day (a far
+        // future date, an off-day) is a real answer and must be cached — otherwise every
+        // repeat request re-runs a 30-league fan-out, and this route allows 300 req/min
+        // per key, which is enough to trip ESPN's global 429 breaker and take live scores
+        // down for everyone. But a day whose fetches FAILED must never be cached, or an
+        // outage gets pinned for 24h on a past date (what the Akamai 403 would have done).
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyyMMdd"
+        fmt.timeZone = TimeZone(identifier: "America/New_York")
+        let todayInt = Int(fmt.string(from: Date())) ?? dateInt
+        if failures == 0 {
             let ttl: TimeInterval = dateInt < todayInt ? 86_400 : 600
             try? await req.kv.setString(cacheKey, value: json, ttl: ttl)
+        } else {
+            // Partial success still gets a short TTL so a flapping league can't turn this
+            // route into an unbounded ESPN amplifier, but it expires soon enough to heal.
+            req.logger.warning("schedules/date: \(failures) league fetch(es) failed", metadata: ["date": "\(dateInt)"])
+            try? await req.kv.setString(cacheKey, value: json, ttl: 60)
         }
         return json
     }
@@ -1312,9 +1317,16 @@ func encodeResult(res: some Codable) -> String {
 /// fetch used by `ESPNScheduleWindowJob`, but for an arbitrary date and with all
 /// leagues folded into their sport's `LiveEvent`. Failures per league are
 /// swallowed so one bad league doesn't sink the whole day.
-func buildESPNScheduleForDate(dateInt: Int, client: some Client) async -> LiveScore {
+/// Builds a day's multi-sport schedule from ESPN, and reports how many league fetches
+/// FAILED. The caller needs that count to tell "this day genuinely has no games" (safe to
+/// cache) apart from "the upstream calls failed" (must not be cached) — an empty result
+/// alone cannot distinguish them, and guessing either way is harmful: caching a failure
+/// pins an outage for 24h, while never caching a legitimately-empty day turns every repeat
+/// request into a 30-league fan-out.
+func buildESPNScheduleForDate(dateInt: Int, client: some Client) async -> (schedule: LiveScore, failures: Int) {
     let targets = Leagues.allCases.filter { $0.espnSlug != nil }
     var bySport: [SportType: [Game]] = [:]
+    var failures = 0
     let maxConcurrent = 6
 
     await withTaskGroup(of: (Leagues, Scoreboard?).self) { group in
@@ -1330,6 +1342,8 @@ func buildESPNScheduleForDate(dateInt: Int, client: some Client) async -> LiveSc
         while let (league, scoreboard) = await group.next() {
             if let scoreboard, let event = LiveEvent(events: scoreboard, league: league) {
                 bySport[SportType(league: league), default: []].append(contentsOf: event.events)
+            } else if scoreboard == nil {
+                failures += 1
             }
             addNext()
         }
@@ -1340,7 +1354,7 @@ func buildESPNScheduleForDate(dateInt: Int, client: some Client) async -> LiveSc
         return LiveEvent(events: games)
     }
 
-    return LiveScore(
+    return (LiveScore(
         nba: merged(.basketball),
         mlb: merged(.mlb),
         soccer: merged(.soccer),
@@ -1349,5 +1363,5 @@ func buildESPNScheduleForDate(dateInt: Int, client: some Client) async -> LiveSc
         golf: merged(.golf),
         tennis: merged(.tennis),
         racing: merged(.racing)
-    )
+    ), failures)
 }
