@@ -16,9 +16,14 @@
 //    - Key lost:       (restored-from-backup etc.) Keychain entry survives
 //                      but attestation calls fail — detect, wipe, redo
 //
-//  Simulator & dev builds skip attestation and use a debug token minted
-//  by the server with a separate debug secret. That secret MUST NOT be
-//  accepted by the prod server.
+//  Simulator & dev builds skip attestation and ask the server for a dev
+//  token instead. That route (POST /attest/dev) is only *registered* off
+//  production — on prod it 404s, so a simulator build pointed at prod simply
+//  gets no JWT and falls back to the shared API key.
+//
+//  Failing to obtain a token is never fatal: NetworkHandler treats the Bearer
+//  header as best-effort while the server still accepts the shared API key
+//  (see EitherAuthMiddleware server-side, and docs/app-attest-plan.md).
 //
 
 #if os(iOS)
@@ -74,8 +79,10 @@ actor Attestation {
         return try await fetchDevToken()
         #else
         guard DCAppAttestService.shared.isSupported else {
-            // Very old device / corporate MDM. Fall back to dev token; server
-            // will decide whether to accept based on env.
+            // Very old device, or an MDM profile that blocks App Attest. Try the
+            // dev route — which succeeds on a dev server and 404s on prod. The
+            // throw is expected there and leaves the caller on the shared API
+            // key rather than breaking the app for this small tail of devices.
             return try await fetchDevToken()
         }
 
@@ -102,7 +109,11 @@ actor Attestation {
         let challenge = try await requestChallenge()
 
         let keyID = try await service.generateKey()
-        let clientHash = Data(SHA256.hash(data: Data(challenge.challenge.utf8) + Data(base64Encoded: keyID)!))
+        // generateKey() returns base64; the server recomputes this exact hash
+        // (challenge bytes || raw keyID bytes) when verifying, so the two must
+        // not drift.
+        guard let keyIDData = Data(base64Encoded: keyID) else { throw AttestError.transport }
+        let clientHash = Data(SHA256.hash(data: Data(challenge.challenge.utf8) + keyIDData))
         let attestation = try await service.attestKey(keyID, clientDataHash: clientHash)
 
         let body = AttestVerifyBody(
@@ -152,9 +163,20 @@ actor Attestation {
     private func postJSON<B: Encodable, R: Decodable>(path: String, body: B) async throws -> R {
         // NOTE: base URL selection lives in NetworkHandler. We reach through it
         // rather than duplicating the Bonjour/Tailscale/prod switching logic.
-        var req = URLRequest(url: NetworkHandler.baseURL().appendingPathComponent(path))
+        // Attest routes sit at the server root — NOT under the /v2025 prefix that
+        // baseURL() returns — because a client calls them before it has any
+        // versioned session at all.
+        guard let url = URL(string: NetworkHandler.rootURL().http + path) else {
+            throw AttestError.transport
+        }
+        var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // The attest routes are rate-limited but otherwise open (they must be —
+        // they are how a client earns a token). /attest/dev additionally sits
+        // behind the shared key, so send it on all of them.
+        req.setValue(Constants.apiKey, forHTTPHeaderField: "X-API-Key")
+        req.timeoutInterval = 15
         req.httpBody = try JSONEncoder().encode(body)
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw AttestError.transport }
@@ -164,12 +186,11 @@ actor Attestation {
     }
 
     private func fetchDevToken() async throws -> String {
-        // Separate endpoint gated to non-prod. Returns a short-lived JWT signed
-        // with a debug secret the prod server rejects. Keeps simulator + unit
-        // tests working without fake-attesting.
-        struct DevResp: Decodable { let token: String; let expiresIn: Int }
-        let resp: DevResp = try await postJSON(path: "/attest/dev", body: EmptyBody())
-        cachedJWT = CachedJWT(token: resp.token, expiresAt: Date().addingTimeInterval(TimeInterval(resp.expiresIn)))
+        // Non-production only — the route is not registered on the prod server,
+        // so this throws .server(404) there. Keeps the simulator and unit tests
+        // working without fake-attesting.
+        let resp: TokenResponse = try await postJSON(path: "/attest/dev", body: EmptyBody())
+        cacheToken(resp)
         return resp.token
     }
 

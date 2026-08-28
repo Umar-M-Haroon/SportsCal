@@ -43,6 +43,44 @@ struct JWTMiddleware: AsyncMiddleware {
 
 extension SportsCalJWT: Authenticatable {}
 
+// MARK: - Dual auth (rollout phase 1)
+
+/// Accepts a request that carries EITHER a valid App Attest JWT OR a valid
+/// shared `X-API-Key`.
+///
+/// This exists purely for the migration window. The server cannot require a JWT
+/// until effectively every installed client sends one, and clients in the field
+/// today only know about the shared key. So 3.2 ships sending both, this
+/// middleware accepts either, and once adoption is high enough the write routes
+/// swap to plain `JWTMiddleware` (see docs/app-attest-plan.md, phases 2-3).
+///
+/// It is strictly no weaker than `APIKeyMiddleware` alone, which is what these
+/// routes used before.
+struct EitherAuthMiddleware: AsyncMiddleware {
+    private let apiKey = APIKeyMiddleware()
+
+    func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
+        // Authenticate the bearer token *inline* rather than delegating to
+        // JWTMiddleware. Delegating would put `next` inside the do/catch, so a
+        // perfectly ordinary downstream error would look like an auth failure
+        // and the handler would run a second time via the API-key path.
+        if let token = request.headers.bearerAuthorization?.token {
+            do {
+                let payload = try request.jwt.verify(token, as: SportsCalJWT.self)
+                request.auth.login(payload)
+                return try await next.respond(to: request)
+            } catch {
+                // A malformed/expired bearer token is not fatal while the shared
+                // key is still valid — fall through so a client whose attestation
+                // broke mid-session keeps working. Logged so we can watch the
+                // failure rate during rollout before flipping to JWT-only.
+                request.logger.info("bearer token rejected, falling back to API key")
+            }
+        }
+        return try await apiKey.respond(to: request, chainingTo: next)
+    }
+}
+
 // MARK: - DTOs
 
 struct ChallengeResponse: Content {
@@ -72,11 +110,41 @@ struct TokenResponse: Content {
 /// Exposes: POST /attest/challenge, POST /attest/verify, POST /attest/refresh.
 /// Register at the top level — NOT behind JWTMiddleware (obviously).
 struct AttestController: RouteCollection {
+
+    /// Whether to expose `POST /attest/dev`. False in production — the route is
+    /// not merely blocked there, it is never registered.
+    let allowDevTokens: Bool
+
+    init(allowDevTokens: Bool) {
+        self.allowDevTokens = allowDevTokens
+    }
+
     func boot(routes: RoutesBuilder) throws {
-        let grp = routes.grouped("attest")
+        // Attestation is unauthenticated by necessity (it is how a client earns
+        // credentials), so it carries its own rate limit. The ceiling is low:
+        // a healthy client attests once per install and refreshes every ~15 min.
+        let grp = routes
+            .grouped(RateLimitMiddleware(limit: 30, windowSeconds: 60, keyPrefix: "rl:attest", ipCeiling: 300))
+            .grouped("attest")
         grp.post("challenge", use: challenge)
         grp.post("verify",    use: verify)
         grp.post("refresh",   use: refresh)
+
+        if allowDevTokens {
+            // Simulator and unit tests can't attest. This mints an equivalent
+            // JWT with plt:"dev" so the rest of the stack behaves identically.
+            // Still behind the shared API key so it isn't an open token faucet
+            // on a reachable dev host.
+            grp.grouped(APIKeyMiddleware()).post("dev", use: devToken)
+        }
+    }
+
+    /// Non-production only. Mints a `plt: "dev"` token not bound to any Secure
+    /// Enclave key. Handlers that care about provenance can check `plt`.
+    func devToken(_ req: Request) async throws -> TokenResponse {
+        guard allowDevTokens else { throw Abort(.notFound) }
+        req.logger.notice("issued a dev attestation token — this must never happen in production")
+        return try mintToken(keyID: "dev-\(UUID().uuidString)", platform: "dev", on: req)
     }
 
     /// Issues a random 32-byte challenge and stores it in Redis with 5min TTL.
@@ -118,7 +186,53 @@ struct AttestController: RouteCollection {
             "createdAt": "\(Int(Date().timeIntervalSince1970))"
         ], in: RedisKey("attest:key:\(body.keyID)")).get()
 
+        recordFraudRisk(attestation: body.attestation, keyID: body.keyID, on: req)
+
         return try mintToken(keyID: body.keyID, platform: "ios", on: req)
+    }
+
+    /// Exchanges the attestation's receipt with Apple for the device's risk
+    /// metric, and stores it beside the key.
+    ///
+    /// Detached on purpose: this is a round-trip to Apple, and attestation must
+    /// not block on it — a slow or unreachable Apple server would otherwise
+    /// stall a user's first launch. Uses `application.client` rather than
+    /// `req.client` because the work outlives the request. Every failure is
+    /// logged and swallowed; the metric is a signal, not a gate.
+    private func recordFraudRisk(attestation: String, keyID: String, on req: Request) {
+        guard let deviceCheck = req.application.deviceCheck else { return }
+        guard let attestationData = Data(base64Encoded: attestation),
+              let receipt = AppAttestVerifier.receipt(fromAttestation: attestationData) else {
+            req.logger.debug("attestation carried no receipt — skipping fraud-risk lookup")
+            return
+        }
+
+        let app = req.application
+        let logger = req.logger
+        Task.detached {
+            do {
+                guard let result = try await deviceCheck.fetchReceipt(
+                    receipt, on: app.client, logger: logger
+                ) else { return }   // 304: nothing new to store
+
+                var fields: [String: String] = [
+                    "receipt": result.raw.base64EncodedString(),
+                    "receiptFetchedAt": "\(Int(Date().timeIntervalSince1970))"
+                ]
+                if let metric = result.parsed.riskMetric { fields["riskMetric"] = "\(metric)" }
+                if let notBefore = result.parsed.notBefore {
+                    fields["receiptNotBefore"] = "\(Int(notBefore.timeIntervalSince1970))"
+                }
+                if let expires = result.parsed.expirationTime {
+                    fields["receiptExpiresAt"] = "\(Int(expires.timeIntervalSince1970))"
+                }
+                try await app.redis.hmset(fields, in: RedisKey("attest:key:\(keyID)")).get()
+
+                logger.info("App Attest risk metric for \(keyID.prefix(8))…: \(result.parsed.riskMetric.map(String.init) ?? "n/a") (\(result.parsed.receiptType))")
+            } catch {
+                logger.warning("fraud-risk lookup failed (non-fatal): \(error)")
+            }
+        }
     }
 
     /// Assertion-based refresh: client proves possession of the Secure Enclave
@@ -174,45 +288,83 @@ struct AttestController: RouteCollection {
     }
 }
 
-// MARK: - Apple verification (STUBS — replace before shipping)
+// MARK: - Application configuration
 
-/// Verifies an App Attest attestation blob per Apple's spec.
+extension Application {
+    private struct AppAttestVerifierKey: StorageKey { typealias Value = AppAttestVerifier }
+
+    /// The configured App Attest verifier. Set once in `configure.swift`.
+    /// Absent means attestation was never configured — every attest route then
+    /// fails closed rather than guessing at an app ID.
+    var appAttest: AppAttestVerifier? {
+        get { storage[AppAttestVerifierKey.self] }
+        set { storage[AppAttestVerifierKey.self] = newValue }
+    }
+}
+
+extension Application {
+    private struct DeviceCheckClientKey: StorageKey { typealias Value = DeviceCheckClient }
+
+    /// Optional — only set when a DeviceCheck key is configured. Its absence
+    /// disables fraud-risk metrics and nothing else.
+    var deviceCheck: DeviceCheckClient? {
+        get { storage[DeviceCheckClientKey.self] }
+        set { storage[DeviceCheckClientKey.self] = newValue }
+    }
+}
+
+extension Request {
+    var appAttest: AppAttestVerifier {
+        get throws {
+            guard let verifier = application.appAttest else {
+                logger.error("App Attest verifier is not configured — check APP_ATTEST_APP_ID")
+                throw Abort(.serviceUnavailable, reason: "attestation not configured")
+            }
+            return verifier
+        }
+    }
+}
+// MARK: - Apple verification
+
+/// Verifies a full App Attest attestation and returns the attested public key
+/// (X9.63) to store against the keyID.
 ///
-/// TODO: implement. Required steps (see
-/// https://developer.apple.com/documentation/devicecheck/validating_apps_that_connect_to_your_server):
-///   1. Base64-decode attestation → CBOR-decode into `{ fmt, attStmt, authData }`
-///   2. attStmt contains `x5c` (cert chain) + `receipt`. Verify chain terminates
-///      at Apple App Attestation Root CA (pin the PEM in /Resources).
-///   3. Compute clientDataHash = SHA256(challenge.utf8 + keyID-decoded).
-///   4. Compute nonce = SHA256(authData || clientDataHash). Assert it matches
-///      the nonce extension in the leaf cert (OID 1.2.840.113635.100.8.2).
-///   5. Extract public key from authData. Assert SHA256(pubKey) == keyID bytes.
-///   6. Parse authData RP ID: must equal SHA256("<TEAM_ID>.com.KomodoLLC.SportsCal").
-///   7. Assert authData counter == 0, aaguid == "appattest\0\0\0\0\0\0\0" (prod)
-///      or "appattestdevelop" (dev — gate by app.environment).
-///
-/// Until this is real, the function refuses everything. That's deliberate —
-/// failing closed is the only safe default for an unverified attestation.
+/// The crypto lives in `AppAttestVerifier`; this wrapper only bridges request
+/// context and maps verification failures onto HTTP. Failures are logged with
+/// the specific reason but reported to the client as a flat 401 — telling a
+/// forger *which* check they failed is free oracle access.
 private func verifyAppleAttestation(
     attestation: String,
     keyID: String,
     challenge: String,
     on req: Request
 ) async throws -> Data {
-    req.logger.error("⚠️ verifyAppleAttestation is a stub — refusing. See file-level TODO.")
-    throw Abort(.notImplemented, reason: "attestation verification not yet implemented")
+    guard let attestationData = Data(base64Encoded: attestation),
+          let keyIDData = Data(base64Encoded: keyID) else {
+        throw Abort(.badRequest, reason: "malformed attestation payload")
+    }
+
+    // Must match the client byte-for-byte (Attestation.swift, performFullAttestation):
+    // SHA256(challenge-as-UTF8 || raw keyID bytes). The challenge is the one the
+    // server issued and just consumed — never a value from the request body.
+    let clientDataHash = Data(SHA256.hash(data: Data(challenge.utf8) + keyIDData))
+
+    do {
+        return try await req.appAttest.verifyAttestation(
+            attestation: attestationData,
+            keyID: keyIDData,
+            clientDataHash: clientDataHash
+        )
+    } catch let error as AppAttestError {
+        req.logger.warning("attestation rejected: \(error.description)")
+        throw Abort(.unauthorized, reason: "attestation failed")
+    } catch let error as CBORError {
+        req.logger.warning("attestation rejected: \(error.description)")
+        throw Abort(.badRequest, reason: "malformed attestation payload")
+    }
 }
 
-/// Verifies a DCAppAttestService assertion.
-///
-/// TODO: implement.
-///   1. Base64-decode assertion → CBOR `{ signature, authenticatorData }`.
-///   2. clientDataHash = SHA256(challenge.utf8).
-///   3. nonce = SHA256(authenticatorData || clientDataHash).
-///   4. Verify ECDSA-P256 signature(nonce) using stored public key.
-///   5. Read `counter` (bytes 33..<37, big-endian UInt32) from authenticatorData.
-///      Assert counter > previousCounter. Return new counter.
-///   6. Assert authenticatorData RP ID hash matches our app.
+/// Verifies an assertion and returns the new signature counter to persist.
 private func verifyAppleAssertion(
     assertion: String,
     publicKey: Data,
@@ -220,6 +372,28 @@ private func verifyAppleAssertion(
     previousCounter: UInt32,
     on req: Request
 ) async throws -> UInt32 {
-    req.logger.error("⚠️ verifyAppleAssertion is a stub — refusing. See file-level TODO.")
-    throw Abort(.notImplemented, reason: "assertion verification not yet implemented")
+    guard let assertionData = Data(base64Encoded: assertion) else {
+        throw Abort(.badRequest, reason: "malformed assertion payload")
+    }
+
+    // Assertions bind only the challenge — no keyID (Attestation.swift,
+    // refreshViaAssertion).
+    let clientDataHash = Data(SHA256.hash(data: Data(challenge.utf8)))
+
+    do {
+        return try await req.appAttest.verifyAssertion(
+            assertion: assertionData,
+            publicKey: publicKey,
+            clientDataHash: clientDataHash,
+            previousCounter: previousCounter
+        )
+    } catch let error as AppAttestError {
+        req.logger.warning("assertion rejected: \(error.description)")
+        // A counter that failed to advance means a replay, not a lost key —
+        // don't send the client into a pointless re-attest loop for it.
+        throw Abort(.unauthorized, reason: "assertion failed")
+    } catch let error as CBORError {
+        req.logger.warning("assertion rejected: \(error.description)")
+        throw Abort(.badRequest, reason: "malformed assertion payload")
+    }
 }

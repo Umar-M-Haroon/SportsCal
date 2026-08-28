@@ -14,9 +14,13 @@ services:
       REDIS_PORT: "6379"
       PBP_ARCHIVE_PATH: /app/pbp_data/pbp_archive.sqlite
       APNS_KEY_PATH: /app/AuthKey.p8
+      DEVICECHECK_KEY_PATH: /app/AuthKey_DeviceCheck.p8
     volumes:
       # Mount APNS key file (place your .p8 file next to this compose file)
       - ./AuthKey.p8:/app/AuthKey.p8:ro
+      # DeviceCheck key, for App Attest fraud-risk metrics. Optional — if this
+      # file is absent the server logs a warning and skips the metric.
+      - ./AuthKey_DeviceCheck.p8:/app/AuthKey_DeviceCheck.p8:ro
       # Durable SQLite archive for finalized play-by-play data.
       - pbp_data:/app/pbp_data
     networks:

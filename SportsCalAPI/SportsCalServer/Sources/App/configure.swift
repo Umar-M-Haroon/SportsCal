@@ -4,6 +4,7 @@ import Queues
 import QueuesRedisDriver
 import VaporAPNS
 import Crypto
+import JWT
 
 struct APNSConfiguredKey: StorageKey {
     typealias Value = Bool
@@ -49,6 +50,69 @@ public func configure(_ app: Application) async throws {
         app.logger.warning("⚠️ APNS not configured — APNSkeyID or TeamID environment variables missing")
     }
         
+    // MARK: App Attest → JWT session tokens
+    //
+    // Two independent pieces:
+    //   1. The signing key for the session JWTs we mint after a successful
+    //      attestation. HS256 — one server both mints and verifies, so a shared
+    //      secret is sufficient and there is no public key to distribute.
+    //   2. The attestation verifier itself, which needs the app's relying-party
+    //      ID (`<TEAM_ID>.<BUNDLE_ID>`).
+    //
+    // Both fail closed. Without JWT_SIGNING_KEY the attest routes can't mint, and
+    // without APP_ATTEST_APP_ID they can't verify — in either case clients fall
+    // back to the shared API key under EitherAuthMiddleware, so a missing env var
+    // degrades attestation rather than taking the API down.
+    if let signingKey = Environment.get("JWT_SIGNING_KEY"), !signingKey.isEmpty {
+        // A short secret would make the tokens brute-forceable offline; refuse
+        // rather than quietly minting weak ones.
+        guard signingKey.utf8.count >= 32 else {
+            fatalError("JWT_SIGNING_KEY must be at least 32 bytes — generate with `openssl rand -base64 48`")
+        }
+        app.jwt.signers.use(.hs256(key: signingKey))
+        app.logger.info("JWT signer configured (HS256)")
+    } else {
+        app.logger.warning("⚠️ JWT_SIGNING_KEY not set — /attest routes cannot mint tokens; clients stay on the shared API key")
+    }
+
+    if let appAttestAppID = Environment.get("APP_ATTEST_APP_ID"), !appAttestAppID.isEmpty {
+        // Development attestations come from any Xcode-signed build of the app,
+        // which is a much weaker claim than a distribution build. Accept them
+        // only off production.
+        let allowDevelopment = app.environment != .production
+        app.appAttest = AppAttestVerifier(
+            appID: appAttestAppID,
+            allowDevelopmentEnvironment: allowDevelopment
+        )
+        app.logger.info("App Attest verifier configured for \(appAttestAppID) (development attestations: \(allowDevelopment ? "accepted" : "rejected"))")
+    } else {
+        app.logger.warning("⚠️ APP_ATTEST_APP_ID not set — attestation verification disabled")
+    }
+
+    // DeviceCheck key — optional, and used only for App Attest fraud-risk
+    // metrics (how many attested keys a device has minted in 30 days). Nothing
+    // about attestation verification depends on it; without it we simply don't
+    // collect the metric. Reuses TeamID from the APNS config above.
+    if let deviceCheckKeyID = Environment.get("DEVICECHECK_KEY_ID"),
+       let teamID = Environment.get("TeamID") {
+        let keyPath = Environment.get("DEVICECHECK_KEY_PATH")
+            ?? "\(app.directory.workingDirectory)AuthKey_\(deviceCheckKeyID).p8"
+        do {
+            let pem = try String(contentsOfFile: keyPath, encoding: .utf8)
+            app.deviceCheck = DeviceCheckClient(
+                keyID: deviceCheckKeyID,
+                teamID: teamID,
+                privateKeyPEM: pem,
+                // A receipt is bound to the environment that produced it, so
+                // this must track the attestation environment, not the host.
+                useProductionEnvironment: app.environment == .production
+            )
+            app.logger.info("DeviceCheck configured — App Attest fraud-risk metrics enabled")
+        } catch {
+            app.logger.warning("⚠️ DeviceCheck key not readable at \(keyPath) — fraud-risk metrics disabled: \(error)")
+        }
+    }
+
     // Warn if TheSportsDB API key is not configured
     if Environment.get("SportsDB_API_KEY") == nil {
         app.logger.warning("⚠️ SportsDB_API_KEY not set — TheSportsDB v2 API calls will fail (400)")

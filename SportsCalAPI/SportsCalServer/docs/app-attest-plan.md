@@ -4,108 +4,119 @@ Goal: replace the single extractable shared `X-API-Key` with per-device
 attested auth. A real Secure Enclave key on a real install becomes the only
 thing that can mint a short-lived JWT; write routes require that JWT.
 
-Status going in: the scaffolding is ~80% built. This plan fills the gaps and,
-critically, sequences the rollout so **existing users are never locked out**.
+**Status: Phase 0 and Phase 1 are implemented.** Attestation and assertion
+verification are real, the routes are live, and the 3.2 client sends a bearer
+token alongside the shared key. Phases 2–3 (requiring the JWT) are deliberately
+not started — they can only begin once 3.2 adoption is high enough.
 
-## What already exists (do not rewrite)
+## What is implemented
 
-**Server** (`Sources/App/AttestMiddleware.swift`)
-- `SportsCalJWT` payload, `JWTMiddleware` (bearer verify), `AttestController`
-  with `/attest/challenge`, `/attest/verify`, `/attest/refresh`, challenge
-  Redis storage (single-use, 5-min TTL), keyID→publicKey+counter storage,
-  `mintToken` (15-min JWT).
-- **Stubbed:** `verifyAppleAttestation(...)` and `verifyAppleAssertion(...)`
-  both `throw .notImplemented`.
+**Server**
+- `Sources/App/Attest/CBOR.swift` — strict, hand-rolled CBOR decoder for the
+  App Attest subset. Rejects indefinite lengths, tags, floats, duplicate map
+  keys, trailing bytes, and deep nesting. 19 unit tests.
+- `Sources/App/Attest/AppAttestVerifier.swift` — the real crypto:
+  - attestation: CBOR decode → `fmt == apple-appattest` → X.509 chain validated
+    to Apple's root → `nonce == SHA256(authData || clientDataHash)` against the
+    leaf's `1.2.840.113635.100.8.2` extension → `SHA256(pubKey) == keyID` →
+    rpIdHash → counter 0 → AAGUID → credentialId. Returns the attested key.
+  - assertion: ECDSA-P256 over `SHA256(authenticatorData || clientDataHash)`,
+    rpIdHash, and a strictly-increasing counter.
+- `Sources/App/Attest/AppleAppAttestRoot.swift` — Apple App Attestation Root CA
+  pinned as source (fingerprint asserted in tests).
+- `AttestMiddleware.swift` — `AttestController` (`/attest/challenge|verify|
+  refresh`, plus `/attest/dev` off production), rate-limited at 30/min;
+  `EitherAuthMiddleware` (JWT **or** API key); `app.appAttest` configuration.
+- `configure.swift` — HS256 signer from `JWT_SIGNING_KEY` (min 32 bytes),
+  verifier from `APP_ATTEST_APP_ID`. Both warn-and-degrade if unset.
+- `routes.swift` — `AttestController` registered at top level; `v2025` and
+  legacy groups moved from `APIKeyMiddleware` to `EitherAuthMiddleware`.
+- `Attest/AppAttestReceipt.swift` + `Attest/DeviceCheckClient.swift` — fraud-risk
+  metrics. After a successful attestation the receipt is exchanged with Apple's
+  attestationData endpoint for one carrying field 17, the count of attested keys
+  that device produced in 30 days; it lands in `attest:key:<keyID>` alongside
+  the receipt, its not-before and expiry. Runs detached — Apple being slow or
+  down must never block a user's first launch — and every failure is logged and
+  swallowed. Currently recorded and logged only, not enforced.
 
-**iOS** (`SportsCal/Shared/Attestation.swift`)
-- `Attestation` actor: `getValidJWT()` (serialized refresh via `inFlight`),
-  full-attest path, assertion-refresh path, Keychain storage of keyID+JWT,
-  simulator/unsupported fallback to `fetchDevToken()`.
-- Wire types match the server DTOs.
+**iOS**
+- `Attestation.swift` added to the SportsCal (iOS) and SportsWidgetExtension
+  targets (it was on disk but in no target, so it had never compiled).
+- `NetworkHandler.authenticatedRequest` is now `async` and stamps
+  `Authorization: Bearer <jwt>` alongside `X-API-Key`, main app only.
+- `com.apple.developer.devicecheck.appattest-environment` added to both
+  entitlements files (`development` / `production`).
 
-## Gaps to close
+## Decisions taken
 
-### Server
-1. **Implement `verifyAppleAttestation`** — the load-bearing crypto. Steps
-   (Apple's "Validating Apps That Connect to Your Server"):
-   1. base64-decode → CBOR-decode `{ fmt, attStmt, authData }` (`fmt` must be
-      `apple-appattest`).
-   2. `attStmt.x5c` = cert chain. Verify it chains to **Apple App Attestation
-      Root CA** (pin the root PEM under `Sources/App/Resources/`; load at boot).
-   3. `clientDataHash = SHA256(challenge.utf8 || keyID-decoded)` — must match
-      exactly how the client computes it (`Attestation.swift:105`).
-   4. `nonce = SHA256(authData || clientDataHash)`; assert it equals the leaf
-      cert's nonce extension (OID `1.2.840.113635.100.8.2`, a DER-wrapped octet
-      string).
-   5. Extract the P-256 public key from `authData`'s credential data; assert
-      `SHA256(pubKey) == keyID bytes`.
-   6. `rpIdHash` (first 32 bytes of `authData`) must equal
-      `SHA256("9GDU5ZNHX7.com.KomodoLLC.SportsCal")`.
-   7. counter (bytes 33..37) == 0; `aaguid` == `appattest␀␀␀␀␀␀␀` in prod or
-      `appattestdevelop` in dev — gate on `app.environment`.
-   - Return the extracted public key (stored for future assertions).
-2. **Implement `verifyAppleAssertion`** — CBOR `{ signature, authenticatorData }`;
-   `nonce = SHA256(authenticatorData || SHA256(challenge.utf8))`; verify
-   ECDSA-P256 signature over `nonce` with the stored pubkey; assert
-   `counter > previousCounter` (replay guard); check `rpIdHash`. Return new counter.
-3. **Configure a JWT signer** in `configure.swift`: `app.jwt.signers.use(.hs256(key: env JWT_SIGNING_KEY))` (or ES256 with a keypair). Add `JWT_SIGNING_KEY` to `.env`/prod. Without this, `req.jwt.sign/verify` throws.
-4. **Register `AttestController`** at top level in `routes.swift` (NOT behind
-   `APIKeyMiddleware`/`JWTMiddleware`).
-5. **Add `POST /attest/dev`** (referenced by the client's `fetchDevToken()` but
-   missing). Gate to `app.environment != .production`; mint a JWT with
-   `plt: "dev"` signed by the same signer. In prod, return 404/403.
-6. **CBOR + X.509**: need a CBOR decoder and cert-chain verification. Evaluate
-   `PotentCodables`/`SwiftCBOR` for CBOR and `swift-certificates`
-   (`X509`)/`swift-asn1` for the chain + nonce-extension parsing. Add to
-   `Package.swift`. (swift-certificates is the Apple-maintained option.)
-7. **Watch/proxy path**: watch app has no App Attest. Decide: the iOS app mints
-   a `plt: "ios-proxy-watch"` token the watch reuses, or the watch stays on the
-   shared key. Simplest for 3.2: watch keeps the shared key, iOS moves to JWT.
+- **Signer:** HS256. One server both mints and verifies; no public key to
+  distribute.
+- **No-App-Attest devices** (old hardware, MDM, simulator against prod): fall
+  back to the shared API key. The security claim for 3.2 is "most traffic is
+  attested", not "all traffic is".
+- **Watch:** stays on the shared API key. watchOS has no `DCAppAttestService`.
+- **Widgets:** stay on the shared API key. An extension has a different bundle
+  identifier, so a token minted there would fail the server's rpId check.
+- **CBOR:** hand-rolled rather than a third-party package — it parses
+  unauthenticated bytes, so a readable ~150 lines beats a dependency.
 
-### iOS
-8. **Wire `getValidJWT()` into `NetworkHandler.authenticatedRequest`**: add
-   `Authorization: Bearer <jwt>` alongside (initially) the existing `X-API-Key`.
-   Keep the actor's single-flight refresh. Handle a 401 by resetting attest
-   state (`Attestation.shared.reset()`) and retrying once.
-9. **Failure fallbacks**: unsupported device / MDM / attest error must degrade
-   gracefully (today: dev token — which prod will reject). Decide the prod
-   behavior for the rare no-App-Attest device (allow via shared key? read-only?).
-10. **WebSocket** (`/ws`) auth: currently unauthenticated read stream — decide
-    whether it needs the JWT too (probably yes for parity, via a query param or
-    first-frame auth since URLSession WS can't easily set Authorization).
+## Deployment prerequisites
+
+**All of these are now done** (2026-08-27) — recorded here because the server
+degrades quietly if any regresses. Check the boot logs after deploying.
+
+1. `JWT_SIGNING_KEY` in the prod environment. Generate with
+   `openssl rand -base64 48`. Absent → attest routes cannot mint, clients stay
+   on the shared key.
+2. `APP_ATTEST_APP_ID=9GDU5ZNHX7.com.KomodoLLC.SportsCal`. Absent →
+   verification disabled entirely.
+3. `DEVICECHECK_KEY_ID` plus the key mounted at `DEVICECHECK_KEY_PATH`
+   (`docker-compose.yml` mounts `./AuthKey_DeviceCheck.p8`). Optional — absent,
+   only the fraud-risk metric is lost.
+4. **App Attest capability on the App ID.** Not settable through the App Store
+   Connect API — `APP_ATTEST` is absent from the public `capabilityType` enum.
+   Xcode's automatic signing registers it: a signed build
+   (`-allowProvisioningUpdates`) adds the capability and regenerates the profile.
+
+## Remaining work
+
+- **401 handling (blocks phase 2).** `authenticatedRequest` treats the bearer
+  token as best-effort and there is no reset-and-retry on 401. That is correct
+  while dual auth is on, and must be built before any route requires JWT.
+- **Two client paths are still shared-key only** (`NetworkHandler.apiKeyRequest`),
+  because they are built synchronously and can't await a token:
+  - the `/ws` WebSocket handshake — URLSession's WS client can't easily carry an
+    `Authorization` header anyway, so this needs a query param or first-frame
+    auth;
+  - `pushToStartRegistrationRequest`, which is a **write** route and therefore
+    has to be moved onto the async builder before phase 2 flips `rl:write` to
+    JWT-only.
+- **Refresh job for the risk metric.** The metric is fetched once, at
+  attestation. Apple's receipts expire (field 21) and can only be refreshed
+  after their not-before date (field 19); a periodic job should walk
+  `attest:key:*` and refresh those in-window. Without it the metric ages out
+  and stops updating.
+- **Nothing acts on the metric yet.** It is logged and stored. Apple's guidance
+  is to tune a threshold against observed traffic before enforcing, so decide
+  what a "too many keys" response should be once there is baseline data.
+- **Device testing.** The verifiers are tested against synthesized vectors
+  anchored at a test root (Apple publishes no sample vectors, and a real blob
+  needs physical hardware). Still to confirm on TestFlight: fresh install →
+  attest → refresh, restore-from-backup → `invalidKey` → re-attest, and that
+  `/attest/dev` 404s in production.
 
 ## Rollout sequencing — the existing-user constraint
 
-The server **cannot require JWT on a route until every shipped client sends one**,
-or old apps break. Staged rollout:
+The server cannot require JWT on a route until every shipped client sends one.
 
-- **Phase 0 (this branch):** implement + unit-test both verifiers against Apple
-  sample vectors. Register controller + signer. Routes still gated by
-  `APIKeyMiddleware` only. `/attest/*` live but unused by prod clients.
-- **Phase 1 (3.2 ships):** the 3.2 app sends BOTH `X-API-Key` and `Bearer`.
-  Server accepts either — add JWT as an *alternative*, not a requirement (an
-  `EitherAuthMiddleware`: pass if valid JWT OR valid API key). Watch keeps API key.
-- **Phase 2 (after 3.2 adoption ≥ ~95%, weeks later):** flip **write routes**
-  (`rl:write` group) to require JWT only. Reads stay dual-auth longer.
-- **Phase 3:** rotate/retire the shared `X-API-Key` entirely for iOS; keep it
-  only for the watch (or migrate watch to proxy tokens).
+- **Phase 0 — done.** Verifiers implemented and unit-tested; controller and
+  signer registered.
+- **Phase 1 — done (ships with 3.2).** Client sends both credentials; server
+  accepts either via `EitherAuthMiddleware`.
+- **Phase 2 — after 3.2 adoption ≥ ~95%.** Flip the `rl:write` group to
+  `JWTMiddleware`. Requires the 401 retry above. Reads stay dual-auth longer.
+- **Phase 3.** Retire the shared key for iOS; keep it for the watch, or migrate
+  the watch to proxy tokens.
 
-Ties into the multi-hash key rotation already landed (see
-`project_security_audit_2026_07`): the shared key stays valid throughout, so
-Phases 1–2 are non-breaking.
-
-## Testing
-- Server unit tests with Apple's published attestation/assertion sample vectors
-  (deterministic — no device needed). Test: good attestation passes, tampered
-  nonce/counter/rpId/cert-chain each fail closed, replayed counter rejected,
-  expired challenge rejected.
-- Device test on TestFlight: fresh install → attest → refresh cycle; restore-
-  from-backup → `invalidKey` → re-attest path.
-- Confirm `/attest/dev` is unreachable in prod.
-
-## Open decisions for Umar
-- Signer: HS256 (one shared secret, simplest) vs ES256 (keypair, better if
-  multiple verifiers). HS256 is fine for a single server.
-- Watch auth: proxy token vs keep shared key (recommend: keep shared key for 3.2).
-- No-App-Attest device fallback policy in prod.
-- CBOR/X.509 library choice (recommend swift-certificates + a CBOR lib).
+Ties into the multi-hash key rotation (see `project_security_audit_2026_07`):
+the shared key stays valid throughout, so phases 1–2 are non-breaking.

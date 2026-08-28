@@ -290,10 +290,41 @@ struct NetworkHandler {
         #endif
     }
 
-    /// Build a URLRequest with the API key header attached.
-    private static func authenticatedRequest(url: URL) -> URLRequest {
+    /// App Attest attests the *main app's* App ID. Extensions (widgets) run under
+    /// a different bundle identifier, so a token minted there would fail the
+    /// server's relying-party check — they stay on the shared API key.
+    private static let isMainApp = Bundle.main.bundleIdentifier == "com.KomodoLLC.SportsCal"
+
+    /// Build a URLRequest with the API key header attached, plus an App Attest
+    /// bearer token when one is available.
+    ///
+    /// The bearer token is deliberately best-effort. During the 3.2 rollout the
+    /// server accepts either credential (EitherAuthMiddleware), so a device that
+    /// can't attest — simulator against prod, old hardware, MDM-restricted,
+    /// Apple's attestation service having a bad day — keeps working on the
+    /// shared key instead of losing access. Once adoption is high enough to
+    /// require JWT on write routes, this has to become a hard failure with a
+    /// 401 retry; see docs/app-attest-plan.md phase 2.
+    private static func authenticatedRequest(url: URL) async -> URLRequest {
+        var request = apiKeyRequest(url: url)
+        #if os(iOS)
+        if isMainApp, let jwt = try? await Attestation.shared.getValidJWT() {
+            request.setValue("Bearer \(jwt)", forHTTPHeaderField: "Authorization")
+        }
+        #endif
+        return request
+    }
+
+    /// Shared-key-only request, for the callers that can't await a token: the
+    /// WebSocket handshake (synchronous by nature) and the push-to-start
+    /// request builder (constructed on a synchronous path and asserted on in
+    /// tests). Both are covered by EitherAuthMiddleware server-side.
+    private static func apiKeyRequest(url: URL) -> URLRequest {
         var request = URLRequest(url: url)
         request.setValue(Constants.apiKey, forHTTPHeaderField: "X-API-Key")
+        // Bound the fetch: a silently-stalled connection must fail (and surface the
+        // stale-data banner / retry path) rather than pin the refresh task forever.
+        request.timeoutInterval = 30
         return request
     }
 
@@ -357,7 +388,7 @@ struct NetworkHandler {
     static func handleCall() async throws -> LiveScore {
         let urlString = "\(baseURL())/schedules"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -376,7 +407,7 @@ struct NetworkHandler {
         let dateStr = formatter.string(from: date)
         let urlString = "\(baseURL())/schedules/date/\(dateStr)"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -386,7 +417,7 @@ struct NetworkHandler {
     static func getScheduleFor(sport: SportType) async throws -> LiveEvent {
         let urlString = "\(baseURL())/sport/\(sport.rawValue)"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -411,7 +442,7 @@ struct NetworkHandler {
         let session = URLSession(configuration: config)
         defer { session.invalidateAndCancel() }
         AppLogger.widget.info("[widgetFetch] requesting \(url.absoluteString)")
-        let (data, response) = try await session.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await session.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             AppLogger.widget.info("[widgetFetch] response \(httpResponse.statusCode), \(data.count) bytes")
             APIVersionChecker.shared.checkVersion(from: httpResponse)
@@ -450,7 +481,7 @@ struct NetworkHandler {
         if let league { queryItems.append(URLQueryItem(name: "league", value: league)) }
         if !queryItems.isEmpty { components.queryItems = queryItems }
         let url = components.url!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
             if httpResponse.statusCode == 404 { throw PlayByPlayNotAvailable() }
@@ -474,7 +505,7 @@ struct NetworkHandler {
         if let league { queryItems.append(URLQueryItem(name: "league", value: league)) }
         if !queryItems.isEmpty { components.queryItems = queryItems }
         let url = components.url!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 404 {
             throw PlayByPlayNotAvailable()
         }
@@ -484,7 +515,7 @@ struct NetworkHandler {
     static func getTeams() async throws -> [Team] {
         let urlString = "\(baseURL())/teams"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -498,7 +529,7 @@ struct NetworkHandler {
         let encoded = teamID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? teamID
         let urlString = "\(baseURL())/team/\(encoded)/info"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -513,7 +544,7 @@ struct NetworkHandler {
         let url = URL(string: urlString)!
         var realLiveScore: LiveScore?
         do {
-            let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+            let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
             if let httpResponse = response as? HTTPURLResponse {
                 APIVersionChecker.shared.checkVersion(from: httpResponse)
             }
@@ -564,7 +595,9 @@ struct NetworkHandler {
             urlString = "\(wsBase)/v2025/\(urlPath)"
         }
         let url = URL(string: urlString)!
-        let request = authenticatedRequest(url: url)
+        // Sync by construction — see apiKeyRequest. /ws is still shared-key only;
+        // see docs/app-attest-plan.md for the WebSocket auth follow-up.
+        let request = apiKeyRequest(url: url)
         let task = (session ?? URLSession.shared).webSocketTask(with: request)
         // The initial `/ws` snapshot grew past the old 4 MB cap once World Cup
         // plus a full live slate were in play (~4.76 MB observed), which made the
@@ -586,7 +619,7 @@ struct NetworkHandler {
 
     static func subscribeToLiveActivityUpdate(token: String, eventID: String, homeTeam: String? = nil, awayTeam: String? = nil) async throws {
         let url = URL(string: "\(baseURL())/liveActivity")!
-        var request = authenticatedRequest(url: url)
+        var request = await authenticatedRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         // Token + APNS-env hint travel in the body and a custom header,
@@ -611,7 +644,7 @@ struct NetworkHandler {
     /// the server-side TTL eventually frees the key.
     static func deregisterLiveActivity(token: String, previousBaseURL: String) async throws {
         guard let url = URL(string: "\(previousBaseURL)/liveActivity") else { return }
-        var request = authenticatedRequest(url: url)
+        var request = await authenticatedRequest(url: url)
         request.httpMethod = "DELETE"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
@@ -668,7 +701,7 @@ struct NetworkHandler {
     static func getStandings(for leagueID: String) async throws -> Standing {
         let urlString = "\(baseURL())/standings/\(leagueID)"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -715,7 +748,7 @@ struct NetworkHandler {
 
     static func getWorldCupBracket() async throws -> WorldCupBracket {
         let url = URL(string: "\(baseURL())/worldcup/bracket")!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -724,7 +757,7 @@ struct NetworkHandler {
 
     static func getWorldCupScorers() async throws -> [WorldCupScorer] {
         let url = URL(string: "\(baseURL())/worldcup/scorers")!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -734,7 +767,7 @@ struct NetworkHandler {
     static func getWorldCupSquad(teamID: String) async throws -> WorldCupSquad {
         let encoded = teamID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? teamID
         let url = URL(string: "\(baseURL())/worldcup/squad/\(encoded)")!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -751,7 +784,7 @@ struct NetworkHandler {
     static func getWorldCupBoxScore(eventID: String) async throws -> WorldCupBoxScore {
         let encoded = eventID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? eventID
         let url = URL(string: "\(baseURL())/worldcup/boxscore/\(encoded)")!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
             if httpResponse.statusCode == 404 { throw BoxScoreNotAvailable() }
@@ -762,7 +795,7 @@ struct NetworkHandler {
     static func getStandingsHistory(leagueID: Int, days: Int = 30) async throws -> [StandingsHistoryDay] {
         let urlString = "\(baseURL())/standings/\(leagueID)/history?days=\(days)"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -772,7 +805,7 @@ struct NetworkHandler {
     static func getTeamStats(leagueID: Int) async throws -> [TeamStatEntry] {
         let urlString = "\(baseURL())/stats/\(leagueID)/teams"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: authenticatedRequest(url: url))
+        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -786,7 +819,7 @@ struct NetworkHandler {
     static func pushToStartRegistrationRequest(token: String, favorites: [String], eventIDs: [String]) throws -> URLRequest {
         let urlString = "\(baseURL())/pushToStart/register"
         let url = URL(string: urlString)!
-        var request = authenticatedRequest(url: url)
+        var request = apiKeyRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
@@ -811,7 +844,7 @@ struct NetworkHandler {
     /// for why we accept an explicit base URL instead of going through `baseURL()`.
     static func deregisterPushToStart(token: String, previousBaseURL: String) async throws {
         guard let url = URL(string: "\(previousBaseURL)/pushToStart/register") else { return }
-        var request = authenticatedRequest(url: url)
+        var request = await authenticatedRequest(url: url)
         request.httpMethod = "DELETE"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
@@ -873,7 +906,7 @@ struct NetworkHandler {
     static func triggerDebugPushToStart(eventID: String, homeTeam: String, awayTeam: String) async throws {
         let urlString = "\(baseURL())/debug/trigger-push-to-start"
         guard let url = URL(string: urlString) else { return }
-        var request = authenticatedRequest(url: url)
+        var request = await authenticatedRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let body: [String: String] = [
