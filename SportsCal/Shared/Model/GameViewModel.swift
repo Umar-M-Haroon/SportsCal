@@ -556,7 +556,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let baseballGames {
-                games.append(contentsOf: applyFavoritesFilter(baseballGames, favoritesOnly: appStorage.favoritesOnlyMLB))
+                games.append(contentsOf: applyFavoritesFilter(baseballGames, favoritesOnly: appStorage.favoritesOnlyMLB, context: context))
             }
         }
         if appStorage.shouldShowNBA || appStorage.shouldShowWNBA {
@@ -571,7 +571,7 @@ public class GameViewModel: NSObject {
                 return league == .wnba ? !appStorage.shouldShowWNBA : !appStorage.shouldShowNBA
             })
             if let basketballGames {
-                games.append(contentsOf: applyFavoritesFilter(basketballGames, favoritesOnly: appStorage.favoritesOnlyNBA))
+                games.append(contentsOf: applyFavoritesFilter(basketballGames, favoritesOnly: appStorage.favoritesOnlyNBA, context: context))
             }
         }
         if appStorage.shouldShowNFL {
@@ -583,7 +583,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let nflGames {
-                games.append(contentsOf: applyFavoritesFilter(nflGames, favoritesOnly: appStorage.favoritesOnlyNFL))
+                games.append(contentsOf: applyFavoritesFilter(nflGames, favoritesOnly: appStorage.favoritesOnlyNFL, context: context))
             }
         }
         if appStorage.shouldShowNHL {
@@ -595,7 +595,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let nhlGames {
-                games.append(contentsOf: applyFavoritesFilter(nhlGames, favoritesOnly: appStorage.favoritesOnlyNHL))
+                games.append(contentsOf: applyFavoritesFilter(nhlGames, favoritesOnly: appStorage.favoritesOnlyNHL, context: context))
             }
         }
         if appStorage.shouldShowGolf {
@@ -607,7 +607,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let golfGames {
-                games.append(contentsOf: applyFavoritesFilter(golfGames, favoritesOnly: appStorage.favoritesOnlyGolf))
+                games.append(contentsOf: applyFavoritesFilter(golfGames, favoritesOnly: appStorage.favoritesOnlyGolf, context: context))
             }
         }
         if appStorage.shouldShowTennis {
@@ -619,7 +619,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let tennisGames {
-                games.append(contentsOf: applyFavoritesFilter(tennisGames, favoritesOnly: appStorage.favoritesOnlyTennis))
+                games.append(contentsOf: applyFavoritesFilter(tennisGames, favoritesOnly: appStorage.favoritesOnlyTennis, context: context))
             }
         }
         if appStorage.shouldShowRacing {
@@ -631,7 +631,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let racingGames {
-                games.append(contentsOf: applyFavoritesFilter(racingGames, favoritesOnly: appStorage.favoritesOnlyRacing))
+                games.append(contentsOf: applyFavoritesFilter(racingGames, favoritesOnly: appStorage.favoritesOnlyRacing, context: context))
             }
         }
         return Array(OrderedSet(games))
