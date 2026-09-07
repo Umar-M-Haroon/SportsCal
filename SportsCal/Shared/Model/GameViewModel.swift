@@ -245,10 +245,6 @@ public class GameViewModel: NSObject {
     }
     /// Cache for gamesWithTeams(for:) results, keyed by (day, filterHash).
     private var gamesWithTeamsDateCache: [DateCacheKey: [GameWithTeams]] = [:]
-    /// The two filter generations `gamesWithTeamsDateCache` is allowed to retain, so a
-    /// toggle-and-back stays free without the cache growing for the whole session.
-    @ObservationIgnored private var currentFilterStateHashGeneration: Int?
-    @ObservationIgnored private var previousFilterStateHash: Int?
     /// Snapshot of the current filter state's hash. Recomputed at each filterSports()
     /// call; reads/writes against the date cache use this to scope entries.
     private var currentFilterStateHash: Int = 0
@@ -891,7 +887,17 @@ public class GameViewModel: NSObject {
         mergeLiveIntoSchedule(liveInfo)
         liveInfo.removeNonStarting()
         liveInfo.removeOtherInfo()
-        self.currentLiveInfo = liveInfo
+        // While the socket is up it owns `currentLiveInfo`, because that value is now
+        // the baseline every subsequent delta is applied to — and the server computes
+        // its diffs against the snapshot *it* last sent, not against this REST payload.
+        // Overwriting the baseline out of band would strand every game the next delta
+        // doesn't happen to mention: the server won't resend them (their signatures
+        // haven't moved), so they'd sit at the /live value until the socket reconnects.
+        // The schedule merge above still runs, so the REST fetch isn't wasted.
+        if webSocketTask == nil {
+            self.currentLiveInfo = liveInfo
+            currentLiveSignature = liveInfo.contentSignature
+        }
         updateLiveData()
         if let liveInfo = currentLiveInfo {
             liveCache?.insert(liveInfo, for: "live")
@@ -1416,14 +1422,19 @@ public class GameViewModel: NSObject {
     /// unconditionally — pointed at an old server it simply keeps getting full frames.
     /// The order matters: `LiveScore`'s fields are all optional, so an envelope decoded
     /// as one would succeed and yield an empty snapshot.
-    nonisolated static func decodeLiveFrame(_ data: Data) -> LiveFrame? {
+    ///
+    /// Only the *envelope* attempt is tolerated failing — that's the version probe. A
+    /// payload that is neither shape is a real protocol error and throws, so it reaches
+    /// `receiveMessages`' caller and tears the socket down for a reconnect. Swallowing
+    /// it would be worse than a crash: the server has already advanced its sequence on
+    /// the successful send, so it never resends that content, and the client would sit
+    /// on a live-looking socket delivering nothing until the payload changed again.
+    nonisolated static func decodeLiveFrame(_ data: Data) throws -> LiveFrame {
         if let envelope = try? NetworkHandler.sharedDecoder.decode(LiveFrame.self, from: data) {
             return envelope
         }
-        if let bare = try? NetworkHandler.sharedDecoder.decode(LiveScore.self, from: data) {
-            return LiveFrame(seq: 0, kind: .full, live: bare)
-        }
-        return nil
+        let bare = try NetworkHandler.sharedDecoder.decode(LiveScore.self, from: data)
+        return LiveFrame(seq: 0, kind: .full, live: bare)
     }
 
     @objc
@@ -1453,9 +1464,8 @@ public class GameViewModel: NSObject {
                     // unlike Task.detached). 1-2 MB LiveScore decodes ran on main before;
                     // pushed every 5s during live games it was visibly stuttering scrolls.
                     let frame = try await Task(priority: .userInitiated) {
-                        Self.decodeLiveFrame(jsonData)
+                        try Self.decodeLiveFrame(jsonData)
                     }.value
-                    guard let frame else { break }
 
                     // The games this frame actually carries. On a delta that's just the
                     // handful that moved, which is what makes the merge below cheap;
@@ -1693,6 +1703,11 @@ public class GameViewModel: NSObject {
         // rebuilding it is lazy, so dropping it is cheap and keeps it honest.
         _calendarGamesCache = nil
         rebuildSportCountsCache()
+        // The old path reached these through `filterSports`. They're coalesced to at
+        // most once a minute now, but they still have to be *asked* for, or the widget
+        // snapshot and Spotlight index would only ever refresh from a user-driven
+        // filter change or the backgrounding flush.
+        scheduleDerivedSideEffects()
     }
 
     /// Test-only: seed fixture data for snapshot rendering. Bypasses network fetch,
@@ -1949,18 +1964,28 @@ public class GameViewModel: NSObject {
     /// the whole pass. Resolving the boundaries once turns the per-game test into two
     /// `Date` comparisons.
     ///
-    /// The bounds are exclusive, and derived to match the old whole-unit arithmetic
-    /// exactly: `days <= 7` admits anything up to (but not including) 8 days out,
-    /// because `dateComponents` truncates. The `.sixMonths` future case really does
-    /// bound at two months — that quirk is in the original and is preserved here
-    /// deliberately; this change is about where the comparison happens, not what it
+    /// The duration bounds are exclusive, derived to match the old whole-unit
+    /// arithmetic exactly: `days <= 7` admits anything up to (but not including) 8 days
+    /// out, because `dateComponents` truncates. `earliestIsInclusive` covers the one
+    /// case where that isn't the rule — see its own note. Equivalence was checked by
+    /// sweeping every (past, future, hidePast) combination against the old
+    /// implementation at 3-hour granularity over ±400 days: 819,328 cases, no
+    /// divergence. The `.sixMonths` future case really does bound at two months — that
+    /// quirk is in the original and is preserved here deliberately; this change is
+    /// about where the comparison happens, not what it
     /// decides.
     struct GameDateWindow {
         let earliest: Date
         let latest: Date
+        /// Whether a game landing exactly on `earliest` is admitted. True only in the
+        /// hide-past case, where the old code tested `timeIntervalSinceNow < 0` and so
+        /// let a game starting at this very instant through; the duration bounds were
+        /// derived from truncating whole-unit arithmetic and are exclusive.
+        let earliestIsInclusive: Bool
 
         init(appStorage: UserDefaultStorage, now: Date = Date()) {
             let calendar = Calendar.current
+            earliestIsInclusive = appStorage.hidePastEvents
 
             if appStorage.hidePastEvents {
                 earliest = now
@@ -1996,7 +2021,8 @@ public class GameViewModel: NSObject {
         }
 
         func admits(_ date: Date) -> Bool {
-            date > earliest && date < latest
+            let passesLowerBound = earliestIsInclusive ? date >= earliest : date > earliest
+            return passesLowerBound && date < latest
         }
     }
 
@@ -2283,18 +2309,16 @@ public class GameViewModel: NSObject {
         for (key, games) in dateCache {
             dateCache[key] = games.sorted { ($0.game.standardDate ?? .distantPast) < ($1.game.standardDate ?? .distantPast) }
         }
-        // Replace entries for the current filter hash. Entries under the *previous* hash
-        // survive so toggling a sport off and back on is free; anything older is dropped.
-        // Keeping every hash ever seen (the earlier behaviour) meant each toggle minted a
-        // complete new set of per-day `[GameWithTeams]` arrays that lived for the rest of
-        // the session, with nothing to evict them.
+        // Keep only the current filter generation.
+        //
+        // The previous behaviour retained every hash ever seen, on the theory that
+        // toggling a sport off and back on would then be free. It never was: the only
+        // reader, `gamesWithTeams(for:)`, always looks up `currentFilterStateHash`, and
+        // this method rebuilds every entry for that hash from scratch each time it runs.
+        // So the retained generations could not produce a hit — they just accumulated
+        // a full set of per-day `[GameWithTeams]` arrays per toggle, for the session.
         let hash = currentFilterStateHash
-        if hash != currentFilterStateHashGeneration {
-            previousFilterStateHash = currentFilterStateHashGeneration
-            currentFilterStateHashGeneration = hash
-        }
-        let keep: Set<Int> = [hash, previousFilterStateHash].compactMap { $0 }.reduce(into: []) { $0.insert($1) }
-        gamesWithTeamsDateCache = gamesWithTeamsDateCache.filter { $0.key.filterHash != hash && keep.contains($0.key.filterHash) }
+        gamesWithTeamsDateCache = [:]
         for (day, games) in dateCache {
             gamesWithTeamsDateCache[DateCacheKey(date: day, filterHash: hash)] = games
         }

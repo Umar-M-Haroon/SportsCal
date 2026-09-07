@@ -39,26 +39,30 @@ actor LastKnownGoodCache {
 /// but the transform is deterministic, so it only has to happen once per generation of
 /// the source blob instead of once per request.
 ///
-/// Entries are keyed by the source string's hash. The ingest jobs rewrite each blob
-/// wholesale, so entries keyed to a superseded hash can never be hit again and are
-/// dropped on the next miss — that bounds the cache to one generation × the handful of
-/// variants without needing a TTL.
+/// Each variant holds one entry, stamped with the hash of the source it was built from.
+/// The ingest jobs rewrite each blob wholesale, so a stamp mismatch means "regenerate";
+/// nothing needs a TTL and the cache is bounded by the number of variants.
+///
+/// Note that the stamp is per variant, not global. Variants are built from *different*
+/// source blobs — the per-sport slices come from `latestSchedule`, the pruned live
+/// snapshot from `latestLiveInfo` — so a single shared generation counter would have
+/// each endpoint's miss evict the other's entry, and under traffic to both the hit rate
+/// would collapse to roughly zero.
 actor DerivedPayloadCache {
     static let shared = DerivedPayloadCache()
 
-    private struct Key: Hashable {
-        let variant: String
+    private struct Entry {
         let sourceHash: Int
+        let value: String
     }
 
-    private var entries: [Key: String] = [:]
+    private var entries: [String: Entry] = [:]
 
     func value(variant: String, source: String, build: (String) -> String?) -> String? {
-        let key = Key(variant: variant, sourceHash: source.hashValue)
-        if let hit = entries[key] { return hit }
+        let sourceHash = source.hashValue
+        if let hit = entries[variant], hit.sourceHash == sourceHash { return hit.value }
         guard let built = build(source) else { return nil }
-        entries = entries.filter { $0.key.sourceHash == key.sourceHash }
-        entries[key] = built
+        entries[variant] = Entry(sourceHash: sourceHash, value: built)
         return built
     }
 }
@@ -104,6 +108,15 @@ actor LiveFrameCache {
     /// reused until the next refresh — new clients and clients that fell behind by
     /// more than one sequence share it.
     private var encodedFull: String?
+    /// Enrichment carried by the last frame, so a delta can omit it when it hasn't
+    /// moved. `applying(delta:)` reads absent enrichment as "unchanged".
+    private var lastEnrichment: (f1: F1Standings?, worldCup: WorldCupEnrichment?)
+    /// How many `/ws` clients are on the delta protocol. Zero means nobody can consume
+    /// a delta, so `advance()` skips the diff entirely.
+    private var deltaSubscribers = 0
+
+    func subscribeToDeltas() { deltaSubscribers += 1 }
+    func unsubscribeFromDeltas() { deltaSubscribers = max(0, deltaSubscribers - 1) }
 
     func current(fetch: () async -> String?) async -> (frame: String, hash: Int) {
         await refreshIfStale(fetch: fetch)
@@ -154,6 +167,18 @@ actor LiveFrameCache {
         seq += 1
         encodedFull = nil
 
+        // Nobody on the delta protocol: skip the diff entirely. It costs a full JSON
+        // decode of the multi-MB snapshot, a walk over every game, and an encode — all
+        // synchronously on this actor, which every v1 client's `current()` also waits
+        // on. Until v2 clients ship that would be pure new work, every 1.5s, for a
+        // payload no one reads. `signatures` is cleared so the first v2 client to
+        // arrive is served a `full` frame and starts a fresh baseline.
+        guard deltaSubscribers > 0 else {
+            encodedDelta = nil
+            signatures = [:]
+            return
+        }
+
         guard let live = decodeFrame() else {
             // Undecodable frame: v2 clients can still be served, but only as `full`
             // (which will fail the same decode and yield an empty snapshot) — the
@@ -164,7 +189,15 @@ actor LiveFrameCache {
         }
 
         var newSignatures: [String: Int] = [:]
-        var changed = LiveScore(f1Standings: live.f1Standings, worldCup: live.worldCup)
+        // Enrichment rides along only when it actually moved. `WorldCupEnrichment` is
+        // the bracket plus scorers plus squads — stamping it into every 1.5s delta
+        // would undo most of the payload reduction during exactly the tournament this
+        // was built for.
+        var changed = LiveScore(
+            f1Standings: live.f1Standings == lastEnrichment.f1 ? nil : live.f1Standings,
+            worldCup: live.worldCup == lastEnrichment.worldCup ? nil : live.worldCup
+        )
+        lastEnrichment = (live.f1Standings, live.worldCup)
 
         for (_, keyPath) in LiveScore.sportKeyPaths {
             guard let events = live[keyPath: keyPath]?.events else { continue }
@@ -437,8 +470,9 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     //MARK: - Sport
     // Slicing one sport out of the schedule used to decode the entire multi-MB
     // `LiveScore` per request and re-encode the slice. The slice is a pure function of
-    // the cached blob, so it's computed once per ingest generation and served from
-    // memory after that.
+    // the cached blob, so the decode and encode now happen once per ingest generation.
+    // The Redis read itself is still per request, as it is for `/schedules` — this
+    // removes the CPU, not the pool traffic.
     routes.get("sport", ":sport") { req async throws -> String in
         guard let sport = SportType(rawValue: req.parameters.get("sport")!) else {
             throw Abort(.badRequest)
@@ -543,6 +577,12 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         // the bare-`LiveScore` behaviour below, unchanged.
         let wantsDeltas = (try? req.query.get(String.self, at: "frames")) == "v2"
         var lastSentSeq: Int? = nil
+
+        // The frame cache only pays for the diff while someone can consume one.
+        if wantsDeltas { await LiveFrameCache.shared.subscribeToDeltas() }
+        defer {
+            if wantsDeltas { Task { await LiveFrameCache.shared.unsubscribeFromDeltas() } }
+        }
 
         while !ws.isClosed {
             do {

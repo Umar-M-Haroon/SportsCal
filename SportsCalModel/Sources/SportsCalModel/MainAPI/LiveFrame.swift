@@ -151,22 +151,23 @@ public extension LiveScore {
         return hasher.finalize()
     }
 
-    /// Compact signature of the fields that make a live game "changed" for display
-    /// purposes. Deliberately not full equality: `Game`'s synthesized `==` walks ~45
-    /// fields including several arrays, and the enrichment among them churns without
-    /// changing anything a viewer sees.
+    /// Signature of a game's full state, used to decide whether it belongs in a delta.
+    ///
+    /// This deliberately hashes *everything* (`Game`'s synthesized `Hashable` covers
+    /// every stored property) rather than a hand-picked subset of "the fields that
+    /// matter". A subset is the wrong shape of decision here: a field left out is not
+    /// merely a missed optimization, it is data that never reaches a v2 client at all,
+    /// because the server only puts a game on the wire when its signature moves. Game
+    /// leaders are the concrete trap — ESPN populates them a few minutes in, with no
+    /// score change, so a score-only signature would leave the leaders panel empty for
+    /// the whole session.
+    ///
+    /// Hashing is not the expensive operation anyway. The cost this whole change exists
+    /// to remove was the deep `==` walk with its per-field branching and array compares,
+    /// run per tick on the client's main actor; this runs once per frame on the server.
     static func liveSignature(of game: Game) -> Int {
         var hasher = Hasher()
-        hasher.combine(game.intHomeScore)
-        hasher.combine(game.intAwayScore)
-        hasher.combine(game.strStatus)
-        hasher.combine(game.strProgress)
-        hasher.combine(game.lastPlay)
-        hasher.combine(game.isCompleted)
-        hasher.combine(game.homeLinescores)
-        hasher.combine(game.awayLinescores)
-        hasher.combine(game.leaderboardEntries)
-        hasher.combine(game.raceTiming)
+        hasher.combine(game)
         return hasher.finalize()
     }
 }

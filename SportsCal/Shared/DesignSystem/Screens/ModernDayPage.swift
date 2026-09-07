@@ -135,26 +135,17 @@ struct ModernDayPage: View {
         return calendar.date(byAdding: .day, value: offset, to: today) ?? today
     }
 
-    // Called once per day chip on every render — the two formatters below are `static`
-    // for the same reason `accessibilityLabelFormatter` is, which these two had missed.
-    private static let weekdayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "EEE"
-        return f
-    }()
-
-    private static let dayNumberFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "d"
-        return f
-    }()
-
+    // Called once per day chip on every render, so these can't build a `DateFormatter`
+    // per call. They go through the shared cache rather than local `static let`s so
+    // they're rebuilt after a time-zone or region change — a `DateFormatter` resolves
+    // its zone and locale at init and would otherwise render the old region's day
+    // names until relaunch.
     private static func weekdayAbbr(_ date: Date) -> String {
-        weekdayFormatter.string(from: date).uppercased()
+        DateFormatters.formatter(for: "EEE").string(from: date).uppercased()
     }
 
     private static func dayNumber(_ date: Date) -> String {
-        dayNumberFormatter.string(from: date)
+        DateFormatters.formatter(for: "d").string(from: date)
     }
 
     private static let accessibilityLabelFormatter: DateFormatter = {

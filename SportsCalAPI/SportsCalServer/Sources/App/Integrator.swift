@@ -39,21 +39,34 @@ actor ActiveLeaguesCache {
     }
 
     private var entries: [Bool: Entry] = [:]
-    private var refreshing: Set<Bool> = []
+    /// The refresh currently in flight, so concurrent callers join it rather than each
+    /// starting their own.
+    private var inFlight: [Bool: Task<Set<Leagues>?, Never>] = [:]
 
-    func current(isDebug: Bool, fetch: () async -> Set<Leagues>?) async -> Set<Leagues>? {
+    func current(isDebug: Bool, fetch: @escaping @Sendable () async -> Set<Leagues>?) async -> Set<Leagues>? {
         let existing = entries[isDebug]
-        let isFresh = existing.map { Date().timeIntervalSince($0.fetchedAt) < Self.ttl } ?? false
-
-        // A stale value beats blocking, but only once we have one. The very first
-        // caller has nothing to serve and must wait for the fetch.
-        if isFresh || (existing != nil && refreshing.contains(isDebug)) {
-            return existing?.value
+        if let existing, Date().timeIntervalSince(existing.fetchedAt) < Self.ttl {
+            return existing.value
         }
 
-        refreshing.insert(isDebug)
-        defer { refreshing.remove(isDebug) }
-        let value = await fetch()
+        // Stale value plus a refresh already running: serve the stale one and don't wait.
+        if let existing, inFlight[isDebug] != nil {
+            return existing.value
+        }
+
+        // Nothing to serve. Everyone here must wait — but on *one* fetch, not one each.
+        // Process start is exactly when every `/ws` client reconnects at once, so a
+        // stampede here would put N concurrent multi-MB Redis reads and JSON decodes on
+        // the box at the worst possible moment — the July 2026 pool-exhaustion pattern
+        // this cache exists to prevent.
+        if let running = inFlight[isDebug] {
+            return await running.value
+        }
+
+        let task = Task { await fetch() }
+        inFlight[isDebug] = task
+        let value = await task.value
+        inFlight[isDebug] = nil
         // Stamped unconditionally: a Redis blip returning nil shouldn't turn every
         // subsequent tick into another attempt.
         entries[isDebug] = Entry(value: value, fetchedAt: Date())
