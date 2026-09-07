@@ -1485,8 +1485,11 @@ public class GameViewModel: NSObject {
 
                     // Merge live scores (including completed games) into schedule before
                     // filtering. Passing `incoming` rather than the merged snapshot is
-                    // deliberate: the merge only looks up games it has been given, so a
-                    // delta costs one lookup table of a few entries instead of thousands.
+                    // deliberate: the two lookup tables the merge builds cover only the
+                    // games it has been given, so on a delta they hold a handful of
+                    // entries rather than every live game. The walk over `totalGames`
+                    // itself is unchanged — still O(scheduled games) per tick — so this
+                    // shrinks the setup, not the scan.
                     mergeLiveIntoSchedule(incoming)
 
                     var pruned = newLiveInfo
@@ -1546,7 +1549,14 @@ public class GameViewModel: NSObject {
             liveByTeams[key] = game
         }
 
-        var changedIDs: Set<String> = []
+        // Keyed by the game's identity *before* the merge, because that is the identity
+        // every derived collection still holds. For a game with an `idEvent` the two are
+        // the same, but `Game.id`'s fallback for one without is synthesized from the
+        // fixture's fields — including `strAwayTeam`, which the merge below takes from
+        // the live feed — so a merge can rename the very key the patch has to match on.
+        // Keying on the post-merge id silently patched nothing in that case, leaving the
+        // row at its stale score until the next full filter pass.
+        var changedByID: [String: Game] = [:]
         for i in games.indices {
             let scheduled = games[i]
             // Match by event ID first (reliable for F1/golf/tennis where team names change).
@@ -1606,12 +1616,12 @@ public class GameViewModel: NSObject {
                 homeSeed: live.homeSeed ?? scheduled.homeSeed,
                 awaySeed: live.awaySeed ?? scheduled.awaySeed
             )
-            changedIDs.insert(games[i].id)
+            changedByID[scheduled.id] = games[i]
         }
 
-        guard !changedIDs.isEmpty else { return }
+        guard !changedByID.isEmpty else { return }
         totalGames = games
-        patchDerivedCollections(with: games, changedIDs: changedIDs)
+        patchDerivedCollections(changedByID: changedByID)
     }
 
     /// Propagates changed games into every derived collection *in place*, instead of
@@ -1635,12 +1645,10 @@ public class GameViewModel: NSObject {
     /// sports, where `Favorites.matches` consults the leaderboard: a followed player
     /// climbing into a tournament's field mid-round won't pull that tournament into a
     /// favourites-only list until the next full fetch reconciles.
-    private func patchDerivedCollections(with games: [Game], changedIDs: Set<String>) {
-        var changedByID: [String: Game] = [:]
-        changedByID.reserveCapacity(changedIDs.count)
-        for game in games where changedIDs.contains(game.id) {
-            changedByID[game.id] = game
-        }
+    /// - Parameter changedByID: each changed game, keyed by the identity it had *before*
+    ///   the merge — the identity the derived collections are still holding. See the note
+    ///   at the call site for why that isn't always the same as the new game's `id`.
+    private func patchDerivedCollections(changedByID: [String: Game]) {
         guard !changedByID.isEmpty else { return }
 
         func patch(_ list: inout [Game]) {
@@ -1690,13 +1698,19 @@ public class GameViewModel: NSObject {
             patch(&dayGames)
             gamesWithTeamsDateCache[key] = dayGames
         }
-        for id in changedByID.keys {
-            guard let cached = gameWithTeamsCache[id], let replacement = changedByID[id] else { continue }
-            gameWithTeamsCache[id] = GameWithTeams(
+        for (previousID, replacement) in changedByID {
+            guard let cached = gameWithTeamsCache[previousID] else { continue }
+            let entry = GameWithTeams(
                 game: replacement,
                 homeTeam: cached.homeTeam,
                 awayTeam: cached.awayTeam
             )
+            // Re-file under the replacement's own identity. Normally that is the key we
+            // just read; when the merge renamed a synthesized id, leaving the entry at
+            // the old key would strand it — nothing looks it up again, and the next
+            // lookup under the new id would miss and re-resolve the teams.
+            if replacement.id != previousID { gameWithTeamsCache[previousID] = nil }
+            gameWithTeamsCache[replacement.id] = entry
         }
 
         // The calendar's memo is keyed off nothing finer than "the games changed", and

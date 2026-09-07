@@ -238,11 +238,53 @@ final class GameIdentityTests: XCTestCase {
         XCTAssertEqual(game.id, "12345")
     }
 
+    /// Why `GameViewModel`'s in-place live patch must key on the identity a game had
+    /// *before* the merge.
+    ///
+    /// Without an `idEvent` the identity is synthesized from the fixture's fields,
+    /// `strAwayTeam` among them — and `mergeLiveIntoSchedule` takes that field from the
+    /// live feed. So a merge can rename the key, and a patch keyed on the resulting id
+    /// would match nothing in the collections that still hold the old one, leaving the
+    /// row at its stale score.
+    func testSynthesizedIDTracksTeamNames() {
+        let scheduled = gameWithoutEventID()
+        let merged = Game(
+            idLeague: "4387",
+            strHomeTeam: "Knicks",
+            strAwayTeam: "HAWKS", // same team, the live feed's casing
+            strTimestamp: "2026-05-20T01:27:14Z",
+            isoDate: nil
+        )
+        XCTAssertNotEqual(scheduled.id, merged.id)
+    }
+
     /// An empty string is not a usable identity — it would collide across every game
     /// that has one.
     func testEmptyEventIDFallsBackToSyntheticID() {
         let game = Game(idEvent: "", idLeague: "4387", strHomeTeam: "A", strAwayTeam: "B", isoDate: nil)
         XCTAssertNotEqual(game.id, "")
         XCTAssertTrue(game.id.hasPrefix("syn:"))
+    }
+}
+
+/// The timestamp parsers must not follow the device locale.
+final class DateParsersLocaleTests: XCTestCase {
+
+    /// A device set to a non-Gregorian calendar resolves "yyyy" against that calendar's
+    /// era, so an ISO timestamp either fails to parse or lands centuries away. Pinning
+    /// `en_US_POSIX` is the documented fix; assert it stays pinned.
+    func testFixedFormatParsersArePosixPinned() {
+        for formatter in [DateParsers.dashedSeconds, DateParsers.dashedNoSeconds, DateParsers.dashedZ] {
+            XCTAssertEqual(formatter.locale.identifier, "en_US_POSIX")
+            XCTAssertEqual(formatter.timeZone.secondsFromGMT(), 0)
+        }
+    }
+
+    func testParsesEveryFormatTheFeedsEmit() {
+        let expected = Date(timeIntervalSince1970: 1_780_336_800) // 2026-06-01T18:00:00Z
+        for stamp in ["2026-06-01T18:00:00Z", "2026-06-01T18:00:00", "2026-06-01T18:00", "2026-06-01T18:00Z"] {
+            XCTAssertEqual(DateParsers.parse(stamp), expected, "failed to parse \(stamp)")
+        }
+        XCTAssertNil(DateParsers.parse("not a date"))
     }
 }

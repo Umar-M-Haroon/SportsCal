@@ -663,7 +663,12 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                     // to be one — and a `full` one, so that "nothing is live" clears the
                     // client's snapshot exactly as the bare `{}` does for v1. A `delta`
                     // here would merge into nothing and leave finished games on screen.
-                    // seq 0 is never issued by the cache (it bumps before publishing).
+                    //
+                    // The seq here is cosmetic and deliberately not read back: `lastSentSeq`
+                    // is cleared just above, so the next live frame is requested with a nil
+                    // cursor and answered with a `full` regardless of what this said. (The
+                    // cache *can* legitimately serve seq 0 — before its first successful
+                    // differing fetch — so this is not a value the protocol reserves.)
                     let heartbeat = wantsDeltas ? #"{"seq":0,"kind":"full","live":{}}"# : "{}"
                     do {
                         try await withWSSendDeadline(seconds: 10) { try await ws.send(heartbeat) }
