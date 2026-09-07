@@ -26,14 +26,16 @@ struct DeviceCheckClient: Sendable {
 
     /// Production talks to `data.appattest.apple.com`; development builds
     /// produce receipts only the sandbox host will accept. A receipt from one
-    /// environment is rejected by the other, so this must track the AAGUID
-    /// environment the attestation actually used.
-    let useProductionEnvironment: Bool
-
-    private var baseURL: String {
-        useProductionEnvironment
-            ? "https://data.appattest.apple.com/v1/attestationData"
-            : "https://data-development.appattest.apple.com/v1/attestationData"
+    /// environment is rejected by the other, and the environment is a property
+    /// of the *client build* that attested — not of this server — so it is
+    /// passed per call rather than stored here. Keying it off the server
+    /// environment would send every TestFlight receipt reaching a staging server
+    /// to the sandbox host, which rejects them all.
+    private func baseURL(for environment: AppAttestEnvironment) -> String {
+        switch environment {
+        case .production:  return "https://data.appattest.apple.com/v1/attestationData"
+        case .development: return "https://data-development.appattest.apple.com/v1/attestationData"
+        }
     }
 
     /// Exchanges a receipt for a refreshed one and parses out the metric.
@@ -43,8 +45,12 @@ struct DeviceCheckClient: Sendable {
     /// - Returns: the new receipt, both raw (store it for the next refresh) and
     ///   parsed. `nil` when Apple answers 304, meaning we asked again before the
     ///   previous receipt's "not before" date.
-    func fetchReceipt(_ receipt: Data, on client: Client, logger: Logger) async throws
-        -> (raw: Data, parsed: AppAttestReceipt)? {
+    func fetchReceipt(
+        _ receipt: Data,
+        environment: AppAttestEnvironment,
+        on client: Client,
+        logger: Logger
+    ) async throws -> (raw: Data, parsed: AppAttestReceipt)? {
 
         let token = try authenticationToken()
 
@@ -54,7 +60,7 @@ struct DeviceCheckClient: Sendable {
         headers.add(name: .authorization, value: token)
         headers.add(name: .contentType, value: "text/plain")
 
-        let response = try await client.post(URI(string: baseURL), headers: headers) { request in
+        let response = try await client.post(URI(string: baseURL(for: environment)), headers: headers) { request in
             request.body = ByteBuffer(string: receipt.base64EncodedString())
         }
 

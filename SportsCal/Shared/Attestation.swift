@@ -43,6 +43,27 @@ actor Attestation {
     private var cachedJWT: CachedJWT?
     private var inFlight: Task<String, Error>?
 
+    /// Earliest time we may attempt another attestation after a failure.
+    /// Caching only successes meant a device that cannot attest — a simulator,
+    /// an MDM-restricted device, or any device talking to a server without
+    /// JWT_SIGNING_KEY — re-ran the whole flow on *every single API request*,
+    /// minting a fresh Secure Enclave key each time and hammering Apple's
+    /// rate-limited attest service.
+    private var retryNoEarlierThan: Date?
+    private var consecutiveFailures = 0
+
+    /// Set when attestation cannot work on this device at all, as opposed to
+    /// having merely failed once. No amount of retrying changes the answer, so
+    /// we stop asking until `reset()` (or the next launch).
+    private var attestationUnavailable = false
+
+    /// The Keychain copy of the token is only useful if we actually read it
+    /// back; loaded once, lazily, on the first request of the session.
+    private var didLoadPersistedToken = false
+
+    private static let minBackoff: TimeInterval = 30
+    private static let maxBackoff: TimeInterval = 30 * 60
+
     private struct CachedJWT {
         let token: String
         let expiresAt: Date
@@ -51,23 +72,71 @@ actor Attestation {
     /// Returns a JWT valid for at least 60s. Triggers attest/refresh on demand.
     /// All call sites should funnel through this — do not cache the token elsewhere.
     func getValidJWT() async throws -> String {
+        if !didLoadPersistedToken {
+            didLoadPersistedToken = true
+            loadPersistedToken()
+        }
+
         if let cached = cachedJWT, cached.expiresAt.timeIntervalSinceNow > 60 {
             return cached.token
         }
         if let inFlight { return try await inFlight.value }
 
+        // Fail fast while backing off. NetworkHandler calls this on every
+        // request and treats a throw as "send the shared API key instead", so
+        // returning immediately here is the difference between a silent
+        // fallback and a 15s timeout on each request.
+        if attestationUnavailable { throw AttestError.unavailable }
+        if let retryAt = retryNoEarlierThan, retryAt.timeIntervalSinceNow > 0 {
+            throw AttestError.backingOff
+        }
+
         let task = Task<String, Error> {
             defer { inFlight = nil }
-            return try await refreshOrAttest()
+            do {
+                let token = try await refreshOrAttest()
+                consecutiveFailures = 0
+                retryNoEarlierThan = nil
+                return token
+            } catch {
+                noteFailure(error)
+                throw error
+            }
         }
         inFlight = task
         return try await task.value
+    }
+
+    /// Records a failed attempt and arms the backoff window.
+    ///
+    /// A 404 from `/attest/dev` is the documented shape of "this build cannot
+    /// attest and the server has no dev route" — a simulator or unsupported
+    /// device pointed at production. That is permanent for the session, not
+    /// something to retry with backoff.
+    private func noteFailure(_ error: Error) {
+        if case AttestError.server(404) = error {
+            attestationUnavailable = true
+            log.info("attestation unavailable on this device/server — staying on the shared API key")
+            return
+        }
+        consecutiveFailures += 1
+        let delay = min(
+            Self.maxBackoff,
+            Self.minBackoff * pow(2, Double(consecutiveFailures - 1))
+        )
+        retryNoEarlierThan = Date().addingTimeInterval(delay)
+        log.warning("attestation failed (\(self.consecutiveFailures, privacy: .public)x) — next attempt in \(Int(delay), privacy: .public)s: \(error.localizedDescription, privacy: .public)")
     }
 
     /// Wipes local state — call on sign-out, key invalidation errors, or when
     /// the server reports "unknown keyID".
     func reset() {
         cachedJWT = nil
+        // Clear the backoff too — a reset is a deliberate "try again from
+        // scratch", so it should not sit out a window armed by the old state.
+        retryNoEarlierThan = nil
+        consecutiveFailures = 0
+        attestationUnavailable = false
         keychainDelete(account: keyIDAccount)
         keychainDelete(account: jwtAccount)
     }
@@ -147,11 +216,28 @@ actor Attestation {
     }
 
     private func cacheToken(_ t: TokenResponse) {
-        cachedJWT = CachedJWT(
-            token: t.token,
-            expiresAt: Date().addingTimeInterval(TimeInterval(t.expiresIn))
-        )
-        keychainWrite(account: jwtAccount, value: t.token)
+        let expiresAt = Date().addingTimeInterval(TimeInterval(t.expiresIn))
+        cachedJWT = CachedJWT(token: t.token, expiresAt: expiresAt)
+        // Store the expiry with the token. A bare token would be unusable on the
+        // next launch — we could not tell whether it was still valid without
+        // parsing the JWT, so the persisted copy would have to be ignored.
+        keychainWrite(account: jwtAccount, value: "\(t.token)|\(expiresAt.timeIntervalSince1970)")
+    }
+
+    /// Restores a still-valid token from the Keychain so a cold launch does not
+    /// pay a challenge + assertion round trip for a token we already hold.
+    private func loadPersistedToken() {
+        guard let stored = keychainRead(account: jwtAccount) else { return }
+        let parts = stored.split(separator: "|", maxSplits: 1)
+        guard parts.count == 2,
+              let epoch = TimeInterval(parts[1]) else {
+            // Pre-3.2 format (token only, no expiry) — unusable, so drop it.
+            keychainDelete(account: jwtAccount)
+            return
+        }
+        let expiresAt = Date(timeIntervalSince1970: epoch)
+        guard expiresAt.timeIntervalSinceNow > 60 else { return }
+        cachedJWT = CachedJWT(token: String(parts[0]), expiresAt: expiresAt)
     }
 
     // MARK: - Server calls
@@ -176,6 +262,13 @@ actor Attestation {
         // they are how a client earns a token). /attest/dev additionally sits
         // behind the shared key, so send it on all of them.
         req.setValue(Constants.apiKey, forHTTPHeaderField: "X-API-Key")
+        // Rate-limit identity. Without this the server falls back to `ip:<addr>`,
+        // which (a) shares one 30/min bucket across everyone behind the same NAT
+        // — carrier-grade NAT, office or stadium Wi-Fi — and (b) skips the far
+        // more generous per-IP ceiling entirely, since that branch only applies
+        // to `id:` identities. A dozen users launching on one network would 429
+        // each other out of attesting.
+        req.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
         req.timeoutInterval = 15
         req.httpBody = try JSONEncoder().encode(body)
         let (data, resp) = try await URLSession.shared.data(for: req)
@@ -245,5 +338,10 @@ enum AttestError: Error {
     case transport
     case server(Int)
     case unknownKey
+    /// This device/server combination cannot produce a token at all. Callers
+    /// should fall back to the shared API key and not retry.
+    case unavailable
+    /// A recent attempt failed and the backoff window has not elapsed.
+    case backingOff
 }
 #endif

@@ -15,6 +15,14 @@ import X509
 ///
 /// This type is pure: it takes bytes, returns a verified public key or throws.
 /// Redis, challenges, and JWTs live in `AttestController`.
+/// Which App Attest environment a client build attested in. Determined by the
+/// AAGUID inside the attestation, and the only thing that decides which Apple
+/// host will redeem the resulting receipt.
+enum AppAttestEnvironment: Sendable {
+    case production
+    case development
+}
+
 struct AppAttestVerifier: Sendable {
 
     /// `<TEAM_ID>.<BUNDLE_ID>` — the App Attest relying-party identifier.
@@ -155,6 +163,28 @@ struct AppAttestVerifier: Sendable {
         guard let object = try? CBORDecoder.decode(attestation),
               let receipt = object["attStmt"]?["receipt"]?.bytes else { return nil }
         return Data(receipt)
+    }
+
+    /// Reports which App Attest environment an attestation was minted in, read
+    /// from its AAGUID.
+    ///
+    /// A receipt is only redeemable against the host matching the environment
+    /// that produced it, and that environment is a property of the *client
+    /// build*, not of the server — a TestFlight build can perfectly well talk to
+    /// a staging server. So the receipt host has to follow this, not
+    /// `app.environment`.
+    ///
+    /// Like `receipt(fromAttestation:)`, this is deliberately independent of
+    /// verification: it re-reads the blob and makes no validity claim. Callers
+    /// must have verified the attestation first.
+    static func environment(fromAttestation attestation: Data) -> AppAttestEnvironment? {
+        guard let object = try? CBORDecoder.decode(attestation),
+              let authData = object["authData"]?.bytes,
+              let parsed = try? AuthenticatorData(Data(authData)),
+              let credential = parsed.attestedCredential else { return nil }
+        if credential.aaguid == Self.productionAAGUID { return .production }
+        if credential.aaguid == Self.developmentAAGUID { return .development }
+        return nil
     }
 
     // MARK: - Assertion

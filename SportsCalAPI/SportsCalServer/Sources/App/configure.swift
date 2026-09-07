@@ -102,10 +102,7 @@ public func configure(_ app: Application) async throws {
             app.deviceCheck = DeviceCheckClient(
                 keyID: deviceCheckKeyID,
                 teamID: teamID,
-                privateKeyPEM: pem,
-                // A receipt is bound to the environment that produced it, so
-                // this must track the attestation environment, not the host.
-                useProductionEnvironment: app.environment == .production
+                privateKeyPEM: pem
             )
             app.logger.info("DeviceCheck configured — App Attest fraud-risk metrics enabled")
         } catch {

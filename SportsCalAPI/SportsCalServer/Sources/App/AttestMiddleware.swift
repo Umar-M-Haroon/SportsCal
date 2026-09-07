@@ -61,14 +61,17 @@ struct EitherAuthMiddleware: AsyncMiddleware {
 
     func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
         // Authenticate the bearer token *inline* rather than delegating to
-        // JWTMiddleware. Delegating would put `next` inside the do/catch, so a
-        // perfectly ordinary downstream error would look like an auth failure
-        // and the handler would run a second time via the API-key path.
+        // JWTMiddleware, and keep `next` strictly outside the do/catch. If the
+        // handler ran inside it, any ordinary downstream error — a 404, a decode
+        // failure, a Redis blip — would be caught, misread as an auth failure,
+        // and the handler would run a SECOND time via the API-key path. On these
+        // write routes that means duplicate Redis writes and APNS registrations.
+        var authenticated = false
         if let token = request.headers.bearerAuthorization?.token {
             do {
                 let payload = try request.jwt.verify(token, as: SportsCalJWT.self)
                 request.auth.login(payload)
-                return try await next.respond(to: request)
+                authenticated = true
             } catch {
                 // A malformed/expired bearer token is not fatal while the shared
                 // key is still valid — fall through so a client whose attestation
@@ -76,6 +79,9 @@ struct EitherAuthMiddleware: AsyncMiddleware {
                 // failure rate during rollout before flipping to JWT-only.
                 request.logger.info("bearer token rejected, falling back to API key")
             }
+        }
+        if authenticated {
+            return try await next.respond(to: request)
         }
         return try await apiKey.respond(to: request, chainingTo: next)
     }
@@ -155,12 +161,14 @@ struct AttestController: RouteCollection {
         let challenge  = Data(bytes).base64EncodedString()
         let challengeID = UUID().uuidString
 
-        try await req.redis.set(
+        // SETEX, not SET-then-EXPIRE: two round trips leave the key immortal if
+        // the connection drops between them. This endpoint is unauthenticated,
+        // so that failure mode is an attacker-drivable Redis leak.
+        try await req.redis.setex(
             RedisKey("attest:challenge:\(challengeID)"),
             to: challenge,
-            onCondition: .none
+            expirationInSeconds: 300
         ).get()
-        try await req.redis.expire(RedisKey("attest:challenge:\(challengeID)"), after: .seconds(300)).get()
 
         return ChallengeResponse(challengeID: challengeID, challenge: challenge)
     }
@@ -206,13 +214,20 @@ struct AttestController: RouteCollection {
             req.logger.debug("attestation carried no receipt — skipping fraud-risk lookup")
             return
         }
+        // The redemption host follows the AAGUID this attestation actually
+        // carried. The attestation is already verified by this point, so an
+        // unreadable environment here means a blob shape we do not expect.
+        guard let environment = AppAttestVerifier.environment(fromAttestation: attestationData) else {
+            req.logger.debug("could not read attestation environment — skipping fraud-risk lookup")
+            return
+        }
 
         let app = req.application
         let logger = req.logger
         Task.detached {
             do {
                 guard let result = try await deviceCheck.fetchReceipt(
-                    receipt, on: app.client, logger: logger
+                    receipt, environment: environment, on: app.client, logger: logger
                 ) else { return }   // 304: nothing new to store
 
                 var fields: [String: String] = [
@@ -258,20 +273,49 @@ struct AttestController: RouteCollection {
             on: req
         )
 
-        try await req.redis.hset("counter", to: "\(newCounter)", in: RedisKey("attest:key:\(body.keyID)")).get()
+        try await storeCounterMonotonically(newCounter, keyID: body.keyID, on: req)
 
         return try mintToken(keyID: body.keyID, platform: "ios", on: req)
     }
 
     // MARK: - Helpers
 
+    /// Advances the stored assertion counter, never backwards.
+    ///
+    /// The counter is the replay guard: Apple increments it inside the Secure
+    /// Enclave on every assertion, so a replayed assertion carries a counter we
+    /// have already seen. Storing it with a plain HSET made that guard racy —
+    /// two concurrent refreshes both read N, verify N+1 and N+2, and whichever
+    /// HSET lands last wins, so the *lower* value can end up stored and the
+    /// higher assertion becomes replayable. This compare-and-set keeps the
+    /// stored value monotonic regardless of arrival order.
+    private func storeCounterMonotonically(_ counter: UInt32, keyID: String, on req: Request) async throws {
+        let script = """
+        local current = redis.call('HGET', KEYS[1], 'counter')
+        if current and tonumber(current) >= tonumber(ARGV[1]) then return 0 end
+        redis.call('HSET', KEYS[1], 'counter', ARGV[1])
+        return 1
+        """
+        _ = try await req.redis.send(command: "EVAL", with: [
+            .init(from: script),
+            .init(from: 1),
+            .init(from: RedisKey("attest:key:\(keyID)")),
+            .init(from: "\(counter)")
+        ]).get()
+    }
+
     private func consumeChallenge(_ id: String, on req: Request) async throws -> String {
         let key = RedisKey("attest:challenge:\(id)")
-        guard let c = try await req.redis.get(key).get().string else {
+        // GETDEL, so read-and-consume is one atomic step. A GET followed by a
+        // DELETE lets two requests racing on the same challengeID both read it
+        // before either deletes — which is exactly the replay "single-use" is
+        // supposed to prevent.
+        let response = try await req.redis.send(
+            command: "GETDEL", with: [.init(from: key)]
+        ).get()
+        guard let c = response.string else {
             throw Abort(.badRequest, reason: "challenge expired or unknown")
         }
-        // Single-use: delete before handing back.
-        try await req.redis.delete(key).get()
         return c
     }
 
