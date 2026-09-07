@@ -254,6 +254,11 @@ struct SportsCalApp: App {
         #endif
         .onChange(of: scenePhase) { oldPhase, newPhase in
             if newPhase == .background {
+                // Publish the widget snapshot, Spotlight index and Siri donations now.
+                // During live play these are coalesced to at most once a minute, and
+                // backgrounding is the moment the widget's copy actually has to be
+                // current — this is the one place freshness outranks the budget.
+                viewModel.flushDerivedSideEffects()
                 #if os(iOS)
                 scheduleAppRefresh()
                 #endif

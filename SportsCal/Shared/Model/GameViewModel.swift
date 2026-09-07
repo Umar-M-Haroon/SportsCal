@@ -181,6 +181,9 @@ public class GameViewModel: NSObject {
         isOffline && (totalGames?.isEmpty ?? true)
     }
     var currentLiveInfo: LiveScore?
+    /// `contentSignature` of whatever is in `currentLiveInfo`, so the live socket can
+    /// tell "nothing I display changed" without a deep equality walk over the snapshot.
+    @ObservationIgnored private var currentLiveSignature: Int?
     var currentlyLiveSports: [SportType] = []
     var liveGameCountsBySport: [SportType: Int] = [:]
     var liveEventsWithTeams: [GameWithTeams] = []
@@ -242,6 +245,10 @@ public class GameViewModel: NSObject {
     }
     /// Cache for gamesWithTeams(for:) results, keyed by (day, filterHash).
     private var gamesWithTeamsDateCache: [DateCacheKey: [GameWithTeams]] = [:]
+    /// The two filter generations `gamesWithTeamsDateCache` is allowed to retain, so a
+    /// toggle-and-back stays free without the cache growing for the whole session.
+    @ObservationIgnored private var currentFilterStateHashGeneration: Int?
+    @ObservationIgnored private var previousFilterStateHash: Int?
     /// Snapshot of the current filter state's hash. Recomputed at each filterSports()
     /// call; reads/writes against the date cache use this to scope entries.
     private var currentFilterStateHash: Int = 0
@@ -272,11 +279,15 @@ public class GameViewModel: NSObject {
     func updateLiveData() {
         let start = appStorage.debugMode ? CFAbsoluteTimeGetCurrent() : 0
 
-        let computedLiveEvents = computeLiveEvents()
+        // Resolved once and shared by the three passes below, each of which used to
+        // re-read (and re-parse) the competition preferences per game.
+        let context = GameFilterContext(appStorage: appStorage)
+
+        let computedLiveEvents = computeLiveEvents(context: context)
         let computedLiveEventsWithTeams = computedLiveEvents.compactMap { makeGameWithTeams($0) }
         let computedAllLiveEvents = computeAllLiveEvents()
-        let computedCurrentlyLiveSports = computeCurrentlyLiveSports()
-        let computedLiveGameCounts = computeLiveGameCountsBySport()
+        let computedCurrentlyLiveSports = computeCurrentlyLiveSports(context: context)
+        let computedLiveGameCounts = computeLiveGameCountsBySport(context: context)
         let computedTodayGames = computeTodayGames()
         let computedTodayGamesWithTeams = computedTodayGames.compactMap { makeGameWithTeams($0) }
         let computedTodayFavorites = computedTodayGamesWithTeams.filter { favorites.contains($0.game) }
@@ -324,14 +335,14 @@ public class GameViewModel: NSObject {
         return false
     }
 
-    private func computeCurrentlyLiveSports() -> [SportType] {
+    private func computeCurrentlyLiveSports(context: GameFilterContext) -> [SportType] {
         var sports: [SportType] = []
         if (appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup), let events = currentLiveInfo?.soccer?.events, !events.isEmpty {
             let filtered = events.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
-                return league.isSoccer && soccerGamePassesEnableGate(league) && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+                return league.isSoccer && context.soccerPassesEnableGate(league) && !context.hiddenCompetitions.contains(league.leagueName)
             }
             if !filtered.isEmpty { sports.append(.soccer) }
         }
@@ -366,7 +377,7 @@ public class GameViewModel: NSObject {
         return sports
     }
 
-    private func computeLiveGameCountsBySport() -> [SportType: Int] {
+    private func computeLiveGameCountsBySport(context: GameFilterContext) -> [SportType: Int] {
         var counts: [SportType: Int] = [:]
 
         if let soccerEvents = currentLiveInfo?.soccer?.events {
@@ -374,7 +385,7 @@ public class GameViewModel: NSObject {
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
-                return league.isSoccer && soccerGamePassesEnableGate(league) && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+                return league.isSoccer && context.soccerPassesEnableGate(league) && !context.hiddenCompetitions.contains(league.leagueName)
             }
             if !filteredSoccer.isEmpty {
                 counts[.soccer] = filteredSoccer.count
@@ -526,7 +537,7 @@ public class GameViewModel: NSObject {
         return grouped
     }
 
-    private func computeLiveEvents() -> [Game] {
+    private func computeLiveEvents(context: GameFilterContext) -> [Game] {
         var games: [Game] = []
         if appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup {
             var soccerGames = currentLiveInfo?.soccer?.events
@@ -534,10 +545,10 @@ public class GameViewModel: NSObject {
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
-                return league.isSoccer && soccerGamePassesEnableGate(league) && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+                return league.isSoccer && context.soccerPassesEnableGate(league) && !context.hiddenCompetitions.contains(league.leagueName)
             }
             if let soccerGames {
-                games.append(contentsOf: applyFavoritesFilter(soccerGames, favoritesOnly: appStorage.favoritesOnlySoccer))
+                games.append(contentsOf: applyFavoritesFilter(soccerGames, favoritesOnly: appStorage.favoritesOnlySoccer, context: context))
             }
         }
         if appStorage.shouldShowMLB {
@@ -1397,6 +1408,24 @@ public class GameViewModel: NSObject {
         }
     }
 
+    /// Decodes one live-socket payload, accepting both wire formats.
+    ///
+    /// `/ws?frames=v2` answers with a `LiveFrame` envelope; `/replay`, `/livedebug` and
+    /// any server older than the delta protocol answer with a bare `LiveScore`. Probing
+    /// for the envelope first and falling back means the client can ask for v2
+    /// unconditionally — pointed at an old server it simply keeps getting full frames.
+    /// The order matters: `LiveScore`'s fields are all optional, so an envelope decoded
+    /// as one would succeed and yield an empty snapshot.
+    nonisolated static func decodeLiveFrame(_ data: Data) -> LiveFrame? {
+        if let envelope = try? NetworkHandler.sharedDecoder.decode(LiveFrame.self, from: data) {
+            return envelope
+        }
+        if let bare = try? NetworkHandler.sharedDecoder.decode(LiveScore.self, from: data) {
+            return LiveFrame(seq: 0, kind: .full, live: bare)
+        }
+        return nil
+    }
+
     @objc
     func receiveMessages() async throws {
         while let webSocket = webSocketTask {
@@ -1423,22 +1452,50 @@ public class GameViewModel: NSObject {
                     // Decode off-main via a child Task (inherits priority + cancellation,
                     // unlike Task.detached). 1-2 MB LiveScore decodes ran on main before;
                     // pushed every 5s during live games it was visibly stuttering scrolls.
-                    var newLiveInfo = try await Task(priority: .userInitiated) {
-                        try NetworkHandler.sharedDecoder.decode(LiveScore.self, from: jsonData)
+                    let frame = try await Task(priority: .userInitiated) {
+                        Self.decodeLiveFrame(jsonData)
                     }.value
-                    // Merge live scores (including completed games) into schedule before filtering
-                    mergeLiveIntoSchedule(newLiveInfo)
-                    newLiveInfo.removeNonStarting()
-                    newLiveInfo.removeOtherInfo()
+                    guard let frame else { break }
+
+                    // The games this frame actually carries. On a delta that's just the
+                    // handful that moved, which is what makes the merge below cheap;
+                    // on a full frame it's everything, as before.
+                    let incoming = frame.live
+                    let resolved: LiveScore?
+                    switch frame.kind {
+                    case .full:
+                        resolved = incoming
+                    case .delta:
+                        // A delta against nothing is meaningless — the server only sends
+                        // one to a client it has already been sent a full frame, but a
+                        // reconnect race could still land here. Wait for the next full.
+                        resolved = currentLiveInfo?.applying(delta: incoming, removed: frame.removed)
+                    }
+                    guard let newLiveInfo = resolved else { break }
+
+                    // Merge live scores (including completed games) into schedule before
+                    // filtering. Passing `incoming` rather than the merged snapshot is
+                    // deliberate: the merge only looks up games it has been given, so a
+                    // delta costs one lookup table of a few entries instead of thousands.
+                    mergeLiveIntoSchedule(incoming)
+
+                    var pruned = newLiveInfo
+                    pruned.removeNonStarting()
+                    pruned.removeOtherInfo()
                     // No withAnimation: this fires every ~5s during live games and used to
                     // bundle all 10 batch-assigned @Observable mutations into a single SwiftUI
                     // animation transaction, re-evaluating observer bodies mid-scroll and
                     // visibly stuttering the list. Score-text updates don't visibly animate
                     // inside List rows; @Observable still propagates the changes without it.
-                    if let currentLiveInfo = currentLiveInfo, currentLiveInfo != newLiveInfo {
-                        self.currentLiveInfo = newLiveInfo
-                    } else if currentLiveInfo == nil {
-                        self.currentLiveInfo = newLiveInfo
+                    //
+                    // Compared by signature rather than `!=`: `LiveScore`'s synthesized
+                    // equality bottoms out in `Game`'s, which walks ~45 fields per game
+                    // including several arrays — a deep walk over the whole snapshot, on
+                    // the main actor, every tick.
+                    let signature = pruned.contentSignature
+                    if signature != currentLiveSignature {
+                        currentLiveSignature = signature
+                        self.currentLiveInfo = pruned
                     }
                     if isReplaying { replayFramesReceived += 1 }
                     scheduleLiveDataUpdate()
@@ -1479,7 +1536,7 @@ public class GameViewModel: NSObject {
             liveByTeams[key] = game
         }
 
-        var changed = false
+        var changedIDs: Set<String> = []
         for i in games.indices {
             let scheduled = games[i]
             // Match by event ID first (reliable for F1/golf/tennis where team names change).
@@ -1539,16 +1596,103 @@ public class GameViewModel: NSObject {
                 homeSeed: live.homeSeed ?? scheduled.homeSeed,
                 awaySeed: live.awaySeed ?? scheduled.awaySeed
             )
-            changed = true
+            changedIDs.insert(games[i].id)
         }
 
-        if changed {
-            totalGames = games
-            // Rebuild filtered games and caches
-            gameWithTeamsCache.removeAll()
-            gamesWithTeamsDateCache.removeAll()
-            filterSports(force: true, skipLiveUpdate: true)
+        guard !changedIDs.isEmpty else { return }
+        totalGames = games
+        patchDerivedCollections(with: games, changedIDs: changedIDs)
+    }
+
+    /// Propagates changed games into every derived collection *in place*, instead of
+    /// discarding the caches and re-deriving everything from scratch.
+    ///
+    /// The old path emptied `gameWithTeamsCache` and `gamesWithTeamsDateCache` and then
+    /// ran `filterSports(force: true)`, which re-filters and re-groups `totalGames`,
+    /// re-sorts them, resolves `GameWithTeams` for every displayed game against a cache
+    /// that was just emptied, and rebuilds the whole per-day cache — twice over, since
+    /// `sortByDate` walks the user-preference games a second time. On the main actor,
+    /// for every score change, as often as every 2s.
+    ///
+    /// None of that is needed for a live update. A score change can't move a game into
+    /// or out of the filtered set (the filters key off dates and leagues, and the merge
+    /// deliberately preserves the scheduled timestamp), and it can't change which teams
+    /// a game resolves to — so the existing `GameWithTeams` can keep its teams and swap
+    /// only its `game`. Membership and order are therefore untouched, and the update is
+    /// O(changed) rather than O(all games).
+    ///
+    /// The one thing this doesn't reconsider is favourites membership for individual
+    /// sports, where `Favorites.matches` consults the leaderboard: a followed player
+    /// climbing into a tournament's field mid-round won't pull that tournament into a
+    /// favourites-only list until the next full fetch reconciles.
+    private func patchDerivedCollections(with games: [Game], changedIDs: Set<String>) {
+        var changedByID: [String: Game] = [:]
+        changedByID.reserveCapacity(changedIDs.count)
+        for game in games where changedIDs.contains(game.id) {
+            changedByID[game.id] = game
         }
+        guard !changedByID.isEmpty else { return }
+
+        func patch(_ list: inout [Game]) {
+            for index in list.indices {
+                if let replacement = changedByID[list[index].id] { list[index] = replacement }
+            }
+        }
+        func patch(_ list: inout [GameWithTeams]) {
+            for index in list.indices {
+                guard let replacement = changedByID[list[index].id] else { continue }
+                list[index] = GameWithTeams(
+                    game: replacement,
+                    homeTeam: list[index].homeTeam,
+                    awayTeam: list[index].awayTeam
+                )
+            }
+        }
+
+        for sport in Array(gamesDict.keys) {
+            guard var sportGames = gamesDict[sport] else { continue }
+            patch(&sportGames)
+            gamesDict[sport] = sportGames
+        }
+        if var filtered = filteredGames {
+            patch(&filtered)
+            filteredGames = filtered
+        }
+        if var favoriteList = favoriteGames {
+            patch(&favoriteList)
+            favoriteGames = favoriteList
+        }
+        patch(&favoriteGamesWithTeams)
+
+        for index in sortedGames.indices {
+            patch(&sortedGames[index].value)
+        }
+        for index in sortedGamesWithTeams.indices {
+            var sectionGames = sortedGamesWithTeams[index].games
+            patch(&sectionGames)
+            sortedGamesWithTeams[index] = GameDateSection(
+                date: sortedGamesWithTeams[index].date,
+                games: sectionGames
+            )
+        }
+        for key in Array(gamesWithTeamsDateCache.keys) {
+            guard var dayGames = gamesWithTeamsDateCache[key] else { continue }
+            patch(&dayGames)
+            gamesWithTeamsDateCache[key] = dayGames
+        }
+        for id in changedByID.keys {
+            guard let cached = gameWithTeamsCache[id], let replacement = changedByID[id] else { continue }
+            gameWithTeamsCache[id] = GameWithTeams(
+                game: replacement,
+                homeTeam: cached.homeTeam,
+                awayTeam: cached.awayTeam
+            )
+        }
+
+        // The calendar's memo is keyed off nothing finer than "the games changed", and
+        // rebuilding it is lazy, so dropping it is cheap and keeps it honest.
+        _calendarGamesCache = nil
+        rebuildSportCountsCache()
     }
 
     /// Test-only: seed fixture data for snapshot rendering. Bypasses network fetch,
@@ -1695,61 +1839,98 @@ public class GameViewModel: NSObject {
         }
     }
     
+    /// Preference reads that are constant across one pass over the game list, resolved
+    /// once up front instead of per game.
+    ///
+    /// `hiddenCompetitions` and `favoritesOnlyCompetitions` are `@AppStorage` properties
+    /// of type `[String]`, which reach UserDefaults through the retroactive
+    /// `Array: RawRepresentable` conformance — so every *read* pulls a string out of
+    /// UserDefaults and runs a freshly allocated `JSONDecoder` over it. They were being
+    /// read inside per-game filter closures, in a function that runs several times per
+    /// filter pass, in a pass that ran on every live tick. As `Set`s the membership
+    /// tests are O(1) as well, rather than a linear scan.
+    struct GameFilterContext {
+        let hiddenCompetitions: Set<String>
+        let favoritesOnlyCompetitions: Set<String>
+        let showSoccer: Bool
+        let showWorldCup: Bool
+
+        init(appStorage: UserDefaultStorage) {
+            hiddenCompetitions = Set(appStorage.hiddenCompetitions)
+            favoritesOnlyCompetitions = Set(appStorage.favoritesOnlyCompetitions)
+            showSoccer = appStorage.shouldShowSoccer
+            showWorldCup = appStorage.shouldShowWorldCup
+        }
+
+        /// Whether a soccer game's league passes the sport-enable gate. Soccer is
+        /// admitted when the user has enabled all of Soccer, OR when they've opted into
+        /// the World Cup specifically and this is the World Cup league.
+        func soccerPassesEnableGate(_ league: Leagues) -> Bool {
+            if showSoccer { return true }
+            return showWorldCup && league == .FIFA_World_Cup
+        }
+    }
+
     func getGamesFromUserPreferences() -> [Game] {
+        let context = GameFilterContext(appStorage: appStorage)
         var allGames: [Game] = []
-        if appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup {
+        if context.showSoccer || context.showWorldCup {
             let soccerGames = (gamesDict[.soccer] ?? []).filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
-                return league.isSoccer && soccerGamePassesEnableGate(league) && !appStorage.hiddenCompetitions.contains(where: {$0 == league.leagueName})
+                return league.isSoccer
+                    && context.soccerPassesEnableGate(league)
+                    && !context.hiddenCompetitions.contains(league.leagueName)
             }
-            allGames.append(contentsOf: applyFavoritesFilter(soccerGames, favoritesOnly: appStorage.favoritesOnlySoccer))
+            allGames.append(contentsOf: applyFavoritesFilter(soccerGames, favoritesOnly: appStorage.favoritesOnlySoccer, context: context))
         }
         if appStorage.shouldShowMLB {
             let games = gamesDict[.mlb] ?? []
-            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyMLB))
+            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyMLB, context: context))
         }
-        if appStorage.shouldShowNBA || appStorage.shouldShowWNBA {
+        let showNBA = appStorage.shouldShowNBA
+        let showWNBA = appStorage.shouldShowWNBA
+        if showNBA || showWNBA {
             if let basketballGames = gamesDict[.basketball] {
                 let filtered = basketballGames.filter { game in
                     guard let leagueString = game.idLeague,
                           let intLeague = Int(leagueString),
                           let league = Leagues(rawValue: intLeague) else { return false }
-                    if !league.isBasketball || appStorage.hiddenCompetitions.contains(league.leagueName) { return false }
-                    return league == .wnba ? appStorage.shouldShowWNBA : appStorage.shouldShowNBA
+                    if !league.isBasketball || context.hiddenCompetitions.contains(league.leagueName) { return false }
+                    return league == .wnba ? showWNBA : showNBA
                 }
-                allGames.append(contentsOf: applyFavoritesFilter(filtered, favoritesOnly: appStorage.favoritesOnlyNBA))
+                allGames.append(contentsOf: applyFavoritesFilter(filtered, favoritesOnly: appStorage.favoritesOnlyNBA, context: context))
             }
         }
         if appStorage.shouldShowNFL {
             let games = gamesDict[.nfl] ?? []
-            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyNFL))
+            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyNFL, context: context))
         }
         if appStorage.shouldShowNHL {
             let games = gamesDict[.hockey] ?? []
-            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyNHL))
+            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyNHL, context: context))
         }
         if appStorage.shouldShowGolf {
             let games = gamesDict[.golf] ?? []
-            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyGolf))
+            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyGolf, context: context))
         }
         if appStorage.shouldShowTennis {
             let games = gamesDict[.tennis] ?? []
-            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyTennis))
+            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyTennis, context: context))
         }
         if appStorage.shouldShowRacing {
             let games = gamesDict[.racing] ?? []
-            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyRacing))
+            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyRacing, context: context))
         }
         return allGames
     }
 
-    private func applyFavoritesFilter(_ games: [Game], favoritesOnly: Bool) -> [Game] {
+    private func applyFavoritesFilter(_ games: [Game], favoritesOnly: Bool, context: GameFilterContext) -> [Game] {
         if favoritesOnly {
             return games.filter { favorites.matches($0) }
         }
-        let perLeague = appStorage.favoritesOnlyCompetitions
+        let perLeague = context.favoritesOnlyCompetitions
         guard !perLeague.isEmpty else { return games }
         return games.filter { game in
             guard let leagueString = game.idLeague,
@@ -1760,146 +1941,73 @@ public class GameViewModel: NSObject {
         }
     }
     
-    func showGame(game: Game) -> Bool {
-        // if hidePastEvents
-        // if game in past
-        // For multi-session events (F1), use the latest session date (Race day) so
-        // the event isn't hidden while the weekend is still ongoing or just finished.
-        guard let date = game.effectiveEndDate else { return false }
-        if date.timeIntervalSinceNow < 0 {
-            if self.appStorage.hidePastEvents{
-                return false
+    /// The date span the "show games within…" settings admit, as two `Date`s.
+    ///
+    /// `showGame` decided this per game, and each of its sixteen arms called
+    /// `Calendar.dateComponents` — one of the more expensive things in Foundation —
+    /// once per game per filter pass, to compare against settings that are fixed for
+    /// the whole pass. Resolving the boundaries once turns the per-game test into two
+    /// `Date` comparisons.
+    ///
+    /// The bounds are exclusive, and derived to match the old whole-unit arithmetic
+    /// exactly: `days <= 7` admits anything up to (but not including) 8 days out,
+    /// because `dateComponents` truncates. The `.sixMonths` future case really does
+    /// bound at two months — that quirk is in the original and is preserved here
+    /// deliberately; this change is about where the comparison happens, not what it
+    /// decides.
+    struct GameDateWindow {
+        let earliest: Date
+        let latest: Date
+
+        init(appStorage: UserDefaultStorage, now: Date = Date()) {
+            let calendar = Calendar.current
+
+            if appStorage.hidePastEvents {
+                earliest = now
             } else {
-                switch self.appStorage.hidePastGamesDuration {
-                case .oneWeek:
-                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                    return (days >= -7)
-                case .twoWeeks:
-                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                    return (days >= -14)
-                case .threeWeeks:
-                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                    return (days >= -21)
-                case .oneMonth:
-                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                    return (month1 >= -1)
-                case .twoMonths:
-                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                    return (month1 >= -2)
-                case .sixMonths:
-                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                    return (month1 >= -6)
-                case .oneYear:
-                    guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                    return (month1 >= -12)
-                case .oneDay:
-                    guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                    return (days >= -1)
+                let past = appStorage.hidePastGamesDuration
+                let bound: Date?
+                switch past {
+                case .oneDay:     bound = calendar.date(byAdding: .day, value: -2, to: now)
+                case .oneWeek:    bound = calendar.date(byAdding: .day, value: -8, to: now)
+                case .twoWeeks:   bound = calendar.date(byAdding: .day, value: -15, to: now)
+                case .threeWeeks: bound = calendar.date(byAdding: .day, value: -22, to: now)
+                case .oneMonth:   bound = calendar.date(byAdding: .month, value: -2, to: now)
+                case .twoMonths:  bound = calendar.date(byAdding: .month, value: -3, to: now)
+                case .sixMonths:  bound = calendar.date(byAdding: .month, value: -7, to: now)
+                case .oneYear:    bound = calendar.date(byAdding: .month, value: -13, to: now)
                 }
+                earliest = bound ?? now
             }
-        }
-        
-        switch self.appStorage.durations {
-        case .oneWeek:
-            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-            return (days <= 7)
-        case .twoWeeks:
-            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-            return (days <= 14)
-        case .threeWeeks:
-            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-            return (days <= 21)
-        case .oneMonth:
-            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-            return (month1 < 1)
-        case .twoMonths:
-            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-            return (month1 < 2)
-        case .sixMonths:
-            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-            return (month1 < 2)
-        case .oneYear:
-            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-            return (month1 < 12)
-        case .oneDay:
-            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-            return (days < 1)
-        }
-        
-    }
-    
-    func isValidInPast(game: Game) -> Bool {
-        guard let date = game.standardDate else { return true }
-        var isValidForPastDuration: Bool = false
-        if self.appStorage.hidePastEvents {
-            return date.timeIntervalSinceNow > 0
-        } else {
-            switch self.appStorage.hidePastGamesDuration {
-            case .oneWeek:
-                guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                isValidForPastDuration = (days >= -7)
-            case .twoWeeks:
-                guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                isValidForPastDuration = (days >= -14)
-            case .threeWeeks:
-                guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                isValidForPastDuration = (days >= -21)
-            case .oneMonth:
-                guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                isValidForPastDuration = (month1 >= -1)
-            case .twoMonths:
-                guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                isValidForPastDuration = (month1 >= -2)
-            case .sixMonths:
-                guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                isValidForPastDuration = (month1 >= -6)
-            case .oneYear:
-                guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-                isValidForPastDuration = (month1 >= -12)
-            case .oneDay:
-                guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-                isValidForPastDuration = (days >= -1)
+
+            let future = appStorage.durations
+            let bound: Date?
+            switch future {
+            case .oneDay:     bound = calendar.date(byAdding: .day, value: 1, to: now)
+            case .oneWeek:    bound = calendar.date(byAdding: .day, value: 8, to: now)
+            case .twoWeeks:   bound = calendar.date(byAdding: .day, value: 15, to: now)
+            case .threeWeeks: bound = calendar.date(byAdding: .day, value: 22, to: now)
+            case .oneMonth:   bound = calendar.date(byAdding: .month, value: 1, to: now)
+            case .twoMonths:  bound = calendar.date(byAdding: .month, value: 2, to: now)
+            case .sixMonths:  bound = calendar.date(byAdding: .month, value: 2, to: now)
+            case .oneYear:    bound = calendar.date(byAdding: .month, value: 12, to: now)
             }
+            latest = bound ?? now
         }
-        return isValidForPastDuration
-    }
-    
-    func isValidInFuture(game: Game) -> Bool {
-        guard let date = game.standardDate else { return true }
-        var isValidForFutureDuration: Bool = false
-        switch self.appStorage.durations {
-        case .oneWeek:
-            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-            isValidForFutureDuration = (days <= 7)
-        case .twoWeeks:
-            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-            isValidForFutureDuration = (days <= 14)
-        case .threeWeeks:
-            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-            isValidForFutureDuration = (days <= 21)
-        case .oneMonth:
-            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-            isValidForFutureDuration = (month1 < 1)
-        case .twoMonths:
-            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-            isValidForFutureDuration = (month1 < 2)
-        case .sixMonths:
-            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-            isValidForFutureDuration = (month1 < 2)
-        case .oneYear:
-            guard let month1 = Calendar.current.dateComponents([.month], from: .now, to: date).month else { return false }
-            isValidForFutureDuration = (month1 < 12)
-        case .oneDay:
-            guard let days = Calendar.current.dateComponents([.day], from: .now, to: date).day else { return false }
-            isValidForFutureDuration = (days < 1)
+
+        func admits(_ date: Date) -> Bool {
+            date > earliest && date < latest
         }
-        return isValidForFutureDuration
     }
-    
+
     func filterAndSortGamesFromUserPreferences(games: [Game]) -> [Game] {
-        return games.filter({ game -> Bool in
-            return showGame(game: game)
-        })
+        let window = GameDateWindow(appStorage: appStorage)
+        return games.filter { game in
+            // `effectiveEndDate` (not `standardDate`) so a multi-session F1 weekend is
+            // judged on race day rather than on Friday practice.
+            guard let date = game.effectiveEndDate else { return false }
+            return window.admits(date)
+        }
         .sorted { lhs, rhs in
             lhs.standardDate ?? .now < rhs.standardDate ?? .now
         }
@@ -1979,6 +2087,61 @@ public class GameViewModel: NSObject {
         // on the throwaway cached launch pass — getInfo()'s fetch reconcile runs
         // moments later and does them once against fresh data, instead of 2-3×.
         guard !skipSideEffects else { return }
+        scheduleDerivedSideEffects()
+    }
+
+    // MARK: - Publishing derived state outside the app
+
+    /// Minimum spacing between runs of the widget-snapshot / Spotlight / Siri work.
+    private static let sideEffectMinimumInterval: TimeInterval = 60
+
+    @ObservationIgnored private var lastSideEffectRun: Date = .distantPast
+    @ObservationIgnored private var pendingSideEffects: Task<Void, Never>?
+
+    /// Coalesces the work that publishes derived state to the rest of the system.
+    ///
+    /// Each piece is cheap next to a user action and ruinous next to a live tick: the
+    /// widget snapshot is a JSON encode plus an atomic file write, the Spotlight pass
+    /// builds a `CSSearchableItem` for every filtered game, and the donation pass walks
+    /// two days of fixtures. `mergeLiveIntoSchedule` reaches `filterSports` on every
+    /// score change — as often as every 2s on a busy evening — so running them inline
+    /// meant running them continuously. WidgetKit also meters reloads against a daily
+    /// budget, so hammering it left the widget *staler* than not poking it at all.
+    ///
+    /// Leading edge: the first call after a quiet period runs at once, so a user
+    /// toggling a sport filter sees the widget follow. Calls inside the window collapse
+    /// into a single trailing run.
+    private func scheduleDerivedSideEffects() {
+        let elapsed = Date().timeIntervalSince(lastSideEffectRun)
+        if elapsed >= Self.sideEffectMinimumInterval {
+            pendingSideEffects?.cancel()
+            pendingSideEffects = nil
+            runDerivedSideEffects()
+            return
+        }
+        // A run is already queued for the end of this window; it will pick up whatever
+        // the latest state is when it fires, so there's nothing to add.
+        guard pendingSideEffects == nil else { return }
+        let delay = Self.sideEffectMinimumInterval - elapsed
+        pendingSideEffects = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled, let self else { return }
+            self.pendingSideEffects = nil
+            self.runDerivedSideEffects()
+        }
+    }
+
+    /// Runs the side effects now, ignoring the coalescing window. For moments where
+    /// freshness matters more than the budget — notably backgrounding, which is exactly
+    /// when the widget snapshot needs to be current.
+    func flushDerivedSideEffects() {
+        pendingSideEffects?.cancel()
+        pendingSideEffects = nil
+        runDerivedSideEffects()
+    }
+
+    private func runDerivedSideEffects() {
+        lastSideEffectRun = Date()
 
         // Write trimmed snapshot for widget extension off main actor
         let snapshotGames = filteredGames ?? []
@@ -2120,9 +2283,18 @@ public class GameViewModel: NSObject {
         for (key, games) in dateCache {
             dateCache[key] = games.sorted { ($0.game.standardDate ?? .distantPast) < ($1.game.standardDate ?? .distantPast) }
         }
-        // Replace entries for the current filter hash; entries under other hashes survive.
+        // Replace entries for the current filter hash. Entries under the *previous* hash
+        // survive so toggling a sport off and back on is free; anything older is dropped.
+        // Keeping every hash ever seen (the earlier behaviour) meant each toggle minted a
+        // complete new set of per-day `[GameWithTeams]` arrays that lived for the rest of
+        // the session, with nothing to evict them.
         let hash = currentFilterStateHash
-        gamesWithTeamsDateCache = gamesWithTeamsDateCache.filter { $0.key.filterHash != hash }
+        if hash != currentFilterStateHashGeneration {
+            previousFilterStateHash = currentFilterStateHashGeneration
+            currentFilterStateHashGeneration = hash
+        }
+        let keep: Set<Int> = [hash, previousFilterStateHash].compactMap { $0 }.reduce(into: []) { $0.insert($1) }
+        gamesWithTeamsDateCache = gamesWithTeamsDateCache.filter { $0.key.filterHash != hash && keep.contains($0.key.filterHash) }
         for (day, games) in dateCache {
             gamesWithTeamsDateCache[DateCacheKey(date: day, filterHash: hash)] = games
         }

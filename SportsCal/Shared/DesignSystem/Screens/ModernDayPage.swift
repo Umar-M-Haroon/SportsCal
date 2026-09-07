@@ -135,16 +135,26 @@ struct ModernDayPage: View {
         return calendar.date(byAdding: .day, value: offset, to: today) ?? today
     }
 
-    private static func weekdayAbbr(_ date: Date) -> String {
+    // Called once per day chip on every render — the two formatters below are `static`
+    // for the same reason `accessibilityLabelFormatter` is, which these two had missed.
+    private static let weekdayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "EEE"
-        return f.string(from: date).uppercased()
+        return f
+    }()
+
+    private static let dayNumberFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "d"
+        return f
+    }()
+
+    private static func weekdayAbbr(_ date: Date) -> String {
+        weekdayFormatter.string(from: date).uppercased()
     }
 
     private static func dayNumber(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "d"
-        return f.string(from: date)
+        dayNumberFormatter.string(from: date)
     }
 
     private static let accessibilityLabelFormatter: DateFormatter = {

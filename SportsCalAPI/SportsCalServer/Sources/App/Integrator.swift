@@ -11,6 +11,62 @@ import Redis
 import SportsCalModel
 import Logging
 
+/// Process-wide memo for `Integrator.activeLeagues`, keyed by environment.
+///
+/// The computation behind it is expensive out of all proportion to how often its
+/// answer changes: two multi-MB Redis reads, two full JSON decodes, and a walk over
+/// every scheduled event — to produce a set of at most ~50 league cases that turns
+/// over on the hour. Callers on the hot path (the `/ws` push loop, once per client
+/// per 2s) were paying that in full.
+///
+/// Stale-while-revalidate: once a value exists, a caller arriving during another
+/// caller's refresh gets the previous one immediately rather than queueing behind
+/// the Redis round-trip. Actor reentrancy across the awaited fetch is what lets
+/// them in, and `refreshing` is what stops them all from starting their own.
+actor ActiveLeaguesCache {
+    static let shared = ActiveLeaguesCache()
+
+    /// Long enough that a busy evening's WS traffic collapses to a trickle of
+    /// recomputations, short enough that a league tipping into its window is picked
+    /// up well before its first event starts.
+    static let ttl: TimeInterval = 30
+
+    private struct Entry {
+        /// nil is a real answer here — "cold start, treat every league as active" —
+        /// so it's stored inside the entry rather than signalled by its absence.
+        var value: Set<Leagues>?
+        var fetchedAt: Date
+    }
+
+    private var entries: [Bool: Entry] = [:]
+    private var refreshing: Set<Bool> = []
+
+    func current(isDebug: Bool, fetch: () async -> Set<Leagues>?) async -> Set<Leagues>? {
+        let existing = entries[isDebug]
+        let isFresh = existing.map { Date().timeIntervalSince($0.fetchedAt) < Self.ttl } ?? false
+
+        // A stale value beats blocking, but only once we have one. The very first
+        // caller has nothing to serve and must wait for the fetch.
+        if isFresh || (existing != nil && refreshing.contains(isDebug)) {
+            return existing?.value
+        }
+
+        refreshing.insert(isDebug)
+        defer { refreshing.remove(isDebug) }
+        let value = await fetch()
+        // Stamped unconditionally: a Redis blip returning nil shouldn't turn every
+        // subsequent tick into another attempt.
+        entries[isDebug] = Entry(value: value, fetchedAt: Date())
+        return value
+    }
+
+    /// Drops the memo so the next read recomputes. For tests, and for any future
+    /// caller that has just written a new schedule and wants it reflected at once.
+    func invalidate() {
+        entries.removeAll()
+    }
+}
+
 class Integrator {
     private static let logger = Logger(label: "com.sportscal.integrator")
     static func getAllLiveScores(_ client: some Client) async -> LiveScore {
@@ -187,10 +243,26 @@ class Integrator {
         return active
     }
 
+    /// Cached `activeLeagues` for the default window — one recomputation per
+    /// `ActiveLeaguesCache.ttl` process-wide, no matter how many callers ask.
+    ///
+    /// The uncached form reads *and JSON-decodes* two multi-MB Redis blobs and walks
+    /// every event in them. The `/ws` loop called it once per connected client per 2s
+    /// tick, so cost scaled with client count on exactly the busy evenings that wedged
+    /// the Redis pool (July 2026). Four minutely jobs call it too. League activity
+    /// turns over on the hour, not the second, so a short TTL costs nothing in
+    /// correctness — a league becoming active is picked up within `ttl`, and the
+    /// window itself already spans 8h back / 30min forward.
+    static func activeLeaguesCached(redis: RedisClient, isDebug: Bool) async -> Set<Leagues>? {
+        await ActiveLeaguesCache.shared.current(isDebug: isDebug) {
+            await activeLeagues(redis: redis, isDebug: isDebug)
+        }
+    }
+
     /// Back-compat wrapper. Cold-start (nil activeLeagues) → true; otherwise true iff any
     /// league is active.
     static func hasLiveOrUpcomingGames(redis: RedisClient, isDebug: Bool) async -> Bool {
-        guard let active = await activeLeagues(redis: redis, isDebug: isDebug) else { return true }
+        guard let active = await activeLeaguesCached(redis: redis, isDebug: isDebug) else { return true }
         return !active.isEmpty
     }
 

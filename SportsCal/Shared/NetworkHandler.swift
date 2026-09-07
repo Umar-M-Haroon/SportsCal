@@ -560,8 +560,16 @@ struct NetworkHandler {
             let id = replay.eventID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? replay.eventID
             urlString = "\(wsBase)/v2025/replay/\(id)?speed=\(replay.speed)"
         } else {
-            let urlPath = ProcessInfo.processInfo.environment["mock-live"] != nil ? "livedebug" : "ws"
-            urlString = "\(wsBase)/v2025/\(urlPath)"
+            if ProcessInfo.processInfo.environment["mock-live"] != nil {
+                urlString = "\(wsBase)/v2025/livedebug"
+            } else {
+                // Ask for delta frames: a full snapshot on connect, then only the games
+                // whose state moved. The full snapshot ran ~4.76 MB and was re-sent on
+                // every change. Safe to request unconditionally — a server that doesn't
+                // know the parameter ignores it and keeps sending bare snapshots, which
+                // the receive path still accepts.
+                urlString = "\(wsBase)/v2025/ws?frames=v2"
+            }
         }
         let url = URL(string: urlString)!
         let request = authenticatedRequest(url: url)

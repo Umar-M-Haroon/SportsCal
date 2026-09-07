@@ -599,7 +599,14 @@ public struct PlayoffContext: Codable, Equatable, Hashable {
 // here means each format is created once for the process lifetime.
 // `nonisolated(unsafe)` because Foundation's date formatters are documented as safe
 // for concurrent reads on iOS 7+ once configured, but the compiler can't prove it.
-fileprivate enum DateParsers {
+/// The timestamp formats the upstream feeds actually emit, each backed by one
+/// formatter that is configured once and never mutated afterwards.
+///
+/// Reassigning `dateFormat` on a `DateFormatter` tears down and rebuilds the
+/// underlying `CFDateFormatter`, so a shared formatter whose format is set per call
+/// pays that on every call — and races when two threads do it at once. This is the
+/// pattern the rest of the codebase should route through.
+public enum DateParsers {
     nonisolated(unsafe) static let iso8601 = ISO8601DateFormatter()
     static let dashedSeconds: DateFormatter = {
         let df = DateFormatter()
@@ -620,7 +627,7 @@ fileprivate enum DateParsers {
         return df
     }()
 
-    static func parse(_ timestamp: String) -> Date? {
+    public static func parse(_ timestamp: String) -> Date? {
         if let d = iso8601.date(from: timestamp) { return d }
         if let d = dashedSeconds.date(from: timestamp) { return d }
         if let d = dashedNoSeconds.date(from: timestamp) { return d }
@@ -683,8 +690,21 @@ public struct Game: Identifiable, Equatable, Hashable {
         }
     }
 
+    /// Stable identity for the fixture.
+    ///
+    /// This used to fall back to `UUID().uuidString`, which handed the same game a new
+    /// identity on *every read* — a getter, so nothing memoized it. Three things broke
+    /// quietly as a result: `GameViewModel`'s `GameWithTeams` cache could never hit for
+    /// such a game while inserting a fresh entry per call (unbounded growth), SwiftUI
+    /// `ForEach` tore rows down and rebuilt them instead of updating them, and any
+    /// `Set(games.map(\.id))` membership test silently failed to match.
+    ///
+    /// The fallback below is derived from the fields that identify the fixture, so it is
+    /// stable across reads and across separate decodes of the same payload.
     public var id: String {
-        idEvent ?? UUID().uuidString
+        if let idEvent, !idEvent.isEmpty { return idEvent }
+        let when = strTimestamp ?? isoDate.map { String($0.timeIntervalSince1970) } ?? "?"
+        return "syn:\(idLeague ?? "?")|\(strHomeTeam)|\(strAwayTeam)|\(when)"
     }
     public let idLiveScore, idEvent: String?
     public let idLeague: String?

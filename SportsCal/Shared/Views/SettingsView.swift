@@ -196,11 +196,8 @@ struct DateFormatSettingsSection: View {
     }
 
     private func formatFromStorage(date: Date, isRelative: Bool) -> String {
-        let formatter = DateFormatters.dateFormatter
-        formatter.dateStyle = DateFormatter.Style(rawValue: UInt(appStorage.dateFormat))!
-        formatter.timeStyle = .none
-        formatter.doesRelativeDateFormatting = isRelative
-        return formatter.string(from: date)
+        let style = DateFormatter.Style(rawValue: UInt(appStorage.dateFormat))!
+        return DateFormatters.styled(dateStyle: style, relative: isRelative).string(from: date)
     }
 }
 
@@ -564,14 +561,10 @@ struct SettingsView: View {
     }
 
     func dateFormats() -> [String: UInt] {
-        let formatter = DateFormatters.dateFormatter
         let allCases = [DateFormatter.Style.short, .medium, .full, .long]
         var combos: [String: UInt] = [:]
         for dateStyle in allCases {
-            //            for timeStyle in allCases {
-            formatter.dateStyle = dateStyle
-            formatter.timeStyle = .none
-            let string = formatter.string(from: .now)
+            let string = DateFormatters.styled(dateStyle: dateStyle, relative: false).string(from: .now)
             combos[string] = dateStyle.rawValue
         }
         return combos
@@ -768,19 +761,9 @@ struct PushDiagnosticsRow: View {
 
 extension DateFormatter.Style {
     func toExample(date: Date = .now) -> String {
-        let formatter = DateFormatters.dateFormatter
-        formatter.dateStyle = self
-        formatter.timeStyle = .none
-        formatter.doesRelativeDateFormatting = false
-        let string = formatter.string(from: date)
-        return string
+        return DateFormatters.styled(dateStyle: self, relative: false).string(from: date)
     }
     func relativeExample(date: Date = .now) -> String {
-        let formatter = DateFormatters.dateFormatter
-        formatter.dateStyle = self
-        formatter.timeStyle = .none
-        formatter.doesRelativeDateFormatting = true
-        let string = formatter.string(from: date)
-        return string
+        return DateFormatters.styled(dateStyle: self, relative: true).string(from: date)
     }
 }

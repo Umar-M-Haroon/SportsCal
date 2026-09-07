@@ -47,7 +47,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
         // Compute the active-league set once. nil = cold start (both schedule sources
         // empty) — treat as "fetch everything" so we populate cache for the next tick.
-        let active = await Integrator.activeLeagues(redis: context.application.redis, isDebug: isDebug)
+        let active = await Integrator.activeLeaguesCached(redis: context.application.redis, isDebug: isDebug)
         if let active, active.isEmpty {
             // Nothing is live, so skip the live-score work — but still refresh the forward
             // schedule window. It is the schedule backfill, and a quiet period is exactly
