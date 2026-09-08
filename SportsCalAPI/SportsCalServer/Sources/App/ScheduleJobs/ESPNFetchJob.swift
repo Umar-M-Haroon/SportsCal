@@ -526,9 +526,6 @@ struct ESPNFetchJob: AsyncScheduledJob {
     /// Max ESPN day-board fetches in flight while building the forward window.
     static let forwardWindowConcurrency = 6
 
-    /// Collapses duplicate events within each sport bucket, keeping first occurrence.
-    /// `LiveScore.merging` concatenates without dedup, so the live board and the forward
-    /// window can each contribute the same fixture. `internal` for tests.
     /// Keeps the first occurrence of each event ID. A game without one can't be addressed,
     /// so it passes through untouched rather than being collapsed against other ID-less games.
     static func dedupedByEventID(_ games: [Game]) -> [Game] {
@@ -539,6 +536,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
         }
     }
 
+    /// Collapses duplicate events within each sport bucket, keeping first occurrence.
+    /// `LiveScore.merging` concatenates without dedup, so the live board and the forward
+    /// window can each contribute the same fixture. `internal` for tests.
     static func dedupedByEventID(_ score: LiveScore) -> LiveScore {
         func dedup(_ event: LiveEvent?) -> LiveEvent? {
             guard let event else { return nil }

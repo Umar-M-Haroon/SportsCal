@@ -26,10 +26,10 @@ struct TournamentHubView: View {
     /// Tours present in this tournament, in ATP → WTA order. Combined events (Grand Slams,
     /// Indian Wells…) have both; single-tour events have one.
     private var toursPresent: [Leagues] {
-        let set = Set(games.compactMap { game -> Leagues? in
-            guard let lg = game.idLeague, let i = Int(lg) else { return nil }
-            return Leagues(rawValue: i)
-        })
+        // From the draw, not `idLeague` — this gates the whole picker, and a row cached
+        // before draws existed carries a stale league, which would collapse a slam to a
+        // single tour and hide the Men's/Women's control entirely.
+        let set = Set(games.flatMap { $0.tennisTours })
         return [Leagues.atp, .wta].filter { set.contains($0) }
     }
 

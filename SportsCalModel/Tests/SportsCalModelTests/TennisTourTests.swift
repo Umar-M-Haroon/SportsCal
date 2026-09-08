@@ -129,6 +129,18 @@ final class TennisTourTests: XCTestCase {
         XCTAssertEqual(mixed.tennisTours, [.atp, .wta])
     }
 
+    /// What gates the Men's/Women's picker: a slam's games must report *both* tours even
+    /// when every row still carries the stale cached ATP league. If this collapses to one
+    /// tour the control is hidden entirely and the split never appears.
+    func testStaleLeagueSlamStillReportsBothTours() {
+        let slam = [
+            match(league: .atp, draw: "mens-singles"),
+            match(league: .atp, draw: "womens-singles"),   // stale league, correct draw
+            match(league: .atp, draw: "mixed-doubles"),
+        ]
+        XCTAssertEqual(Set(slam.flatMap { $0.tennisTours }), [.atp, .wta])
+    }
+
     // MARK: - Ingest
 
     /// The regression itself: the women's draw served on the ATP board must still come
