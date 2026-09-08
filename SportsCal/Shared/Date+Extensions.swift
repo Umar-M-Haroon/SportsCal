@@ -11,11 +11,7 @@ extension DateComponents {
         guard let date = self.date,
         let formatStyle = DateFormatter.Style(rawValue: UInt(format))
         else { return "" }
-        let dateFormatter = DateFormatters.dateFormatter
-        dateFormatter.dateStyle = formatStyle
-        dateFormatter.timeStyle = .none
-        dateFormatter.doesRelativeDateFormatting = isRelative
-        return dateFormatter.string(from: date)
+        return DateFormatters.styled(dateStyle: formatStyle, relative: isRelative).string(from: date)
     }
 }
 extension Date{
@@ -48,16 +44,11 @@ extension Date{
         return formatter.date(from: formatter.string(from: Date())) ?? self
     }
     func formatToTime() -> String {
-        DateFormatters.dateFormatter.dateStyle = .none
-        DateFormatters.dateFormatter.timeStyle = .short
-        DateFormatters.dateFormatter.timeZone = .current
-        return DateFormatters.dateFormatter.string(from: self)
+        DateFormatters.shortTime.string(from: self)
     }
 
     func formatToDate(dateFormat: String) -> String? {
-        DateFormatters.dateFormatter.dateFormat = dateFormat
-        DateFormatters.dateFormatter.timeZone = .current
-        return DateFormatters.dateFormatter.string(from: self)
+        DateFormatters.formatter(for: dateFormat).string(from: self)
     }
     
     static func sampleDate(hoursInFuture hours: Int) -> String {

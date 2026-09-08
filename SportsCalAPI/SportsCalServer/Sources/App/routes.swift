@@ -30,6 +30,43 @@ actor LastKnownGoodCache {
     }
 }
 
+/// Memo for endpoints that must *transform* a cached Redis blob rather than serve it
+/// verbatim — a per-sport slice of the schedule, a pruned live snapshot.
+///
+/// `/schedules` and `/teams` avoid the problem entirely by returning the cached string
+/// as-is; the comment there records that decoding and re-encoding it burned ~5s of CPU
+/// per call. The endpoints below can't do that because their output isn't the input,
+/// but the transform is deterministic, so it only has to happen once per generation of
+/// the source blob instead of once per request.
+///
+/// Each variant holds one entry, stamped with the hash of the source it was built from.
+/// The ingest jobs rewrite each blob wholesale, so a stamp mismatch means "regenerate";
+/// nothing needs a TTL and the cache is bounded by the number of variants.
+///
+/// Note that the stamp is per variant, not global. Variants are built from *different*
+/// source blobs — the per-sport slices come from `latestSchedule`, the pruned live
+/// snapshot from `latestLiveInfo` — so a single shared generation counter would have
+/// each endpoint's miss evict the other's entry, and under traffic to both the hit rate
+/// would collapse to roughly zero.
+actor DerivedPayloadCache {
+    static let shared = DerivedPayloadCache()
+
+    private struct Entry {
+        let sourceHash: Int
+        let value: String
+    }
+
+    private var entries: [String: Entry] = [:]
+
+    func value(variant: String, source: String, build: (String) -> String?) -> String? {
+        let sourceHash = source.hashValue
+        if let hit = entries[variant], hit.sourceHash == sourceHash { return hit.value }
+        guard let built = build(source) else { return nil }
+        entries[variant] = Entry(sourceHash: sourceHash, value: built)
+        return built
+    }
+}
+
 /// Shared snapshot of the live-info WS frame: one Redis fetch (and one hash)
 /// per ~1.5s process-wide, no matter how many /ws clients are connected.
 /// Callers polling within the freshness window — or while another caller's
@@ -37,24 +74,171 @@ actor LastKnownGoodCache {
 /// revalidate; actor reentrancy during the awaited fetch is what lets them in).
 actor LiveFrameCache {
     static let shared = LiveFrameCache()
+
+    /// How long a fetched frame is served before another fetch is attempted. Injectable
+    /// so tests can drive the sequence machinery without sleeping between frames.
+    private let refreshInterval: TimeInterval
+
+    init(refreshInterval: TimeInterval = 1.5) {
+        self.refreshInterval = refreshInterval
+    }
+
     private var frame = "{}"
     private var hash = "{}".hashValue
     private var fetchedAt = Date.distantPast
     private var refreshing = false
 
+    // MARK: Delta state (v2 clients)
+    //
+    // Computed once per refresh, process-wide, and shared by every v2 client. In the
+    // steady state all of them sit exactly one sequence behind, so they all send the
+    // same pre-encoded delta string — the whole point being that a tick which moves
+    // one score costs one game on the wire rather than the entire snapshot.
+
+    /// Monotonic frame counter. Bumped only when the payload actually changed.
+    private var seq = 0
+    /// Per-game signature of the current frame, keyed by event ID — the input to the
+    /// next diff. Holds signatures, not `Game`s: this is retained between ticks and
+    /// the games themselves are large.
+    private var signatures: [String: Int] = [:]
+    /// The `seq - 1` → `seq` delta, already encoded. Nil when the last refresh
+    /// couldn't produce one (first frame, or a decode failure).
+    private var encodedDelta: String?
+    /// The current snapshot as a `full` envelope, encoded lazily on first request and
+    /// reused until the next refresh — new clients and clients that fell behind by
+    /// more than one sequence share it.
+    private var encodedFull: String?
+    /// Enrichment carried by the last frame, so a delta can omit it when it hasn't
+    /// moved. `applying(delta:)` reads absent enrichment as "unchanged".
+    private var lastEnrichment: (f1: F1Standings?, worldCup: WorldCupEnrichment?)
+    /// How many `/ws` clients are on the delta protocol. Zero means nobody can consume
+    /// a delta, so `advance()` skips the diff entirely.
+    private var deltaSubscribers = 0
+
+    func subscribeToDeltas() { deltaSubscribers += 1 }
+    func unsubscribeFromDeltas() { deltaSubscribers = max(0, deltaSubscribers - 1) }
+
     func current(fetch: () async -> String?) async -> (frame: String, hash: Int) {
-        if Date().timeIntervalSince(fetchedAt) >= 1.5, !refreshing {
-            refreshing = true
-            defer { refreshing = false }
-            if let fresh = await fetch(), fresh != frame {
-                frame = fresh
-                hash = fresh.hashValue
-            }
-            // Stamp even on failure/no-change so a Redis blip doesn't turn every
-            // client's next tick into another fetch attempt.
-            fetchedAt = Date()
-        }
+        await refreshIfStale(fetch: fetch)
         return (frame, hash)
+    }
+
+    /// The frame a v2 client should be sent given the sequence it last accepted, or
+    /// nil when it is already current.
+    ///
+    /// A client exactly one sequence behind gets the shared delta. Anything else —
+    /// a new connection, or one whose send took longer than a tick — gets a full
+    /// frame, which is correct and self-correcting rather than an error path.
+    func next(after clientSeq: Int?, fetch: () async -> String?) async -> (payload: String, seq: Int)? {
+        await refreshIfStale(fetch: fetch)
+        guard clientSeq != seq else { return nil }
+
+        if let clientSeq, clientSeq == seq - 1, let encodedDelta {
+            return (encodedDelta, seq)
+        }
+
+        if encodedFull == nil {
+            // The cached `frame` string is already the `LiveScore` JSON this envelope
+            // wraps, so splice it in rather than decoding a multi-MB snapshot and
+            // re-encoding it byte-for-byte — the same round trip `/schedules` was
+            // fixed to stop paying.
+            encodedFull = #"{"seq":\#(seq),"kind":"full","live":\#(frame)}"#
+        }
+        guard let encodedFull else { return nil }
+        return (encodedFull, seq)
+    }
+
+    private func refreshIfStale(fetch: () async -> String?) async {
+        guard Date().timeIntervalSince(fetchedAt) >= refreshInterval, !refreshing else { return }
+        refreshing = true
+        defer { refreshing = false }
+        if let fresh = await fetch(), fresh != frame {
+            frame = fresh
+            hash = fresh.hashValue
+            advance()
+        }
+        // Stamp even on failure/no-change so a Redis blip doesn't turn every
+        // client's next tick into another fetch attempt.
+        fetchedAt = Date()
+    }
+
+    /// Diffs the new frame against the previous one and bumps the sequence.
+    private func advance() {
+        seq += 1
+        encodedFull = nil
+
+        // Nobody on the delta protocol: skip the diff entirely. It costs a full JSON
+        // decode of the multi-MB snapshot, a walk over every game, and an encode — all
+        // synchronously on this actor, which every v1 client's `current()` also waits
+        // on. Until v2 clients ship that would be pure new work, every 1.5s, for a
+        // payload no one reads. `signatures` is cleared so the first v2 client to
+        // arrive is served a `full` frame and starts a fresh baseline.
+        guard deltaSubscribers > 0 else {
+            encodedDelta = nil
+            signatures = [:]
+            return
+        }
+
+        guard let live = decodeFrame() else {
+            // Undecodable frame: v2 clients can still be served, but only as `full`
+            // (which will fail the same decode and yield an empty snapshot) — the
+            // important thing is that we don't hand out a delta built from nothing.
+            encodedDelta = nil
+            signatures = [:]
+            return
+        }
+
+        var newSignatures: [String: Int] = [:]
+        // Enrichment rides along only when it actually moved. `WorldCupEnrichment` is
+        // the bracket plus scorers plus squads — stamping it into every 1.5s delta
+        // would undo most of the payload reduction during exactly the tournament this
+        // was built for.
+        var changed = LiveScore(
+            f1Standings: live.f1Standings == lastEnrichment.f1 ? nil : live.f1Standings,
+            worldCup: live.worldCup == lastEnrichment.worldCup ? nil : live.worldCup
+        )
+        lastEnrichment = (live.f1Standings, live.worldCup)
+
+        for (_, keyPath) in LiveScore.sportKeyPaths {
+            guard let events = live[keyPath: keyPath]?.events else { continue }
+            var changedGames: [Game] = []
+            for game in events {
+                // A game with no event ID can't be addressed by a delta, so it never
+                // goes in one; it reaches clients via `full` frames only.
+                guard let id = game.idEvent else { continue }
+                let signature = LiveScore.liveSignature(of: game)
+                newSignatures[id] = signature
+                if signatures[id] != signature { changedGames.append(game) }
+            }
+            if !changedGames.isEmpty {
+                changed[keyPath: keyPath] = LiveEvent(events: changedGames)
+            }
+        }
+
+        let removed = signatures.keys.filter { newSignatures[$0] == nil }
+        let previousSignatures = signatures
+        signatures = newSignatures
+
+        // No previous frame to diff against — the next client is getting a `full`
+        // anyway, so there is nothing meaningful to encode.
+        guard !previousSignatures.isEmpty else {
+            encodedDelta = nil
+            return
+        }
+
+        encodedDelta = Self.encode(
+            LiveFrame(seq: seq, kind: .delta, live: changed, removed: removed.isEmpty ? nil : removed)
+        )
+    }
+
+    private func decodeFrame() -> LiveScore? {
+        guard let data = frame.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(LiveScore.self, from: data)
+    }
+
+    private static func encode(_ frame: LiveFrame) -> String? {
+        guard let data = try? JSONEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 }
 
@@ -284,43 +468,27 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     }
 
     //MARK: - Sport
-    routes.get("sport", ":sport") { req in
-        let sport = SportType(rawValue: req.parameters.get("sport")!)
-        let schedule = try await req.kv.getJSON(RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue, as: LiveScore.self)
-        let result: LiveEvent?
-        switch sport {
-        case .basketball:
-            guard let nba = schedule?.nba else { throw Abort(.badRequest) }
-            result = nba
-        case .soccer:
-            guard let soccer = schedule?.soccer else { throw Abort(.badRequest) }
-            result = soccer
-        case .hockey:
-            guard let nhl = schedule?.nhl else { throw Abort(.badRequest) }
-            result = nhl
-        case .mlb:
-            guard let mlb = schedule?.mlb else { throw Abort(.badRequest) }
-            result = mlb
-        case .nfl:
-            guard let nfl = schedule?.nfl else { throw Abort(.badRequest) }
-            result = nfl
-        case .golf:
-            guard let golf = schedule?.golf else { throw Abort(.badRequest) }
-            result = golf
-        case .tennis:
-            guard let tennis = schedule?.tennis else { throw Abort(.badRequest) }
-            result = tennis
-        case .racing:
-            guard let racing = schedule?.racing else { throw Abort(.badRequest) }
-            result = racing
-        case .none:
+    // Slicing one sport out of the schedule used to decode the entire multi-MB
+    // `LiveScore` per request and re-encode the slice. The slice is a pure function of
+    // the cached blob, so the decode and encode now happen once per ingest generation.
+    // The Redis read itself is still per request, as it is for `/schedules` — this
+    // removes the CPU, not the pool traffic.
+    routes.get("sport", ":sport") { req async throws -> String in
+        guard let sport = SportType(rawValue: req.parameters.get("sport")!) else {
             throw Abort(.badRequest)
         }
-        if let res = result {
-            return encodeResult(res: res)
-        } else {
+        let key = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue
+        guard let raw = try await req.kv.getString(key), !raw.isEmpty else {
             throw Abort(.badRequest)
         }
+        let sliced = await DerivedPayloadCache.shared.value(variant: "sport:\(sport.rawValue)", source: raw) { source in
+            guard let data = source.data(using: .utf8),
+                  let schedule = try? JSONDecoder().decode(LiveScore.self, from: data),
+                  let event = schedule.event(for: sport) else { return nil }
+            return encodeResult(res: event)
+        }
+        guard let sliced else { throw Abort(.badRequest) }
+        return sliced
     }
 
     //MARK: - On-demand schedule for a specific day
@@ -405,6 +573,16 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     routes.webSocket("ws") { req, ws async in
         let isDebug = req.application.environment == .development
         var lastSentHash: Int? = nil
+        // Opt-in delta protocol. Absent (every app version already in the field) means
+        // the bare-`LiveScore` behaviour below, unchanged.
+        let wantsDeltas = (try? req.query.get(String.self, at: "frames")) == "v2"
+        var lastSentSeq: Int? = nil
+
+        // The frame cache only pays for the diff while someone can consume one.
+        if wantsDeltas { await LiveFrameCache.shared.subscribeToDeltas() }
+        defer {
+            if wantsDeltas { Task { await LiveFrameCache.shared.unsubscribeFromDeltas() } }
+        }
 
         while !ws.isClosed {
             do {
@@ -414,7 +592,29 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                     isDebug: isDebug
                 )
 
-                if hasGames {
+                if hasGames, wantsDeltas {
+                    let key = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug).rawValue
+                    let pending = await LiveFrameCache.shared.next(after: lastSentSeq) {
+                        try? await req.kv.getString(key)
+                    }
+
+                    if let pending {
+                        let bytes = pending.payload.utf8.count
+                        if bytes > 3_000_000 {
+                            req.logger.warning("Large live WS frame (v2)", metadata: ["bytes": "\(bytes)", "seq": "\(pending.seq)"])
+                        }
+                        do {
+                            try await withWSSendDeadline(seconds: 10) { try await ws.send(pending.payload) }
+                            lastSentSeq = pending.seq
+                        } catch is WSSendTimeout {
+                            req.logger.warning("Live WS client too slow to accept frame — closing", metadata: ["bytes": "\(bytes)"])
+                            Task { try? await ws.close(code: .goingAway) }
+                            break
+                        }
+                    }
+
+                    try await Task.sleep(nanoseconds: 2_000_000_000) // 2s when live
+                } else if hasGames {
                     // One shared fetch per tick across ALL clients (LiveFrameCache) —
                     // previously every client independently pulled the multi-MB blob
                     // from Redis every 2s, which multiplied pool load by client count
@@ -453,10 +653,25 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 
                     try await Task.sleep(nanoseconds: 2_000_000_000) // 2s when live
                 } else {
-                    // No live games — sleep longer and send lightweight heartbeat
+                    // No live games — sleep longer and send lightweight heartbeat.
+                    // Both cursors reset so that when play resumes the client is
+                    // resynced from a full frame rather than handed a delta against
+                    // state it no longer has.
                     lastSentHash = nil
+                    lastSentSeq = nil
+                    // A v2 client parses every frame as an envelope, so its heartbeat has
+                    // to be one — and a `full` one, so that "nothing is live" clears the
+                    // client's snapshot exactly as the bare `{}` does for v1. A `delta`
+                    // here would merge into nothing and leave finished games on screen.
+                    //
+                    // The seq here is cosmetic and deliberately not read back: `lastSentSeq`
+                    // is cleared just above, so the next live frame is requested with a nil
+                    // cursor and answered with a `full` regardless of what this said. (The
+                    // cache *can* legitimately serve seq 0 — before its first successful
+                    // differing fetch — so this is not a value the protocol reserves.)
+                    let heartbeat = wantsDeltas ? #"{"seq":0,"kind":"full","live":{}}"# : "{}"
                     do {
-                        try await withWSSendDeadline(seconds: 10) { try await ws.send("{}") }
+                        try await withWSSendDeadline(seconds: 10) { try await ws.send(heartbeat) }
                     } catch is WSSendTimeout {
                         req.logger.warning("Live WS client too slow to accept heartbeat — closing")
                         Task { try? await ws.close(code: .goingAway) }
@@ -472,9 +687,11 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     }
 
     //MARK: - all-live-games
+    // No transform at all here — the decode and re-encode produced the same bytes that
+    // came out of Redis. Serve them, as `/schedules` and `/teams` already do.
     routes.get("all-live-games") { req async throws -> String in
-        let liveScore = try await req.kv.getJSON(RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: req.application.environment == .development).rawValue, as: LiveScore.self)
-        return encodeResult(res: liveScore)
+        let key = RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: req.application.environment == .development).rawValue
+        return (try await req.kv.getString(key)) ?? "null"
     }
 
     //MARK: DEBUG
@@ -730,11 +947,18 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     }
 
     //MARK: - live
-    routes.get("live") { req async throws in
-        var result = try await req.kv.getJSON(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: req.application.environment == .development).rawValue, as: LiveScore.self)
-        result?.removeNonStarting()
-//        result?.removeOtherInfo()
-        return encodeResult(res: result)
+    // Pruning finished games is a deterministic function of the cached blob, so it's
+    // done once per ingest generation rather than once per request.
+    routes.get("live") { req async throws -> String in
+        let key = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: req.application.environment == .development).rawValue
+        guard let raw = try await req.kv.getString(key), !raw.isEmpty else { return "null" }
+        let pruned = await DerivedPayloadCache.shared.value(variant: "live:starting", source: raw) { source in
+            guard let data = source.data(using: .utf8),
+                  var result = try? JSONDecoder().decode(LiveScore.self, from: data) else { return nil }
+            result.removeNonStarting()
+            return encodeResult(res: result)
+        }
+        return pruned ?? "null"
     }
 
     //MARK: - liveActivity

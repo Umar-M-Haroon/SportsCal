@@ -100,7 +100,7 @@ struct ESPNTennisJob: AsyncScheduledJob {
     }
 
     private func tennisLeaguesToFetch(redis: RedisClient, isDebug: Bool) async -> [Leagues] {
-        guard let active = await Integrator.activeLeagues(redis: redis, isDebug: isDebug) else {
+        guard let active = await Integrator.activeLeaguesCached(redis: redis, isDebug: isDebug) else {
             return Leagues.allCases.filter { $0.isTennis }
         }
         return active.filter { $0.isTennis }

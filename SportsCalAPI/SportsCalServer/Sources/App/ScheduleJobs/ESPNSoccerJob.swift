@@ -110,7 +110,7 @@ struct ESPNSoccerJob: AsyncScheduledJob {
     /// (both sources missing), falls back to fetching every soccer league.
     private func soccerLeaguesToFetch(redis: RedisClient, isDebug: Bool) async -> [Leagues] {
         var leagues: [Leagues]
-        if let active = await Integrator.activeLeagues(redis: redis, isDebug: isDebug) {
+        if let active = await Integrator.activeLeaguesCached(redis: redis, isDebug: isDebug) {
             leagues = active.filter { $0.isSoccer }
         } else {
             leagues = Leagues.allCases.filter { $0.isSoccer }

@@ -42,12 +42,26 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     case ncaaMBBTournament = 100
     case wnba = 101
 
+    /// Soccer is the default here: the enum is mostly soccer leagues, so this is defined
+    /// by exclusion.
+    ///
+    /// Both of these are called once per game inside filter closures that run over the
+    /// whole schedule. They used to build an array literal and scan it linearly on every
+    /// call; a `switch` decides it without allocating.
     public var isSoccer: Bool {
-        return ![Leagues.nfl, Leagues.nba, Leagues.nhl, Leagues.mlb, Leagues.pga, Leagues.atp, Leagues.wta, Leagues.formula1, Leagues.ncaaMBBTournament, Leagues.wnba].contains(self)
+        switch self {
+        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament, .wnba:
+            return false
+        default:
+            return true
+        }
     }
 
     public var isBasketball: Bool {
-        return [Leagues.nba, Leagues.ncaaMBBTournament, Leagues.wnba].contains(self)
+        switch self {
+        case .nba, .ncaaMBBTournament, .wnba: return true
+        default: return false
+        }
     }
 
     public var isGolf: Bool {

@@ -53,8 +53,21 @@ extension Team {
 }
 
 extension Game {
+    /// Read on every row render, in every sort comparator, and in every filter pass.
+    ///
+    /// It used to fall back to `getDate(dateFormatter:isoFormatter:)`, which reassigns
+    /// `dateFormat` on the shared `DateFormatters.backupISOFormatter` up to three times
+    /// per call while probing formats — rebuilding the underlying `CFDateFormatter` each
+    /// time, and racing whenever the WebSocket decode task and the main actor both got
+    /// there at once. `DateParsers` tries the same formats against formatters that are
+    /// configured once, so this is the same answer without the mutation.
+    ///
+    /// In practice the fallback almost never runs: both `Game.init` and its `Codable`
+    /// decoder already populate `isoDate` from `strTimestamp` via `DateParsers`.
     var standardDate: Date? {
-        self.isoDate ?? self.getDate(dateFormatter: DateFormatters.backupISOFormatter, isoFormatter: DateFormatters.isoFormatter)
+        if let isoDate { return isoDate }
+        guard let strTimestamp else { return nil }
+        return DateParsers.parse(strTimestamp)
     }
 
     /// For multi-session events (F1), returns the last session's date (e.g. Race day)
