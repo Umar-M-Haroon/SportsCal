@@ -1,0 +1,132 @@
+name: Deploy prod
+
+# Push-to-deploy for the Vapor server, replacing a hand-run ./deploy/deploy.sh
+# from whatever worktree happened to be checked out. Prod is whatever is on main
+# — the F1 "2025-only browse" bug came from a server fix that lived on a feature
+# branch, was never merged, and was therefore never live.
+#
+# The Swift release build still happens on the VPS via `docker compose --build`.
+# It is kicked off detached and then polled, because a release build outlasts
+# what a single interactive ssh session reliably survives.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "SportsCalAPI/**"
+      - "SportsCalModel/**"
+      - "deploy/**"
+      - ".github/workflows/deploy-prod.yml"
+  workflow_dispatch:
+
+# Never let two deploys interleave on the box. Queue rather than cancel: a
+# half-synced repo dir plus a killed `docker compose up` is worse than waiting.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Sync, build, and restart on Hetzner
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      REMOTE_DIR: /opt/sportscal
+      HEALTH_URL: https://api.sportscal.app/ping
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host deploy-target
+            User root
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+          EOF
+          # Written separately so the host never appears in an echoed heredoc.
+          echo "  HostName ${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      # Mirrors deploy/deploy.sh step 1. .env.production and AuthKey.p8 live in
+      # $REMOTE_DIR itself, not repo/, so --delete here cannot touch them.
+      - name: Sync source
+        run: |
+          rsync -az --delete \
+            --exclude '.build' \
+            --exclude '.swiftpm' \
+            --exclude 'node_modules' \
+            --exclude '.git' \
+            --exclude 'SportsCal/' \
+            --exclude 'SportsCalAdmin/' \
+            --exclude '*.p8' \
+            --exclude '.env.production' \
+            --exclude 'pbp_archive.sqlite*' \
+            ./ deploy-target:"$REMOTE_DIR/repo/"
+
+      - name: Sync deploy configs
+        run: |
+          rsync -az \
+            deploy/docker-compose.yml \
+            deploy/Caddyfile \
+            deploy/Dockerfile \
+            deploy/.env.production.example \
+            deploy-target:"$REMOTE_DIR/"
+
+      - name: Start detached build
+        run: |
+          ssh deploy-target bash -s <<EOF
+          set -euo pipefail
+          cd "$REMOTE_DIR"
+          rm -f deploy.log deploy.exit
+          echo "${{ github.sha }}" > DEPLOYED_SHA
+          setsid nohup bash -c \
+            'docker compose up --build -d > deploy.log 2>&1; echo \$? > deploy.exit' \
+            </dev/null >/dev/null 2>&1 &
+          EOF
+
+      - name: Wait for build
+        run: |
+          for _ in $(seq 1 180); do   # 180 * 15s = 45 minute ceiling
+            if ssh deploy-target "test -f $REMOTE_DIR/deploy.exit"; then
+              code=$(ssh deploy-target "cat $REMOTE_DIR/deploy.exit")
+              ssh deploy-target "tail -50 $REMOTE_DIR/deploy.log"
+              [ "$code" = "0" ] || { echo "::error::docker compose up exited $code"; exit 1; }
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::Build did not finish within 45 minutes"
+          ssh deploy-target "tail -80 $REMOTE_DIR/deploy.log" || true
+          exit 1
+
+      # `up -d` exiting 0 only means the container started. Confirm the app is
+      # actually serving through Caddy before calling the deploy good.
+      - name: Health check
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 10 "$HEALTH_URL" >/dev/null; then
+              echo "Healthy after ${i} attempt(s)."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::$HEALTH_URL did not come back healthy within 5 minutes"
+          ssh deploy-target "cd $REMOTE_DIR && docker compose logs --tail=80 app" || true
+          exit 1
+
+      - name: Report
+        if: always()
+        run: |
+          {
+            echo "### Deploy prod"
+            echo "- commit: \`${{ github.sha }}\`"
+            echo "- result: ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"
