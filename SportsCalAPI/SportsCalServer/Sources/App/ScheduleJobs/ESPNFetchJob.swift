@@ -68,11 +68,29 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
         let tennisScoreboards = try await context.application.redis.get( RedisEndpoint.ESPN.latestTennisScoreboards.getValue(isDebug: isDebug), asJSON: [Leagues: Scoreboard].self)
 
-        let tennisEvents = tennisScoreboards?.compactMap({ (league, scoreboard) in
-            LiveEvent(events: scoreboard, league: league)
-        }).reduce(into: LiveEvent(events: [])) { partialResult, next in
-            partialResult.events += next.events
-        }
+        // Deduped, and in a fixed league order.
+        //
+        // ESPN publishes a combined slam's entire draw on both the `atp` and the `wta`
+        // board — the same match IDs, women's matches included — so concatenating the two
+        // boards emitted every US Open match twice: 608 redundant rows, ~46% of the live
+        // payload. The rows are now identical (the tour comes from each match's draw, not
+        // from the board), so keeping the first is lossless. Sorting by league first makes
+        // "first" deterministic; dictionary order is not, and a winner that changed between
+        // ticks made the delta protocol treat all 608 as changed on every push.
+        let tennisEvents = tennisScoreboards
+            .map { boards -> LiveEvent in
+                var seen = Set<String>()
+                var deduped: [Game] = []
+                for league in boards.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+                    guard let scoreboard = boards[league],
+                          let event = LiveEvent(events: scoreboard, league: league) else { continue }
+                    for game in event.events {
+                        guard let id = game.idEvent else { deduped.append(game); continue }
+                        if seen.insert(id).inserted { deduped.append(game) }
+                    }
+                }
+                return LiveEvent(events: deduped)
+            }
 
         Self.logger.info("Fetching ESPN live scores", metadata: [
             "activeLeagues": "\(active?.count ?? -1)"  // -1 = cold start, fetch-all
@@ -1307,6 +1325,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 // browse back into the two flat "ATP Tour"/"WTA Tour" buckets.
                 tournamentName: scheduleGame.tournamentName ?? espnGame.tournamentName,
                 round: scheduleGame.round ?? espnGame.round,
+                // Same reason: `drawSlug` is what decides a tennis match's tour, so losing
+                // it here would put every merged match back under whichever league the
+                // board happened to carry.
+                drawSlug: scheduleGame.drawSlug ?? espnGame.drawSlug,
                 homeInjuries: scheduleGame.homeInjuries ?? espnGame.homeInjuries,
                 awayInjuries: scheduleGame.awayInjuries ?? espnGame.awayInjuries,
                 raceTiming: scheduleGame.raceTiming ?? espnGame.raceTiming,
@@ -1410,7 +1432,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             if let foundEvent = events.first(where: {$0.strHomeTeam == event.strHomeTeam && $0.strAwayTeam == event.strAwayTeam}) {
                 // Only include essential fields - strSport/strLeague are computed from idLeague
                 // Deprecated fields removed: strPlayer, idPlayer, intEventScore, intEventScoreTotal, strEventTime, dateEvent, updated
-                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, tournamentName: foundEvent.tournamentName ?? event.tournamentName, round: foundEvent.round ?? event.round, playoff: event.playoff)
+                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, tournamentName: foundEvent.tournamentName ?? event.tournamentName, round: foundEvent.round ?? event.round, drawSlug: foundEvent.drawSlug ?? event.drawSlug, playoff: event.playoff)
             } else {
                 return event
             }

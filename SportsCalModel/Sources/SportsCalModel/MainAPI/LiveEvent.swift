@@ -189,7 +189,14 @@ public struct LiveEvent: Codable, Equatable, Hashable {
             // 2) Tennis: matches nested under groupings → competitions → competitors with athlete
             if let groupings = event.groupings {
                 return groupings.flatMap { grouping -> [Game] in
-                    (grouping.competitions ?? []).compactMap { competition -> Game? in
+                    // The tour comes from the draw, never from the board this was fetched
+                    // on. ESPN serves a combined slam's entire draw — men's and women's —
+                    // on both the `atp` and the `wta` scoreboard, so trusting the board
+                    // filed every US Open women's match under ATP and, because both boards
+                    // were then concatenated, emitted every match twice.
+                    let draw = TennisDraw(slug: grouping.grouping?.slug)
+                    let drawLeagueID = draw.map { "\($0.idLeague.rawValue)" } ?? leagueID
+                    return (grouping.competitions ?? []).compactMap { competition -> Game? in
                         guard let home = competition.competitors?.first(where: { $0.homeAway == "home" }),
                               let away = competition.competitors?.first(where: { $0.homeAway == "away" })
                         else { return nil }
@@ -216,7 +223,7 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                             : (competition.status?.type.shortDetail ?? event.status?.type.shortDetail)
                         return Game(
                             idLiveScore: competition.id, idEvent: competition.id, strSport: sportType.rawValue,
-                            idLeague: leagueID, idHomeTeam: home.id, idAwayTeam: away.id,
+                            idLeague: drawLeagueID, idHomeTeam: home.id, idAwayTeam: away.id,
                             strHomeTeam: homeName, strAwayTeam: awayName,
                             strHomeTeamBadge: home.athlete?.headshot, strAwayTeamBadge: away.athlete?.headshot,
                             intHomeScore: home.score, intAwayScore: away.score,
@@ -227,7 +234,8 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                             awayLinescores: aLinescores?.isEmpty == true ? nil : aLinescores,
                             isCompleted: competition.status?.type.completed ?? event.status?.type.completed, isoDate: nil,
                             tournamentName: event.name,
-                            round: competition.round?.displayName
+                            round: competition.round?.displayName,
+                            drawSlug: grouping.grouping?.slug
                         )
                     }
                 }
@@ -647,7 +655,7 @@ public enum DateParsers {
 
 // MARK: - Event
 public struct Game: Identifiable, Equatable, Hashable {
-    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil, round: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil) {
+    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil, round: String? = nil, drawSlug: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil) {
         self.idLiveScore = idLiveScore
         self.idEvent = idEvent
         self._strSport = strSport
@@ -685,6 +693,7 @@ public struct Game: Identifiable, Equatable, Hashable {
         self.awaySeed = awaySeed
         self.tournamentName = tournamentName
         self.round = round
+        self.drawSlug = drawSlug
         self.homeInjuries = homeInjuries
         self.awayInjuries = awayInjuries
         self.raceTiming = raceTiming
@@ -751,6 +760,13 @@ public struct Game: Identifiable, Equatable, Hashable {
     public var tournamentName: String?
     /// Tennis: round name (e.g. "Quarterfinal", "Round of 16"). Nil for non-tennis.
     public let round: String?
+    /// Tennis: which draw this match belongs to — ESPN's grouping slug, e.g.
+    /// `mens-singles`, `womens-doubles`, `mixed-doubles`. Nil for non-tennis.
+    ///
+    /// `idLeague` is derived from this, so it is the authority on a match's tour. It is
+    /// kept on the game as well because mixed doubles belongs to *both* tours and a
+    /// single `idLeague` cannot say so — see ``isMixedDoubles``.
+    public let drawSlug: String?
     public let homeInjuries: [InjuryReport]?
     public let awayInjuries: [InjuryReport]?
     public let raceTiming: F1RaceTiming?
@@ -795,7 +811,7 @@ extension Game: Codable {
         case leaderboardEntries, sessions, venueName
         case homeTeamColor, awayTeamColor, homeRecord, awayRecord
         case circuitInfo, golfCourseInfo, legDisplay, aggregateScore
-        case homeSeed, awaySeed, tournamentName, round
+        case homeSeed, awaySeed, tournamentName, round, drawSlug
         case homeInjuries, awayInjuries
         case raceTiming
         case playoff
@@ -852,6 +868,7 @@ extension Game: Codable {
         awaySeed = rawAwaySeed.flatMap { (1...16).contains($0) ? $0 : nil }
         tournamentName = try container.decodeIfPresent(String.self, forKey: .tournamentName)
         round = try container.decodeIfPresent(String.self, forKey: .round)
+        drawSlug = try container.decodeIfPresent(String.self, forKey: .drawSlug)
         homeInjuries = try container.decodeIfPresent([InjuryReport].self, forKey: .homeInjuries)
         awayInjuries = try container.decodeIfPresent([InjuryReport].self, forKey: .awayInjuries)
         raceTiming = try container.decodeIfPresent(F1RaceTiming.self, forKey: .raceTiming)
@@ -907,6 +924,7 @@ extension Game: Codable {
         try container.encodeIfPresent(awaySeed, forKey: .awaySeed)
         try container.encodeIfPresent(tournamentName, forKey: .tournamentName)
         try container.encodeIfPresent(round, forKey: .round)
+        try container.encodeIfPresent(drawSlug, forKey: .drawSlug)
         try container.encodeIfPresent(homeInjuries, forKey: .homeInjuries)
         try container.encodeIfPresent(awayInjuries, forKey: .awayInjuries)
         try container.encodeIfPresent(raceTiming, forKey: .raceTiming)
@@ -917,7 +935,54 @@ extension Game: Codable {
     }
 }
 
+/// Which tour a tennis draw belongs to.
+///
+/// ESPN publishes a combined slam's whole draw on *both* the `atp` and the `wta`
+/// scoreboard — identical match IDs, women's matches included — so the board a match was
+/// fetched from carries no information about its tour. The draw slug does, and it is the
+/// only thing that does.
+public enum TennisDraw {
+    /// `mens-singles`, `womens-doubles`, … → the one tour that owns the draw.
+    case tour(Leagues)
+    /// `mixed-doubles` — genuinely both tours; no single `idLeague` can express it.
+    case mixed
+
+    /// Parses ESPN's grouping slug. Returns nil for a slug we don't recognise, so callers
+    /// can fall back to the board's league rather than guess a tour.
+    public init?(slug: String?) {
+        guard let slug = slug?.lowercased() else { return nil }
+        if slug.hasPrefix("mixed") { self = .mixed }
+        else if slug.hasPrefix("mens") || slug.hasPrefix("men-") { self = .tour(.atp) }
+        else if slug.hasPrefix("womens") || slug.hasPrefix("women-") { self = .tour(.wta) }
+        else { return nil }
+    }
+
+    /// The league to stamp on the game. Mixed doubles is filed under ATP so it has one
+    /// stable identity; ``Game/isMixedDoubles`` is what puts it in both tours' views.
+    public var idLeague: Leagues {
+        switch self {
+        case .tour(let league): return league
+        case .mixed:            return .atp
+        }
+    }
+}
+
 extension Game {
+    /// A mixed-doubles match, which belongs to both tours at once.
+    ///
+    /// Tour filters must admit it under ATP *and* WTA. It can't be modelled by emitting
+    /// two rows: they would share an `idEvent`, which is the collision that made every
+    /// live delta carry the whole draw.
+    public var isMixedDoubles: Bool {
+        drawSlug?.lowercased().hasPrefix("mixed") ?? false
+    }
+
+    /// Whether this match should appear under `tour`'s view.
+    public func belongsToTennisTour(_ tour: Leagues) -> Bool {
+        if isMixedDoubles { return tour.isTennis }
+        return idLeague == "\(tour.rawValue)"
+    }
+
     /// Whether this is a tennis match (head-to-head) as opposed to a tournament overview
     /// Tennis matches from Path #2 have idHomeTeam/idAwayTeam set; tournament entries from Path #3 don't.
     public var isTennisMatch: Bool {

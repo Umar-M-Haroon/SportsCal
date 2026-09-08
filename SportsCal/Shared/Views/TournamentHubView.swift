@@ -37,7 +37,9 @@ struct TournamentHubView: View {
     /// tournament is single-tour or no tour is selected yet.
     private var activeGames: [Game] {
         guard toursPresent.count > 1, let tour = selectedTour else { return games }
-        return games.filter { $0.idLeague == "\(tour.rawValue)" }
+        // Mixed doubles belongs to both tours, so it can't be selected by `idLeague`
+        // alone — see `Game.belongsToTennisTour`.
+        return games.filter { $0.belongsToTennisTour(tour) }
     }
 
     /// Binding for the tour picker — defaults to the first tour present and clears the selected day
