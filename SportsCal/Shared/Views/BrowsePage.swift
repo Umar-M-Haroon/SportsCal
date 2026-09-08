@@ -360,10 +360,9 @@ struct BrowseSportView: View {
         return order.map { name in
             let gs = buckets[name] ?? []
             let dates = gs.compactMap { $0.standardDate }
-            let tours = Set(gs.compactMap { game -> Leagues? in
-                guard let lg = game.idLeague, let i = Int(lg) else { return nil }
-                return Leagues(rawValue: i)
-            })
+            // From the draw, not `idLeague` — a row cached before draws existed carries a
+            // stale league, and mixed doubles counts toward both tours.
+            let tours = Set(gs.flatMap { $0.tennisTours })
             return TennisTournament(
                 name: name, games: gs,
                 startDate: dates.min(), endDate: dates.max(),

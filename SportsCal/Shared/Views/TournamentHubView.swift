@@ -26,10 +26,10 @@ struct TournamentHubView: View {
     /// Tours present in this tournament, in ATP → WTA order. Combined events (Grand Slams,
     /// Indian Wells…) have both; single-tour events have one.
     private var toursPresent: [Leagues] {
-        let set = Set(games.compactMap { game -> Leagues? in
-            guard let lg = game.idLeague, let i = Int(lg) else { return nil }
-            return Leagues(rawValue: i)
-        })
+        // From the draw, not `idLeague` — this gates the whole picker, and a row cached
+        // before draws existed carries a stale league, which would collapse a slam to a
+        // single tour and hide the Men's/Women's control entirely.
+        let set = Set(games.flatMap { $0.tennisTours })
         return [Leagues.atp, .wta].filter { set.contains($0) }
     }
 
@@ -37,7 +37,9 @@ struct TournamentHubView: View {
     /// tournament is single-tour or no tour is selected yet.
     private var activeGames: [Game] {
         guard toursPresent.count > 1, let tour = selectedTour else { return games }
-        return games.filter { $0.idLeague == "\(tour.rawValue)" }
+        // Mixed doubles belongs to both tours, so it can't be selected by `idLeague`
+        // alone — see `Game.belongsToTennisTour`.
+        return games.filter { $0.belongsToTennisTour(tour) }
     }
 
     /// Binding for the tour picker — defaults to the first tour present and clears the selected day

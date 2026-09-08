@@ -20,7 +20,8 @@ enum TestGameFactory {
         strTimestamp: String? = nil,
         isoDate: Date? = Date(),
         tournamentName: String? = nil,
-        round: String? = nil
+        round: String? = nil,
+        drawSlug: String? = nil
     ) -> Game {
         Game(
             idLiveScore: nil,
@@ -68,6 +69,7 @@ enum TestGameFactory {
             awaySeed: nil,
             tournamentName: tournamentName,
             round: round,
+            drawSlug: drawSlug,
             homeInjuries: nil,
             awayInjuries: nil,
             raceTiming: nil,

@@ -365,6 +365,56 @@ final class ScheduleMergeTests: XCTestCase {
         XCTAssertEqual(merged[0].strStatus, "in")
     }
 
+    /// A tennis match's tour is derived from its draw, so `drawSlug` has to survive the
+    /// merge for the same reason `tournamentName` does — losing it drops the match back
+    /// under whichever league the ESPN board happened to be, and takes mixed doubles out
+    /// of the Women's view entirely.
+    func testMergePreservesScheduleDrawSlug() {
+        let schedule = TestGameFactory.make(
+            idEvent: "TSDB2", idLeague: "4517", idHomeTeam: "p1", idAwayTeam: "p2",
+            strHomeTeam: "I. Swiatek", strAwayTeam: "C. Gauff",
+            isoDate: date("2024-06-01T12:00:00Z"),
+            tournamentName: "US Open", round: "Semifinal", drawSlug: "womens-singles"
+        )
+        let espn = TestGameFactory.make(
+            idEvent: "401007", idLeague: "4517", idHomeTeam: "p1", idAwayTeam: "p2",
+            strHomeTeam: "I. Swiatek", strAwayTeam: "C. Gauff",
+            intHomeScore: "1", intAwayScore: "0", strStatus: "in",
+            isoDate: date("2024-06-01T13:00:00Z")
+        )
+
+        let merged = merge(schedule: [schedule], espn: [espn])
+
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged[0].drawSlug, "womens-singles")
+        XCTAssertTrue(merged[0].belongsToTennisTour(.wta))
+        XCTAssertFalse(merged[0].belongsToTennisTour(.atp))
+        XCTAssertEqual(merged[0].strStatus, "in")
+    }
+
+    /// Mixed doubles must still reach both tours after a live score merges into it.
+    func testMergePreservesMixedDoublesMembership() {
+        let schedule = TestGameFactory.make(
+            idEvent: "TSDB3", idLeague: "4464", idHomeTeam: "p1", idAwayTeam: "p2",
+            strHomeTeam: "Pair A", strAwayTeam: "Pair B",
+            isoDate: date("2024-06-01T12:00:00Z"),
+            tournamentName: "US Open", round: "Final", drawSlug: "mixed-doubles"
+        )
+        let espn = TestGameFactory.make(
+            idEvent: "401008", idLeague: "4464", idHomeTeam: "p1", idAwayTeam: "p2",
+            strHomeTeam: "Pair A", strAwayTeam: "Pair B",
+            intHomeScore: "1", intAwayScore: "0", strStatus: "in",
+            isoDate: date("2024-06-01T13:00:00Z")
+        )
+
+        let merged = merge(schedule: [schedule], espn: [espn])
+
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertTrue(merged[0].isMixedDoubles)
+        XCTAssertTrue(merged[0].belongsToTennisTour(.atp))
+        XCTAssertTrue(merged[0].belongsToTennisTour(.wta))
+    }
+
     // MARK: - Nil-side handling
 
     func testNilScheduleReturnsESPN_andEmptyESPNReturnsSchedule() {
