@@ -34,14 +34,30 @@ jobs:
       REMOTE_DIR: /opt/sportscal
       HEALTH_URL: https://api.sportscal.app/ping
     steps:
+      # The whole point of this workflow is that prod == main. workflow_dispatch
+      # lets you pick any branch in the UI, which would quietly deploy it to
+      # prod and reintroduce exactly the drift this is meant to prevent.
+      - name: Refuse to deploy anything but main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Refusing to deploy ${{ github.ref }} — prod tracks main only."
+          exit 1
+
       - uses: actions/checkout@v4
 
+      # Secrets go through env, not ${{ }} interpolation into the script body:
+      # interpolation splices the value in as literal shell source, so anything
+      # in it is code. A PEM is safe today, but the failure is silent and total.
       - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
           cat > ~/.ssh/config <<'EOF'
           Host deploy-target
@@ -51,9 +67,9 @@ jobs:
             ServerAliveInterval 30
             ServerAliveCountMax 10
           EOF
-          # Written separately so the host never appears in an echoed heredoc.
-          echo "  HostName ${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/config
+          printf '  HostName %s\n' "$DEPLOY_HOST" >> ~/.ssh/config
           chmod 600 ~/.ssh/config
+          ssh -o BatchMode=yes deploy-target 'echo ssh-ok'
 
       # Mirrors deploy/deploy.sh step 1. .env.production and AuthKey.p8 live in
       # $REMOTE_DIR itself, not repo/, so --delete here cannot touch them.
@@ -91,6 +107,21 @@ jobs:
             'docker compose up --build -d > deploy.log 2>&1; echo \$? > deploy.exit' \
             </dev/null >/dev/null 2>&1 &
           EOF
+
+      # If the detached launch itself fails (no setsid, cgroup kill, whatever),
+      # neither file ever appears. Without this the job would sit for the full
+      # 45 minutes before saying so.
+      - name: Confirm the build actually started
+        run: |
+          for _ in $(seq 1 12); do   # 2 minutes
+            if ssh deploy-target "test -s $REMOTE_DIR/deploy.log -o -f $REMOTE_DIR/deploy.exit"; then
+              echo "Build is producing output."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Detached build produced no output in 2 minutes; it likely never started"
+          exit 1
 
       - name: Wait for build
         run: |
