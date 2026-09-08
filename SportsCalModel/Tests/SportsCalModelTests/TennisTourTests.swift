@@ -77,6 +77,58 @@ final class TennisTourTests: XCTestCase {
         XCTAssertFalse(g.belongsToTennisTour(.atp))
     }
 
+    // MARK: - Draw wins over a stale league
+
+    /// The regression that would have survived the fix.
+    ///
+    /// `mergeSportEvents` keeps the *schedule's* `idLeague` while taking `drawSlug` from
+    /// the ESPN side, so every row cached before draws existed pairs a stale ATP league
+    /// with a correct women's draw. Trusting `idLeague` would leave the Women's tab empty
+    /// in production even after the ingest was fixed.
+    func testDrawWinsOverAStaleLeague() {
+        let staleWomensRow = match(league: .atp, draw: "womens-singles")
+        XCTAssertEqual(staleWomensRow.tennisTours, [.wta])
+        XCTAssertTrue(staleWomensRow.belongsToTennisTour(.wta))
+        XCTAssertFalse(staleWomensRow.belongsToTennisTour(.atp))
+    }
+
+    func testMixedDoublesIgnoresItsLeagueEntirely() {
+        for league in [Leagues.atp, .wta] {
+            XCTAssertEqual(match(league: league, draw: "mixed-doubles").tennisTours, [.atp, .wta])
+        }
+    }
+
+    /// Qualifier-prefixed draws must still resolve. An unmatched slug falls back to the
+    /// board's league, and the ingest now keeps one copy per match, so it would quietly
+    /// become ATP-only.
+    func testQualifiedDrawsResolveToTheirTour() {
+        XCTAssertEqual(match(league: .atp, draw: "wheelchair-womens-singles").tennisTours, [.wta])
+        XCTAssertEqual(match(league: .wta, draw: "wheelchair-mens-doubles").tennisTours, [.atp])
+        XCTAssertEqual(match(league: .atp, draw: "girls-singles").tennisTours, [.wta])
+        XCTAssertEqual(match(league: .wta, draw: "boys-singles").tennisTours, [.atp])
+        // "womens" contains "mens" — the women's check has to come first.
+        XCTAssertEqual(match(league: .atp, draw: "womens-doubles").tennisTours, [.wta])
+    }
+
+    func testGameWithNeitherDrawNorTennisLeagueBelongsNowhere() {
+        let g = Game(idEvent: "1", idLeague: "4387", strHomeTeam: "A", strAwayTeam: "B", isoDate: nil)
+        XCTAssertTrue(g.tennisTours.isEmpty)
+    }
+
+    /// `Game.updated(...)` is the fourth site that rebuilds a game field by field; the
+    /// live overlay path routes every updating game through it.
+    func testUpdatedPreservesTheDraw() {
+        let womens = match(league: .wta, draw: "womens-singles")
+        let afterScore = womens.updated(intHomeScore: "6", intAwayScore: "4")
+        XCTAssertEqual(afterScore.drawSlug, "womens-singles")
+        XCTAssertTrue(afterScore.belongsToTennisTour(.wta))
+        XCTAssertFalse(afterScore.belongsToTennisTour(.atp))
+
+        let mixed = match(league: .atp, draw: "mixed-doubles").updated(strStatus: "in")
+        XCTAssertTrue(mixed.isMixedDoubles)
+        XCTAssertEqual(mixed.tennisTours, [.atp, .wta])
+    }
+
     // MARK: - Ingest
 
     /// The regression itself: the women's draw served on the ATP board must still come

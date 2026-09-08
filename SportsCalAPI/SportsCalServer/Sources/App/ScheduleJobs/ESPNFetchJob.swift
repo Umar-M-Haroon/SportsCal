@@ -79,17 +79,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // ticks made the delta protocol treat all 608 as changed on every push.
         let tennisEvents = tennisScoreboards
             .map { boards -> LiveEvent in
-                var seen = Set<String>()
-                var deduped: [Game] = []
-                for league in boards.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
-                    guard let scoreboard = boards[league],
-                          let event = LiveEvent(events: scoreboard, league: league) else { continue }
-                    for game in event.events {
-                        guard let id = game.idEvent else { deduped.append(game); continue }
-                        if seen.insert(id).inserted { deduped.append(game) }
-                    }
+                let ordered = boards.keys.sorted { $0.rawValue < $1.rawValue }.flatMap { league in
+                    boards[league].flatMap { LiveEvent(events: $0, league: league)?.events } ?? []
                 }
-                return LiveEvent(events: deduped)
+                return LiveEvent(events: Self.dedupedByEventID(ordered))
             }
 
         Self.logger.info("Fetching ESPN live scores", metadata: [
@@ -536,14 +529,20 @@ struct ESPNFetchJob: AsyncScheduledJob {
     /// Collapses duplicate events within each sport bucket, keeping first occurrence.
     /// `LiveScore.merging` concatenates without dedup, so the live board and the forward
     /// window can each contribute the same fixture. `internal` for tests.
+    /// Keeps the first occurrence of each event ID. A game without one can't be addressed,
+    /// so it passes through untouched rather than being collapsed against other ID-less games.
+    static func dedupedByEventID(_ games: [Game]) -> [Game] {
+        var seen = Set<String>()
+        return games.filter { game in
+            guard let id = game.idEvent else { return true }
+            return seen.insert(id).inserted
+        }
+    }
+
     static func dedupedByEventID(_ score: LiveScore) -> LiveScore {
         func dedup(_ event: LiveEvent?) -> LiveEvent? {
             guard let event else { return nil }
-            var seen = Set<String>()
-            return LiveEvent(events: event.events.filter { game in
-                guard let id = game.idEvent else { return true }
-                return seen.insert(id).inserted
-            })
+            return LiveEvent(events: dedupedByEventID(event.events))
         }
         return LiveScore(
             nba: dedup(score.nba), mlb: dedup(score.mlb), soccer: dedup(score.soccer),

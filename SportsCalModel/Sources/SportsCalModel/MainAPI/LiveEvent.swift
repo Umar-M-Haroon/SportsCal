@@ -763,9 +763,10 @@ public struct Game: Identifiable, Equatable, Hashable {
     /// Tennis: which draw this match belongs to — ESPN's grouping slug, e.g.
     /// `mens-singles`, `womens-doubles`, `mixed-doubles`. Nil for non-tennis.
     ///
-    /// `idLeague` is derived from this, so it is the authority on a match's tour. It is
-    /// kept on the game as well because mixed doubles belongs to *both* tours and a
-    /// single `idLeague` cannot say so — see ``isMixedDoubles``.
+    /// This is the authority on a match's tour — see ``tennisTours``. `idLeague` is derived
+    /// from it at ingest, but the two can drift: the schedule merge keeps the schedule's
+    /// league while taking the draw from ESPN. The draw is also what lets mixed doubles
+    /// belong to *both* tours, which a single `idLeague` cannot express.
     public let drawSlug: String?
     public let homeInjuries: [InjuryReport]?
     public let awayInjuries: [InjuryReport]?
@@ -949,11 +950,18 @@ public enum TennisDraw {
 
     /// Parses ESPN's grouping slug. Returns nil for a slug we don't recognise, so callers
     /// can fall back to the board's league rather than guess a tour.
+    /// Matched on substrings rather than prefixes so qualifier-prefixed draws
+    /// (`wheelchair-womens-singles`, `boys-singles`) resolve too. ESPN's live boards
+    /// currently emit only the five plain slugs, but an unmatched draw is no longer
+    /// harmless: it falls back to the board's league, and the ingest now keeps just one
+    /// copy per match, so it would silently become ATP-only.
+    ///
+    /// Order matters — "womens" contains "mens".
     public init?(slug: String?) {
         guard let slug = slug?.lowercased() else { return nil }
-        if slug.hasPrefix("mixed") { self = .mixed }
-        else if slug.hasPrefix("mens") || slug.hasPrefix("men-") { self = .tour(.atp) }
-        else if slug.hasPrefix("womens") || slug.hasPrefix("women-") { self = .tour(.wta) }
+        if slug.contains("mixed") { self = .mixed }
+        else if slug.contains("women") || slug.contains("girls") { self = .tour(.wta) }
+        else if slug.contains("men") || slug.contains("boys") { self = .tour(.atp) }
         else { return nil }
     }
 
@@ -974,13 +982,34 @@ extension Game {
     /// two rows: they would share an `idEvent`, which is the collision that made every
     /// live delta carry the whole draw.
     public var isMixedDoubles: Bool {
-        drawSlug?.lowercased().hasPrefix("mixed") ?? false
+        if case .mixed? = TennisDraw(slug: drawSlug) { return true }
+        return false
+    }
+
+    /// Which tour views this match belongs to.
+    ///
+    /// The draw wins over `idLeague` whenever there is one, because the two can legitimately
+    /// disagree: the schedule merge keeps the *schedule's* `idLeague` while taking `drawSlug`
+    /// from the ESPN side, so a row cached before draws existed carries a stale league next to
+    /// a correct draw. Trusting `idLeague` there would leave every already-cached women's match
+    /// under ATP — which is the bug this whole change exists to fix, surviving the fix.
+    ///
+    /// Falls back to `idLeague` for a game with no draw (a non-ESPN source, or a payload
+    /// cached before this field existed) so nothing vanishes from both tabs.
+    public var tennisTours: Set<Leagues> {
+        switch TennisDraw(slug: drawSlug) {
+        case .mixed:            return [.atp, .wta]
+        case .tour(let league): return [league]
+        case nil:
+            guard let raw = idLeague, let value = Int(raw),
+                  let league = Leagues(rawValue: value), league.isTennis else { return [] }
+            return [league]
+        }
     }
 
     /// Whether this match should appear under `tour`'s view.
     public func belongsToTennisTour(_ tour: Leagues) -> Bool {
-        if isMixedDoubles { return tour.isTennis }
-        return idLeague == "\(tour.rawValue)"
+        tennisTours.contains(tour)
     }
 
     /// Whether this is a tennis match (head-to-head) as opposed to a tournament overview
@@ -1270,6 +1299,7 @@ public extension Game {
             awaySeed: awaySeed ?? self.awaySeed,
             tournamentName: tournamentName ?? self.tournamentName,
             round: round ?? self.round,
+            drawSlug: self.drawSlug,
             homeInjuries: homeInjuries ?? self.homeInjuries,
             awayInjuries: awayInjuries ?? self.awayInjuries,
             raceTiming: raceTiming ?? self.raceTiming,
