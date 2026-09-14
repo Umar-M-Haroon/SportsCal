@@ -94,11 +94,10 @@ platform :ios do
     build = options[:build]
     deadline = Time.now + (options[:wait_minutes] || 0).to_i * 60
     until build
-      begin
-        build = latest_testflight_build_number(api_key: api_key, version: version, initial_build_number: nil)
-      rescue StandardError
-        build = nil
-      end
+      # With no build for the version this returns initial_build_number rather
+      # than raising, so 0 is the "nothing uploaded yet" sentinel.
+      latest = latest_testflight_build_number(api_key: api_key, version: version, initial_build_number: 0)
+      build = latest if latest.to_i > 0
       break if build
       UI.user_error!("No build for #{version} in App Store Connect — push to main so Xcode Cloud builds one, or pass wait_minutes:") if Time.now > deadline
       UI.message("No #{version} build yet; checking again in 2 minutes…")

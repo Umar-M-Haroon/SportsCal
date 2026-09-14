@@ -23,6 +23,22 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 Generate new localized screenshots
 
+### ios metadata
+
+```sh
+[bundle exec] fastlane ios metadata
+```
+
+Push App Store TEXT metadata only (name/subtitle/keywords/promo/What's New). No archive, no screenshots.
+
+### ios upload_screenshots
+
+```sh
+[bundle exec] fastlane ios upload_screenshots
+```
+
+Upload the EXISTING staged screenshots only (retry after an ASC 500 on the release lane).
+
 ### ios beta
 
 ```sh
@@ -30,6 +46,14 @@ Generate new localized screenshots
 ```
 
 Archive the app and upload the build to App Store Connect (TestFlight)
+
+### ios submit_review
+
+```sh
+[bundle exec] fastlane ios submit_review
+```
+
+Submit the newest Xcode Cloud build of the current version for App Store review
 
 ### ios release
 
