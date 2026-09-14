@@ -354,18 +354,27 @@ func routes(_ app: Application) throws {
     try adminRoutes.register(collection: AdminController())
     try adminRoutes.register(collection: ParityController())
 
+    // MARK: - Attestation Routes (public, self-authenticating)
+    // Must sit outside APIKeyMiddleware/JWTMiddleware: these are the routes a
+    // client calls precisely because it does not yet hold a token. They carry
+    // their own rate limit (see AttestController.boot). /attest/dev is only
+    // registered off production.
+    try app.register(collection: AttestController(allowDevTokens: app.environment != .production))
+
     // MARK: - Versioned Routes (v2025)
-    // Rate limit runs before the API key check so unauthed floods get 429'd
-    // after the threshold instead of costing one Redis hit per 403.
-    let v2025 = app.grouped(RateLimitMiddleware(limit: 300, windowSeconds: 60, keyPrefix: "rl:v2025"))
+    // Rate limit runs before the auth check so unauthed floods get 429'd after
+    // the threshold instead of costing one Redis hit per 403.
+    // EitherAuthMiddleware accepts an App Attest JWT *or* the shared API key —
+    // required while clients that predate 3.2 are still in the field.
+    let v2025 = app.grouped(RateLimitMiddleware(limit: 300, windowSeconds: 60, keyPrefix: "rl:v2025", ipCeiling: 3000))
         .grouped("v2025")
-        .grouped(APIKeyMiddleware())
+        .grouped(EitherAuthMiddleware())
     registerAPIRoutes(on: v2025, app: app)
 
     // MARK: - Legacy Routes (unversioned)
     // Keep for backward compatibility with older app versions
-    let legacy = app.grouped(RateLimitMiddleware(limit: 300, windowSeconds: 60, keyPrefix: "rl:legacy"))
-        .grouped(APIKeyMiddleware())
+    let legacy = app.grouped(RateLimitMiddleware(limit: 300, windowSeconds: 60, keyPrefix: "rl:legacy", ipCeiling: 3000))
+        .grouped(EitherAuthMiddleware())
     registerAPIRoutes(on: legacy, app: app)
 
     // MARK: - Universal Links (public, unauthenticated)
@@ -410,7 +419,11 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     // Tighter limit for endpoints that mutate Redis state — the app API key is
     // embedded in every binary and extractable, so a leaked key shouldn't be
     // able to flood Redis with garbage registrations.
-    let writeRoutes = routes.grouped(RateLimitMiddleware(limit: 20, windowSeconds: 60, keyPrefix: "rl:write"))
+    // Per-IP ceiling here is the real DoS backstop: writes persist Redis records
+    // (registrations, live-activities), so a host cycling install IDs could grow
+    // Redis unbounded. 200/60s per IP tolerates a NATed building of users each
+    // doing a handful of writes, but stops a single host spamming thousands.
+    let writeRoutes = routes.grouped(RateLimitMiddleware(limit: 20, windowSeconds: 60, keyPrefix: "rl:write", ipCeiling: 200))
 
     // MARK: - Client Telemetry
     // Lightweight ingestion for client-side funnel events (paywall_shown,
