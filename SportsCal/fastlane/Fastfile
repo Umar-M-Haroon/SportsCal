@@ -103,6 +103,19 @@ platform :ios do
       UI.message("No #{version} build yet; checking again in 2 minutes…")
       sleep(120)
     end
+    # An uploaded build is invisible to deliver's build lookup until Apple
+    # finishes processing it (~10-30 min after Xcode Cloud's upload).
+    Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.from(hash: api_key)
+    app = Spaceship::ConnectAPI::App.find(CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier))
+    loop do
+      candidate = app.get_builds(filter: { version: build.to_s, "preReleaseVersion.version" => version }).first
+      break if candidate&.processed?
+      UI.user_error!("#{version} (#{build}) failed processing: #{candidate.processing_state}") if candidate && !candidate.processing?
+      UI.user_error!("#{version} (#{build}) still processing after the wait window") if Time.now > deadline + 45 * 60
+      UI.message("#{version} (#{build}) is still processing; checking again in 1 minute…")
+      sleep(60)
+    end
+
     UI.important("Submitting #{version} (#{build}) for review")
 
     upload_to_app_store(
