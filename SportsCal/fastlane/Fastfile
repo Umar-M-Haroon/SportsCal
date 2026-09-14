@@ -116,6 +116,14 @@ platform :ios do
       sleep(60)
     end
 
+    # App Review contact — required for submission. Kept out of git in the
+    # gitignored fastlane/.env (fastlane loads it automatically).
+    review_contact = %w[FIRST_NAME LAST_NAME EMAIL PHONE].to_h do |field|
+      key = "REVIEW_CONTACT_#{field}"
+      UI.user_error!("Set #{key} in fastlane/.env (phone as +<country code> …)") if ENV[key].to_s.strip.empty?
+      [field.downcase, ENV[key]]
+    end
+
     UI.important("Submitting #{version} (#{build}) for review")
 
     upload_to_app_store(
@@ -131,6 +139,12 @@ platform :ios do
       submit_for_review: true,
       automatic_release: true,
       reject_if_possible: true,     # replace a submission that's still waiting for review
+      app_review_information: {
+        first_name: review_contact["first_name"],
+        last_name: review_contact["last_name"],
+        email_address: review_contact["email"],
+        phone_number: review_contact["phone"]
+      },
       submission_information: {
         add_id_info_uses_idfa: false,
         export_compliance_uses_encryption: false
