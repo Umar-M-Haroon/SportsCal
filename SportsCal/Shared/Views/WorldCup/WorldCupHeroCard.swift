@@ -147,6 +147,21 @@ final class WorldCupHeroStandings {
 
 // MARK: - Hero card
 
+/// The single gate for every World Cup surface (hero, featured card, Browse
+/// rows, sport-picker toggle, onboarding promo). Deliberately date-only: past
+/// WC matches stay in the feed after the final, so a "WC games exist" probe
+/// would keep the UI up forever. Starts at the server's eager-fetch date
+/// (May 15) so the run-up is stable rather than riding on feed refreshes.
+enum WorldCupSeason {
+    private static let windowStart = DateComponents(calendar: .current, year: 2026, month: 5, day: 15).date ?? .distantFuture
+    private static let windowEnd = DateComponents(calendar: .current, year: 2026, month: 7, day: 20).date ?? .distantPast
+
+    static var isActive: Bool {
+        let now = Date()
+        return now >= windowStart && now <= windowEnd
+    }
+}
+
 struct WorldCupHeroCard: View {
     @Environment(GameViewModel.self) private var viewModel
     @Environment(Favorites.self) private var favorites
@@ -177,24 +192,10 @@ struct WorldCupHeroCard: View {
 
     private let calendar = Calendar.current
 
-    /// Activation window — same gate as `WorldCupFeaturedCard`. Starts at the
-    /// server's eager-fetch date (May 15) rather than kickoff so the hero is
-    /// unconditionally active through the entire run-up; otherwise, pre-kickoff,
-    /// `isActive` rides on the feed probe below and the hero unmounts/flashes
-    /// every time `totalGames` is momentarily replaced during a refresh.
-    private static let windowStart = DateComponents(calendar: .current, year: 2026, month: 5, day: 15).date ?? .distantFuture
-    private static let windowEnd = DateComponents(calendar: .current, year: 2026, month: 7, day: 20).date ?? .distantPast
-
-    /// Whether the hero has anything to show: in the tournament window, or
-    /// World Cup matches are in the feed. Day pages use this same check to
-    /// keep hero-owned games out of the regular sections.
+    /// Whether the hero should show. Day pages use this same check to keep
+    /// hero-owned games out of the regular sections.
     static func isActive(viewModel: GameViewModel) -> Bool {
-        let now = Date()
-        if now >= windowStart && now <= windowEnd { return true }
-        // Cheap emptiness probe — don't build the resolved GameWithTeams array
-        // (filter + sort + team resolution) just to check for any WC fixture.
-        let wcID = String(Leagues.FIFA_World_Cup.rawValue)
-        return (viewModel.totalGames ?? []).contains { $0.idLeague == wcID }
+        WorldCupSeason.isActive
     }
 
     // MARK: Data

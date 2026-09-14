@@ -18,44 +18,20 @@ struct BrowsePage: View {
 
     var body: some View {
         ScrollView {
-            NavigationLink {
-                WorldCupHubView()
-                    .environment(viewModel)
-                    .environment(storage)
-                    .environment(favorites)
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "soccerball")
-                        .font(.title2)
-                        .foregroundStyle(Color.app(.soccer))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("FIFA World Cup 2026").font(.headline)
-                        Text("Groups · Bracket · Golden Boot")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").foregroundStyle(.secondary)
-                }
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(Color.app(.soccer).opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
-            }
-            .buttonStyle(.plain)
-            .padding([.horizontal, .top])
-
-            if let bracket = viewModel.worldCup?.bracket, !bracket.isEmpty {
+            if WorldCupSeason.isActive {
                 NavigationLink {
-                    WorldCupBracketScreen(bracket: bracket)
+                    WorldCupHubView()
                         .environment(viewModel)
+                        .environment(storage)
                         .environment(favorites)
                 } label: {
                     HStack(spacing: 12) {
-                        Image(systemName: "trophy.fill")
+                        Image(systemName: "soccerball")
                             .font(.title2)
                             .foregroundStyle(Color.app(.soccer))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Knockout Bracket").font(.headline)
-                            Text("Round of 32 → Final")
+                            Text("FIFA World Cup 2026").font(.headline)
+                            Text("Groups · Bracket · Golden Boot")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -66,8 +42,34 @@ struct BrowsePage: View {
                     .background(Color.app(.soccer).opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal)
-                .padding(.top, 8)
+                .padding([.horizontal, .top])
+
+                if let bracket = viewModel.worldCup?.bracket, !bracket.isEmpty {
+                    NavigationLink {
+                        WorldCupBracketScreen(bracket: bracket)
+                            .environment(viewModel)
+                            .environment(favorites)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "trophy.fill")
+                                .font(.title2)
+                                .foregroundStyle(Color.app(.soccer))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Knockout Bracket").font(.headline)
+                                Text("Round of 32 → Final")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.app(.soccer).opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                }
             }
 
             NavigationLink {

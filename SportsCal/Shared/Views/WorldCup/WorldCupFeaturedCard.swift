@@ -17,21 +17,10 @@ struct WorldCupFeaturedCard: View {
 
     private var accent: Color { .app(.soccer) }
 
-    /// Activation window — promote the hub through the run-up (matching the
-    /// server's eager-fetch date) so the card is stable before the first match
-    /// appears in the feed, not dependent on a momentarily-empty refresh.
-    private static let windowStart = DateComponents(calendar: .current, year: 2026, month: 5, day: 15).date ?? .distantFuture
-    private static let windowEnd = DateComponents(calendar: .current, year: 2026, month: 7, day: 20).date ?? .distantPast
-
-    private var inWindow: Bool {
-        let now = Date()
-        return now >= Self.windowStart && now <= Self.windowEnd
-    }
-
     private var hasGames: Bool { !viewModel.worldCupGamesWithTeams.isEmpty }
     private var liveCount: Int { viewModel.worldCupGamesWithTeams.filter { $0.game.strStatus == "in" }.count }
 
-    var shouldShow: Bool { inWindow || hasGames }
+    var shouldShow: Bool { WorldCupSeason.isActive }
 
     var body: some View {
         if shouldShow {

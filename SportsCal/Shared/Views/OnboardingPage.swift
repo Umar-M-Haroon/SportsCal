@@ -20,37 +20,57 @@ struct OnboardingPage: View {
                 InfoView(title: "Notifications", subTitle: "Be notified when the game is about to start", image: Image(systemName: "app.badge.fill"), tint: .red)
                 InfoView(title: "Multiple Sports", subTitle: "Check multiple sports at a glance", image: Image(systemName: "sportscourt.fill"), tint: .green)
                 InfoView(title: "Live Activities", subTitle: "See games from anywhere with Live Activities", image: Image(systemName: "clock.badge.fill"), tint: .blue)
-                InfoView(title: "World Cup 2026", subTitle: "Follow every match, group, and the road to the final", image: Image(systemName: "soccerball"), tint: Color.app(.soccer))
+                if WorldCupSeason.isActive {
+                    InfoView(title: "World Cup 2026", subTitle: "Follow every match, group, and the road to the final", image: Image(systemName: "soccerball"), tint: Color.app(.soccer))
+                }
                 Spacer()
-                Button {
-                    appStorage.shouldShowWorldCup = true
-                    appStorage.recomputeEnabledSports()
-                    viewModel.filterSports(force: true)
-                    viewModel.getInfo()
-                    finishOnboarding()
-                } label: {
-                    Label("Follow the World Cup", systemImage: "soccerball")
-                        .frame(maxWidth: .infinity)
-                        .padding(4)
+                if WorldCupSeason.isActive {
+                    Button {
+                        appStorage.shouldShowWorldCup = true
+                        appStorage.recomputeEnabledSports()
+                        viewModel.filterSports(force: true)
+                        viewModel.getInfo()
+                        finishOnboarding()
+                    } label: {
+                        Label("Follow the World Cup", systemImage: "soccerball")
+                            .frame(maxWidth: .infinity)
+                            .padding(4)
+                    }
+                    .buttonStyle(BorderedProminentButtonStyle())
+                    .tint(Color.app(.soccer))
+                    .padding(.horizontal)
+                    NavigationLink {
+                        pickSportPage
+                    } label: {
+                        pickSportsLabel
+                    }
+                    .buttonStyle(BorderedButtonStyle())
+                    .padding([.horizontal, .bottom])
+                } else {
+                    NavigationLink {
+                        pickSportPage
+                    } label: {
+                        pickSportsLabel
+                    }
+                    .buttonStyle(BorderedProminentButtonStyle())
+                    .padding([.horizontal, .bottom])
                 }
-                .buttonStyle(BorderedProminentButtonStyle())
-                .tint(Color.app(.soccer))
-                .padding(.horizontal)
-                NavigationLink {
-                    PickSportPage(sheetType: $sheetType)
-                        .environment(appStorage)
-                        .environment(viewModel)
-                } label: {
-                    Text("Pick sports manually")
-                        .frame(maxWidth: .infinity)
-                        .padding(4)
-                }
-                .buttonStyle(BorderedButtonStyle())
-                .padding([.horizontal, .bottom])
             }
             .navigationTitle("Welcome to Scoreline!")
         }
         .frame(minWidth: 400, minHeight: 500)
+    }
+
+    private var pickSportPage: some View {
+        PickSportPage(sheetType: $sheetType)
+            .environment(appStorage)
+            .environment(viewModel)
+    }
+
+    private var pickSportsLabel: some View {
+        Text("Pick sports manually")
+            .frame(maxWidth: .infinity)
+            .padding(4)
     }
 
     /// Completes onboarding and, at this peak-intent moment, offers the Pro trial

@@ -17,24 +17,26 @@ struct PickSportPage: View {
         @Bindable var bindableAppStorage = appStorage
         
         List {
-            Section {
-                Toggle(isOn: $bindableAppStorage.shouldShowWorldCup) {
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("FIFA World Cup 2026")
-                            Text("Jun 11 – Jul 19 · follow every match")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+            if WorldCupSeason.isActive {
+                Section {
+                    Toggle(isOn: $bindableAppStorage.shouldShowWorldCup) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("FIFA World Cup 2026")
+                                Text("Jun 11 – Jul 19 · follow every match")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "soccerball")
+                                .modifier(SportsTint(sport: .soccer))
                         }
-                    } icon: {
-                        Image(systemName: "soccerball")
-                            .modifier(SportsTint(sport: .soccer))
                     }
+                } header: {
+                    Text("Featured")
+                } footer: {
+                    Text("Turn this on to follow the World Cup without enabling all of soccer.")
                 }
-            } header: {
-                Text("Featured")
-            } footer: {
-                Text("Turn this on to follow the World Cup without enabling all of soccer.")
             }
 
             Section {

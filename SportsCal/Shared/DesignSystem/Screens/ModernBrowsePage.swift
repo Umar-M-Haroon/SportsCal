@@ -61,15 +61,17 @@ struct ModernBrowsePage: View {
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        NavigationLink {
-                            WorldCupHubView()
-                                .environment(viewModel)
-                                .environment(storage)
-                                .environment(favorites)
-                        } label: {
-                            worldCupRow
+                        if WorldCupSeason.isActive {
+                            NavigationLink {
+                                WorldCupHubView()
+                                    .environment(viewModel)
+                                    .environment(storage)
+                                    .environment(favorites)
+                            } label: {
+                                worldCupRow
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
 
                         ForEach(sports, id: \.self) { sport in
                             NavigationLink {

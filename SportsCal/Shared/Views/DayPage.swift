@@ -155,7 +155,7 @@ struct DayPage: View {
     /// The World Cup hero owns today's WC matches (marquee + ticker), so the
     /// regular Live / soccer sections skip them. Mirrors `ModernDayPage`.
     private var showWorldCupHero: Bool {
-        guard storage.shouldShowWorldCup || storage.shouldShowSoccer else { return false }
+        guard WorldCupSeason.isActive, storage.shouldShowWorldCup || storage.shouldShowSoccer else { return false }
         // Lead every matchday with the hero. On today, also show it during the
         // tournament era for the next-kickoff countdown even on rest days.
         if dayGames.contains(where: { $0.game.idLeague == Self.worldCupLeagueID }) { return true }
