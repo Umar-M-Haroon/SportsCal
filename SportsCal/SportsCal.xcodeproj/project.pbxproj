@@ -167,6 +167,7 @@
 		1D8D4E862FE63DE900D40105 /* RatingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8D4E852FE63DE900D40105 /* RatingsManager.swift */; };
 		1D8D4E882FE63E8400D40105 /* UpsellCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8D4E872FE63E8400D40105 /* UpsellCoordinator.swift */; };
 		1D8D4E8A2FE6402D00D40105 /* DeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8D4E892FE6402D00D40105 /* DeepLink.swift */; };
+		1D9218D2304F8BFB00100861 /* AttestTokenSharingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9218D1304F8BFB00100861 /* AttestTokenSharingTests.swift */; };
 		1D981BDB2F37CA1E00401880 /* SportsCalModel in Frameworks */ = {isa = PBXBuildFile; productRef = 1D981BDA2F37CA1E00401880 /* SportsCalModel */; };
 		1D9D2CF027702FFB00735AF0 /* FavoriteButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9D2CEF27702FFB00735AF0 /* FavoriteButtonView.swift */; };
 		1DA4343429079D3D0010364F /* Teams+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA4343329079D3D0010364F /* Teams+Extensions.swift */; };
@@ -526,6 +527,7 @@
 		1D8D4E852FE63DE900D40105 /* RatingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingsManager.swift; sourceTree = "<group>"; };
 		1D8D4E872FE63E8400D40105 /* UpsellCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpsellCoordinator.swift; sourceTree = "<group>"; };
 		1D8D4E892FE6402D00D40105 /* DeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLink.swift; sourceTree = "<group>"; };
+		1D9218D1304F8BFB00100861 /* AttestTokenSharingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttestTokenSharingTests.swift; sourceTree = "<group>"; };
 		1D981BD92F37CA1E00401880 /* SportsCalModel */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = SportsCalModel; path = ../SportsCalModel; sourceTree = "<group>"; };
 		1D9D2CEF27702FFB00735AF0 /* FavoriteButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteButtonView.swift; sourceTree = "<group>"; };
 		1DA4343329079D3D0010364F /* Teams+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Teams+Extensions.swift"; sourceTree = "<group>"; };
@@ -915,6 +917,7 @@
 				AB12CD3400000010000000AA /* WebSocketReconnectTests.swift */,
 				AB12CD3400000012000000AA /* OfflineTransitionTests.swift */,
 				AB12CD3400000014000000AA /* PushToStartRegistrationTests.swift */,
+				1D9218D1304F8BFB00100861 /* AttestTokenSharingTests.swift */,
 			);
 			path = SportsCalTests;
 			sourceTree = "<group>";
@@ -1655,6 +1658,7 @@
 				A1B2C3D401000003AABBCCDD /* StoreKitIntegrationTests.swift in Sources */,
 				1DAA10142FA145AF00853609 /* LiveActivityMatcherTests.swift in Sources */,
 				1DAA10162FA145AF00853609 /* WebSocketBackoffTests.swift in Sources */,
+				1D9218D2304F8BFB00100861 /* AttestTokenSharingTests.swift in Sources */,
 				1D73C0D72F934A6500C98966 /* BoardSnapshotTests.swift in Sources */,
 				A1B2C3D401000004AABBCCDD /* ProFeatureGatingTests.swift in Sources */,
 			);

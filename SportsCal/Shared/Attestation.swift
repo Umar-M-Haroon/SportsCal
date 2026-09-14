@@ -32,6 +32,53 @@ import DeviceCheck
 import CryptoKit
 import os
 
+/// The app's current session token, published to the App Group so the widget
+/// extension can send it too.
+///
+/// The widget cannot attest for itself: App Attest attests
+/// `<TEAM_ID>.<BUNDLE_ID>`, and the extension's bundle ID
+/// (`com.KomodoLLC.SportsCal.SportsWidget`) is not the app's, so a token minted
+/// there would fail the server's relying-party check. Giving the extension its
+/// own attested identity would also mean a Secure Enclave round trip inside a
+/// widget refresh's tight time and memory budget. Reading the app's token is
+/// both cheaper and more honest — it is genuinely the same principal.
+///
+/// App Group defaults rather than the Keychain: sharing Keychain items needs a
+/// `keychain-access-groups` entitlement the widget doesn't have, and adding one
+/// would churn provisioning. The token is a 15-minute bearer credential living
+/// in the app's own sandboxed container, which is the same place the widget's
+/// game data already lives.
+enum SharedAttestToken {
+    static let suiteName = "group.Komodo.SportsCal"
+    private static let tokenKey  = "attest.sharedToken"
+    private static let expiryKey = "attest.sharedTokenExpiresAt"
+
+    private static var defaults: UserDefaults? { UserDefaults(suiteName: suiteName) }
+
+    static func store(_ token: String, expiresAt: Date) {
+        guard let defaults else { return }
+        defaults.set(token, forKey: tokenKey)
+        defaults.set(expiresAt.timeIntervalSince1970, forKey: expiryKey)
+    }
+
+    /// The shared token, or nil when absent or too close to expiry to be worth
+    /// sending. The widget has no way to refresh one, so a token it cannot use
+    /// is the same as no token: it falls back to the shared API key.
+    static func current(now: Date = Date()) -> String? {
+        guard let defaults,
+              let token = defaults.string(forKey: tokenKey), !token.isEmpty else { return nil }
+        let expiry = defaults.double(forKey: expiryKey)
+        guard expiry > 0, Date(timeIntervalSince1970: expiry).timeIntervalSince(now) > 30 else { return nil }
+        return token
+    }
+
+    static func clear() {
+        guard let defaults else { return }
+        defaults.removeObject(forKey: tokenKey)
+        defaults.removeObject(forKey: expiryKey)
+    }
+}
+
 actor Attestation {
     static let shared = Attestation()
 
@@ -139,6 +186,45 @@ actor Attestation {
         attestationUnavailable = false
         keychainDelete(account: keyIDAccount)
         keychainDelete(account: jwtAccount)
+        SharedAttestToken.clear()
+    }
+
+    /// Drops the cached session token but KEEPS the Secure Enclave key.
+    ///
+    /// This is the right response to a 401 from a protected route: the token was
+    /// rejected, so throw it away — but the key that mints tokens is almost
+    /// certainly fine, and the next `getValidJWT()` will refresh it with a cheap
+    /// assertion. `reset()` is the heavy hammer that also discards the key, and
+    /// is reserved for the server explicitly asking us to re-attest.
+    func invalidateCachedToken() {
+        cachedJWT = nil
+        keychainDelete(account: jwtAccount)
+        SharedAttestToken.clear()
+        // A rejected token is not evidence that attestation is broken, so clear
+        // the backoff — otherwise one 401 could park the client on the shared
+        // key for the rest of the window.
+        retryNoEarlierThan = nil
+        consecutiveFailures = 0
+    }
+
+    /// Mints a restricted token for the paired Apple Watch.
+    ///
+    /// watchOS has no `DCAppAttestService`, so the phone asks on the watch's
+    /// behalf using its own attested token. The result carries
+    /// `plt: "ios-proxy-watch"`, which the server refuses on every write route.
+    /// Returns nil rather than throwing: the watch relay is an enhancement, and
+    /// a watch that gets no token simply keeps using the shared API key.
+    func proxyTokenForWatch() async -> (token: String, expiresAt: Date)? {
+        guard let jwt = try? await getValidJWT() else { return nil }
+        do {
+            let resp: TokenResponse = try await postJSON(
+                path: "/attest/proxy", body: EmptyBody(), bearer: jwt
+            )
+            return (resp.token, Date().addingTimeInterval(TimeInterval(resp.expiresIn)))
+        } catch {
+            log.info("watch proxy token unavailable: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     // MARK: - Core flow
@@ -222,6 +308,9 @@ actor Attestation {
         // next launch — we could not tell whether it was still valid without
         // parsing the JWT, so the persisted copy would have to be ignored.
         keychainWrite(account: jwtAccount, value: "\(t.token)|\(expiresAt.timeIntervalSince1970)")
+        // Hand the widget a copy. Only the main app mints, so this is the only
+        // place the shared copy is ever written.
+        SharedAttestToken.store(t.token, expiresAt: expiresAt)
     }
 
     /// Restores a still-valid token from the Keychain so a cold launch does not
@@ -246,7 +335,7 @@ actor Attestation {
         try await postJSON(path: "/attest/challenge", body: EmptyBody())
     }
 
-    private func postJSON<B: Encodable, R: Decodable>(path: String, body: B) async throws -> R {
+    private func postJSON<B: Encodable, R: Decodable>(path: String, body: B, bearer: String? = nil) async throws -> R {
         // NOTE: base URL selection lives in NetworkHandler. We reach through it
         // rather than duplicating the Bonjour/Tailscale/prod switching logic.
         // Attest routes sit at the server root — NOT under the /v2025 prefix that
@@ -269,11 +358,27 @@ actor Attestation {
         // to `id:` identities. A dozen users launching on one network would 429
         // each other out of attesting.
         req.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
+        // Only /attest/proxy needs one: minting a credential for the watch must
+        // be reachable solely by a caller that has already proven possession of
+        // a Secure Enclave key.
+        if let bearer { req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization") }
         req.timeoutInterval = 15
         req.httpBody = try JSONEncoder().encode(body)
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw AttestError.transport }
-        if http.statusCode == 401 { throw AttestError.unknownKey }
+        if http.statusCode == 401 {
+            // Only a 401 that explicitly asks for it costs us a new Secure
+            // Enclave key. `attestKey` is rate-limited by Apple, and the server
+            // returns 401 for a rejected assertion too — a replayed counter or a
+            // bad signature. Treating those as "key lost" wiped the Keychain and
+            // minted a fresh key on every failure, which is exactly how an app
+            // gets itself throttled out of attesting. Anything without the
+            // header is a failed attempt: let it fall through to the backoff.
+            if http.value(forHTTPHeaderField: "X-Attest-Action") == "re-attest" {
+                throw AttestError.unknownKey
+            }
+            throw AttestError.server(401)
+        }
         guard (200..<300).contains(http.statusCode) else { throw AttestError.server(http.statusCode) }
         return try JSONDecoder().decode(R.self, from: data)
     }

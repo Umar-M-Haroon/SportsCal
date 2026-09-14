@@ -368,13 +368,13 @@ func routes(_ app: Application) throws {
     // required while clients that predate 3.2 are still in the field.
     let v2025 = app.grouped(RateLimitMiddleware(limit: 300, windowSeconds: 60, keyPrefix: "rl:v2025", ipCeiling: 3000))
         .grouped("v2025")
-        .grouped(EitherAuthMiddleware())
+        .grouped(app.authPolicy.readMiddleware)
     registerAPIRoutes(on: v2025, app: app)
 
     // MARK: - Legacy Routes (unversioned)
     // Keep for backward compatibility with older app versions
     let legacy = app.grouped(RateLimitMiddleware(limit: 300, windowSeconds: 60, keyPrefix: "rl:legacy", ipCeiling: 3000))
-        .grouped(EitherAuthMiddleware())
+        .grouped(app.authPolicy.readMiddleware)
     registerAPIRoutes(on: legacy, app: app)
 
     // MARK: - Universal Links (public, unauthenticated)
@@ -423,7 +423,18 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     // (registrations, live-activities), so a host cycling install IDs could grow
     // Redis unbounded. 200/60s per IP tolerates a NATed building of users each
     // doing a handful of writes, but stops a single host spamming thousands.
-    let writeRoutes = routes.grouped(RateLimitMiddleware(limit: 20, windowSeconds: 60, keyPrefix: "rl:write", ipCeiling: 200))
+    // From phase 2 on, writes additionally require an attested JWT from the main
+    // app. Layered on top of the group's read auth rather than replacing it, so
+    // the rate limit and the shared-key path stay exactly as they were and only
+    // the credential requirement tightens. Every caller of these four routes
+    // lives in the iOS app (Live Activity push-token observation and the
+    // foreground/BGAppRefresh re-register) — the widget and watch only read — so
+    // requiring an attestable platform here locks nothing else out.
+    var writeRoutes = routes.grouped(RateLimitMiddleware(limit: 20, windowSeconds: 60, keyPrefix: "rl:write", ipCeiling: 200))
+    if let writeAuth = app.authPolicy.writeMiddleware {
+        writeRoutes = writeRoutes.grouped(writeAuth)
+    }
+
 
     // MARK: - Client Telemetry
     // Lightweight ingestion for client-side funnel events (paywall_shown,

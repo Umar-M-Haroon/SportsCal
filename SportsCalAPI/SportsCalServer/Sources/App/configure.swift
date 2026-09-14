@@ -91,6 +91,22 @@ public func configure(_ app: Application) async throws {
         app.logger.warning("⚠️ JWT_SIGNING_KEY not set — /attest routes cannot mint tokens; clients stay on the shared API key")
     }
 
+    // How much the API demands, as one dial. Resolved before `routes(app)` runs,
+    // because every route group reads it at registration time.
+    app.authPolicy = AuthPolicy.fromEnvironment(app.logger)
+    switch app.authPolicy {
+    case .dual:
+        app.logger.info("auth policy: dual — JWT or shared API key on every route (rollout phase 1)")
+    case .jwtWrites, .jwtStrict:
+        // Requiring a JWT with no signer configured would 401 every client on
+        // the affected routes with no way to recover. Refuse to boot instead of
+        // discovering it from a support ticket.
+        guard Environment.get("JWT_SIGNING_KEY").map({ !$0.isEmpty }) == true else {
+            fatalError("AUTH_POLICY=\(app.authPolicy.rawValue) requires JWT_SIGNING_KEY — without it no client can authenticate")
+        }
+        app.logger.notice("auth policy: \(app.authPolicy.rawValue) — attested JWT required (rollout phase 2+); confirm 3.2 adoption before leaving this on")
+    }
+
     if let appAttestAppID = Environment.get("APP_ATTEST_APP_ID"), !appAttestAppID.isEmpty {
         // Development attestations come from any Xcode-signed build of the app,
         // which is a much weaker claim than a distribution build. Accept them
@@ -196,6 +212,14 @@ public func configure(_ app: Application) async throws {
         app.queues.schedule(worldCupEnrichmentJob)
             .hourly()
             .at(50)
+        // Refreshes App Attest fraud-risk receipts that have come due and reaps
+        // key records for installs long gone. Scheduled unconditionally: the
+        // reaping half is what bounds `attest:key:*` growth and works with no
+        // DeviceCheck key configured.
+        let appAttestMaintenanceJob = AppAttestMaintenanceJob()
+        app.queues.schedule(appAttestMaintenanceJob)
+            .hourly()
+            .at(55)
 
         try app.queues.startScheduledJobs()
 

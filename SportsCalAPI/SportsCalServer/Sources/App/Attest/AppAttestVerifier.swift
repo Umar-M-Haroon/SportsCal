@@ -18,7 +18,7 @@ import X509
 /// Which App Attest environment a client build attested in. Determined by the
 /// AAGUID inside the attestation, and the only thing that decides which Apple
 /// host will redeem the resulting receipt.
-enum AppAttestEnvironment: Sendable {
+enum AppAttestEnvironment: String, Sendable {
     case production
     case development
 }

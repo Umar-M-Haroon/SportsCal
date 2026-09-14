@@ -54,8 +54,8 @@ final class PushToStartRegistrationTests: XCTestCase {
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
-    func testRegistrationRequestShape() throws {
-        let request = try NetworkHandler.pushToStartRegistrationRequest(
+    func testRegistrationRequestShape() async throws {
+        let request = try await NetworkHandler.pushToStartRegistrationRequest(
             token: "tok-A", favorites: ["Lakers"], eventIDs: ["evt1"])
 
         XCTAssertEqual(request.httpMethod, "POST")
@@ -73,10 +73,10 @@ final class PushToStartRegistrationTests: XCTestCase {
         XCTAssertEqual(body["eventIDs"] as? [String], ["evt1"])
     }
 
-    func testEventIDsKeyAbsentWhenEmpty() throws {
+    func testEventIDsKeyAbsentWhenEmpty() async throws {
         // The server decodes `eventIDs` as optional; an empty array and an
         // absent key are both valid, but absence is the pinned legacy shape.
-        let request = try NetworkHandler.pushToStartRegistrationRequest(
+        let request = try await NetworkHandler.pushToStartRegistrationRequest(
             token: "tok-A", favorites: ["Lakers"], eventIDs: [])
 
         let body = try bodyJSON(of: request)
@@ -84,12 +84,12 @@ final class PushToStartRegistrationTests: XCTestCase {
         XCTAssertEqual(body["favorites"] as? [String], ["Lakers"])
     }
 
-    func testInstallIDHeaderIsStableAcrossRequests() throws {
+    func testInstallIDHeaderIsStableAcrossRequests() async throws {
         // The server keys all push-to-start state by install ID; a value that
         // changed between requests would orphan registrations (C7).
-        let first = try NetworkHandler.pushToStartRegistrationRequest(
+        let first = try await NetworkHandler.pushToStartRegistrationRequest(
             token: "tok-A", favorites: ["Lakers"], eventIDs: [])
-        let second = try NetworkHandler.pushToStartRegistrationRequest(
+        let second = try await NetworkHandler.pushToStartRegistrationRequest(
             token: "tok-B", favorites: ["Lakers"], eventIDs: [])
 
         let firstID = try XCTUnwrap(first.value(forHTTPHeaderField: "X-Install-ID"))

@@ -25,7 +25,21 @@ struct SportsCalJWT: JWTPayload {
 /// Gates API routes. Reads `Authorization: Bearer <jwt>`, verifies signature
 /// + expiry, stashes the payload in `req.auth` so handlers can read the
 /// caller's keyID without re-parsing.
+///
+/// `allowedPlatforms` optionally restricts which `plt` claims are acceptable.
+/// This is what keeps a relayed watch token read-only: the watch cannot attest
+/// (no `DCAppAttestService` on watchOS), so the phone mints it a restricted
+/// `ios-proxy-watch` token. That token is a genuine credential for reads, but a
+/// write route lists only `ios`/`dev`, so a relayed token — or one lifted off a
+/// paired watch — cannot register push tokens or live activities.
 struct JWTMiddleware: AsyncMiddleware {
+    /// nil means "any platform".
+    let allowedPlatforms: Set<String>?
+
+    init(allowedPlatforms: Set<String>? = nil) {
+        self.allowedPlatforms = allowedPlatforms
+    }
+
     func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
         guard let header = request.headers.bearerAuthorization?.token else {
             throw Abort(.unauthorized, reason: "missing bearer token")
@@ -36,8 +50,75 @@ struct JWTMiddleware: AsyncMiddleware {
         } catch {
             throw Abort(.unauthorized, reason: "invalid token")
         }
+        if let allowedPlatforms, !allowedPlatforms.contains(payload.plt) {
+            request.logger.info("rejecting \(payload.plt) token on a route limited to \(allowedPlatforms.sorted().joined(separator: "/"))")
+            throw Abort(.forbidden, reason: "token platform not permitted on this route")
+        }
         request.auth.login(payload)
         return try await next.respond(to: request)
+    }
+}
+
+// MARK: - Rollout policy
+
+/// Which credentials the API demands, as a single dial. The server cannot
+/// require a JWT until effectively every shipped client sends one, so advancing
+/// the rollout is a deployment decision — an env var and a restart — rather than
+/// a code change. See docs/app-attest-plan.md.
+///
+/// Set `AUTH_POLICY`. Unset or unrecognized means `dual`, which is exactly the
+/// pre-App-Attest behaviour: fail safe toward availability, because getting this
+/// wrong locks every installed client out of the API.
+enum AuthPolicy: String, Sendable {
+    /// Phase 1. Reads and writes accept a JWT *or* the shared key.
+    case dual        = "dual"
+    /// Phase 2. Writes require a JWT from the main app; reads stay dual so the
+    /// widget and watch (which cannot attest) keep working.
+    case jwtWrites   = "jwt-writes"
+    /// Phase 3. Reads require a JWT too — viable only once the widget reads the
+    /// app's token from the App Group and the watch has a relayed proxy token.
+    case jwtStrict   = "jwt-strict"
+
+    static func fromEnvironment(_ logger: Logger) -> AuthPolicy {
+        let raw = Environment.get("AUTH_POLICY")?.trimmingCharacters(in: .whitespaces).lowercased()
+        guard let raw, !raw.isEmpty else { return .dual }
+        guard let policy = AuthPolicy(rawValue: raw) else {
+            logger.warning("⚠️ AUTH_POLICY=\(raw) is not recognized — falling back to 'dual'")
+            return .dual
+        }
+        return policy
+    }
+
+    /// Platforms permitted to call write routes. A relayed watch token is
+    /// deliberately absent: the watch only ever reads.
+    static let writeCapablePlatforms: Set<String> = ["ios", "dev"]
+
+    /// Auth for the read surface (the whole versioned/legacy group).
+    var readMiddleware: any AsyncMiddleware {
+        switch self {
+        case .dual, .jwtWrites: return EitherAuthMiddleware()
+        case .jwtStrict:        return JWTMiddleware()
+        }
+    }
+
+    /// Extra auth layered onto write routes, on top of `readMiddleware`.
+    /// nil in `dual`, where the read middleware is already the only gate.
+    var writeMiddleware: (any AsyncMiddleware)? {
+        switch self {
+        case .dual: return nil
+        case .jwtWrites, .jwtStrict:
+            return JWTMiddleware(allowedPlatforms: Self.writeCapablePlatforms)
+        }
+    }
+}
+
+extension Application {
+    private struct AuthPolicyKey: StorageKey { typealias Value = AuthPolicy }
+
+    /// Resolved once at configure time so every route group agrees.
+    var authPolicy: AuthPolicy {
+        get { storage[AuthPolicyKey.self] ?? .dual }
+        set { storage[AuthPolicyKey.self] = newValue }
     }
 }
 
@@ -85,6 +166,31 @@ struct EitherAuthMiddleware: AsyncMiddleware {
         }
         return try await apiKey.respond(to: request, chainingTo: next)
     }
+}
+
+// MARK: - Re-attest signalling
+
+/// How a client should answer a 401 from the attest routes.
+///
+/// Both failure shapes are a 401 — "the credential you sent is not usable" — but
+/// only one of them is *fixed* by minting a new Secure Enclave key:
+///
+///   - the server has no public key for this keyID (wiped Redis, revoked key):
+///     the client genuinely must re-attest, so we say so explicitly;
+///   - the assertion itself was rejected (bad signature, replayed counter): the
+///     key is fine and re-attesting changes nothing. `DCAppAttestService.attestKey`
+///     is rate-limited by Apple, so a client that re-attests here burns that
+///     budget on every failure and can get itself throttled out of attesting at all.
+///
+/// The client keys off this header rather than the status code, so the two cases
+/// stay distinguishable without overloading 403 (which the shared-key middleware
+/// already uses for something else entirely).
+enum AttestAction {
+    static let header = "X-Attest-Action"
+    static let reAttest = "re-attest"
+
+    /// Headers for a 401 that the client should answer with a full re-attestation.
+    static var reAttestHeaders: HTTPHeaders { [header: reAttest] }
 }
 
 // MARK: - DTOs
@@ -136,6 +242,14 @@ struct AttestController: RouteCollection {
         grp.post("verify",    use: verify)
         grp.post("refresh",   use: refresh)
 
+        // Proxy tokens for the watch. Behind JWTMiddleware because the *caller*
+        // must already be an attested iPhone — this mints a credential, so it
+        // cannot be reachable with the shared key that App Attest exists to
+        // replace. `ios-proxy-watch` is deliberately excluded from the allowed
+        // platforms: a watch cannot mint further tokens from the one it holds.
+        grp.grouped(JWTMiddleware(allowedPlatforms: AuthPolicy.writeCapablePlatforms))
+           .post("proxy", use: proxyToken)
+
         if allowDevTokens {
             // Simulator and unit tests can't attest. This mints an equivalent
             // JWT with plt:"dev" so the rest of the stack behaves identically.
@@ -143,6 +257,26 @@ struct AttestController: RouteCollection {
             // on a reachable dev host.
             grp.grouped(APIKeyMiddleware()).post("dev", use: devToken)
         }
+    }
+
+    /// Mints a restricted token for the caller's paired Apple Watch.
+    ///
+    /// watchOS has no `DCAppAttestService`, so a watch can never attest for
+    /// itself. Rather than leave it on the shared key forever, the phone — which
+    /// *has* proven possession of a Secure Enclave key to get the JWT it is
+    /// calling with — asks for a token on the watch's behalf and relays it over
+    /// WatchConnectivity.
+    ///
+    /// The result is strictly weaker than the caller's own token: it carries
+    /// `plt: "ios-proxy-watch"`, which every write route and this endpoint
+    /// itself refuse. It inherits the caller's `sub` (keyID) so revoking the
+    /// phone's key kills the watch's access with it, and its TTL is the same 15
+    /// minutes — a watch out of range simply falls back to the shared key until
+    /// the phone is reachable again.
+    func proxyToken(_ req: Request) async throws -> TokenResponse {
+        let caller = try req.auth.require(SportsCalJWT.self)
+        req.logger.debug("minting watch proxy token for \(caller.sub.value.prefix(8))…")
+        return try mintToken(keyID: caller.sub.value, platform: "ios-proxy-watch", on: req)
     }
 
     /// Non-production only. Mints a `plt: "dev"` token not bound to any Secure
@@ -232,7 +366,12 @@ struct AttestController: RouteCollection {
 
                 var fields: [String: String] = [
                     "receipt": result.raw.base64EncodedString(),
-                    "receiptFetchedAt": "\(Int(Date().timeIntervalSince1970))"
+                    "receiptFetchedAt": "\(Int(Date().timeIntervalSince1970))",
+                    // A receipt is only redeemable against the host matching the
+                    // environment that produced it, and that is a property of the
+                    // client build. The refresh job runs long after this request,
+                    // with no attestation blob to re-read, so record it now.
+                    "environment": environment.rawValue
                 ]
                 if let metric = result.parsed.riskMetric { fields["riskMetric"] = "\(metric)" }
                 if let notBefore = result.parsed.notBefore {
@@ -244,6 +383,10 @@ struct AttestController: RouteCollection {
                 try await app.redis.hmset(fields, in: RedisKey("attest:key:\(keyID)")).get()
 
                 logger.info("App Attest risk metric for \(keyID.prefix(8))…: \(result.parsed.riskMetric.map(String.init) ?? "n/a") (\(result.parsed.receiptType))")
+                // Feed the distribution a threshold will eventually be picked from.
+                await AppAttestRisk.record(
+                    metric: result.parsed.riskMetric, environment: environment, on: app
+                )
             } catch {
                 logger.warning("fraud-risk lookup failed (non-fatal): \(error)")
             }
@@ -259,7 +402,14 @@ struct AttestController: RouteCollection {
 
         guard let pkB64 = try await req.redis.hget("publicKey", from: RedisKey("attest:key:\(body.keyID)")).get().string,
               let publicKey = Data(base64Encoded: pkB64) else {
-            throw Abort(.unauthorized, reason: "unknown keyID — re-attest")
+            // The one case where re-attesting is the correct client response:
+            // we hold no public key for this keyID, so no assertion it can
+            // produce will ever verify.
+            throw Abort(
+                .unauthorized,
+                headers: AttestAction.reAttestHeaders,
+                reason: "unknown keyID — re-attest"
+            )
         }
 
         let storedCounter = (try await req.redis.hget("counter", from: RedisKey("attest:key:\(body.keyID)")).get().string)
@@ -274,6 +424,13 @@ struct AttestController: RouteCollection {
         )
 
         try await storeCounterMonotonically(newCounter, keyID: body.keyID, on: req)
+        // Liveness marker for AppAttestMaintenanceJob. Without it an attest:key
+        // record is indistinguishable from one belonging to an app deleted two
+        // years ago, and the keyspace only ever grows.
+        _ = try? await req.redis.hset(
+            "lastUsedAt", to: "\(Int(Date().timeIntervalSince1970))",
+            in: RedisKey("attest:key:\(body.keyID)")
+        ).get()
 
         return try mintToken(keyID: body.keyID, platform: "ios", on: req)
     }
@@ -289,7 +446,10 @@ struct AttestController: RouteCollection {
     /// HSET lands last wins, so the *lower* value can end up stored and the
     /// higher assertion becomes replayable. This compare-and-set keeps the
     /// stored value monotonic regardless of arrival order.
-    private func storeCounterMonotonically(_ counter: UInt32, keyID: String, on req: Request) async throws {
+    /// Internal rather than private so the monotonicity guarantee can be
+    /// asserted directly — the out-of-order interleaving it exists to survive
+    /// cannot be provoked reliably through the route.
+    func storeCounterMonotonically(_ counter: UInt32, keyID: String, on req: Request) async throws {
         let script = """
         local current = redis.call('HGET', KEYS[1], 'counter')
         if current and tonumber(current) >= tonumber(ARGV[1]) then return 0 end
@@ -433,8 +593,11 @@ private func verifyAppleAssertion(
         )
     } catch let error as AppAttestError {
         req.logger.warning("assertion rejected: \(error.description)")
-        // A counter that failed to advance means a replay, not a lost key —
-        // don't send the client into a pointless re-attest loop for it.
+        // Deliberately WITHOUT the re-attest header: a counter that failed to
+        // advance means a replay, and a bad signature means a bad assertion —
+        // neither is a lost key, and both are answered by backing off rather
+        // than spending one of Apple's rate-limited attestKey calls. See
+        // `AttestAction`.
         throw Abort(.unauthorized, reason: "assertion failed")
     } catch let error as CBORError {
         req.logger.warning("assertion rejected: \(error.description)")

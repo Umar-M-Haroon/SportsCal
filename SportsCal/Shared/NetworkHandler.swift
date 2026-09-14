@@ -15,6 +15,53 @@ import os
 /// the device. The server uses it as the durable key for push-to-start state
 /// so an APNS token rotation can't leave a duplicate registration shadowing
 /// the new token (the bug that caused two Live Activities per game).
+#if os(watchOS)
+/// The session token the paired iPhone last relayed over WatchConnectivity.
+///
+/// watchOS has no `DCAppAttestService`, so the watch can never attest for
+/// itself. The phone — which has — mints it a restricted `ios-proxy-watch`
+/// token and pushes it across in the WatchConnectivity application context.
+/// That token is valid for reads and refused by every write route, which suits
+/// the watch exactly: it only ever calls `getWidgetScheduleFor` and
+/// `getLiveSnapshot`.
+///
+/// Everything here degrades to nil, and nil means "send the shared API key" —
+/// an unpaired, out-of-range, or never-yet-synced watch keeps working unchanged
+/// until the server reaches `AUTH_POLICY=jwt-strict`.
+enum WatchRelayedToken {
+    private static let tokenKey  = "attest.relayedToken"
+    private static let expiryKey = "attest.relayedTokenExpiresAt"
+
+    static func store(_ token: String, expiresAt: Date) {
+        UserDefaults.standard.set(token, forKey: tokenKey)
+        UserDefaults.standard.set(expiresAt.timeIntervalSince1970, forKey: expiryKey)
+    }
+
+    /// The relayed token, or nil once it is within 30s of expiry. The watch
+    /// cannot refresh one itself, so a token it cannot use is the same as none.
+    static func current(now: Date = Date()) -> String? {
+        guard let token = UserDefaults.standard.string(forKey: tokenKey), !token.isEmpty else { return nil }
+        let expiry = UserDefaults.standard.double(forKey: expiryKey)
+        guard expiry > 0, Date(timeIntervalSince1970: expiry).timeIntervalSince(now) > 30 else { return nil }
+        return token
+    }
+
+    /// True when the phone should be asked for a fresh one. Deliberately more
+    /// eager than `current()` so a refresh is requested while the existing
+    /// token still works, rather than after it has already lapsed.
+    static func needsRefresh(now: Date = Date()) -> Bool {
+        let expiry = UserDefaults.standard.double(forKey: expiryKey)
+        guard expiry > 0 else { return true }
+        return Date(timeIntervalSince1970: expiry).timeIntervalSince(now) < 5 * 60
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: tokenKey)
+        UserDefaults.standard.removeObject(forKey: expiryKey)
+    }
+}
+#endif
+
 enum InstallID {
     private static let keychainService = "com.KomodoLLC.SportsCal.installID"
     private static let keychainAccount = "installID"
@@ -307,18 +354,109 @@ struct NetworkHandler {
     /// 401 retry; see docs/app-attest-plan.md phase 2.
     private static func authenticatedRequest(url: URL) async -> URLRequest {
         var request = apiKeyRequest(url: url)
-        #if os(iOS)
-        if isMainApp, let jwt = try? await Attestation.shared.getValidJWT() {
+        if let jwt = await bearerToken() {
             request.setValue("Bearer \(jwt)", forHTTPHeaderField: "Authorization")
         }
-        #endif
         return request
     }
 
-    /// Shared-key-only request, for the callers that can't await a token: the
-    /// WebSocket handshake (synchronous by nature) and the push-to-start
-    /// request builder (constructed on a synchronous path and asserted on in
-    /// tests). Both are covered by EitherAuthMiddleware server-side.
+    /// Where this process gets a session token, which differs per target
+    /// because only the main app can attest:
+    ///
+    ///   - **main app** — mints and refreshes its own via `Attestation`.
+    ///   - **widget extension** — reads the app's token from the App Group. It
+    ///     has a different bundle ID, so a token it attested for itself would
+    ///     fail the server's relying-party check.
+    ///   - **watch** — uses whatever the phone last relayed over
+    ///     WatchConnectivity. watchOS has no `DCAppAttestService` at all.
+    ///
+    /// nil everywhere means "send the shared API key alone", which stays valid
+    /// until the server moves to `AUTH_POLICY=jwt-strict`.
+    private static func bearerToken() async -> String? {
+        #if os(iOS)
+        if isMainApp { return try? await Attestation.shared.getValidJWT() }
+        return SharedAttestToken.current()
+        #elseif os(watchOS)
+        return WatchRelayedToken.current()
+        #else
+        return nil
+        #endif
+    }
+
+    /// Sends an authenticated request, retrying once on 401 with a fresh token.
+    ///
+    /// Required before any route can demand a JWT: a token can be rejected for
+    /// reasons the client can't see coming — the server rotated
+    /// `JWT_SIGNING_KEY`, the device slept through its own expiry, a clock
+    /// skew — and without a retry those all surface as a hard failure on a
+    /// route that would have worked a moment later.
+    ///
+    /// Only the main app retries, because only the main app can mint. The
+    /// widget and watch hold relayed tokens they cannot refresh; for them a 401
+    /// is terminal for this request and the next one picks up whatever the app
+    /// has since published.
+    private static func performAuthorized(
+        url: URL,
+        session: URLSession = .shared,
+        customize: (inout URLRequest) -> Void = { _ in }
+    ) async throws -> (Data, URLResponse) {
+        var request = await authenticatedRequest(url: url)
+        customize(&request)
+        let (data, response) = try await session.data(for: request)
+
+        guard (response as? HTTPURLResponse)?.statusCode == 401 else { return (data, response) }
+
+        #if os(iOS)
+        guard isMainApp else { return (data, response) }
+        // Drop the rejected token but keep the Secure Enclave key: the retry
+        // then costs one cheap assertion refresh, not a full re-attestation.
+        // Only an explicit `X-Attest-Action: re-attest` from the attest routes
+        // justifies discarding the key (see Attestation.postJSON).
+        await Attestation.shared.invalidateCachedToken()
+        var retry = await authenticatedRequest(url: url)
+        customize(&retry)
+        return try await session.data(for: retry)
+        #else
+        return (data, response)
+        #endif
+    }
+
+    /// Handshake request for the live WebSocket.
+    ///
+    /// `URLSessionWebSocketTask` does carry `URLRequest` headers — that is how
+    /// `X-API-Key` has always travelled — so the token goes in `Authorization`
+    /// like everywhere else, NOT in a query parameter. A query parameter would
+    /// put a live credential into every access log and proxy trace it passes.
+    ///
+    /// The token is read synchronously from the last one published, because the
+    /// three call sites are synchronous (one inside a `Timer` callback) and
+    /// making them async would ripple through `GameViewModel`, which compiles
+    /// into the widget target too. That is sound here: the app refreshes its
+    /// token 60s before expiry, and a socket that opens with a stale one is
+    /// closed and retried by the existing reconnect path.
+    private static func webSocketRequest(url: URL) -> URLRequest {
+        var request = apiKeyRequest(url: url)
+        if let jwt = cachedBearerToken() {
+            request.setValue("Bearer \(jwt)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
+    /// Best-effort token read with no `await`, for synchronous construction
+    /// paths. Returns whatever was last published — the main app writes the App
+    /// Group copy on every mint, so for it this is its own current token.
+    private static func cachedBearerToken() -> String? {
+        #if os(iOS)
+        return SharedAttestToken.current()
+        #elseif os(watchOS)
+        return WatchRelayedToken.current()
+        #else
+        return nil
+        #endif
+    }
+
+    /// Shared-key-only request. The base for every other builder; on its own it
+    /// is used where no token is available or wanted.
     private static func apiKeyRequest(url: URL) -> URLRequest {
         var request = URLRequest(url: url)
         request.setValue(Constants.apiKey, forHTTPHeaderField: "X-API-Key")
@@ -388,7 +526,7 @@ struct NetworkHandler {
     static func handleCall() async throws -> LiveScore {
         let urlString = "\(baseURL())/schedules"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -407,7 +545,7 @@ struct NetworkHandler {
         let dateStr = formatter.string(from: date)
         let urlString = "\(baseURL())/schedules/date/\(dateStr)"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -417,7 +555,7 @@ struct NetworkHandler {
     static func getScheduleFor(sport: SportType) async throws -> LiveEvent {
         let urlString = "\(baseURL())/sport/\(sport.rawValue)"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -442,7 +580,7 @@ struct NetworkHandler {
         let session = URLSession(configuration: config)
         defer { session.invalidateAndCancel() }
         AppLogger.widget.info("[widgetFetch] requesting \(url.absoluteString)")
-        let (data, response) = try await session.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url, session: session)
         if let httpResponse = response as? HTTPURLResponse {
             AppLogger.widget.info("[widgetFetch] response \(httpResponse.statusCode), \(data.count) bytes")
             APIVersionChecker.shared.checkVersion(from: httpResponse)
@@ -481,7 +619,7 @@ struct NetworkHandler {
         if let league { queryItems.append(URLQueryItem(name: "league", value: league)) }
         if !queryItems.isEmpty { components.queryItems = queryItems }
         let url = components.url!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
             if httpResponse.statusCode == 404 { throw PlayByPlayNotAvailable() }
@@ -505,7 +643,7 @@ struct NetworkHandler {
         if let league { queryItems.append(URLQueryItem(name: "league", value: league)) }
         if !queryItems.isEmpty { components.queryItems = queryItems }
         let url = components.url!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 404 {
             throw PlayByPlayNotAvailable()
         }
@@ -515,7 +653,7 @@ struct NetworkHandler {
     static func getTeams() async throws -> [Team] {
         let urlString = "\(baseURL())/teams"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -529,7 +667,7 @@ struct NetworkHandler {
         let encoded = teamID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? teamID
         let urlString = "\(baseURL())/team/\(encoded)/info"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -544,7 +682,7 @@ struct NetworkHandler {
         let url = URL(string: urlString)!
         var realLiveScore: LiveScore?
         do {
-            let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+            let (data, response) = try await performAuthorized(url: url)
             if let httpResponse = response as? HTTPURLResponse {
                 APIVersionChecker.shared.checkVersion(from: httpResponse)
             }
@@ -603,9 +741,7 @@ struct NetworkHandler {
             }
         }
         let url = URL(string: urlString)!
-        // Sync by construction — see apiKeyRequest. /ws is still shared-key only;
-        // see docs/app-attest-plan.md for the WebSocket auth follow-up.
-        let request = apiKeyRequest(url: url)
+        let request = webSocketRequest(url: url)
         let task = (session ?? URLSession.shared).webSocketTask(with: request)
         // The initial `/ws` snapshot grew past the old 4 MB cap once World Cup
         // plus a full live slate were in play (~4.76 MB observed), which made the
@@ -627,18 +763,19 @@ struct NetworkHandler {
 
     static func subscribeToLiveActivityUpdate(token: String, eventID: String, homeTeam: String? = nil, awayTeam: String? = nil) async throws {
         let url = URL(string: "\(baseURL())/liveActivity")!
-        var request = await authenticatedRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        // Token + APNS-env hint travel in the body and a custom header,
-        // respectively, instead of in the URL — keeps both out of access logs.
-        request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
-        request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
         var body: [String: Any] = ["token": token, "eventID": eventID]
         if let homeTeam { body["homeTeam"] = homeTeam }
         if let awayTeam { body["awayTeam"] = awayTeam }
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let encoded = try JSONSerialization.data(withJSONObject: body)
+        let (_, response) = try await performAuthorized(url: url) { request in
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            // Token + APNS-env hint travel in the body and a custom header,
+            // respectively, instead of in the URL — keeps both out of access logs.
+            request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+            request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
+            request.httpBody = encoded
+        }
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -652,20 +789,20 @@ struct NetworkHandler {
     /// the server-side TTL eventually frees the key.
     static func deregisterLiveActivity(token: String, previousBaseURL: String) async throws {
         guard let url = URL(string: "\(previousBaseURL)/liveActivity") else { return }
-        var request = await authenticatedRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
-        request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
-        let body: [String: Any] = ["token": token]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let encoded = try JSONSerialization.data(withJSONObject: ["token": token])
         // Short timeout so an unreachable previous host doesn't block re-registration.
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 3
         config.timeoutIntervalForResource = 3
         let session = URLSession(configuration: config)
         defer { session.invalidateAndCancel() }
-        _ = try await session.data(for: request)
+        _ = try await performAuthorized(url: url, session: session) { request in
+            request.httpMethod = "DELETE"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+            request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
+            request.httpBody = encoded
+        }
     }
 
     /// `"sandbox"` or `"production"`, derived from the embedded provisioning
@@ -709,7 +846,7 @@ struct NetworkHandler {
     static func getStandings(for leagueID: String) async throws -> Standing {
         let urlString = "\(baseURL())/standings/\(leagueID)"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -756,7 +893,7 @@ struct NetworkHandler {
 
     static func getWorldCupBracket() async throws -> WorldCupBracket {
         let url = URL(string: "\(baseURL())/worldcup/bracket")!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -765,7 +902,7 @@ struct NetworkHandler {
 
     static func getWorldCupScorers() async throws -> [WorldCupScorer] {
         let url = URL(string: "\(baseURL())/worldcup/scorers")!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -775,7 +912,7 @@ struct NetworkHandler {
     static func getWorldCupSquad(teamID: String) async throws -> WorldCupSquad {
         let encoded = teamID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? teamID
         let url = URL(string: "\(baseURL())/worldcup/squad/\(encoded)")!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -792,7 +929,7 @@ struct NetworkHandler {
     static func getWorldCupBoxScore(eventID: String) async throws -> WorldCupBoxScore {
         let encoded = eventID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? eventID
         let url = URL(string: "\(baseURL())/worldcup/boxscore/\(encoded)")!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
             if httpResponse.statusCode == 404 { throw BoxScoreNotAvailable() }
@@ -803,7 +940,7 @@ struct NetworkHandler {
     static func getStandingsHistory(leagueID: Int, days: Int = 30) async throws -> [StandingsHistoryDay] {
         let urlString = "\(baseURL())/standings/\(leagueID)/history?days=\(days)"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -813,7 +950,7 @@ struct NetworkHandler {
     static func getTeamStats(leagueID: Int) async throws -> [TeamStatEntry] {
         let urlString = "\(baseURL())/stats/\(leagueID)/teams"
         let url = URL(string: urlString)!
-        let (data, response) = try await URLSession.shared.data(for: await authenticatedRequest(url: url))
+        let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -824,10 +961,10 @@ struct NetworkHandler {
     /// tests can pin the wire format the server's `PushToStartRegistration`
     /// decoder and install-keyed dedup rely on (headers, body shape, and the
     /// `eventIDs` key being absent when empty).
-    static func pushToStartRegistrationRequest(token: String, favorites: [String], eventIDs: [String]) throws -> URLRequest {
+    static func pushToStartRegistrationRequest(token: String, favorites: [String], eventIDs: [String]) async throws -> URLRequest {
         let urlString = "\(baseURL())/pushToStart/register"
         let url = URL(string: urlString)!
-        var request = apiKeyRequest(url: url)
+        var request = await authenticatedRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
@@ -841,8 +978,18 @@ struct NetworkHandler {
     }
 
     static func registerPushToStart(token: String, favorites: [String], eventIDs: [String] = []) async throws {
-        let request = try pushToStartRegistrationRequest(token: token, favorites: favorites, eventIDs: eventIDs)
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let url = URL(string: "\(baseURL())/pushToStart/register")!
+        let prepared = try await pushToStartRegistrationRequest(token: token, favorites: favorites, eventIDs: eventIDs)
+        let (_, response) = try await performAuthorized(url: url) { request in
+            request.httpMethod = prepared.httpMethod
+            request.httpBody = prepared.httpBody
+            prepared.allHTTPHeaderFields?.forEach { key, value in
+                // The freshly-built request already carries current credentials;
+                // don't let the prepared copy's older ones overwrite them.
+                guard key != "Authorization", key != "X-API-Key" else { return }
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+        }
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
@@ -852,19 +999,19 @@ struct NetworkHandler {
     /// for why we accept an explicit base URL instead of going through `baseURL()`.
     static func deregisterPushToStart(token: String, previousBaseURL: String) async throws {
         guard let url = URL(string: "\(previousBaseURL)/pushToStart/register") else { return }
-        var request = await authenticatedRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
-        request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
-        let body: [String: Any] = ["token": token]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let encoded = try JSONSerialization.data(withJSONObject: ["token": token])
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 3
         config.timeoutIntervalForResource = 3
         let session = URLSession(configuration: config)
         defer { session.invalidateAndCancel() }
-        _ = try await session.data(for: request)
+        _ = try await performAuthorized(url: url, session: session) { request in
+            request.httpMethod = "DELETE"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+            request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
+            request.httpBody = encoded
+        }
     }
 
     /// Base URL for admin API endpoints (bypasses /v2025 versioning)
@@ -914,15 +1061,15 @@ struct NetworkHandler {
     static func triggerDebugPushToStart(eventID: String, homeTeam: String, awayTeam: String) async throws {
         let urlString = "\(baseURL())/debug/trigger-push-to-start"
         guard let url = URL(string: urlString) else { return }
-        var request = await authenticatedRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let body: [String: String] = [
+        let encoded = try JSONSerialization.data(withJSONObject: [
             "eventID": eventID,
             "homeTeam": homeTeam,
             "awayTeam": awayTeam
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (_, _) = try await URLSession.shared.data(for: request)
+        ])
+        _ = try await performAuthorized(url: url) { request in
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = encoded
+        }
     }
 }

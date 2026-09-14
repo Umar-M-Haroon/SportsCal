@@ -55,7 +55,42 @@ final class PhoneWatchSyncService: NSObject, WCSessionDelegate {
             "hiddenCompetitions": hidden,
         ]
 
-        try? WCSession.default.updateApplicationContext(context)
+        try? WCSession.default.updateApplicationContext(context.merging(attestationPayload()) { current, _ in current })
+    }
+
+    // MARK: - Attestation relay
+
+    /// The watch's slice of the application context: a restricted session token
+    /// minted by this phone on the watch's behalf.
+    ///
+    /// `updateApplicationContext` replaces the whole dictionary, so the token
+    /// has to travel alongside the preferences rather than in a context of its
+    /// own — sending it separately would wipe the prefs and vice versa.
+    private func attestationPayload() -> [String: Any] {
+        guard let relay = cachedRelay, relay.expiresAt.timeIntervalSinceNow > 60 else { return [:] }
+        return [
+            "attestToken": relay.token,
+            "attestTokenExpiresAt": relay.expiresAt.timeIntervalSince1970,
+        ]
+    }
+
+    private var cachedRelay: (token: String, expiresAt: Date)?
+
+    /// Mints a watch token and pushes it across.
+    ///
+    /// Called on activation and after the app refreshes its own token, so the
+    /// watch usually holds a live one before it ever needs it. Silent on
+    /// failure by design: the relay is an enhancement, and a watch without a
+    /// token falls back to the shared API key.
+    func refreshAttestationToken() {
+        guard WCSession.default.activationState == .activated else { return }
+        Task {
+            guard let relay = await Attestation.shared.proxyTokenForWatch() else { return }
+            await MainActor.run {
+                self.cachedRelay = relay
+                self.syncAllPreferences()
+            }
+        }
     }
 
     // MARK: - WCSessionDelegate
@@ -63,6 +98,7 @@ final class PhoneWatchSyncService: NSObject, WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         if activationState == .activated {
             syncAllPreferences()
+            refreshAttestationToken()
         }
     }
 
@@ -74,6 +110,14 @@ final class PhoneWatchSyncService: NSObject, WCSessionDelegate {
     // Receive favorites changes from Watch
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         guard let action = message["action"] as? String else { return }
+
+        if action == "requestAttestToken" {
+            // The watch noticed its token is close to expiry and the phone is
+            // reachable. Mint a fresh one rather than making it wait for the
+            // next preference change to carry one across.
+            refreshAttestationToken()
+            return
+        }
 
         if action == "updateFavorites", let favorites = message["favorites"] as? [String] {
             let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")

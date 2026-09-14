@@ -44,7 +44,18 @@ final class WatchSyncService: NSObject, WCSessionDelegate {
         if activationState == .activated {
             // Read any queued application context
             applyContext(session.receivedApplicationContext)
+            requestAttestTokenIfNeeded()
         }
+    }
+
+    /// Asks the phone to mint a fresh watch token when the one we hold is close
+    /// to lapsing. Only possible while the phone is reachable; otherwise the
+    /// token simply ages out and reads fall back to the shared API key.
+    func requestAttestTokenIfNeeded() {
+        guard WatchRelayedToken.needsRefresh(),
+              WCSession.default.activationState == .activated,
+              WCSession.default.isReachable else { return }
+        WCSession.default.sendMessage(["action": "requestAttestToken"], replyHandler: nil, errorHandler: nil)
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
@@ -55,6 +66,14 @@ final class WatchSyncService: NSObject, WCSessionDelegate {
 
     private func applyContext(_ context: [String: Any]) {
         let defaults = UserDefaults.standard
+
+        // Session token relayed by the phone. The watch cannot attest (no
+        // DCAppAttestService on watchOS), so this is its only route to an
+        // attested credential; absent one it falls back to the shared API key.
+        if let token = context["attestToken"] as? String,
+           let expiry = context["attestTokenExpiresAt"] as? TimeInterval {
+            WatchRelayedToken.store(token, expiresAt: Date(timeIntervalSince1970: expiry))
+        }
 
         // Sport preferences
         if let nba = context["shouldShowNBA"] as? Bool { defaults.set(nba, forKey: "shouldShowNBA") }
