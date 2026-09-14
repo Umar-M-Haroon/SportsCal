@@ -1,17 +1,16 @@
-The World Cup knockout stage is on:
-• Full knockout bracket — Round of 32 to the Final — with live scores, projected qualifiers, and one-tap access from the Games tab and Browse
-• Live box scores and a refreshed hero card for every match
-• Smarter group-stage standings and fixtures
-
 Faster live scores:
-• Scores now update within seconds during live matches
+• Scores now update within seconds during live games, with less battery and data use
+• Live Activities are easier to find, with a clear hint when they're switched off
 
-Live Activities you can actually find:
-• Follow any live World Cup match straight from the hero card and your game list
-• A clear "Turn On Live Activities" hint when they're switched off
+Team pages:
+• Tap any team to see its schedule, results, record, and roster
+
+Tennis:
+• Matches are grouped by tournament and filed under the correct tour (ATP or WTA)
 
 Also in this release:
-• Tap any team to see its schedule, results, record, and roster
 • Quicker app launch and a redesigned game detail screen
+• Corrected team abbreviations (NYK, not NY)
+• Stronger security for your device's connection to Scoreline
 
 Plus a batch of stability and reliability fixes. Thanks for using the app!

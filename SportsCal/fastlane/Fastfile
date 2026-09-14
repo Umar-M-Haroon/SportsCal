@@ -78,6 +78,55 @@ platform :ios do
     )
   end
 
+  # Builds come from Xcode Cloud (the "Default" workflow runs on every push to
+  # main; its run number is the build number), so this lane never archives. It
+  # finds the newest processed build for MARKETING_VERSION, pushes the text
+  # metadata, attaches the build, and submits for review.
+  #
+  #   fastlane submit_review                  # newest build of the pbxproj version
+  #   fastlane submit_review build:145        # a specific build
+  #   fastlane submit_review wait_minutes:90  # wait for Xcode Cloud to upload one
+  desc "Submit the newest Xcode Cloud build of the current version for App Store review"
+  lane :submit_review do |options|
+    api_key = asc_api_key
+    version = get_version_number(xcodeproj: "SportsCal.xcodeproj", target: "SportsCal (iOS)")
+
+    build = options[:build]
+    deadline = Time.now + (options[:wait_minutes] || 0).to_i * 60
+    until build
+      begin
+        build = latest_testflight_build_number(api_key: api_key, version: version, initial_build_number: nil)
+      rescue StandardError
+        build = nil
+      end
+      break if build
+      UI.user_error!("No build for #{version} in App Store Connect — push to main so Xcode Cloud builds one, or pass wait_minutes:") if Time.now > deadline
+      UI.message("No #{version} build yet; checking again in 2 minutes…")
+      sleep(120)
+    end
+    UI.important("Submitting #{version} (#{build}) for review")
+
+    upload_to_app_store(
+      api_key: api_key,
+      app_version: version,         # renames the editable version if it's still an older number
+      build_number: build.to_s,
+      skip_binary_upload: true,
+      skip_screenshots: true,       # screenshots carry over; their upload is the step that 500-loops
+      skip_metadata: false,
+      force: true,
+      run_precheck_before_submit: false,
+      precheck_include_in_app_purchases: false,
+      submit_for_review: true,
+      automatic_release: true,
+      reject_if_possible: true,     # replace a submission that's still waiting for review
+      submission_information: {
+        add_id_info_uses_idfa: false,
+        export_compliance_uses_encryption: false
+      }
+    )
+    UI.success("#{version} (#{build}) is in review.")
+  end
+
   desc "Full release: archive, upload binary + What's New, ready to submit in App Store Connect"
   lane :release do
     build_app(
