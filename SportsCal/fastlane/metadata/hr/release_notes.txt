@@ -1,3 +1,5 @@
+Fixes an issue in 3.2 where games didn't load.
+
 Faster live scores:
 • Scores now update within seconds during live games, with less battery and data use
 • Live Activities are easier to find, with a clear hint when they're switched off
