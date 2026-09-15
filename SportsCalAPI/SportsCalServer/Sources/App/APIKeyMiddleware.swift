@@ -39,7 +39,20 @@ func validHashes(from envName: String) -> [String] {
 /// constant time) against each hash in `API_KEY_HASH` (comma-separated).
 /// Fails closed if the env var is unset — there is NO development bypass.
 struct APIKeyMiddleware: AsyncMiddleware {
+    /// Emergency kill switch: `API_KEY_ENFORCEMENT=off` lets requests through
+    /// with no key or a wrong key. Exists because 3.2 shipped with an empty key
+    /// baked in (Xcode Cloud env vars unset) and 403'd on every call; turn it
+    /// back on once 3.2.1 has replaced it. Anything else (including unset)
+    /// enforces. Admin routes use `AdminKeyMiddleware` and are unaffected.
+    static var enforcementDisabled: Bool {
+        Environment.get("API_KEY_ENFORCEMENT")?.trimmingCharacters(in: .whitespaces).lowercased() == "off"
+    }
+
     func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
+        if Self.enforcementDisabled {
+            return try await next.respond(to: request)
+        }
+
         let expected = validHashes(from: "API_KEY_HASH")
         guard !expected.isEmpty,
               let providedKey = request.headers.first(name: "X-API-Key") else {

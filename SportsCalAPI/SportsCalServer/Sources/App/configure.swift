@@ -94,6 +94,9 @@ public func configure(_ app: Application) async throws {
     // How much the API demands, as one dial. Resolved before `routes(app)` runs,
     // because every route group reads it at registration time.
     app.authPolicy = AuthPolicy.fromEnvironment(app.logger)
+    if APIKeyMiddleware.enforcementDisabled {
+        app.logger.warning("⚠️ API_KEY_ENFORCEMENT=off — shared API key is NOT checked; re-enable once 3.2.1 is adopted")
+    }
     switch app.authPolicy {
     case .dual:
         app.logger.info("auth policy: dual — JWT or shared API key on every route (rollout phase 1)")
