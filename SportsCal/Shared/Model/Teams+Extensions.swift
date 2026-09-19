@@ -83,6 +83,19 @@ extension Game {
         return standardDate
     }
 
+    /// Whether the user hid this game's competition (`hiddenCompetitions` holds league
+    /// names). Tennis goes by the draw rather than `idLeague`: every match ships once as
+    /// ATP and once as WTA, so the league alone would leave half of a hidden tour's matches
+    /// showing. A mixed-doubles match belongs to both tours and stays until both are hidden.
+    func isInHiddenCompetition<S: Sequence<String>>(_ hidden: S) -> Bool {
+        if sportType == .tennis {
+            let tours = tennisTours
+            return !tours.isEmpty && tours.allSatisfy { hidden.contains($0.leagueName) }
+        }
+        guard let raw = idLeague, let id = Int(raw), let league = Leagues(rawValue: id) else { return false }
+        return hidden.contains(league.leagueName)
+    }
+
     /// Last day of a multi-day event (a golf tournament's Sunday), when the source
     /// gave us one.
     var eventEndDate: Date? {

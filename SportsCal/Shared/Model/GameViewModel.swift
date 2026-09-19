@@ -366,7 +366,7 @@ public class GameViewModel: NSObject {
             sports.append(.golf)
         }
         if appStorage.shouldShowTennis, let events = currentLiveInfo?.tennis?.events,
-           !applyCoverage(events, sport: .tennis).isEmpty {
+           !applyCoverage(hidingCompetitions(events, context: context), sport: .tennis).isEmpty {
             sports.append(.tennis)
         }
         if appStorage.shouldShowRacing, let events = currentLiveInfo?.racing?.events, !events.isEmpty {
@@ -451,12 +451,12 @@ public class GameViewModel: NSObject {
         }
 
         if let tennisEvents = currentLiveInfo?.tennis?.events {
-            let filteredTennis = tennisEvents.filter { game in
+            let filteredTennis = hidingCompetitions(tennisEvents.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let _ = Leagues(rawValue: intLeague) else { return false }
                 return true
-            }
+            }, context: context)
             if !filteredTennis.isEmpty {
                 counts[.tennis] = filteredTennis.count
             }
@@ -623,7 +623,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let tennisGames {
-                games.append(contentsOf: applyFavoritesFilter(applyCoverage(tennisGames, sport: .tennis), favoritesOnly: appStorage.favoritesOnlyTennis, context: context))
+                games.append(contentsOf: applyFavoritesFilter(applyCoverage(hidingCompetitions(tennisGames, context: context), sport: .tennis), favoritesOnly: appStorage.favoritesOnlyTennis, context: context))
             }
         }
         if appStorage.shouldShowRacing {
@@ -1956,7 +1956,7 @@ public class GameViewModel: NSObject {
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyGolf, context: context))
         }
         if appStorage.shouldShowTennis {
-            let games = applyCoverage(gamesDict[.tennis] ?? [], sport: .tennis)
+            let games = applyCoverage(hidingCompetitions(gamesDict[.tennis] ?? [], context: context), sport: .tennis)
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyTennis, context: context))
         }
         if appStorage.shouldShowRacing {
@@ -1971,11 +1971,7 @@ public class GameViewModel: NSObject {
     /// so their per-tour toggles did nothing.
     private func hidingCompetitions(_ games: [Game], context: GameFilterContext) -> [Game] {
         guard !context.hiddenCompetitions.isEmpty else { return games }
-        return games.filter { game in
-            guard let raw = game.idLeague, let id = Int(raw),
-                  let league = Leagues(rawValue: id) else { return true }
-            return !context.hiddenCompetitions.contains(league.leagueName)
-        }
+        return games.filter { !$0.isInHiddenCompetition(context.hiddenCompetitions) }
     }
 
     /// Drops tennis/golf events below the user's coverage for `sport` (Grand Slams / big

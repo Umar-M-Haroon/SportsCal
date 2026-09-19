@@ -211,14 +211,13 @@ private struct ModernDayContent: View {
                 guard let sport = game.sportType else { return false }
                 let isWorldCup = game.idLeague == Self.worldCupLeagueID
                 guard isSportEnabled(sport) || (isWorldCup && storage.shouldShowWorldCup) else { return false }
-                // Resolve league once for the hidden / per-competition checks.
+                // Resolve league once for the per-competition check.
                 let league: Leagues? = {
                     guard let id = game.idLeague, let intID = Int(id) else { return nil }
                     return Leagues(rawValue: intID)
                 }()
                 // Hidden competition filter (mirrors filterAndSortGamesFromUserPreferences)
-                if let leagueName = league?.leagueName,
-                   storage.hiddenCompetitions.contains(leagueName) {
+                if game.isInHiddenCompetition(storage.hiddenCompetitions) {
                     return false
                 }
                 // Per-sport favorites-only: when toggled in SportPickerSheet,

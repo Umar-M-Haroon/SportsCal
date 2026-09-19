@@ -411,7 +411,10 @@ struct SettingsView: View {
                         .font(.headline)
                 }
                 DeveloperSettingsSection()
-                #if DEBUG
+                // Theme switching is still in progress, so it stays behind debug mode
+                // (which TestFlight builds turn on automatically) rather than shipping
+                // to everyone.
+                if appStorage.debugMode {
                 Section(header: Text("Appearance"), footer: Text("Classic is the original design. Ambient is a dark airport-board-style redesign. Modern is the new SF Pro–based system with adaptive sport palette, an adaptive Today screen, and a refreshed Browse and game detail. Switch any time to compare.")) {
                     @Bindable var bindableAppStorage = appStorage
                     Picker("Theme", selection: $bindableAppStorage.appTheme) {
@@ -421,7 +424,7 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                 }
-                #endif
+                }
                 Section(header: Text("Sports"), footer: Text("Choose which sports to show, reorder them, and toggle favorites-only per sport.")) {
                     Button {
                         showSportPicker = true
@@ -443,8 +446,10 @@ struct SettingsView: View {
                 NavigationLink("Scoreline Pro") {
                     PaywallView()
                 }
-                SoccerCompetitionsSettingsSection()
-                BasketballCompetitionsSettingsSection()
+                // Per-sport league visibility now lives inside Manage Sports, under the
+                // sport it belongs to, rather than as a stack of separate top-level
+                // sections here. The section types below are still used by the Mac
+                // settings window, which has room for them.
                 ProOptionsSettingsSection()
                 #if os(iOS)
                 Section(header: Text("Live Activities")) {

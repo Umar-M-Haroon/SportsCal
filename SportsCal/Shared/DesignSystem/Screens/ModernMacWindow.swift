@@ -124,7 +124,7 @@ struct ModernMacWindow: View {
                           let league = Leagues(rawValue: intID) else { return nil }
                     return league.leagueName
                 }()
-                if let leagueName, storage.hiddenCompetitions.contains(leagueName) {
+                if game.isInHiddenCompetition(storage.hiddenCompetitions) {
                     return false
                 }
                 // Favorites-only filter (mirrors GameViewModel.applyFavoritesFilter):
@@ -171,7 +171,7 @@ struct ModernMacWindow: View {
                       let league = Leagues(rawValue: intID) else { return nil }
                 return league.leagueName
             }()
-            if let leagueName, storage.hiddenCompetitions.contains(leagueName) { continue }
+            if game.isInHiddenCompetition(storage.hiddenCompetitions) { continue }
             if storage.favoritesOnly(for: sport) {
                 if !favorites.matches(game) { continue }
             } else if let leagueName,
@@ -201,7 +201,7 @@ struct ModernMacWindow: View {
                       let league = Leagues(rawValue: intID) else { return nil }
                 return league.leagueName
             }()
-            if let leagueName, storage.hiddenCompetitions.contains(leagueName) { return }
+            if game.isInHiddenCompetition(storage.hiddenCompetitions) { return }
             if sportFavOnly {
                 if !favorites.matches(game) { return }
             } else if let leagueName,
