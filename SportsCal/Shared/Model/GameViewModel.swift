@@ -362,10 +362,11 @@ public class GameViewModel: NSObject {
             sports.append(.hockey)
         }
         if appStorage.shouldShowGolf, let events = currentLiveInfo?.golf?.events,
-           !hidingCompetitions(events, context: context).isEmpty {
+           !applyCoverage(hidingCompetitions(events, context: context), sport: .golf).isEmpty {
             sports.append(.golf)
         }
-        if appStorage.shouldShowTennis, let events = currentLiveInfo?.tennis?.events, !events.isEmpty {
+        if appStorage.shouldShowTennis, let events = currentLiveInfo?.tennis?.events,
+           !applyCoverage(events, sport: .tennis).isEmpty {
             sports.append(.tennis)
         }
         if appStorage.shouldShowRacing, let events = currentLiveInfo?.racing?.events, !events.isEmpty {
@@ -610,7 +611,7 @@ public class GameViewModel: NSObject {
                 return context.hiddenCompetitions.contains(league.leagueName)
             })
             if let golfGames {
-                games.append(contentsOf: applyFavoritesFilter(golfGames, favoritesOnly: appStorage.favoritesOnlyGolf, context: context))
+                games.append(contentsOf: applyFavoritesFilter(applyCoverage(golfGames, sport: .golf), favoritesOnly: appStorage.favoritesOnlyGolf, context: context))
             }
         }
         if appStorage.shouldShowTennis {
@@ -622,7 +623,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let tennisGames {
-                games.append(contentsOf: applyFavoritesFilter(tennisGames, favoritesOnly: appStorage.favoritesOnlyTennis, context: context))
+                games.append(contentsOf: applyFavoritesFilter(applyCoverage(tennisGames, sport: .tennis), favoritesOnly: appStorage.favoritesOnlyTennis, context: context))
             }
         }
         if appStorage.shouldShowRacing {
@@ -1951,11 +1952,11 @@ public class GameViewModel: NSObject {
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyNHL, context: context))
         }
         if appStorage.shouldShowGolf {
-            let games = hidingCompetitions(gamesDict[.golf] ?? [], context: context)
+            let games = applyCoverage(hidingCompetitions(gamesDict[.golf] ?? [], context: context), sport: .golf)
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyGolf, context: context))
         }
         if appStorage.shouldShowTennis {
-            let games = gamesDict[.tennis] ?? []
+            let games = applyCoverage(gamesDict[.tennis] ?? [], sport: .tennis)
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyTennis, context: context))
         }
         if appStorage.shouldShowRacing {
@@ -1975,6 +1976,15 @@ public class GameViewModel: NSObject {
                   let league = Leagues(rawValue: id) else { return true }
             return !context.hiddenCompetitions.contains(league.leagueName)
         }
+    }
+
+    /// Drops tennis/golf events below the user's coverage for `sport` (Grand Slams / big
+    /// events / everything). Followed players always pass. No-op for `.everything`.
+    func applyCoverage(_ games: [Game], sport: SportType) -> [Game] {
+        let coverage = appStorage.coverage(for: sport)
+        guard coverage != .everything else { return games }
+        // Favorite lookup is the expensive half, so only pay it for games coverage drops.
+        return games.filter { $0.passesCoverage(coverage) || favorites.matches($0) }
     }
 
     private func applyFavoritesFilter(_ games: [Game], favoritesOnly: Bool, context: GameFilterContext) -> [Game] {
@@ -2099,6 +2109,8 @@ public class GameViewModel: NSObject {
         hasher.combine(appStorage.favoritesOnlyGolf)
         hasher.combine(appStorage.favoritesOnlyTennis)
         hasher.combine(appStorage.favoritesOnlyRacing)
+        hasher.combine(appStorage.coverageTennis)
+        hasher.combine(appStorage.coverageGolf)
         for comp in appStorage.hiddenCompetitions { hasher.combine(comp) }
         for team in favorites.teams { hasher.combine(team) }
         return hasher.finalize()

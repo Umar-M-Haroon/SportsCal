@@ -44,7 +44,11 @@ struct GolfLeaderboardProvider: TimelineProvider {
         // Try live endpoint first — it has active tournament leaderboards
         if let liveScore = try? await NetworkHandler.getLiveSnapshot(),
            let liveGolf = liveScore.golf?.events,
-           let activeGame = liveGolf.first(where: { !$0.resolvedLeaderboard.isEmpty }) {
+           let activeGame = liveGolf
+            .filter({ !$0.resolvedLeaderboard.isEmpty })
+            // Several tours play the same week, so show the biggest event rather than
+            // whichever one ESPN happened to list first.
+            .max(by: { ($0.eventTier ?? .tour) < ($1.eventTier ?? .tour) }) {
             let leaderboard = activeGame.resolvedLeaderboard
             return GolfLeaderboardEntry(
                 date: .now,

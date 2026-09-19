@@ -21,6 +21,7 @@ final class CloudSyncManager {
         "shouldShowWNBA",
         "favoritesOnlyNBA", "favoritesOnlyNFL", "favoritesOnlyNHL", "favoritesOnlySoccer",
         "favoritesOnlyMLB", "favoritesOnlyGolf", "favoritesOnlyTennis", "favoritesOnlyRacing",
+            "coverageTennis", "coverageGolf",
         "favoritesOnlyCompetitions",
         "hidesPastEvents", "soonestOnTop", "duration", "dateFormat",
         "hidePastGamesDuration", "showStartTime", "hiddenCompetitions",
@@ -427,6 +428,7 @@ final class CloudSyncManager {
             "shouldShowWNBA",
             "favoritesOnlyNBA", "favoritesOnlyNFL", "favoritesOnlyNHL", "favoritesOnlySoccer",
             "favoritesOnlyMLB", "favoritesOnlyGolf", "favoritesOnlyTennis", "favoritesOnlyRacing",
+            "coverageTennis", "coverageGolf",
             "favoritesOnlyCompetitions",
             "hiddenCompetitions", "sportOrder"
         ]

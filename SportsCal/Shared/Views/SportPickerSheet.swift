@@ -37,6 +37,10 @@ struct SportPickerSheet: View {
                                     .foregroundStyle(.secondary)
                             }
                             .padding(.leading, 28)
+                            if EventCoverage.sports.contains(sport) {
+                                coveragePicker(for: sport)
+                                    .padding(.leading, 28)
+                            }
                         }
                     }
                     .onMove { from, to in
@@ -109,5 +113,30 @@ struct SportPickerSheet: View {
         #if os(macOS)
         .frame(minWidth: 350, minHeight: 400)
         #endif
+    }
+
+    /// Grand Slams / big events / everything for tennis and golf.
+    private func coveragePicker(for sport: SportType) -> some View {
+        // The coverage props are @ObservationIgnored; setCoverage bumps this tracked counter.
+        _ = storage.preferenceVersion
+        let selection = Binding(
+            get: { storage.coverage(for: sport) },
+            set: { storage.setCoverage($0, for: sport) }
+        )
+        return VStack(alignment: .leading, spacing: 2) {
+            Picker(selection: selection) {
+                ForEach(EventCoverage.allCases, id: \.self) { coverage in
+                    Text(coverage.displayName(for: sport)).tag(coverage)
+                }
+            } label: {
+                Label("Show", systemImage: "trophy")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .pickerStyle(.menu)
+            Text(selection.wrappedValue.summary(for: sport))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 }

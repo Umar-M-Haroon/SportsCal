@@ -10,6 +10,7 @@
 #if os(iOS)
 import Foundation
 import WatchConnectivity
+import SportsCalModel
 
 final class PhoneWatchSyncService: NSObject, WCSessionDelegate {
     static let shared = PhoneWatchSyncService()
@@ -51,6 +52,8 @@ final class PhoneWatchSyncService: NSObject, WCSessionDelegate {
             "favoritesOnlyGolf": defaults?.bool(forKey: "favoritesOnlyGolf") ?? false,
             "favoritesOnlyTennis": defaults?.bool(forKey: "favoritesOnlyTennis") ?? false,
             "favoritesOnlyRacing": defaults?.bool(forKey: "favoritesOnlyRacing") ?? false,
+            "coverageTennis": EventCoverage.stored(for: .tennis, in: defaults).rawValue,
+            "coverageGolf": EventCoverage.stored(for: .golf, in: defaults).rawValue,
             "favorites": favorites,
             "hiddenCompetitions": hidden,
         ]

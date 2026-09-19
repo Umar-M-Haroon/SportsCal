@@ -31,6 +31,10 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("favoritesOnlyGolf") var favoritesOnlyGolf: Bool = false
     @ObservationIgnored @AppStorage("favoritesOnlyTennis") var favoritesOnlyTennis: Bool = false
     @ObservationIgnored @AppStorage("favoritesOnlyRacing") var favoritesOnlyRacing: Bool = false
+    /// Which tennis/golf event tiers to show (Grand Slams / big events / everything).
+    /// Followed players always show regardless. See `EventCoverage`.
+    @ObservationIgnored @AppStorage("coverageTennis") var coverageTennis: EventCoverage = .default
+    @ObservationIgnored @AppStorage("coverageGolf") var coverageGolf: EventCoverage = .default
     @ObservationIgnored @AppStorage("shouldShowOnboarding") var shouldShowOnboarding: Bool = true
     @ObservationIgnored @AppStorage("hidesPastEvents") var hidePastEvents: Bool = true  // Hide past games by default for performance
     @ObservationIgnored @AppStorage("soonestOnTop") var soonestOnTop: Bool = true
@@ -274,6 +278,8 @@ class UserDefaultStorage {
         defaults?.set(favoritesOnlyGolf, forKey: "favoritesOnlyGolf")
         defaults?.set(favoritesOnlyTennis, forKey: "favoritesOnlyTennis")
         defaults?.set(favoritesOnlyRacing, forKey: "favoritesOnlyRacing")
+        defaults?.set(coverageTennis.rawValue, forKey: "coverageTennis")
+        defaults?.set(coverageGolf.rawValue, forKey: "coverageGolf")
         defaults?.set(hiddenCompetitions, forKey: "hiddenCompetitions")
         defaults?.set(favoritesOnlyCompetitions, forKey: "favoritesOnlyCompetitions")
     }
@@ -343,6 +349,32 @@ class UserDefaultStorage {
         case .racing:     favoritesOnlyRacing = value
         }
         syncSportPrefsToAppGroup()
+    }
+
+    /// Coverage for `sport`; `.everything` for sports without event tiers.
+    func coverage(for sport: SportType) -> EventCoverage {
+        switch sport {
+        case .tennis: return coverageTennis
+        case .golf:   return coverageGolf
+        default:      return .everything
+        }
+    }
+
+    /// Whether `game` clears `sport`'s coverage. `isFavorite` is only evaluated for games
+    /// coverage would drop, since the favorite lookup is the expensive part.
+    func admitsCoverage(_ game: Game, sport: SportType, isFavorite: () -> Bool) -> Bool {
+        let coverage = coverage(for: sport)
+        return coverage == .everything || game.passesCoverage(coverage) || isFavorite()
+    }
+
+    func setCoverage(_ coverage: EventCoverage, for sport: SportType) {
+        switch sport {
+        case .tennis: coverageTennis = coverage
+        case .golf:   coverageGolf = coverage
+        default:      return
+        }
+        syncSportPrefsToAppGroup()
+        bumpPreferenceVersion()
     }
 
     func switchTo(sportType: SportType) {

@@ -92,6 +92,9 @@ struct DayPage: View {
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var sheetType: SheetType?
     @State private var collapsedSportSections: Set<SportType> = []
+    /// Tennis tournament groups the user expanded or collapsed by hand, keyed by name.
+    /// Unset groups fall back to expanded-for-Grand-Slams.
+    @State private var tournamentExpansion: [String: Bool] = [:]
     @State private var sportFilter: SportChipFilter = .all
     @State private var showSportPicker: Bool = false
     @State private var browseSport: SportType?
@@ -1448,7 +1451,11 @@ struct DayPage: View {
     private func tennisTournamentContent(games: [GameWithTeams]) -> some View {
         let grouped = groupedByTournament(games)
         ForEach(grouped, id: \.key) { tournamentName, matches in
-            DisclosureGroup {
+            let isMajor = Self.tier(of: matches) == .major
+            DisclosureGroup(isExpanded: Binding(
+                get: { tournamentExpansion[tournamentName] ?? isMajor },
+                set: { tournamentExpansion[tournamentName] = $0 }
+            )) {
                 flatGameList(games: matches, region: nil, adPlan: FeedAdPlan())
             } label: {
                 HStack {
@@ -1475,7 +1482,17 @@ struct DayPage: View {
                 result.append((key: key, matches: [gwt]))
             }
         }
-        return result
+        // Grand Slams first, then 1000s; stable within a tier so first-seen order holds.
+        return result.enumerated().sorted { lhs, rhs in
+            let l = Self.tier(of: lhs.element.matches), r = Self.tier(of: rhs.element.matches)
+            return l != r ? l > r : lhs.offset < rhs.offset
+        }.map(\.element)
+    }
+
+    /// Highest tier among a tournament's matches. A combined event can differ by tour
+    /// (China Open: WTA 1000, ATP 500), so the bigger one names the group.
+    private static func tier(of matches: [GameWithTeams]) -> EventTier {
+        matches.lazy.compactMap(\.game.eventTier).max() ?? .tour
     }
 
     @ViewBuilder

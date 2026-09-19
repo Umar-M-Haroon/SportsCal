@@ -1162,13 +1162,9 @@ extension Game {
         }
     }
 
-    /// Whether this is a major golf tournament (Masters, US Open, PGA Championship, The Open)
+    /// Whether this is a golf major or a tennis Grand Slam. See `EventTier`.
     public var isMajor: Bool {
-        let name = strHomeTeam.lowercased()
-        return name.contains("masters") ||
-               name.contains("u.s. open") || name.contains("us open") ||
-               name.contains("pga championship") ||
-               name.contains("the open championship") || name.contains("the open")
+        eventTier == .major
     }
 
     /// Course par — from enrichment data when available, falling back to hardcoded majors

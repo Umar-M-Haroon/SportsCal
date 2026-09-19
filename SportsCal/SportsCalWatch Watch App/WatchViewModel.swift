@@ -66,10 +66,13 @@ final class WatchViewModel {
         }
     }
 
+    /// Per-sport favorites-only plus tennis/golf event coverage (followed players always pass).
     func applyPerSportFavoritesFilter(_ games: [Game]) -> [Game] {
         games.filter { game in
-            guard let sport = game.sportType, isFavoritesOnly(sport) else { return true }
-            return isFavorite(game)
+            guard let sport = game.sportType else { return true }
+            let favorite = isFavorite(game)
+            if isFavoritesOnly(sport) && !favorite { return false }
+            return game.passesCoverage(EventCoverage.stored(for: sport, in: .standard), isFavorite: favorite)
         }
     }
 
@@ -152,7 +155,7 @@ final class WatchViewModel {
                 }
 
                 // Merge live data into existing games
-                self.liveGames = allLive.filter { self.isLiveGame($0) }
+                self.liveGames = self.applyPerSportFavoritesFilter(allLive.filter { self.isLiveGame($0) })
                 mergeLiveIntoSchedule(allLive)
             }
         } catch {

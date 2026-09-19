@@ -384,8 +384,10 @@ class Provider: AppIntentTimelineProvider {
                 case .racing:     return favOnly("favoritesOnlyRacing")
                 }
             }()
-            if !favOnlyForSport { return true }
-            return favorites.matches(game)
+            if favOnlyForSport && !favorites.matches(game) { return false }
+            // Tennis/golf tiers the user left out; followed players still show.
+            let coverage = EventCoverage.stored(for: sport, in: defaults)
+            return game.passesCoverage(coverage) || favorites.matches(game)
         }
     }
 
@@ -464,6 +466,9 @@ class Provider: AppIntentTimelineProvider {
                 return (game1.standardDate ?? .distantFuture) < (game2.standardDate ?? .distantFuture)
             }
 
+            // One row per tennis tournament so a single draw can't fill every slot.
+            games = TournamentDigest.collapsingTennisMatches(games) { favorites.matches($0) }
+
             AppLogger.widget.info("[networking] returning \(min(games.count, Self.maxDisplayGames)) games from snapshot")
             return (Array(games.prefix(Self.maxDisplayGames)), snapshot.teams)
         }
@@ -504,6 +509,7 @@ class Provider: AppIntentTimelineProvider {
                 }
             }
 
+            games = TournamentDigest.collapsingTennisMatches(games) { favorites.matches($0) }
             return (Array(games.prefix(Self.maxDisplayGames)), teams)
         } catch {
             AppLogger.widget.error("[networking] fetch failed: \(error.localizedDescription), mem=\(widgetMemoryMB())")

@@ -22,6 +22,27 @@ final class GolfTourTests: XCTestCase {
         }
     }
 
+    func testTiersAreReadPerTour() {
+        XCTAssertEqual(event("The Chevron Championship", tour: .lpga).eventTier, .major)
+        XCTAssertEqual(event("AIG Women's Open", tour: .lpga).eventTier, .major)
+        XCTAssertEqual(event("U.S. Women's Open pres. by Ally", tour: .lpga).eventTier, .major)
+        // The Canadian stop shares "Women's Open" with two majors but isn't one.
+        XCTAssertEqual(event("CPKC Women's Open", tour: .lpga).eventTier, .tour)
+        XCTAssertEqual(event("Walmart NW Arkansas Championship pres. by P&G", tour: .lpga).eventTier, .tour)
+        XCTAssertEqual(event("Senior PGA Championship", tour: .championsTour).eventTier, .major)
+        XCTAssertEqual(event("PURE Insurance Championship", tour: .championsTour).eventTier, .tour)
+        XCTAssertEqual(event("BMW PGA Championship", tour: .dpWorld).eventTier, .premier)
+        XCTAssertEqual(event("LIV Golf Michigan - Stroke Play", tour: .livGolf).eventTier, .tour)
+        XCTAssertEqual(event("Nationwide Children's Hospital Championship", tour: .kornFerry).eventTier, .tour)
+    }
+
+    /// The PGA table must not leak across tours: "BMW PGA Championship" contains
+    /// "pga championship", which is a men's major only on the PGA board.
+    func testDPWorldBMWIsNotAMajor() {
+        XCTAssertNotEqual(event("BMW PGA Championship", tour: .dpWorld).eventTier, .major)
+        XCTAssertEqual(event("PGA Championship", tour: .pga).eventTier, .major)
+    }
+
     func testMultiDayEventKnowsItsEnd() {
         let tournament = event("Biltmore Championship Asheville", tour: .pga, endDate: "2026-09-20T04:00Z")
         XCTAssertNotNil(tournament.endDateParsed)

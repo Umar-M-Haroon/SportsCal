@@ -136,7 +136,7 @@ struct ModernMacWindow: View {
                           !favorites.matches(game) {
                     return false
                 }
-                return true
+                return storage.admitsCoverage(game, sport: sport) { favorites.matches(game) }
             }
             .sorted { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
     }
@@ -179,6 +179,7 @@ struct ModernMacWindow: View {
                       !favorites.matches(game) {
                 continue
             }
+            if !storage.admitsCoverage(game, sport: sport, isFavorite: { favorites.matches(game) }) { continue }
             set.insert(calendar.dateComponents([.day, .month, .year], from: d))
         }
         return set
@@ -208,6 +209,7 @@ struct ModernMacWindow: View {
                       !favorites.matches(game) {
                 return
             }
+            if !storage.admitsCoverage(game, sport: sport, isFavorite: { favorites.matches(game) }) { return }
             acc += 1
         }
     }
@@ -666,6 +668,19 @@ struct ModernMacWindow: View {
                 }
             )) {
                 Label("Show only favorite teams", systemImage: "star.fill")
+            }
+            if EventCoverage.sports.contains(sport) {
+                Picker("Show", selection: Binding(
+                    get: { storage.coverage(for: sport) },
+                    set: { newValue in
+                        storage.setCoverage(newValue, for: sport)
+                        viewModel.filterSports()
+                    }
+                )) {
+                    ForEach(EventCoverage.allCases, id: \.self) { coverage in
+                        Text(coverage.displayName(for: sport)).tag(coverage)
+                    }
+                }
             }
         }
     }

@@ -227,6 +227,10 @@ private struct ModernDayContent: View {
                 if storage.favoritesOnly(for: sport), !favorites.matches(game) {
                     return false
                 }
+                // Tennis/golf coverage (Grand Slams / big events / everything).
+                if !storage.admitsCoverage(game, sport: sport, isFavorite: { favorites.matches(game) }) {
+                    return false
+                }
                 // Per-competition favorites-only: when toggled in CompetitionView
                 // (e.g. "favorites only for La Liga"), only show games in that
                 // competition that match a favorite team. Other competitions in
@@ -673,19 +677,26 @@ private struct ModernDayContent: View {
             .buttonStyle(.plain)
 
             if !isCollapsed {
-                if games.count >= 5 {
+                // Tennis/golf: majors lead, then premier events. Stable, so time order holds within a tier.
+                let rows = EventCoverage.sports.contains(sport)
+                    ? games.enumerated().sorted { lhs, rhs in
+                        let l = lhs.element.eventTier ?? .tour, r = rhs.element.eventTier ?? .tour
+                        return l != r ? l > r : lhs.offset < rhs.offset
+                    }.map(\.element)
+                    : games
+                if rows.count >= 5 {
                     LazyVGrid(columns: [
                         GridItem(.flexible(), spacing: .appSpace2),
                         GridItem(.flexible(), spacing: .appSpace2),
                     ], spacing: .appSpace2) {
-                        ForEach(games, id: \.id) { game in
+                        ForEach(rows, id: \.id) { game in
                             tileLink(game)
                         }
                     }
                     .padding(.horizontal, .appSpace4)
                 } else {
                     LazyVStack(spacing: .appSpace2) {
-                        ForEach(games, id: \.id) { game in
+                        ForEach(rows, id: \.id) { game in
                             rowLink(game)
                         }
                     }
