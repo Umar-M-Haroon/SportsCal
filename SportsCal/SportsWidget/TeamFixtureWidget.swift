@@ -2,9 +2,11 @@
 //  TeamFixtureWidget.swift
 //  SportsWidgetExtension
 //
-//  Lock screen widget pinned to one team: its next fixture on whatever day that
-//  falls, and "likely live" once it kicks off. The "Upcoming Games" widget only looks at a single day
-//  across every sport, so a team that isn't playing today never shows up there.
+//  Widget pinned to one team: its next fixture on whatever day that falls, and
+//  "likely live" once it kicks off. Lock Screen sizes show just that game; Home
+//  Screen medium/large add the fixtures after it. The "Upcoming Games" widget only
+//  looks at a single day across every sport, so a team that isn't playing today
+//  never shows up there.
 //
 
 #if os(iOS)
@@ -92,7 +94,7 @@ struct WidgetTeamQuery: EntityStringQuery {
 
 struct TeamFixtureIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Team Fixture"
-    static var description: IntentDescription = "Follow one team's next game on your Lock Screen"
+    static var description: IntentDescription = "Follow one team's next game and upcoming fixtures"
 
     @Parameter(title: "Team")
     var team: WidgetTeamEntity?
@@ -109,6 +111,10 @@ struct TeamFixtureEntry: TimelineEntry {
     let team: WidgetTeamEntity?
     let game: Game?
     var phase: FixturePhase?
+    /// Fixtures after `game`, soonest first — only filled for Home Screen sizes.
+    var upcoming: [Game] = []
+    /// Badge image data keyed by TheSportsDB team ID.
+    var badges: [String: Data] = [:]
     /// The schedule couldn't be fetched, so "no upcoming games" would be a guess.
     var loadFailed = false
     var relevance: TimelineEntryRelevance?
@@ -120,8 +126,16 @@ struct TeamFixtureEntry: TimelineEntry {
     }
 
     var opponentName: String? {
-        guard let game else { return nil }
-        return isHome ? game.strAwayTeam : game.strHomeTeam
+        game.flatMap(opponent(in:))
+    }
+
+    func isHome(in game: Game) -> Bool {
+        guard let team else { return true }
+        return TeamFixtureProvider.name(game.strHomeTeam, refersTo: team)
+    }
+
+    func opponent(in game: Game) -> String {
+        isHome(in: game) ? game.strAwayTeam : game.strHomeTeam
     }
 }
 
@@ -140,8 +154,10 @@ struct TeamFixtureProvider: AppIntentTimelineProvider {
 
     func snapshot(for configuration: TeamFixtureIntent, in context: Context) async -> TeamFixtureEntry {
         guard let team = configuration.team else { return Self.sampleEntry }
-        let lookup = await Self.games(for: team)
-        return Self.entry(at: Date(), team: team, lookup: lookup)
+        let extra = Self.upcomingCount(for: context.family)
+        let lookup = await Self.games(for: team, extra: extra)
+        let badges = await Self.badges(for: team, games: lookup.games, family: context.family)
+        return Self.entry(at: Date(), team: team, lookup: lookup, extra: extra, badges: badges)
     }
 
     func timeline(for configuration: TeamFixtureIntent, in context: Context) async -> Timeline<TeamFixtureEntry> {
@@ -150,7 +166,9 @@ struct TeamFixtureProvider: AppIntentTimelineProvider {
             return Timeline(entries: [TeamFixtureEntry(date: now, team: nil, game: nil)], policy: .never)
         }
 
-        let lookup = await Self.games(for: team)
+        let extra = Self.upcomingCount(for: context.family)
+        let lookup = await Self.games(for: team, extra: extra)
+        let badges = await Self.badges(for: team, games: lookup.games, family: context.family)
         // One entry per phase change so the widget flips to "likely live" at kickoff
         // (and back off at likely full time) without spending a reload.
         let transitions = lookup.games.flatMap { game -> [Date] in
@@ -158,7 +176,9 @@ struct TeamFixtureProvider: AppIntentTimelineProvider {
             return FixtureSelection.transitions(kickoff: kickoff, length: Self.length(of: game), after: now)
         }
         let dates = Set(transitions.filter { $0 < now.addingTimeInterval(Self.lookahead) }).sorted()
-        let entries = ([now] + dates).map { Self.entry(at: $0, team: team, lookup: lookup) }
+        let entries = ([now] + dates).map {
+            Self.entry(at: $0, team: team, lookup: lookup, extra: extra, badges: badges)
+        }
 
         let wait = lookup.failed ? Self.retryInterval : Self.refreshInterval
         return Timeline(entries: entries, policy: .after(now.addingTimeInterval(wait)))
@@ -171,19 +191,29 @@ struct TeamFixtureProvider: AppIntentTimelineProvider {
         var failed = false
     }
 
+    /// Fixtures listed after the main one: none on the Lock Screen or in small.
+    private static func upcomingCount(for family: WidgetFamily) -> Int {
+        switch family {
+        case .systemMedium: return 3
+        case .systemLarge: return 4
+        default: return 0
+        }
+    }
+
     /// The team's games from the app's snapshot, or from the server when the snapshot
-    /// has nothing to show for them.
-    private static func games(for team: WidgetTeamEntity) async -> Lookup {
+    /// doesn't have the next game plus `extra` more.
+    private static func games(for team: WidgetTeamEntity, extra: Int) async -> Lookup {
         let now = Date()
         let cached = teamGames(WidgetDataStore.readSnapshot()?.games ?? [], for: team)
-        if pick(cached, at: now) != nil { return Lookup(games: cached) }
+        let cachedUpcoming = cached.filter { ($0.standardDate ?? .distantPast) > now }.count
+        if pick(cached, at: now) != nil, cachedUpcoming > extra { return Lookup(games: cached) }
 
         // The snapshot only carries the next ~30 games across all sports, so most
         // teams' fixtures aren't in it. The widget endpoint puts games involving any
         // of these exact names first — send the aliases too, since the schedule may
         // spell the team differently from the teams cache.
         do {
-            let result = try await NetworkHandler.getWidgetScheduleFor(sports: [], limit: 10, favorites: names(for: team))
+            let result = try await NetworkHandler.getWidgetScheduleFor(sports: [], limit: 10 + extra * 2, favorites: names(for: team))
             return Lookup(games: teamGames(result.games, for: team))
         } catch {
             AppLogger.widget.error("[teamFixture] fetch failed: \(error.localizedDescription)")
@@ -204,10 +234,54 @@ struct TeamFixtureProvider: AppIntentTimelineProvider {
         games.filter { !$0.isIndividualSport && involves($0, team) }
     }
 
+    /// Badges for the team and the opponents in its next few games. Home Screen only —
+    /// the Lock Screen renders monochrome text. Failures just fall back to initials.
+    private static func badges(for team: WidgetTeamEntity, games: [Game], family: WidgetFamily) async -> [String: Data] {
+        guard [.systemSmall, .systemMedium, .systemLarge].contains(family) else { return [:] }
+        let manager = TeamsManager.shared
+        let now = Date()
+        let opponents = games
+            .filter { ($0.standardDate ?? .distantPast) > now.addingTimeInterval(-lookahead) }
+            .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
+            .prefix(upcomingCount(for: family) + 2)
+            .compactMap { game in
+                manager.team(byNameOrAlias: name(game.strHomeTeam, refersTo: team) ? game.strAwayTeam : game.strHomeTeam)
+            }
+        var seen = Set<String>()
+        let wanted = ([manager.team(byID: team.id)].compactMap { $0 } + opponents).compactMap { team -> (String, String)? in
+            guard let id = team.idTeam, let url = team.strTeamBadge, seen.insert(id).inserted else { return nil }
+            return (id, url)
+        }
+
+        return await withTaskGroup(of: (String, Data?).self) { group in
+            for (id, url) in wanted {
+                group.addTask { (id, try? await WidgetImageCache.shared.getImage(for: id, imageURL: url)) }
+            }
+            var result: [String: Data] = [:]
+            for await (id, data) in group {
+                if let data { result[id] = data }
+            }
+            return result
+        }
+    }
+
     // MARK: Game selection
 
-    private static func entry(at date: Date, team: WidgetTeamEntity, lookup: Lookup) -> TeamFixtureEntry {
+    private static func entry(
+        at date: Date,
+        team: WidgetTeamEntity,
+        lookup: Lookup,
+        extra: Int = 0,
+        badges: [String: Data] = [:]
+    ) -> TeamFixtureEntry {
         let picked = pick(lookup.games, at: date)
+        let upcoming = lookup.games
+            .filter { game in
+                guard let kickoff = game.standardDate, kickoff > date else { return false }
+                return game != picked?.game
+            }
+            .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
+            .prefix(extra)
 
         let kickoff = picked?.game.standardDate
         let relevance: TimelineEntryRelevance
@@ -226,6 +300,8 @@ struct TeamFixtureProvider: AppIntentTimelineProvider {
             team: team,
             game: picked?.game,
             phase: picked?.phase,
+            upcoming: Array(upcoming),
+            badges: badges,
             loadFailed: lookup.failed && picked == nil,
             relevance: relevance
         )
@@ -261,25 +337,37 @@ struct TeamFixtureProvider: AppIntentTimelineProvider {
         return TeamsManager.shared.teamID(forName: name) == team.id
     }
 
+    private static let sampleTeam = WidgetTeamEntity(id: "140093", name: "Sydney FC", shortName: "SYD")
+
+    private static func sampleGame(_ home: String, _ away: String, hoursFromNow: Double) -> Game {
+        let kickoff = Date().addingTimeInterval(hoursFromNow * 60 * 60)
+        return Game(idLeague: "4356", strLeague: "A-League", strHomeTeam: home, strAwayTeam: away, strTimestamp: kickoff.ISO8601Format(), isoDate: nil)
+    }
+
+    private static let sampleUpcoming = [
+        sampleGame("Western Sydney Wanderers", "Sydney FC", hoursFromNow: 24 * 7 + 2),
+        sampleGame("Sydney FC", "Adelaide United", hoursFromNow: 24 * 14 + 1),
+        sampleGame("Sydney FC", "Brisbane Roar", hoursFromNow: 24 * 20 + 3),
+        sampleGame("Perth Glory", "Sydney FC", hoursFromNow: 24 * 27),
+    ]
+
     static var sampleEntry: TeamFixtureEntry {
-        let kickoff = Calendar.current.date(byAdding: .hour, value: 26, to: Date()) ?? Date()
-        let game = Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4356", strLeague: "A-League", idHomeTeam: "140093", idAwayTeam: "140094", strHomeTeam: "Sydney FC", strAwayTeam: "Melbourne Victory", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: nil, intAwayScore: nil, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: nil, strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: kickoff.ISO8601Format(), isoDate: nil)
-        return TeamFixtureEntry(
+        TeamFixtureEntry(
             date: Date(),
-            team: WidgetTeamEntity(id: "140093", name: "Sydney FC", shortName: "SYD"),
-            game: game,
-            phase: .upcoming
+            team: sampleTeam,
+            game: sampleGame("Sydney FC", "Melbourne Victory", hoursFromNow: 26),
+            phase: .upcoming,
+            upcoming: sampleUpcoming
         )
     }
 
     static var sampleLiveEntry: TeamFixtureEntry {
-        let kickoff = Date().addingTimeInterval(-40 * 60)
-        let game = Game(idLiveScore: nil, idEvent: nil, strSport: nil, idLeague: "4356", strLeague: "A-League", idHomeTeam: "140094", idAwayTeam: "140093", strHomeTeam: "Melbourne Victory", strAwayTeam: "Sydney FC", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: nil, intAwayScore: nil, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: nil, strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: kickoff.ISO8601Format(), isoDate: nil)
-        return TeamFixtureEntry(
+        TeamFixtureEntry(
             date: Date(),
-            team: WidgetTeamEntity(id: "140093", name: "Sydney FC", shortName: "SYD"),
-            game: game,
-            phase: .likelyLive
+            team: sampleTeam,
+            game: sampleGame("Melbourne Victory", "Sydney FC", hoursFromNow: -0.7),
+            phase: .likelyLive,
+            upcoming: sampleUpcoming
         )
     }
 }
@@ -295,10 +383,13 @@ struct TeamFixtureEntryView: View {
             switch family {
             case .accessoryCircular: circular
             case .accessoryInline: inline
-            default: rectangular
+            case .accessoryRectangular: rectangular
+            case .systemMedium: medium
+            case .systemLarge: large
+            default: small
             }
         }
-        .containerBackground(for: .widget) { Color.clear }
+        .containerBackground(for: .widget) { WidgetBackground() }
         .widgetURL(deepLink)
     }
 
@@ -422,6 +513,275 @@ struct TeamFixtureEntryView: View {
         }
     }
 
+    // MARK: Small
+
+    private var small: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if entry.team == nil {
+                chooseTeamPrompt
+            } else if let game = entry.game {
+                HStack(spacing: 6) {
+                    badge(teamID: entry.team?.id, name: entry.team?.name ?? "", size: 22)
+                    Text(teamCode)
+                        .font(.system(.subheadline, design: .rounded).weight(.bold))
+                        .foregroundStyle(WidgetTokens.ink)
+                    Spacer(minLength: 0)
+                    sportIcon(game)
+                }
+                Spacer(minLength: 0)
+                Text(versus)
+                    .font(.system(.caption, design: .rounded).weight(.semibold))
+                    .foregroundStyle(WidgetTokens.inkSoft)
+                HStack(spacing: 8) {
+                    badge(teamID: opponentID(entry.opponentName), name: entry.opponentName ?? "", size: 30)
+                    Text(entry.opponentName ?? "")
+                        .font(.system(.headline, design: .rounded))
+                        .foregroundStyle(WidgetTokens.ink)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                }
+                Spacer(minLength: 0)
+                status(game)
+            } else {
+                noGames
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    // MARK: Medium
+
+    private var medium: some View {
+        HStack(alignment: .top, spacing: WidgetTokens.space3) {
+            small
+                .frame(maxWidth: .infinity)
+            if entry.game != nil {
+                Rectangle()
+                    .fill(WidgetTokens.inkFaint.opacity(0.4))
+                    .frame(width: 0.5)
+                upcomingList(title: "Next")
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    // MARK: Large
+
+    private var large: some View {
+        VStack(alignment: .leading, spacing: WidgetTokens.space3) {
+            if entry.team == nil {
+                chooseTeamPrompt
+            } else if let game = entry.game {
+                HStack(spacing: 8) {
+                    badge(teamID: entry.team?.id, name: entry.team?.name ?? "", size: 28)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(entry.team?.name ?? "")
+                            .font(.system(.headline, design: .rounded))
+                            .foregroundStyle(WidgetTokens.ink)
+                        if let league = leagueName(game) {
+                            Text(league)
+                                .font(.caption2)
+                                .foregroundStyle(WidgetTokens.inkSoft)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    sportIcon(game)
+                }
+                heroCard(game)
+                upcomingList(title: "Upcoming")
+                Spacer(minLength: 0)
+                WidgetUpdatedLabel(date: entry.date)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            } else {
+                noGames
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func heroCard(_ game: Game) -> some View {
+        let home = entry.isHome
+        let us = (id: entry.team?.id, name: entry.team?.name ?? "", code: teamCode)
+        let them = (id: opponentID(entry.opponentName), name: entry.opponentName ?? "", code: opponentCode)
+        let left = home ? us : them
+        let right = home ? them : us
+        return HStack(spacing: WidgetTokens.space2) {
+            heroSide(id: left.id, name: left.name, code: left.code)
+            VStack(spacing: 4) {
+                Text(home ? "vs" : "@")
+                    .font(.system(.caption, design: .rounded).weight(.semibold))
+                    .foregroundStyle(WidgetTokens.inkSoft)
+                status(game)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            heroSide(id: right.id, name: right.name, code: right.code)
+        }
+        .padding(WidgetTokens.space3)
+        .background(WidgetTokens.surface, in: RoundedRectangle(cornerRadius: WidgetTokens.radiusMD))
+    }
+
+    private func heroSide(id: String?, name: String, code: String) -> some View {
+        VStack(spacing: 4) {
+            badge(teamID: id, name: name, size: 44)
+            Text(code)
+                .font(.system(.caption, design: .rounded).weight(.bold))
+                .foregroundStyle(WidgetTokens.ink)
+        }
+        .frame(width: 64)
+    }
+
+    // MARK: Shared pieces
+
+    private var chooseTeamPrompt: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label("Team Fixture", systemImage: "person.2.fill")
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(WidgetTokens.ink)
+            Text("Touch and hold to choose a team")
+                .font(.caption)
+                .foregroundStyle(WidgetTokens.inkSoft)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private var noGames: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                badge(teamID: entry.team?.id, name: entry.team?.name ?? "", size: 22)
+                Text(entry.team?.name ?? "")
+                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+                    .foregroundStyle(WidgetTokens.ink)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Text(entry.loadFailed ? "Couldn't load games" : "No upcoming games")
+                .font(.system(.caption, design: .rounded))
+                .foregroundStyle(WidgetTokens.inkSoft)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    /// When the game is, or that it's likely under way — never a live score.
+    @ViewBuilder
+    private func status(_ game: Game) -> some View {
+        switch entry.phase {
+        case .likelyLive:
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 4) {
+                    Circle().fill(WidgetTokens.live).frame(width: 6, height: 6)
+                    Text("Likely live")
+                        .font(.system(.caption, design: .rounded).weight(.bold))
+                        .foregroundStyle(WidgetTokens.live)
+                }
+                Text("Tap for the score")
+                    .font(.caption2)
+                    .foregroundStyle(WidgetTokens.inkSoft)
+            }
+        case .ended:
+            Text(endedDetail(game))
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(WidgetTokens.inkSoft)
+        default:
+            if let date = game.standardDate {
+                Text(fullWhen(date))
+                    .font(.system(.caption, design: .rounded).weight(.semibold))
+                    .foregroundStyle(WidgetTokens.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func upcomingList(title: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title.uppercased())
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(WidgetTokens.inkSoft)
+            if entry.upcoming.isEmpty {
+                Text("Nothing else scheduled yet")
+                    .font(.caption)
+                    .foregroundStyle(WidgetTokens.inkSoft)
+            } else {
+                ForEach(entry.upcoming) { game in
+                    if let id = game.idEvent, let url = URL(string: "sportscal://game/\(id)") {
+                        Link(destination: url) { upcomingRow(game) }
+                    } else {
+                        upcomingRow(game)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func upcomingRow(_ game: Game) -> some View {
+        let opponent = entry.opponent(in: game)
+        return HStack(spacing: 8) {
+            if let date = game.standardDate {
+                VStack(spacing: 0) {
+                    Text(date.formatted(.dateTime.weekday(.abbreviated)).uppercased())
+                        .font(.system(size: 8, weight: .semibold, design: .rounded))
+                        .foregroundStyle(WidgetTokens.inkSoft)
+                    Text(date.formatted(.dateTime.day()))
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(WidgetTokens.ink)
+                }
+                .frame(width: 26)
+            }
+            badge(teamID: opponentID(opponent), name: opponent, size: 18)
+            Text("\(entry.isHome(in: game) ? "vs" : "@") \(opponent)")
+                .font(.system(.caption, design: .rounded).weight(.medium))
+                .foregroundStyle(WidgetTokens.ink)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            if family == .systemLarge, let date = game.standardDate {
+                Text(date.formatted(date: .omitted, time: .shortened))
+                    .font(.system(.caption2, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(WidgetTokens.inkSoft)
+            }
+        }
+    }
+
+    /// Team badge from the provider's prefetch, or initials in a tinted circle.
+    @ViewBuilder
+    private func badge(teamID: String?, name: String, size: CGFloat) -> some View {
+        if let teamID, let data = entry.badges[teamID], let image = widgetImage(from: data) {
+            image
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+        } else {
+            Circle()
+                .fill(WidgetTokens.alt)
+                .overlay(
+                    Text(Team.shortCode(strTeamShort: nil, name: name))
+                        .font(.system(size: size * 0.32, weight: .bold, design: .rounded))
+                        .foregroundStyle(WidgetTokens.inkSoft)
+                        .minimumScaleFactor(0.5)
+                )
+                .frame(width: size, height: size)
+        }
+    }
+
+    private func sportIcon(_ game: Game) -> some View {
+        let sport = game.sportType ?? .soccer
+        return Image(systemName: sport.widgetSystemImage)
+            .font(.caption)
+            .foregroundStyle(WidgetTokens.sport(sport))
+    }
+
+    private func opponentID(_ name: String?) -> String? {
+        name.flatMap { TeamsManager.shared.team(byNameOrAlias: $0)?.idTeam }
+    }
+
+    private func leagueName(_ game: Game) -> String? {
+        game.idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))?.leagueName
+    }
+
     // MARK: Formatting
 
     private var teamCode: String {
@@ -489,9 +849,33 @@ struct TeamFixtureWidget: Widget {
             TeamFixtureEntryView(entry: entry)
         }
         .configurationDisplayName("Team Fixture")
-        .description("One team's next game, on your Lock Screen.")
-        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        .description("One team's next game and upcoming fixtures.")
+        .supportedFamilies([
+            .systemSmall, .systemMedium, .systemLarge,
+            .accessoryCircular, .accessoryRectangular, .accessoryInline,
+        ])
     }
+}
+
+#Preview(as: .systemSmall) {
+    TeamFixtureWidget()
+} timeline: {
+    TeamFixtureProvider.sampleEntry
+    TeamFixtureProvider.sampleLiveEntry
+}
+
+#Preview(as: .systemMedium) {
+    TeamFixtureWidget()
+} timeline: {
+    TeamFixtureProvider.sampleEntry
+    TeamFixtureProvider.sampleLiveEntry
+}
+
+#Preview(as: .systemLarge) {
+    TeamFixtureWidget()
+} timeline: {
+    TeamFixtureProvider.sampleEntry
+    TeamFixtureProvider.sampleLiveEntry
 }
 
 #Preview(as: .accessoryRectangular) {
