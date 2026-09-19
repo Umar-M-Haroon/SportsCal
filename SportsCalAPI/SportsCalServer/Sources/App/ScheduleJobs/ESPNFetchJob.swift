@@ -1163,6 +1163,46 @@ struct ESPNFetchJob: AsyncScheduledJob {
         return result.trimmingCharacters(in: .whitespaces)
     }
 
+    /// Club words that one source prints and the other doesn't: "NK Celje" ≡ "Celje",
+    /// "Athletic Club" ≡ "Athletic Bilbao", "Racing de Santander" ≡ "Racing Santander".
+    private static let clubWords: Set<String> = [
+        "fc", "cf", "sc", "ac", "afc", "nk", "sk", "fk", "bk", "if", "sv", "tsv", "vfl", "vfb",
+        "cd", "ud", "rc", "ss", "as", "us", "club", "de", "do", "da", "of", "the",
+    ]
+
+    /// A deliberately lossy key for matching the same fixture across two sources: accents
+    /// folded ("Białystok" ≡ "Bialystok"), punctuation dropped ("Hapoel Be'er" ≡ "hapoelbeer")
+    /// and club words removed. Used only after the exact and alias keys miss.
+    /// Letters Unicode folding leaves alone because they are their own letter, not an
+    /// accented one — "Białystok" folds to "białystok", never "bialystok".
+    private static let letterSubstitutions: [Character: String] = [
+        "ł": "l", "ø": "o", "đ": "d", "ð": "d", "ß": "ss", "æ": "ae", "œ": "oe",
+        "þ": "th", "ħ": "h", "ı": "i", "ŋ": "n",
+    ]
+
+    func looseTeamKey(_ name: String) -> String {
+        let lowered = name.lowercased()
+        let substituted = String(lowered.flatMap { Self.letterSubstitutions[$0] ?? String($0) })
+        let folded = substituted.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+        let words = folded.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+            .filter { !Self.clubWords.contains($0) }
+        return words.joined()
+    }
+
+    /// Whether two loose keys name the same club. One being a prefix of the other covers a
+    /// source truncating the name ("Deportivo" for "Deportivo de A Coruña", "Hapoel Be'er"
+    /// for "Hapoel Be'er Sheva"). The length floor keeps "Real" from swallowing every
+    /// "Real …", and the caller additionally requires the same league, day, kickoff and a
+    /// match on the opposing side.
+    func looselySameTeam(_ lhs: String, _ rhs: String) -> Bool {
+        guard !lhs.isEmpty, !rhs.isEmpty else { return false }
+        if lhs == rhs { return true }
+        let (shorter, longer) = lhs.count <= rhs.count ? (lhs, rhs) : (rhs, lhs)
+        guard shorter.count >= 5 else { return false }
+        return longer.hasPrefix(shorter)
+    }
+
     /// Merges ESPN events into a single sport's schedule events.
     /// Matches by team IDs + day, falls back to team names + day, normalized names + day,
     /// alias-aware canonical key + day, or event name for individual sports.
@@ -1184,6 +1224,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
         var espnByCanonicalKey: [String: [Game]] = [:]
         // Key: lowercased event/tournament name (for individual sports)
         var espnByEventName: [String: Game] = [:]
+        // Key: league|day — the pool the loose name fallback scans.
+        var espnByLeagueDay: [String: [Game]] = [:]
 
         for game in espn.events {
             let day = dayString(from: game)
@@ -1196,6 +1238,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
             let nameKey = "\(game.strHomeTeam.lowercased())|\(game.strAwayTeam.lowercased())|\(day)"
             espnByTeamNames[nameKey, default: []].append(game)
+
+            espnByLeagueDay["\(game.idLeague ?? "-")|\(day)", default: []].append(game)
 
             let normalizedKey = "\(normalizeTeamName(game.strHomeTeam))|\(normalizeTeamName(game.strAwayTeam))|\(day)"
             espnByNormalizedNames[normalizedKey, default: []].append(game)
@@ -1259,6 +1303,32 @@ struct ESPNFetchJob: AsyncScheduledJob {
                         "day": "\(day)"
                     ])
                     espnMatch = aliasMatch
+                }
+            }
+
+            // Fallback: loose names within the same league and day. This is what catches the
+            // spelling drift the keys above can't ("NK Celje" ≡ "Celje", "Jagiellonia
+            // Białystok" ≡ "Jagiellonia Bialystok", "Deportivo" ≡ "Deportivo de A Coruña") —
+            // without it the unmatched ESPN row is appended and the fixture shows twice.
+            // Both sides must match and the kickoffs must agree, so two different fixtures
+            // between similarly named clubs can't collapse into one.
+            if espnMatch == nil, !scheduleGame.isIndividualSport {
+                let homeKey = looseTeamKey(scheduleGame.strHomeTeam)
+                let awayKey = looseTeamKey(scheduleGame.strAwayTeam)
+                let candidates = (espnByLeagueDay["\(scheduleGame.idLeague ?? "-")|\(day)"] ?? []).filter {
+                    looselySameTeam(homeKey, looseTeamKey($0.strHomeTeam))
+                        && looselySameTeam(awayKey, looseTeamKey($0.strAwayTeam))
+                }
+                if let looseMatch = Self.closestByKickoff(candidates, to: scheduleGame) {
+                    Self.logger.warning("loose dedup: collapsed ESPN game", metadata: [
+                        "espnHome": "\(looseMatch.strHomeTeam)",
+                        "espnAway": "\(looseMatch.strAwayTeam)",
+                        "scheduleHome": "\(scheduleGame.strHomeTeam)",
+                        "scheduleAway": "\(scheduleGame.strAwayTeam)",
+                        "league": "\(scheduleGame.idLeague ?? "-")",
+                        "day": "\(day)"
+                    ])
+                    espnMatch = looseMatch
                 }
             }
 
