@@ -77,6 +77,8 @@ struct ClientTelemetryEvent: Codable, Content {
         "ad_upsell_tapped",
         "activation_first_favorite",
         "activation_notifications_enabled",
+        "whats_new_shown",
+        "whats_new_action",
     ]
 }
 

@@ -34,6 +34,8 @@ enum SheetType: Identifiable {
             return "listDetail"
         case .paywall:
             return "paywall"
+        case .whatsNew(let release):
+            return "whatsNew-\(release.version)"
         }
     }
     case settings, onboarding
@@ -41,6 +43,7 @@ enum SheetType: Identifiable {
     case detail
     case listDetail(games: Array<(key: DateComponents, value: Array<Game>)>, liveGames: [Game])
     case paywall
+    case whatsNew(WhatsNewRelease)
 }
 
 #if os(macOS)
@@ -210,6 +213,10 @@ struct ContentView: View {
                         .presentationDetents([.medium, .large])
                 case .paywall:
                     SubscriptionSheet(subscriptionPresented: $showPaywall)
+                case .whatsNew(let release):
+                    WhatsNewSheet(release: release)
+                        .environment(storage)
+                        .environment(viewModel)
                 }
             }
             .onChange(of: showPaywall) { _, newValue in
@@ -236,25 +243,20 @@ struct ContentView: View {
             }
             .onAppear {
                 WidgetCenter.shared.reloadAllTimelines()
-                // Engagement-gated, throttled rating prompt (replaces the old
-                // unconditional launch-#5 ask). Prefer asking right after a
-                // followed team wins (the happiest moment); fall back to an
-                // engaged user with a favorite so loyal users whose teams
-                // haven't won recently still get asked.
-                let winEventID = RatingsManager.shared.recentFavoriteWinEventID(
-                    in: viewModel.totalGames ?? [], favorites: favorites
-                )
-                let engagedFallback = !favorites.teamIDs.isEmpty
-                    && viewModel.appStorage.launches >= 12
-                if RatingsManager.shared.shouldRequestReview(
-                    launches: viewModel.appStorage.launches,
-                    hasPositiveSignal: winEventID != nil || engagedFallback
+                // Post-update notes take the launch (no rating prompt on top of
+                // them); fresh installs get onboarding instead. Marked seen on
+                // show so a force-quit doesn't bring it back.
+                if let whatsNew = WhatsNewStore.releaseForLaunch(
+                    isFreshInstall: viewModel.appStorage.shouldShowOnboarding
                 ) {
-                    requestReview()
-                    if let winEventID { RatingsManager.shared.markWinCelebrated(winEventID) }
-                }
-                if viewModel.appStorage.shouldShowOnboarding {
-                    sheetType = .onboarding
+                    WhatsNewStore.markSeen()
+                    MonetizationTelemetry.whatsNewShown(version: whatsNew.version)
+                    sheetType = .whatsNew(whatsNew)
+                } else {
+                    requestReviewIfEligible()
+                    if viewModel.appStorage.shouldShowOnboarding {
+                        sheetType = .onboarding
+                    }
                 }
                 // Check if launched via OpenSportIntent
                 checkIntentOpenSport()
@@ -677,6 +679,26 @@ struct ContentView: View {
     }
 
     /// Checks if the app was opened via OpenSportIntent and switches to that sport.
+    /// Engagement-gated, throttled rating prompt (replaces the old
+    /// unconditional launch-#5 ask). Prefer asking right after a
+    /// followed team wins (the happiest moment); fall back to an
+    /// engaged user with a favorite so loyal users whose teams
+    /// haven't won recently still get asked.
+    private func requestReviewIfEligible() {
+        let winEventID = RatingsManager.shared.recentFavoriteWinEventID(
+            in: viewModel.totalGames ?? [], favorites: favorites
+        )
+        let engagedFallback = !favorites.teamIDs.isEmpty
+            && viewModel.appStorage.launches >= 12
+        if RatingsManager.shared.shouldRequestReview(
+            launches: viewModel.appStorage.launches,
+            hasPositiveSignal: winEventID != nil || engagedFallback
+        ) {
+            requestReview()
+            if let winEventID { RatingsManager.shared.markWinCelebrated(winEventID) }
+        }
+    }
+
     private func checkIntentOpenSport() {
         let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
         guard let sportRaw = defaults?.string(forKey: "intentOpenSport") else { return }

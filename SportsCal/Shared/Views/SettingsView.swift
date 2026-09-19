@@ -394,6 +394,7 @@ struct SettingsView: View {
     @State private var showResetSuggestionsConfirm = false
     @State private var showRestoreResult = false
     @State private var restoreMessage = ""
+    @State private var whatsNewRelease: WhatsNewRelease?
     #if os(iOS)
     @Environment(\.openURL) private var openURL
     #endif
@@ -491,6 +492,11 @@ struct SettingsView: View {
                         Text(appVersionString)
                             .foregroundStyle(.secondary)
                     }
+                    if let release = WhatsNewPolicy.latestRelease(for: WhatsNewStore.appVersion) {
+                        Button("What's New in \(release.version)") {
+                            whatsNewRelease = release
+                        }
+                    }
                     if !SubscriptionManager.isManagedExternally {
                         Button("Restore Purchases") {
                             Task {
@@ -533,6 +539,11 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showSportPicker) {
                 SportPickerSheet()
+                    .environment(appStorage)
+                    .environment(viewModel)
+            }
+            .sheet(item: $whatsNewRelease) { release in
+                WhatsNewSheet(release: release)
                     .environment(appStorage)
                     .environment(viewModel)
             }

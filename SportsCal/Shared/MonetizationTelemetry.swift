@@ -30,6 +30,8 @@ enum MonetizationTelemetry {
         static let adUpsellTapped = "ad_upsell_tapped"
         static let activationFirstFavorite = "activation_first_favorite"
         static let activationNotificationsEnabled = "activation_notifications_enabled"
+        static let whatsNewShown = "whats_new_shown"
+        static let whatsNewAction = "whats_new_action"
     }
 
     /// Core emit. Safe to call from any thread; the network send is detached and
@@ -89,5 +91,14 @@ enum MonetizationTelemetry {
 
     static func activationNotificationsEnabled() {
         record(Event.activationNotificationsEnabled)
+    }
+
+    static func whatsNewShown(version: String) {
+        record(Event.whatsNewShown, ["version": version])
+    }
+
+    /// A CTA tapped on the What's New sheet, e.g. `competition:A-League`.
+    static func whatsNewAction(_ action: String, version: String) {
+        record(Event.whatsNewAction, ["action": action, "version": version])
     }
 }
