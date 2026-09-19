@@ -361,7 +361,8 @@ public class GameViewModel: NSObject {
         if appStorage.shouldShowNHL, let events = currentLiveInfo?.nhl?.events, !events.isEmpty {
             sports.append(.hockey)
         }
-        if appStorage.shouldShowGolf, let events = currentLiveInfo?.golf?.events, !events.isEmpty {
+        if appStorage.shouldShowGolf, let events = currentLiveInfo?.golf?.events,
+           !hidingCompetitions(events, context: context).isEmpty {
             sports.append(.golf)
         }
         if appStorage.shouldShowTennis, let events = currentLiveInfo?.tennis?.events, !events.isEmpty {
@@ -440,8 +441,8 @@ public class GameViewModel: NSObject {
             let filteredGolf = golfEvents.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
-                      let _ = Leagues(rawValue: intLeague) else { return false }
-                return true
+                      let league = Leagues(rawValue: intLeague) else { return false }
+                return !context.hiddenCompetitions.contains(league.leagueName)
             }
             if !filteredGolf.isEmpty {
                 counts[.golf] = filteredGolf.count
@@ -603,8 +604,10 @@ public class GameViewModel: NSObject {
             golfGames?.removeAll(where: { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
-                      let _ = Leagues(rawValue: intLeague) else { return true }
-                return false
+                      let league = Leagues(rawValue: intLeague) else { return true }
+                // Golf now spans several tours (PGA, DP World, LIV…), each hideable
+                // on its own like a soccer competition.
+                return context.hiddenCompetitions.contains(league.leagueName)
             })
             if let golfGames {
                 games.append(contentsOf: applyFavoritesFilter(golfGames, favoritesOnly: appStorage.favoritesOnlyGolf, context: context))
@@ -1948,7 +1951,7 @@ public class GameViewModel: NSObject {
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyNHL, context: context))
         }
         if appStorage.shouldShowGolf {
-            let games = gamesDict[.golf] ?? []
+            let games = hidingCompetitions(gamesDict[.golf] ?? [], context: context)
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyGolf, context: context))
         }
         if appStorage.shouldShowTennis {
@@ -1960,6 +1963,18 @@ public class GameViewModel: NSObject {
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyRacing, context: context))
         }
         return allGames
+    }
+
+    /// Drops games whose league the user hid in "Visible golf competitions" and the like.
+    /// Soccer and basketball do this inline; the individual sports skipped it entirely,
+    /// so their per-tour toggles did nothing.
+    private func hidingCompetitions(_ games: [Game], context: GameFilterContext) -> [Game] {
+        guard !context.hiddenCompetitions.isEmpty else { return games }
+        return games.filter { game in
+            guard let raw = game.idLeague, let id = Int(raw),
+                  let league = Leagues(rawValue: id) else { return true }
+            return !context.hiddenCompetitions.contains(league.leagueName)
+        }
     }
 
     private func applyFavoritesFilter(_ games: [Game], favoritesOnly: Bool, context: GameFilterContext) -> [Game] {
@@ -2258,8 +2273,10 @@ public class GameViewModel: NSObject {
 
     func sortByDate() {
         let groupDic = Dictionary(grouping: filteredGames ?? []) { game -> DateComponents in
-            // For multi-session events (F1), group by the effective end date (Race day)
-            let gameDate = game.effectiveEndDate ?? game.standardDate ?? .now
+            // For multi-session events (F1), group by the effective end date (Race day).
+            // A golf tournament also has an end date now, but it belongs under its first
+            // round rather than jumping to Sunday.
+            let gameDate = (game.isRace ? game.effectiveEndDate : game.standardDate) ?? game.standardDate ?? .now
             let date2 = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: gameDate)
             return date2
         }
@@ -2379,10 +2396,7 @@ public class GameViewModel: NSObject {
         guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return [] }
         let userPrefGames = getGamesFromUserPreferences()
         let result = userPrefGames
-            .filter { game in
-                guard let gameDate = game.standardDate else { return false }
-                return gameDate >= start && gameDate < end
-            }
+            .filter { $0.occursOn(dayStart: start, dayEnd: end) }
             .sorted { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
             .compactMap { makeGameWithTeams($0) }
         gamesWithTeamsDateCache[key] = result
@@ -2413,10 +2427,7 @@ public class GameViewModel: NSObject {
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: date)
         guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return 0 }
-        return (totalGames ?? []).filter { game in
-            guard let gameDate = game.standardDate else { return false }
-            return gameDate >= start && gameDate < end
-        }.count
+        return (totalGames ?? []).filter { $0.occursOn(dayStart: start, dayEnd: end) }.count
     }
 
     /// Returns the next upcoming game of a specific sport after a given date.

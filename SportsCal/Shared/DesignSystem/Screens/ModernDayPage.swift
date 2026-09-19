@@ -203,8 +203,9 @@ private struct ModernDayContent: View {
         let perCompetitionFavorites = Set(storage.favoritesOnlyCompetitions)
         return (viewModel.totalGames ?? [])
             .filter { game in
-                // Date filter
-                guard let d = game.standardDate, d >= start, d < end else { return false }
+                // Date filter — multi-day events (golf tournaments, F1 weekends) count
+                // on every day they run.
+                guard game.occursOn(dayStart: start, dayEnd: end) else { return false }
                 // Sport pref filter. World Cup matches ride on `shouldShowWorldCup`
                 // even when all of soccer is off (mirrors filterSports).
                 guard let sport = game.sportType else { return false }

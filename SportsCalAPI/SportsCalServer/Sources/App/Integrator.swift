@@ -23,6 +23,30 @@ import Logging
 /// caller's refresh gets the previous one immediately rather than queueing behind
 /// the Redis round-trip. Actor reentrancy across the awaited fetch is what lets
 /// them in, and `refreshing` is what stops them all from starting their own.
+/// Throttles the secondary golf tour scoreboards. Five extra ESPN calls per live tick
+/// would be waste — a leaderboard moves over minutes, not seconds — so the result is
+/// reused for `ttl`, matching the PGA fetch's own throttle.
+actor GolfTourCache {
+    static let shared = GolfTourCache()
+    static let ttl: TimeInterval = 5 * 60
+
+    private var games: [Game] = []
+    private var tours: Set<Leagues> = []
+    private var fetchedAt: Date?
+
+    func current(for requested: [Leagues]) -> [Game]? {
+        guard let fetchedAt, Date().timeIntervalSince(fetchedAt) < Self.ttl,
+              tours == Set(requested) else { return nil }
+        return games
+    }
+
+    func store(_ games: [Game], for tours: [Leagues]) {
+        self.games = games
+        self.tours = Set(tours)
+        self.fetchedAt = Date()
+    }
+}
+
 actor ActiveLeaguesCache {
     static let shared = ActiveLeaguesCache()
 
@@ -195,9 +219,56 @@ class Integrator {
                 }
             }
         }
+        // Golf beyond the PGA TOUR: ESPN serves each tour on its own scoreboard, and they
+        // all belong in the single `golf` bucket — each game carries its own `idLeague`.
+        let extraGolf = await getExtraGolfLiveEvents(client, activeLeagues: activeLeagues)
+        if !extraGolf.isEmpty {
+            if events[.golf] == nil {
+                events[.golf] = LiveEvent(events: extraGolf)
+            } else {
+                events[.golf]?.events += extraGolf
+            }
+        }
         return LiveScore(nba: events[.basketball], mlb: events[.mlb], nfl: events[.nfl], nhl: events[.hockey], golf: events[.golf], tennis: events[.tennis], racing: events[.racing])
     }
+
+    /// Golf tours that only exist on ESPN (the PGA TOUR comes through the main
+    /// SportType-keyed path, which allows one league per sport).
+    static let secondaryGolfTours: [Leagues] = [.dpWorld, .livGolf, .lpga, .championsTour, .kornFerry]
+
+    /// Live events for every secondary golf tour that's currently active. Throttled
+    /// alongside the PGA fetch, since golf leaderboards move slowly.
+    private static func getExtraGolfLiveEvents(_ client: some Client, activeLeagues: Set<Leagues>?) async -> [Game] {
+        let tours = secondaryGolfTours.filter { activeLeagues?.contains($0) ?? true }
+        guard !tours.isEmpty else { return [] }
+        if let cached = await GolfTourCache.shared.current(for: tours) { return cached }
+
+        let games = await withTaskGroup(of: [Game].self) { group in
+            for tour in tours {
+                group.addTask {
+                    do {
+                        let scoreboard = try await getESPNScoreboard(for: tour, client)
+                        return LiveEvent(events: scoreboard, league: tour)?.events ?? []
+                    } catch {
+                        logger.error("ESPN golf tour fetch failed", metadata: [
+                            "tour": "\(tour)", "error": "\(error)"
+                        ])
+                        return []
+                    }
+                }
+            }
+            var all: [Game] = []
+            for await events in group { all += events }
+            return all
+        }
+        await GolfTourCache.shared.store(games, for: tours)
+        return games
+    }
     
+    /// How long past its final day marker a multi-day event still counts as live: 7h to
+    /// land the marker inside its own day, plus the day itself.
+    static let multiDayEventTail: TimeInterval = 31 * 60 * 60
+
     /// Default live-fetch window: started in the last 8h OR starting in the next 30min.
     static let defaultLiveWindow: ClosedRange<TimeInterval> = -(8 * 60 * 60)...(30 * 60)
 
@@ -231,10 +302,20 @@ class Integrator {
                 .flatMap { $0.events }
             for game in allEvents {
                 guard let gameDate = game.isoDate ?? game.getDate() else { continue }
-                let offset = gameDate.timeIntervalSince(now)
-                guard window.contains(offset) else { continue }
                 guard let idLeague = game.idLeague, let leagueID = Int(idLeague),
                       let league = Leagues(rawValue: leagueID) else { continue }
+                if let end = game.endDateParsed, end > gameDate {
+                    // A golf tournament runs Thursday to Sunday. Judging it by its start
+                    // alone made the league active on Thursday only, so Friday's round
+                    // never refreshed. Its dates are day markers (midnight ET), hence the
+                    // shift through the final day.
+                    let started = gameDate.timeIntervalSince(now) <= window.upperBound
+                    let over = end.addingTimeInterval(multiDayEventTail).timeIntervalSince(now) < 0
+                    if started && !over { active.insert(league) }
+                    continue
+                }
+                let offset = gameDate.timeIntervalSince(now)
+                guard window.contains(offset) else { continue }
                 active.insert(league)
             }
         }
@@ -247,6 +328,12 @@ class Integrator {
             for (league, scoreboard) in espnWindow {
                 let hasEvent = scoreboard.events.contains { event in
                     guard let eventDate = formatter.date(from: event.date) else { return false }
+                    // Same as above: a golf tournament runs for days, so judging it by its
+                    // start alone stops refreshing it after the first round.
+                    if let endString = event.endDate, let end = formatter.date(from: endString), end > eventDate {
+                        return eventDate.timeIntervalSince(now) <= window.upperBound
+                            && end.addingTimeInterval(multiDayEventTail).timeIntervalSince(now) >= 0
+                    }
                     return window.contains(eventDate.timeIntervalSince(now))
                 }
                 if hasEvent { active.insert(league) }

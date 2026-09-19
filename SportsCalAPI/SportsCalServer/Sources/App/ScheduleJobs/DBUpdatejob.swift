@@ -206,8 +206,11 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
 
         for league in Leagues.allCases {
             do {
-                // Skip ESPN-only leagues here — handled separately via ESPN below
+                // Skip ESPN-only leagues here — handled separately via ESPN below.
+                // The secondary golf tours have no TheSportsDB entry at all, and the
+                // switch below would drop their response into the soccer bucket.
                 if league == .ncaaMBBTournament || league == .wnba { continue }
+                if Integrator.secondaryGolfTours.contains(league) { continue }
 
                 if let response = try await SportsDBNetworking.getTeamInfoForLeague(app: context.application, DecodeType: Teams.self, league: league.rawValue) {
                     apiTeams.append(contentsOf: response.teams)
@@ -473,6 +476,28 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
             }
         } catch {
             Self.logger.warning("WNBA schedule fetch failed: \(error)")
+        }
+
+        // Golf tours that exist only on ESPN (TheSportsDB carries the PGA TOUR alone).
+        // `usesSingleYearSeason` makes each of these one request for the whole season, and
+        // every event carries its own league, so they ride in the same `golf` bucket.
+        for tour in Integrator.secondaryGolfTours {
+            do {
+                if let scoreboard = try await Integrator.getESPNScoreboard(for: tour, context.application.client) as Scoreboard?,
+                   let liveEvent = LiveEvent(events: scoreboard, league: tour) {
+                    if schedule.golf == nil {
+                        schedule.golf = liveEvent
+                    } else {
+                        schedule.golf?.events += liveEvent.events
+                    }
+                    allGames.append(contentsOf: liveEvent.events)
+                    Self.logger.info("Golf tour schedule loaded", metadata: [
+                        "tour": "\(tour)", "events": "\(liveEvent.events.count)"
+                    ])
+                }
+            } catch {
+                Self.logger.warning("Golf tour schedule fetch failed for \(tour): \(error)")
+            }
         }
 
         // Enrich schedule with ESPN scoreboard data (records, leaders, linescores, venue, etc.)

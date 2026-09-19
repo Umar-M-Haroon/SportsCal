@@ -520,13 +520,7 @@ class Provider: AppIntentTimelineProvider {
         let cal = Calendar.current
         let dayStart = cal.startOfDay(for: targetDate)
         let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
-        return games.filter { game in
-            if game.isRace, !game.sessionDates.isEmpty {
-                return game.sessionDates.contains { $0 >= dayStart && $0 < dayEnd }
-            }
-            guard let date = game.standardDate else { return false }
-            return date >= dayStart && date < dayEnd
-        }
+        return games.filter { $0.occursOn(dayStart: dayStart, dayEnd: dayEnd) }
     }
 
     /// Filters the cached snapshot games by sport selection and target date (single day only)

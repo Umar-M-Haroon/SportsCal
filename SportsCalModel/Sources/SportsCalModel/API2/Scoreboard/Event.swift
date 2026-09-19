@@ -8,6 +8,9 @@ import Foundation
 // MARK: - Event
 public struct Event: Codable {
     public var id, uid, date, name: String
+    /// Last day of a multi-day event (golf tournament, tennis fortnight). ESPN only sends
+    /// it for those; nil for a single game.
+    public var endDate: String?
     public var shortName: String?
     public var season: EventSeason?
     public var competitions: [Competition]?
@@ -15,11 +18,12 @@ public struct Event: Codable {
     public var links: [EventLink]?
     public var status: Status?
 
-    public init(id: String, uid: String, date: String, name: String, shortName: String? = nil, season: EventSeason? = nil, competitions: [Competition]? = nil, groupings: [EventGrouping]? = nil, links: [EventLink]? = nil, status: Status? = nil) {
+    public init(id: String, uid: String, date: String, name: String, endDate: String? = nil, shortName: String? = nil, season: EventSeason? = nil, competitions: [Competition]? = nil, groupings: [EventGrouping]? = nil, links: [EventLink]? = nil, status: Status? = nil) {
         self.id = id
         self.uid = uid
         self.date = date
         self.name = name
+        self.endDate = endDate
         self.shortName = shortName
         self.season = season
         self.competitions = competitions

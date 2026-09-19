@@ -510,7 +510,8 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     isCompleted: event.status?.type.completed, isoDate: nil,
                     leaderboardEntries: entries,
                     venueName: venueName,
-                    golfCourseInfo: courseInfo
+                    golfCourseInfo: courseInfo,
+                    endDate: event.endDate
                 )]
             }
 
@@ -655,7 +656,7 @@ public enum DateParsers {
 
 // MARK: - Event
 public struct Game: Identifiable, Equatable, Hashable {
-    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil, round: String? = nil, drawSlug: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil) {
+    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil, round: String? = nil, drawSlug: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil, endDate: String? = nil) {
         self.idLiveScore = idLiveScore
         self.idEvent = idEvent
         self._strSport = strSport
@@ -687,6 +688,7 @@ public struct Game: Identifiable, Equatable, Hashable {
         self.awayRecord = awayRecord
         self.circuitInfo = circuitInfo
         self.golfCourseInfo = golfCourseInfo
+        self.endDate = endDate
         self.legDisplay = legDisplay
         self.aggregateScore = aggregateScore
         self.homeSeed = homeSeed
@@ -750,6 +752,9 @@ public struct Game: Identifiable, Equatable, Hashable {
     public let awayRecord: String?
     public let circuitInfo: F1CircuitInfo?
     public let golfCourseInfo: GolfCourseInfo?
+    /// Last day of a multi-day event — a golf tournament's Sunday. Nil for single-day games.
+    /// `strTimestamp` stays the start, so an event spans `strTimestamp...endDate`.
+    public let endDate: String?
     public let legDisplay: String?
     public let aggregateScore: String?
     public let homeSeed: Int?
@@ -811,7 +816,7 @@ extension Game: Codable {
         case isCompleted, isoDate
         case leaderboardEntries, sessions, venueName
         case homeTeamColor, awayTeamColor, homeRecord, awayRecord
-        case circuitInfo, golfCourseInfo, legDisplay, aggregateScore
+        case circuitInfo, golfCourseInfo, legDisplay, aggregateScore, endDate
         case homeSeed, awaySeed, tournamentName, round, drawSlug
         case homeInjuries, awayInjuries
         case raceTiming
@@ -858,6 +863,7 @@ extension Game: Codable {
         awayRecord = try container.decodeIfPresent(String.self, forKey: .awayRecord)
         circuitInfo = try container.decodeIfPresent(F1CircuitInfo.self, forKey: .circuitInfo)
         golfCourseInfo = try container.decodeIfPresent(GolfCourseInfo.self, forKey: .golfCourseInfo)
+        endDate = try container.decodeIfPresent(String.self, forKey: .endDate)
         legDisplay = try container.decodeIfPresent(String.self, forKey: .legDisplay)
         aggregateScore = try container.decodeIfPresent(String.self, forKey: .aggregateScore)
         // Sanitize seed values on decode — ESPN returns `99` as a "no rank" sentinel for
@@ -919,6 +925,7 @@ extension Game: Codable {
         try container.encodeIfPresent(awayRecord, forKey: .awayRecord)
         try container.encodeIfPresent(circuitInfo, forKey: .circuitInfo)
         try container.encodeIfPresent(golfCourseInfo, forKey: .golfCourseInfo)
+        try container.encodeIfPresent(endDate, forKey: .endDate)
         try container.encodeIfPresent(legDisplay, forKey: .legDisplay)
         try container.encodeIfPresent(aggregateScore, forKey: .aggregateScore)
         try container.encodeIfPresent(homeSeed, forKey: .homeSeed)
@@ -1087,6 +1094,11 @@ extension Game {
         return leaderboard.enumerated().map { index, entry in
             LeaderboardEntry(name: entry.name, score: entry.score, position: index + 1, rounds: entry.rounds)
         }
+    }
+
+    /// `endDate` as a `Date` — a multi-day event's final day marker.
+    public var endDateParsed: Date? {
+        endDate.flatMap { DateParsers.parse($0) }
     }
 
     /// Parses race leaderboard from `lastPlay` for F1 data
@@ -1258,7 +1270,8 @@ public extension Game {
         awayInjuries: [InjuryReport]? = nil,
         raceTiming: F1RaceTiming? = nil,
         playoff: PlayoffContext? = nil,
-        lastPlayScoreboardID: String? = nil
+        lastPlayScoreboardID: String? = nil,
+        endDate: String? = nil
     ) -> Game {
         Game(
             idLiveScore: idLiveScore ?? self.idLiveScore,
@@ -1304,7 +1317,8 @@ public extension Game {
             awayInjuries: awayInjuries ?? self.awayInjuries,
             raceTiming: raceTiming ?? self.raceTiming,
             playoff: playoff ?? self.playoff,
-            lastPlayScoreboardID: lastPlayScoreboardID ?? self.lastPlayScoreboardID
+            lastPlayScoreboardID: lastPlayScoreboardID ?? self.lastPlayScoreboardID,
+            endDate: endDate ?? self.endDate
         )
     }
 }

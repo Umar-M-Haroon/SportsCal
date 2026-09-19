@@ -33,6 +33,14 @@ struct TournamentScoreView: View {
         return result
     }
 
+    /// The event's tour, when it isn't the default one for its sport (the PGA TOUR for
+    /// golf). Nil for tennis, which already groups by tournament.
+    private var secondaryTourName: String? {
+        guard let raw = game.idLeague, let id = Int(raw), let league = Leagues(rawValue: id),
+              league.isGolf, league != .pga else { return nil }
+        return league.leagueName
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Tournament header
@@ -59,6 +67,16 @@ struct TournamentScoreView: View {
                 }
                 Text(game.strHomeTeam)
                     .font(.headline)
+                if let tour = secondaryTourName {
+                    // Golf runs several tours in the same week — without this, a LIV or
+                    // LPGA event is indistinguishable from the PGA TOUR one beside it.
+                    Text(tour)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.quaternary, in: Capsule())
+                }
                 Spacer()
                 if isLive {
                     Text("LIVE")

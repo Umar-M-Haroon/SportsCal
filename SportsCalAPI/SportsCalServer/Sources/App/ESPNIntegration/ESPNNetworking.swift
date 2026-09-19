@@ -676,8 +676,10 @@ class ESPNNetworking {
     // MARK: - Golf Summary (per-event detail with hole-by-hole data)
 
     /// Fetches detailed golf tournament summary including course info, hole-by-hole scores, and round stats.
-    static func getGolfSummary(req: some Client, eventId: String) async throws -> GolfSummaryResponse {
-        let urlString = "https://site.api.espn.com/apis/site/v2/sports/golf/pga/summary?event=\(eventId)"
+    /// `tour` is the event's own golf league — a LIV or DP World event 404s on the PGA path.
+    static func getGolfSummary(req: some Client, eventId: String, tour: Leagues = .pga) async throws -> GolfSummaryResponse {
+        let slug = tour.isGolf ? (tour.espnSlug ?? "pga") : "pga"
+        let urlString = "https://site.api.espn.com/apis/site/v2/sports/golf/\(slug)/summary?event=\(eventId)"
         do {
             let response = try await performGet(req, URI(string: urlString))
             return try response.content.decode(GolfSummaryResponse.self)

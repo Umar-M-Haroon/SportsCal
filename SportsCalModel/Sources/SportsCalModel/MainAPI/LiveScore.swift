@@ -34,6 +34,13 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     case mlb = 4424
 
     case pga = 4425
+    // Golf tours beyond the PGA TOUR are ESPN-only, so they carry ESPN's own league IDs
+    // (TheSportsDB has no entry to key them by).
+    case championsTour = 1105
+    case lpga = 1107
+    case livGolf = 1109
+    case kornFerry = 7001
+    case dpWorld = 7002
     case atp = 4464
     case wta = 4517
 
@@ -50,7 +57,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     /// call; a `switch` decides it without allocating.
     public var isSoccer: Bool {
         switch self {
-        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament, .wnba:
+        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament, .wnba,
+             .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld:
             return false
         default:
             return true
@@ -65,7 +73,10 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     }
 
     public var isGolf: Bool {
-        return self == .pga
+        switch self {
+        case .pga, .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld: return true
+        default: return false
+        }
     }
 
     public var isTennis: Bool {
@@ -141,6 +152,16 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             self = .Womens_World_Cup
         case "pga":
             self = .pga
+        case "champions-tour":
+            self = .championsTour
+        case "lpga":
+            self = .lpga
+        case "liv":
+            self = .livGolf
+        case "ntw":
+            self = .kornFerry
+        case "eur":
+            self = .dpWorld
         case "atp":
             self = .atp
         case "wta":
@@ -208,6 +229,16 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "fifa.wwc"
         case .pga:
             return "pga"
+        case .championsTour:
+            return "champions-tour"
+        case .lpga:
+            return "lpga"
+        case .livGolf:
+            return "liv"
+        case .kornFerry:
+            return "ntw"
+        case .dpWorld:
+            return "eur"
         case .atp:
             return "atp"
         case .wta:
@@ -275,6 +306,16 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "FIFA Women's World Cup"
         case .pga:
             return "PGA Tour"
+        case .championsTour:
+            return "PGA Tour Champions"
+        case .lpga:
+            return "LPGA Tour"
+        case .livGolf:
+            return "LIV Golf"
+        case .kornFerry:
+            return "Korn Ferry Tour"
+        case .dpWorld:
+            return "DP World Tour"
         case .atp:
             return "ATP Tour"
         case .wta:
@@ -300,7 +341,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "hockey"
         case .mlb:
             return "baseball"
-        case .pga:
+        case .pga, .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld:
             return "golf"
         case .atp, .wta:
             return "tennis"
@@ -365,14 +406,15 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         case .Copa_America: return "83"
         case .UEFA_Conference_League: return "20296"
         case .Womens_World_Cup: return "60"
-        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament, .wnba: return nil
+        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament, .wnba,
+             .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld: return nil
         }
     }
 
     /// Whether this league uses single-year season format (e.g., "2025") instead of "2024-2025"
     public var usesSingleYearSeason: Bool {
         switch self {
-        case .atp, .wta, .pga, .formula1:
+        case .atp, .wta, .pga, .formula1, .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld:
             return true
         default:
             return false
@@ -385,7 +427,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     /// which also gates whole-year ESPN scoreboard fetches.
     public var sportsDBSingleYearSeason: Bool {
         switch self {
-        case .atp, .wta, .pga, .formula1, .mlb, .nfl:
+        case .atp, .wta, .pga, .formula1, .mlb, .nfl,
+             .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld:
             return true
         default:
             return false

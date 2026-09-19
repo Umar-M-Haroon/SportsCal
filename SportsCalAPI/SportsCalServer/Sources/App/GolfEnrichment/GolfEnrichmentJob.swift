@@ -63,7 +63,8 @@ struct GolfEnrichmentJob: AsyncScheduledJob {
             guard let eventId = game.idEvent else { continue }
 
             do {
-                let summary = try await ESPNNetworking.getGolfSummary(req: client, eventId: eventId)
+                let tour = game.idLeague.flatMap { Int($0) }.flatMap { Leagues(rawValue: $0) } ?? .pga
+                let summary = try await ESPNNetworking.getGolfSummary(req: client, eventId: eventId, tour: tour)
 
                 // Extract course info
                 let courseInfo = extractCourseInfo(from: summary)
@@ -253,7 +254,10 @@ struct GolfEnrichmentJob: AsyncScheduledJob {
             homeTeamColor: game.homeTeamColor, awayTeamColor: game.awayTeamColor,
             homeRecord: game.homeRecord, awayRecord: game.awayRecord,
             circuitInfo: game.circuitInfo,
-            golfCourseInfo: courseInfo ?? game.golfCourseInfo
+            golfCourseInfo: courseInfo ?? game.golfCourseInfo,
+            // Rebuilding the game by hand would otherwise drop the tournament's span and
+            // put it back on a single day.
+            endDate: game.endDate
         )
     }
 }

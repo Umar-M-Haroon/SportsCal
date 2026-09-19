@@ -1385,6 +1385,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 homeRecord: espnGame.homeRecord ?? scheduleGame.homeRecord,
                 awayRecord: espnGame.awayRecord ?? scheduleGame.awayRecord,
                 circuitInfo: scheduleGame.circuitInfo ?? espnGame.circuitInfo,
+                // Golf course + pars come only from ESPN; without this the merge stripped
+                // the scorecard off every matched tournament.
+                golfCourseInfo: espnGame.golfCourseInfo ?? scheduleGame.golfCourseInfo,
                 legDisplay: espnGame.legDisplay ?? scheduleGame.legDisplay,
                 aggregateScore: espnGame.aggregateScore ?? scheduleGame.aggregateScore,
                 homeSeed: espnGame.homeSeed ?? scheduleGame.homeSeed,
@@ -1401,7 +1404,11 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 homeInjuries: scheduleGame.homeInjuries ?? espnGame.homeInjuries,
                 awayInjuries: scheduleGame.awayInjuries ?? espnGame.awayInjuries,
                 raceTiming: scheduleGame.raceTiming ?? espnGame.raceTiming,
-                playoff: espnGame.playoff ?? scheduleGame.playoff
+                playoff: espnGame.playoff ?? scheduleGame.playoff,
+                lastPlayScoreboardID: espnGame.lastPlayScoreboardID ?? scheduleGame.lastPlayScoreboardID,
+                // Golf: only ESPN knows the Thursday-Sunday span, so dropping it here put a
+                // merged tournament back on a single day.
+                endDate: espnGame.endDate ?? scheduleGame.endDate
             )
         }
 

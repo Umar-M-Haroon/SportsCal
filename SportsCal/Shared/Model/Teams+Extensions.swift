@@ -78,7 +78,40 @@ extension Game {
            let lastDate = DateFormatters.isoFormatter.date(from: lastDateStr) {
             return lastDate
         }
+        // A golf tournament's final round, so "hide past events" doesn't drop it on Friday.
+        if let eventEndDate { return eventEndDate }
         return standardDate
+    }
+
+    /// Last day of a multi-day event (a golf tournament's Sunday), when the source
+    /// gave us one.
+    var eventEndDate: Date? {
+        guard let endDate else { return nil }
+        return DateParsers.parse(endDate)
+    }
+
+    /// ESPN dates a multi-day event with day *markers* — midnight US Eastern, i.e. 04:00Z
+    /// — not a tee time. Read in a western zone that instant is still the previous
+    /// evening, which would put a Thursday–Sunday tournament on Wednesday–Saturday.
+    /// Shifting by 7h lands both ends inside their intended local day everywhere from
+    /// Hawaii to New Zealand.
+    private static let dayMarkerShift: TimeInterval = 7 * 60 * 60
+
+    /// Whether this event is on the calendar day starting at `dayStart` (exclusive
+    /// `dayEnd`). A golf tournament runs Thursday to Sunday and an F1 weekend has
+    /// sessions on several days, so both stay on the board every day they run instead
+    /// of showing only on the day they began.
+    func occursOn(dayStart: Date, dayEnd: Date) -> Bool {
+        if isRace, !sessionDates.isEmpty {
+            return sessionDates.contains { $0 >= dayStart && $0 < dayEnd }
+        }
+        guard let start = standardDate else { return false }
+        if let end = eventEndDate, end > start {
+            let first = start.addingTimeInterval(Self.dayMarkerShift)
+            let last = end.addingTimeInterval(Self.dayMarkerShift)
+            return first < dayEnd && last >= dayStart
+        }
+        return start >= dayStart && start < dayEnd
     }
 
     /// All dates this event spans (for multi-session events like F1 weekends).

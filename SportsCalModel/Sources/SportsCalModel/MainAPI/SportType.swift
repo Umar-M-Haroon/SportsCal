@@ -26,7 +26,7 @@ public enum SportType: String, CaseIterable {
             self = .hockey
         case .mlb:
             self = .mlb
-        case .pga:
+        case .pga, .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld:
             self = .golf
         case .atp, .wta:
             self = .tennis
