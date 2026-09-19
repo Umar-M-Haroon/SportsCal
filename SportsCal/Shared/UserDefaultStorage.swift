@@ -47,6 +47,8 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("showGameCountHUD") var showGameCountHUD: Bool = false
     @ObservationIgnored @AppStorage("showFilteredOutGames") var showFilteredOutGames: Bool = false
     @ObservationIgnored @AppStorage("hiddenCompetitions") var hiddenCompetitions: [String] = []
+    /// League names already seeded into `hiddenCompetitions` by `seedDefaultHiddenCompetitions`.
+    @ObservationIgnored @AppStorage("seededHiddenCompetitions") var seededHiddenCompetitions: [String] = []
     @ObservationIgnored @AppStorage("favoritesOnlyCompetitions") var favoritesOnlyCompetitions: [String] = []
     @ObservationIgnored @AppStorage("useRelativeValue") var useRelativeValue: Bool = false
     @ObservationIgnored @AppStorage("autoFollowFavorites") var autoFollowFavorites: Bool = true
@@ -235,7 +237,20 @@ class UserDefaultStorage {
     }
 
     init() {
+        seedDefaultHiddenCompetitions()
         recomputeEnabledSports()
+    }
+
+    /// Hides each `isHiddenByDefault` league the first time this build sees it, for new
+    /// and existing users alike. Runs once per league so a user who turns one on keeps it.
+    private func seedDefaultHiddenCompetitions() {
+        let unseeded = Leagues.allCases
+            .filter(\.isHiddenByDefault)
+            .map(\.leagueName)
+            .filter { !seededHiddenCompetitions.contains($0) }
+        guard !unseeded.isEmpty else { return }
+        hiddenCompetitions += unseeded.filter { !hiddenCompetitions.contains($0) }
+        seededHiddenCompetitions += unseeded
     }
 
     func recomputeEnabledSports() {

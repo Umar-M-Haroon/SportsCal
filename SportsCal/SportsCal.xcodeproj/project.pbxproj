@@ -115,6 +115,8 @@
 		1D73C02B2F8B8AA400C98966 /* GolfLeaderboardWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C02A2F8B8AA400C98966 /* GolfLeaderboardWidget.swift */; };
 		1D73C02C2F8B8AA400C98966 /* GolfLeaderboardWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C02A2F8B8AA400C98966 /* GolfLeaderboardWidget.swift */; };
 		1D73C02E2F8B8AD000C98966 /* StandingsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C02D2F8B8AD000C98966 /* StandingsWidget.swift */; };
+		1DA1EA6F2F9C4B1000C0FFEE /* TeamFixtureWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA1EA6E2F9C4B1000C0FFEE /* TeamFixtureWidget.swift */; };
+		1DA1EA702F9C4B1000C0FFEE /* TeamFixtureWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA1EA6E2F9C4B1000C0FFEE /* TeamFixtureWidget.swift */; };
 		1D73C02F2F8B8AD000C98966 /* StandingsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C02D2F8B8AD000C98966 /* StandingsWidget.swift */; };
 		1D73C0792F93498300C98966 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 1D73C0782F93498300C98966 /* SnapshotTesting */; };
 		1D73C07D2F93499F00C98966 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 1D73C07C2F93499F00C98966 /* SnapshotTesting */; };
@@ -497,6 +499,7 @@
 		1D73C0272F8B8A9000C98966 /* F1WeekendWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = F1WeekendWidget.swift; sourceTree = "<group>"; };
 		1D73C02A2F8B8AA400C98966 /* GolfLeaderboardWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfLeaderboardWidget.swift; sourceTree = "<group>"; };
 		1D73C02D2F8B8AD000C98966 /* StandingsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingsWidget.swift; sourceTree = "<group>"; };
+		1DA1EA6E2F9C4B1000C0FFEE /* TeamFixtureWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamFixtureWidget.swift; sourceTree = "<group>"; };
 		1D73C0CC2F934A1100C98966 /* SnapshotFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotFixtures.swift; sourceTree = "<group>"; };
 		1D73C0CE2F934A2200C98966 /* SnapshotHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelpers.swift; sourceTree = "<group>"; };
 		1D73C0D02F934A4300C98966 /* RowViewSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowViewSnapshotTests.swift; sourceTree = "<group>"; };
@@ -1107,6 +1110,7 @@
 				1D73C0272F8B8A9000C98966 /* F1WeekendWidget.swift */,
 				1D73C02A2F8B8AA400C98966 /* GolfLeaderboardWidget.swift */,
 				1D73C02D2F8B8AD000C98966 /* StandingsWidget.swift */,
+				1DA1EA6E2F9C4B1000C0FFEE /* TeamFixtureWidget.swift */,
 				1D16B0A52FA7159600490122 /* WidgetDesignTokens.swift */,
 			);
 			path = SportsWidget;
@@ -1704,6 +1708,7 @@
 				1D7F46642F4502EC00F44569 /* RectangularWidgetTeamView.swift in Sources */,
 				1DF27D6F2F6C6651000F5FCE /* CloudSyncManager.swift in Sources */,
 				1D73C02E2F8B8AD000C98966 /* StandingsWidget.swift in Sources */,
+				1DA1EA6F2F9C4B1000C0FFEE /* TeamFixtureWidget.swift in Sources */,
 				1D16B0A62FA7159600490122 /* WidgetDesignTokens.swift in Sources */,
 				1D7F46652F4502EC00F44569 /* WidgetTournamentCell.swift in Sources */,
 				1D7F46662F4502EC00F44569 /* SportsWidgetCircularView.swift in Sources */,
@@ -1777,6 +1782,7 @@
 				1DBEB4172F05F6340025B04C /* Constants.swift in Sources */,
 				AA000001TIPS000000000001 /* Tips.swift in Sources */,
 				1D73C02F2F8B8AD000C98966 /* StandingsWidget.swift in Sources */,
+				1DA1EA702F9C4B1000C0FFEE /* TeamFixtureWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

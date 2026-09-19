@@ -120,6 +120,7 @@ enum LeagueSelection: String, AppEnum {
     case eredivisie
     case mls
     case ligaMX
+    case aLeague
     case fifaWorldCup
     case championsLeague
     case europaLeague
@@ -150,6 +151,7 @@ enum LeagueSelection: String, AppEnum {
             .eredivisie: "Eredivisie",
             .mls: "MLS",
             .ligaMX: "Liga MX",
+            .aLeague: "A-League",
             .fifaWorldCup: "FIFA World Cup",
             .championsLeague: "Champions League",
             .europaLeague: "Europa League",
@@ -177,6 +179,7 @@ enum LeagueSelection: String, AppEnum {
         case .eredivisie: return .Eredivisie
         case .mls: return .MLS
         case .ligaMX: return .Liga_MX
+        case .aLeague: return .A_League
         case .fifaWorldCup: return .FIFA_World_Cup
         case .championsLeague: return .UEFA_Champions_League
         case .europaLeague: return .UEFA_Europa_League

@@ -16,6 +16,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     case Eredivisie = 4337
     case MLS = 4346
     case Liga_MX = 4350
+    case A_League = 4356
     case FIFA_World_Cup = 4429
     case UEFA_Champions_League = 4480
     case UEFA_Europa_League = 4481
@@ -63,6 +64,12 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         default:
             return true
         }
+    }
+
+    /// Leagues that start out hidden until the user turns them on in Settings. Seeded
+    /// into `hiddenCompetitions` once per league, so turning one on sticks.
+    public var isHiddenByDefault: Bool {
+        self == .A_League
     }
 
     public var isBasketball: Bool {
@@ -134,6 +141,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             self = .DFB_Pokal
         case "mex.1":
             self = .Liga_MX
+        case "aus.1":
+            self = .A_League
         case "nba":
             self = .nba
         case "nhl":
@@ -211,6 +220,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "ger.dfb_pokal"
         case .Liga_MX:
             return "mex.1"
+        case .A_League:
+            return "aus.1"
         case .nba:
             return "nba"
         case .nhl:
@@ -274,6 +285,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "MLS"
         case .Liga_MX:
             return "Liga MX"
+        case .A_League:
+            return "A-League"
         case .FIFA_World_Cup:
             return "FIFA World Cup"
         case .UEFA_Champions_League:
@@ -331,7 +344,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
 
     public var sport: String {
         switch self {
-        case .English_Premier_League, .English_League_Championship, .German_Bundesliga, .Serie_A, .Ligue_1, .La_Liga, .Eredivisie, .MLS, .Liga_MX, .FIFA_World_Cup, .UEFA_Champions_League, .UEFA_Europa_League, .FA_Cup, .Copa_del_Rey, .Coupe_De_France, .DFB_Pokal, .UEFA_Nations_League, .Copa_America, .UEFA_Conference_League, .Womens_World_Cup:
+        case .English_Premier_League, .English_League_Championship, .German_Bundesliga, .Serie_A, .Ligue_1, .La_Liga, .Eredivisie, .MLS, .Liga_MX, .A_League, .FIFA_World_Cup, .UEFA_Champions_League, .UEFA_Europa_League, .FA_Cup, .Copa_del_Rey, .Coupe_De_France, .DFB_Pokal, .UEFA_Nations_League, .Copa_America, .UEFA_Conference_League, .Womens_World_Cup:
             return "soccer"
         case .nfl:
             return "football"
@@ -395,6 +408,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         case .Eredivisie: return "11"
         case .MLS: return "19"
         case .Liga_MX: return "22"
+        case .A_League: return "1308"
         case .FIFA_World_Cup: return "4"
         case .UEFA_Champions_League: return "2"
         case .UEFA_Europa_League: return "2310"

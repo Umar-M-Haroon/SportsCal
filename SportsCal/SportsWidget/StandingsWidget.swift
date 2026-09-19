@@ -15,7 +15,7 @@ import SportsCalModel
 
 enum StandingsLeagueSelection: String, AppEnum {
     case nba, nfl, nhl, mlb
-    case premierLeague, laLiga, bundesliga, serieA, ligue1, mls
+    case premierLeague, laLiga, bundesliga, serieA, ligue1, mls, aLeague
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation { "League" }
 
@@ -31,6 +31,7 @@ enum StandingsLeagueSelection: String, AppEnum {
             .serieA: "Serie A",
             .ligue1: "Ligue 1",
             .mls: "MLS",
+            .aLeague: "A-League",
         ]
     }
 
@@ -46,6 +47,7 @@ enum StandingsLeagueSelection: String, AppEnum {
         case .serieA: return "4332"
         case .ligue1: return "4334"
         case .mls: return "4346"
+        case .aLeague: return "4356"
         }
     }
 
@@ -61,6 +63,7 @@ enum StandingsLeagueSelection: String, AppEnum {
         case .serieA: return "Serie A"
         case .ligue1: return "Ligue 1"
         case .mls: return "MLS"
+        case .aLeague: return "A-League"
         }
     }
 
@@ -68,7 +71,7 @@ enum StandingsLeagueSelection: String, AppEnum {
     var usesPoints: Bool {
         switch self {
         case .nba, .nfl, .nhl, .mlb: return false
-        case .premierLeague, .laLiga, .bundesliga, .serieA, .ligue1, .mls: return true
+        case .premierLeague, .laLiga, .bundesliga, .serieA, .ligue1, .mls, .aLeague: return true
         }
     }
 }

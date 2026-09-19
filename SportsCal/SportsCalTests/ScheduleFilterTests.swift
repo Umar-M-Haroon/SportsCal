@@ -15,7 +15,7 @@ final class ScheduleFilterTests: XCTestCase {
     private let sportKeys = [
         "shouldShowNBA", "shouldShowNFL", "shouldShowNHL",
         "shouldShowSoccer", "shouldShowMLB", "shouldShowGolf",
-        "shouldShowTennis", "shouldShowRacing", "hiddenCompetitions",
+        "shouldShowTennis", "shouldShowRacing", "hiddenCompetitions", "seededHiddenCompetitions",
         "favoritesOnlyNBA", "favoritesOnlyNFL", "favoritesOnlyNHL",
         "favoritesOnlySoccer", "favoritesOnlyMLB", "favoritesOnlyGolf",
         "favoritesOnlyTennis", "favoritesOnlyRacing",

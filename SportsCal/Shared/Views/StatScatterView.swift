@@ -34,7 +34,8 @@ struct StatScatterView: View {
             ("Bundesliga", 4331),
             ("Serie A", 4332),
             ("Ligue 1", 4334),
-            ("MLS", 4346)
+            ("MLS", 4346),
+            ("A-League", 4356)
         ]
         case .golf, .tennis, .racing: return []
         }

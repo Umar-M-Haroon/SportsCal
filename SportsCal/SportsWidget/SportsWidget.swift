@@ -169,6 +169,7 @@ struct SportsWidgetBundle: WidgetBundle {
 //        F1WeekendWidget()
 //        GolfLeaderboardWidget()
         StandingsWidget()
+        TeamFixtureWidget()
         #endif
     }
 }
