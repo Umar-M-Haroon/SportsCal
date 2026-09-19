@@ -135,6 +135,60 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         }
     }
 
+    /// TheSportsDB publishes a golf tournament as one event *per round* — "The Sentry
+    /// Round 1", "… Round 2", "… Final Round" — which puts four rows on the board for one
+    /// tournament and matches nothing on the ESPN side, whose event is just "The Sentry".
+    /// (The unmatched ESPN row is then appended, so a tournament could show five times.)
+    ///
+    /// This folds each tournament's rounds back into one event spanning the first round to
+    /// the last, which is also where its `endDate` comes from when ESPN hasn't supplied one.
+    /// Rows without a round suffix are left exactly as they are.
+    static func collapseGolfRounds(_ events: [Game]) -> [Game] {
+        func parse(_ name: String) -> (base: String, round: Int)? {
+            let lower = name.lowercased()
+            if lower.hasSuffix(" final round") {
+                // Sorts after any numbered round without assuming how many there were.
+                return (String(name.dropLast(" final round".count)), Int.max)
+            }
+            guard let range = lower.range(of: " round ", options: .backwards) else { return nil }
+            let trailing = name[range.upperBound...]
+            guard let number = Int(trailing), !trailing.isEmpty else { return nil }
+            return (String(name[name.startIndex..<range.lowerBound]), number)
+        }
+
+        var groups: [String: [(game: Game, round: Int)]] = [:]
+        var output: [Game?] = []
+        var slotForGroup: [String: Int] = [:]
+
+        for game in events {
+            guard let parsed = parse(game.strHomeTeam), let date = game.isoDate ?? game.getDate() else {
+                output.append(game)
+                continue
+            }
+            // Key on the season too: the same tournament comes back every year.
+            let year = Calendar(identifier: .gregorian).component(.year, from: date)
+            let key = "\(parsed.base.lowercased())|\(year)"
+            if slotForGroup[key] == nil {
+                slotForGroup[key] = output.count
+                output.append(nil)
+            }
+            groups[key, default: []].append((game, parsed.round))
+        }
+
+        for (key, slot) in slotForGroup {
+            guard let rounds = groups[key]?.sorted(by: { $0.round < $1.round }),
+                  let first = rounds.first?.game, let last = rounds.last?.game else { continue }
+            let base = parse(first.strHomeTeam)?.base ?? first.strHomeTeam
+            output[slot] = first.updated(
+                strHomeTeam: base,
+                // The final round's day, so the tournament spans Thursday to Sunday.
+                endDate: last.strTimestamp ?? first.strTimestamp
+            )
+        }
+
+        return output.compactMap { $0 }
+    }
+
     func run(context: Queues.QueueContext) async throws {
         let isDebug = context.application.environment == .development
 
@@ -250,6 +304,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                     schedule.mlb = events
                     Self.logger.info("Schedule loaded", metadata: ["sport": "mlb", "events": "\(events.events.count)"])
                 case .pga:
+                    events.events = Self.collapseGolfRounds(events.events)
                     schedule.golf = events
                     Self.logger.info("Schedule loaded", metadata: ["sport": "golf", "events": "\(events.events.count)"])
                 case .atp, .wta:
