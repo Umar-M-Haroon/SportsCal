@@ -112,6 +112,31 @@ extension Cache where Key: Codable, Value: Codable {
         try data.write(to: fileURL)
     }
 }
+
+extension Cache where Key: Codable & Sendable, Value: Codable & Sendable {
+    /// Persists a single entry without ever touching the main thread.
+    ///
+    /// `saveToDisk` JSON-encodes the whole cache inline. For the `/schedules` snapshot
+    /// that is a multi-megabyte `LiveScore`, and every call site was on the main actor —
+    /// it showed up in Sentry as multi-second `JSONWriter.serializeObject` app hangs
+    /// straight after a schedule fetch. The entry is rebuilt inside a detached task so
+    /// the encode and the file write both run on the cooperative pool. Callers keep
+    /// their in-memory `insert` (which is cheap) and use this for the disk half.
+    ///
+    /// Fire-and-forget: a failed cache write is recoverable (the next fetch rewrites
+    /// it), so errors are logged rather than propagated.
+    static func writeToDiskDetached(value: Value, for key: Key, name: String, entryLifetime: TimeInterval = 12 * 60 * 60) {
+        Task.detached(priority: .utility) {
+            do {
+                let cache = Cache<Key, Value>(entryLifetime: entryLifetime)
+                cache.insert(value, for: key)
+                try cache.saveToDisk(with: name)
+            } catch {
+                AppLogger.viewModel.error("Detached cache write failed for \(name): \(error.localizedDescription)")
+            }
+        }
+    }
+}
 private extension Cache {
     func entry(forKey key: Key) -> Entry? {
         guard let entry = wrapped.object(forKey: WrappedKey(key)) else {

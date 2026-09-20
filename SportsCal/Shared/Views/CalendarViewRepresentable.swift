@@ -40,12 +40,9 @@ struct CalendarViewRepresentable: UIViewRepresentable {
             gamesToUse = gamesToUse.filter { favorites.contains($0) }
         }
         gamesToUse = gamesToUse.filter { sportFilter.matches($0) }
-        let newGames = Dictionary(grouping: gamesToUse, by: { game in
-            game.standardDate?.toComponents()
-        })
-        let newLiveGames = Dictionary(grouping: viewModel.allLiveEvents, by: { game in
-            game.standardDate?.toComponents()
-        })
+        var dayComponents = DayComponentsCache()
+        let newGames = Dictionary(grouping: gamesToUse, by: { dayComponents.components(for: $0.standardDate) })
+        let newLiveGames = Dictionary(grouping: viewModel.allLiveEvents, by: { dayComponents.components(for: $0.standardDate) })
 
         let newDateSet = Set(newGames.keys.compactMap { $0 })
         let componentsToReload = context.coordinator.reloadApplicableDecorations(newDates: newDateSet)
@@ -61,17 +58,17 @@ struct CalendarViewRepresentable: UIViewRepresentable {
             uiView.visibleDateComponents = Calendar.current.dateComponents([.day, .month, .year], from: navigateToDate)
             DispatchQueue.main.async { self.navigateToDate = nil }
         }
-        uiView.reloadDecorations(forDateComponents: componentsToReload, animated: true)
+        // Non-animated: a reload spans every date that has games (hundreds after a
+        // schedule fetch), and animating that many decoration cells at once was pure
+        // main-thread cost for an effect nobody sees mid-scroll.
+        uiView.reloadDecorations(forDateComponents: componentsToReload, animated: false)
     }
 
     func makeCoordinator() -> CalendarCoordinator {
         let filteredCalendarGames = (viewModel.calendarGames ?? []).filter { sportFilter.matches($0) }
-        let groupedGames = Dictionary(grouping: filteredCalendarGames, by: { game in
-            game.standardDate?.toComponents()
-        })
-        let groupedLiveGames = Dictionary(grouping: viewModel.allLiveEvents, by: { game in
-            game.standardDate?.toComponents()
-        })
+        var dayComponents = DayComponentsCache()
+        let groupedGames = Dictionary(grouping: filteredCalendarGames, by: { dayComponents.components(for: $0.standardDate) })
+        let groupedLiveGames = Dictionary(grouping: viewModel.allLiveEvents, by: { dayComponents.components(for: $0.standardDate) })
         return CalendarCoordinator(games: groupedGames, liveGames: groupedLiveGames, date: $selectedDate, sheet: $sheetType, favorites: favorites.teams, showFavoritesOnly: showFavoritesOnly)
     }
 
@@ -147,8 +144,7 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
             let showFavorites = filteredGames.contains(where: { favorites.contains($0.strAwayTeam) || favorites.contains($0.strHomeTeam) })
 
             return .customView {
-                let view = UIHostingController(rootView: DecorationView(sportTypes: sportTypes, gameCount: filteredGames.count, showFavorites: showFavorites)).view
-                return view!
+                DecorationViewFactory.make(sportTypes: sportTypes, showFavorites: showFavorites)
             }
         }
         return nil
@@ -163,6 +159,72 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
             result.append(selectedDate)
         }
         return result
+    }
+}
+
+/// Memoizes `Date` → day `DateComponents` for one grouping pass.
+///
+/// `updateUIView` regroups every calendar game on each SwiftUI update, and
+/// `Calendar.dateComponents` allocates on every call — tens of thousands of them per
+/// pass, on the main thread, inside a `UIViewRepresentable` update. The games span only
+/// a few hundred distinct days, so the conversion is done once per day and looked up by
+/// an integer index afterwards. Output is identical to calling `toComponents()` directly.
+struct DayComponentsCache {
+    private var cache: [Int: DateComponents] = [:]
+    private let timeZone = Calendar.current.timeZone
+
+    mutating func components(for date: Date?) -> DateComponents? {
+        guard let date else { return nil }
+        let offset = timeZone.secondsFromGMT(for: date)
+        let dayIndex = Int(floor((date.timeIntervalSince1970 + Double(offset)) / 86_400))
+        if let cached = cache[dayIndex] { return cached }
+        let components = date.toComponents()
+        cache[dayIndex] = components
+        return components
+    }
+}
+
+/// Builds calendar day decorations as plain UIKit views backed by cached images.
+///
+/// Each decoration used to be a `UIHostingController` hosting an `HStack` of up to nine
+/// SF Symbols, constructed fresh for every decorated date. `UICalendarView` sizes
+/// decorations during layout, so a month's worth meant dozens of SwiftUI hosts plus
+/// repeated SF Symbol rasterisation on the main thread — Sentry caught it as multi-second
+/// `CGSVGDocumentCreateFromData` / `SVGParser` hangs under
+/// `UICalendarViewDecoration _referenceHeightForTraitCollection`. Rendering each symbol
+/// once and reusing the `UIImage` keeps the visuals identical and makes a reload cheap.
+@MainActor
+enum DecorationViewFactory {
+    private static var imageCache: [String: UIImage] = [:]
+
+    private static func image(systemName: String, size: CGFloat, color: UIColor) -> UIImage? {
+        // Keyed on the colour's component description, not its hash: a hash collision
+        // would silently hand back a dot in the wrong sport's colour.
+        let key = "\(systemName)|\(size)|\(color)"
+        if let cached = imageCache[key] { return cached }
+        let config = UIImage.SymbolConfiguration(pointSize: size)
+        guard let image = UIImage(systemName: systemName, withConfiguration: config)?
+            .withTintColor(color, renderingMode: .alwaysOriginal) else { return nil }
+        imageCache[key] = image
+        return image
+    }
+
+    static func make(sportTypes: Set<SportType>, showFavorites: Bool) -> UIView {
+        // Matches DecorationView: symbols shrink once the row gets crowded.
+        let iconSize: CGFloat = sportTypes.count >= 5 ? 6 : 8
+        let stack = UIStackView()
+        stack.axis = .horizontal
+        stack.spacing = 2
+        stack.alignment = .center
+
+        for sport in SportType.allCases where sportTypes.contains(sport) {
+            guard let image = image(systemName: sport.systemImage, size: iconSize, color: UIColor(sport.color)) else { continue }
+            stack.addArrangedSubview(UIImageView(image: image))
+        }
+        if showFavorites, let star = image(systemName: "star.fill", size: iconSize, color: .systemYellow) {
+            stack.addArrangedSubview(UIImageView(image: star))
+        }
+        return stack
     }
 }
 

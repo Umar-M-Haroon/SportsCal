@@ -231,6 +231,12 @@ public class GameViewModel: NSObject {
     /// and `updateLiveData()` does ~10 array recompositions per call; batching them
     /// keeps the main thread free for scroll.
     private var pendingLiveUpdate: Task<Void, Never>?
+    /// How long a persisted `/live` entry stays valid. Live scores go stale fast, so
+    /// this is deliberately far shorter than the 12h default the schedule/teams caches
+    /// use — and it has to be passed explicitly wherever the entry is written, or a
+    /// relaunch would treat hours-old scores as current.
+    static let liveCacheEntryLifetime: TimeInterval = 15 * 60
+
     private var gameCache: Cache<String, LiveScore>?
     private var teamCache: Cache<String, [Team]>?
     private var liveCache: Cache<String, LiveScore>?
@@ -694,7 +700,7 @@ public class GameViewModel: NSObject {
         } catch let error {
             self.gameCache = Cache<String, LiveScore>()
             self.teamCache = Cache<String, [Team]>()
-            self.liveCache = Cache<String, LiveScore>(entryLifetime: 15 * 60)
+            self.liveCache = Cache<String, LiveScore>(entryLifetime: Self.liveCacheEntryLifetime)
             AppLogger.viewModel.error("Cache load failed: \(error.localizedDescription)")
         }
 
@@ -905,8 +911,8 @@ public class GameViewModel: NSObject {
         updateLiveData()
         if let liveInfo = currentLiveInfo {
             liveCache?.insert(liveInfo, for: "live")
+            Cache.writeToDiskDetached(value: liveInfo, for: "live", name: Self.cacheStem(base: "live"), entryLifetime: Self.liveCacheEntryLifetime)
         }
-        try liveCache?.saveToDisk(with: Self.cacheStem(base: "live"))
     }
     
     private func handleTeams() async throws {
@@ -915,7 +921,7 @@ public class GameViewModel: NSObject {
         self.teams = try await teams
         buildTeamLookupCaches()
         teamCache?.insert(self.teams, for: "teams")
-        try teamCache?.saveToDisk(with: Self.cacheStem(base: "teams"))
+        Cache.writeToDiskDetached(value: self.teams, for: "teams", name: Self.cacheStem(base: "teams"))
     }
 
     /// Builds optimized O(1) lookup caches for teams
@@ -1245,7 +1251,9 @@ public class GameViewModel: NSObject {
         await applySnapshotIncrementally(snapshot)
 
         gameCache?.insert(snapshot, for: "games")
-        try gameCache?.saveToDisk(with: Self.cacheStem(base: "games"))
+        // Encode + write off the main actor — the snapshot is multi-MB and this ran
+        // inline on every schedule fetch (Sentry: JSONWriter hangs after /schedules).
+        Cache.writeToDiskDetached(value: snapshot, for: "games", name: Self.cacheStem(base: "games"))
     }
 
     /// Order sports for incremental reveal: sports the user has favorites in render first,
@@ -2483,30 +2491,63 @@ public class GameViewModel: NSObject {
     var sportCountsByDate: [String: [SportType: Int]] = [:]
 
     /// Rebuilds the sport-counts-per-date cache from filteredGames.
+    ///
+    /// Runs inside every `filterSports` pass, i.e. on every live tick, over the whole
+    /// filtered list (tens of thousands of games). It used to call
+    /// `Calendar.startOfDay` *and* `DateFormatter.string(from:)` once per game — both
+    /// allocate `DateComponents` and neither is cheap, and together they were the
+    /// `_CalendarGregorian.dateComponents` main-thread hang Sentry reports after a
+    /// schedule fetch. Those games only span a few hundred distinct days, so the
+    /// expensive conversion is memoized per local day and the per-game work drops to
+    /// integer arithmetic.
     func rebuildSportCountsCache() {
-        let calendar = Calendar.current
         var result: [String: [SportType: Int]] = [:]
+        var keyCache = DayKeyCache()
         for game in filteredGames ?? [] {
             guard let gameDate = game.standardDate else { continue }
             guard let leagueString = game.idLeague,
                   let intLeague = Int(leagueString),
                   let league = Leagues(rawValue: intLeague) else { continue }
             let sport = SportType(league: league)
-            let key = Self.sportCountDateFormatter.string(from: calendar.startOfDay(for: gameDate))
+            let key = keyCache.key(for: gameDate)
             result[key, default: [:]][sport, default: 0] += 1
         }
         sportCountsByDate = result
     }
 
-    private static let sportCountDateFormatter: DateFormatter = {
+    /// Memoizes the `Date` → `"yyyy-MM-dd"` local-day-key conversion.
+    ///
+    /// The day a date falls in is derived arithmetically from its UTC offset, which is
+    /// a far cheaper call than `startOfDay`; the formatter only runs the first time a
+    /// given day is seen. Correct across DST because the offset is resolved per date
+    /// rather than assumed constant.
+    struct DayKeyCache {
+        private var cache: [Int: String] = [:]
+        /// Deliberately the *formatter's* zone, not `Calendar.current.timeZone`: the
+        /// bucket index and the string it maps to have to agree on where a day starts.
+        private let timeZone = GameViewModel.sportCountDateFormatter.timeZone ?? .current
+
+        mutating func key(for date: Date) -> String {
+            let offset = timeZone.secondsFromGMT(for: date)
+            let dayIndex = Int(floor((date.timeIntervalSince1970 + Double(offset)) / 86_400))
+            if let cached = cache[dayIndex] { return cached }
+            let key = GameViewModel.sportCountDateFormatter.string(from: date)
+            cache[dayIndex] = key
+            return key
+        }
+    }
+
+    fileprivate static let sportCountDateFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()
 
     /// Returns game counts per sport for a specific date (used for density heatmap on day chips).
     func gameCountsBySport(for date: Date) -> [SportType: Int] {
-        let key = Self.sportCountDateFormatter.string(from: Calendar.current.startOfDay(for: date))
+        let key = Self.sportCountDateFormatter.string(from: date)
         return sportCountsByDate[key] ?? [:]
     }
 
