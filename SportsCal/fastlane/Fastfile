@@ -13,6 +13,8 @@
 # Uncomment the line if you want fastlane to automatically update itself
 # update_fastlane
 
+require "shellwords"
+
 default_platform(:ios)
 
 APP_SCHEME = "SportsCal (iOS)"
@@ -25,6 +27,44 @@ def asc_api_key
     issuer_id: "c676fbfe-8aff-476b-b54f-89bb56cc09d6",
     key_filepath: File.expand_path("~/.appstoreconnect/private_keys/AuthKey_JQ6VYF64LN.p8"),
     in_house: false
+  )
+end
+
+# Uploads the dSYMs produced by the preceding `build_app` to Sentry, so that
+# App Hang and crash stack frames for in-app code symbolicate instead of showing
+# up as `?`. Xcode Cloud archives are covered by ci_scripts/ci_post_xcodebuild.sh;
+# this is the equivalent for builds archived locally through `beta` / `release`,
+# which otherwise ship with no debug symbols in Sentry at all.
+#
+# Needs an *organization* auth token (scope `org:ci`) — not the DSN, which is a
+# separate, public value. sentry-cli reads it from either SENTRY_AUTH_TOKEN or
+# ~/.sentryclirc, so both are accepted here. Absent a credential this warns and
+# moves on rather than failing an otherwise good build; the upload can always be
+# redone by hand from the archive.
+def upload_dsyms_to_sentry
+  has_credential = !ENV["SENTRY_AUTH_TOKEN"].to_s.empty? ||
+                   File.exist?(File.expand_path("~/.sentryclirc"))
+  unless has_credential
+    UI.important("No Sentry auth token (set SENTRY_AUTH_TOKEN or ~/.sentryclirc) - skipping dSYM upload. Crash/hang reports for this build will not symbolicate.")
+    return
+  end
+
+  dsym_path = lane_context[SharedValues::DSYM_OUTPUT_PATH]
+  if dsym_path.to_s.empty? || !File.exist?(dsym_path)
+    UI.important("No dSYM output from build_app - skipping Sentry upload.")
+    return
+  end
+
+  unless system("which sentry-cli > /dev/null 2>&1")
+    UI.important("sentry-cli not installed (brew install getsentry/tools/sentry-cli) - skipping dSYM upload.")
+    return
+  end
+
+  UI.message("Uploading dSYMs to Sentry from #{dsym_path}")
+  Actions.sh(
+    "sentry-cli debug-files upload --org #{ENV.fetch('SENTRY_ORG', 'mighty-panda-llc')} " \
+    "--project #{ENV.fetch('SENTRY_PROJECT', 'sports-cal')} #{dsym_path.shellescape}",
+    error_callback: ->(result) { UI.important("Sentry dSYM upload failed (non-fatal): #{result}") }
   )
 end
 
@@ -72,6 +112,7 @@ platform :ios do
       output_directory: "./build",
       clean: true
     )
+    upload_dsyms_to_sentry
     upload_to_testflight(
       api_key: asc_api_key,
       skip_waiting_for_build_processing: true
@@ -162,6 +203,7 @@ platform :ios do
       output_directory: "./build",
       clean: true
     )
+    upload_dsyms_to_sentry
     upload_to_app_store(
       api_key: asc_api_key,
       force: true,                  # skip the HTML metadata-preview confirmation
