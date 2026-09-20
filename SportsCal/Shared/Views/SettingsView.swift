@@ -17,6 +17,8 @@ struct DeveloperSettingsSection: View {
     @Environment(GameViewModel.self) private var viewModel
     @Environment(SubscriptionManager.self) private var subscriptionManager
 
+    @State private var whatsNewPreview: WhatsNewRelease?
+
     var isTestFlight: Bool {
         guard let path = Bundle.main.appStoreReceiptURL?.path else { return false }
         return path.contains("sandboxReceipt")
@@ -81,6 +83,18 @@ struct DeveloperSettingsSection: View {
                         .environment(viewModel)
                         .environment(appStorage)
                         .navigationTitle("Game count audit")
+                }
+                Button("Show What's New") {
+                    whatsNewPreview = WhatsNewStore.newestRelease
+                }
+                .disabled(WhatsNewStore.newestRelease == nil)
+                .sheet(item: $whatsNewPreview) { release in
+                    WhatsNewSheet(release: release)
+                        .environment(appStorage)
+                        .environment(viewModel)
+                }
+                Button("Reset What's New (next launch)") {
+                    WhatsNewStore.clearSeen()
                 }
                 NavigationLink("Edge case gallery") {
                     EdgeCaseGalleryView()

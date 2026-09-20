@@ -178,6 +178,15 @@ enum WhatsNewStore {
     static func markSeen(defaults: UserDefaults = .standard) {
         defaults.set(appVersion, forKey: lastSeenKey)
     }
+
+    /// Developer tooling: forget the seen marker so the sheet comes back on the
+    /// next launch, exactly as an upgrading user would see it.
+    static func clearSeen(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: lastSeenKey)
+    }
+
+    /// Developer tooling: the newest notes regardless of version or seen state.
+    static var newestRelease: WhatsNewRelease? { WhatsNewRelease.all.first }
 }
 
 // MARK: - Actions
