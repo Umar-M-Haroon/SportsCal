@@ -218,6 +218,13 @@ class UserDefaultStorage {
             case .racing:     return defaults?.bool(forKey: "focus_shouldShowRacing") ?? true
             }
         }
+        return userShouldShow(sport)
+    }
+
+    /// The user's own preference for `sport`, ignoring any Focus Filter override.
+    /// Call this when reading or writing what the user chose (e.g. a settings row
+    /// or a one-tap "turn this on"), so an active Focus can't mask the real value.
+    func userShouldShow(_ sport: SportType) -> Bool {
         switch sport {
         case .basketball: return shouldShowNBA
         case .soccer:     return shouldShowSoccer

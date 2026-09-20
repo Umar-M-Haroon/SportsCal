@@ -37,8 +37,8 @@ struct WhatsNewFeature: Identifiable {
 
 /// A one-tap call to action attached to a feature.
 enum WhatsNewAction: Hashable {
-    /// Unhide a competition (by `Leagues.leagueName`) and make sure its sport is on.
-    case showCompetition(leagueName: String, sport: SportType)
+    /// Unhide a competition and make sure its sport is on.
+    case showCompetition(Leagues, sport: SportType)
     /// Turn a whole sport on.
     case enableSport(SportType)
     /// Open Manage Sports (sport toggles, per-sport leagues, tennis/golf coverage),
@@ -48,7 +48,7 @@ enum WhatsNewAction: Hashable {
     /// Button title before the action is taken.
     var title: String {
         switch self {
-        case .showCompetition(let leagueName, _): return "Turn On \(leagueName)"
+        case .showCompetition(let league, _): return "Turn On \(league.leagueName)"
         case .enableSport(let sport): return "Turn On \(sport.displayName)"
         case .manageSports(let title): return title
         }
@@ -57,7 +57,7 @@ enum WhatsNewAction: Hashable {
     /// Button title once the action's effect is already in place.
     var doneTitle: String {
         switch self {
-        case .showCompetition(let leagueName, _): return "\(leagueName) On"
+        case .showCompetition(let league, _): return "\(league.leagueName) On"
         case .enableSport(let sport): return "\(sport.displayName) On"
         case .manageSports: return title
         }
@@ -66,7 +66,7 @@ enum WhatsNewAction: Hashable {
     /// Short label for telemetry.
     var telemetryName: String {
         switch self {
-        case .showCompetition(let leagueName, _): return "competition:\(leagueName)"
+        case .showCompetition(let league, _): return "competition:\(league.leagueName)"
         case .enableSport(let sport): return "sport:\(sport.rawValue)"
         case .manageSports: return "manage_sports"
         }
@@ -83,7 +83,7 @@ extension WhatsNewRelease {
                 subtitle: "Fixtures, live scores, standings, and team widgets for Australia's top flight.",
                 systemImage: "soccerball",
                 tint: Color.app(.soccer),
-                action: .showCompetition(leagueName: "A-League", sport: .soccer)
+                action: .showCompetition(.A_League, sport: .soccer)
             ),
             WhatsNewFeature(
                 id: "tour-tiers",
@@ -188,31 +188,39 @@ extension WhatsNewAction {
     func isSatisfied(in storage: UserDefaultStorage) -> Bool {
         _ = storage.preferenceVersion
         switch self {
-        case .showCompetition(let leagueName, let sport):
-            return storage.effectiveShouldShow(sport) && !storage.hiddenCompetitions.contains(leagueName)
+        case .showCompetition(let league, let sport):
+            return storage.userShouldShow(sport) && !storage.hiddenCompetitions.contains(league.leagueName)
         case .enableSport(let sport):
-            return storage.effectiveShouldShow(sport)
+            return storage.userShouldShow(sport)
         case .manageSports:
             return false
         }
     }
 
-    /// Applies a preference action. `.manageSports` is navigation and is handled by
-    /// the sheet.
-    @MainActor
-    func apply(storage: UserDefaultStorage, viewModel: GameViewModel) {
+    /// Writes the preference change. Returns false for navigation actions, which
+    /// change nothing and are handled by the sheet.
+    @discardableResult
+    func applyPreferences(storage: UserDefaultStorage) -> Bool {
         switch self {
-        case .showCompetition(let leagueName, let sport):
-            storage.hiddenCompetitions.removeAll { $0 == leagueName }
+        case .showCompetition(let league, let sport):
+            storage.hiddenCompetitions.removeAll { $0 == league.leagueName }
             storage.syncHiddenCompetitions()
-            if !storage.effectiveShouldShow(sport) {
+            if !storage.userShouldShow(sport) {
                 storage.toggleSport(sport, enabled: true)
             }
+            return true
         case .enableSport(let sport):
             storage.toggleSport(sport, enabled: true)
+            return true
         case .manageSports:
-            return
+            return false
         }
+    }
+
+    /// Applies a preference action and refetches so the newly visible games appear.
+    @MainActor
+    func apply(storage: UserDefaultStorage, viewModel: GameViewModel) {
+        guard applyPreferences(storage: storage) else { return }
         viewModel.filterSports(force: true)
         viewModel.getInfo()
     }
