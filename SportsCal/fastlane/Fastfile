@@ -41,6 +41,32 @@ end
 # ~/.sentryclirc, so both are accepted here. Absent a credential this warns and
 # moves on rather than failing an otherwise good build; the upload can always be
 # redone by hand from the archive.
+# Picks the next build number by asking App Store Connect what it already has for
+# this marketing version, rather than trusting CURRENT_PROJECT_VERSION. Builds come
+# from two places - this lane and Xcode Cloud, which stamps its own run number - so
+# the project file is not a reliable high-water mark and a stale value gets the
+# upload rejected as a duplicate.
+def increment_build_number_to_latest_testflight
+  # Deliberately app-wide, not scoped to the current marketing version: Xcode Cloud
+  # numbers builds from its run counter (148 and climbing), so scoping to a brand-new
+  # version would restart at 1 and collide the moment Cloud builds the same train.
+  latest = latest_testflight_build_number(
+    api_key: asc_api_key,
+    app_identifier: "com.KomodoLLC.SportsCal",
+    initial_build_number: 0
+  )
+  next_build = latest.to_i + 1
+  UI.message("Latest TestFlight build is #{latest}; building #{next_build}.")
+  increment_build_number(xcodeproj: "SportsCal.xcodeproj", build_number: next_build)
+end
+
+# "What to Test" text. Uses the subject lines landed since the last tag, so internal
+# testers see what actually changed instead of a generic placeholder.
+def testflight_changelog
+  log = sh("git log --pretty=format:'- %s' -20", log: false).strip
+  log.empty? ? "Internal build." : log
+end
+
 def upload_dsyms_to_sentry
   has_credential = !ENV["SENTRY_AUTH_TOKEN"].to_s.empty? ||
                    File.exist?(File.expand_path("~/.sentryclirc"))
@@ -103,8 +129,28 @@ platform :ios do
     )
   end
 
-  desc "Archive the app and upload the build to App Store Connect (TestFlight)"
-  lane :beta do
+  # Every main build goes to the internal testers, no exceptions - that is the
+  # floor this lane guarantees. The "Internal" group has hasAccessToAllBuilds set,
+  # so it picks up any build that finishes processing; naming the group explicitly
+  # means a future change to that setting can't silently strand a build in
+  # "Processing" with nobody able to install it.
+  #
+  # Distribution is why this lane waits for processing rather than firing and
+  # forgetting: "What to Test" and group assignment can only be set on a build ASC
+  # has finished ingesting. Expect ~10 minutes. Pass no_wait:true to skip the wait
+  # when you only care that the binary is uploaded.
+  #
+  #   fastlane beta                 # upload, wait, distribute to Internal
+  #   fastlane beta no_wait:true    # upload only
+  desc "Archive and ship a build to the internal TestFlight group"
+  lane :beta do |options|
+    branch = sh("git rev-parse --abbrev-ref HEAD", log: false).strip
+    unless branch == "main"
+      UI.important("On branch '#{branch}', not main - this build will still upload as a #{get_version_number(xcodeproj: "SportsCal.xcodeproj", target: "SportsCal (iOS)")} TestFlight build.")
+    end
+
+    increment_build_number_to_latest_testflight
+
     build_app(
       scheme: APP_SCHEME,
       export_method: "app-store",
@@ -113,10 +159,22 @@ platform :ios do
       clean: true
     )
     upload_dsyms_to_sentry
+
+    skip_wait = options[:no_wait].to_s == "true"
     upload_to_testflight(
       api_key: asc_api_key,
-      skip_waiting_for_build_processing: true
+      skip_waiting_for_build_processing: skip_wait,
+      # Internal only. Promoting to external testers stays a deliberate, manual act.
+      distribute_external: false,
+      groups: skip_wait ? nil : ["Internal"],
+      changelog: skip_wait ? nil : testflight_changelog
     )
+
+    if skip_wait
+      UI.success("Uploaded. It will reach the Internal group once ASC finishes processing.")
+    else
+      UI.success("Build is live for the Internal TestFlight group.")
+    end
   end
 
   # Builds come from Xcode Cloud (the "Default" workflow runs on every push to
