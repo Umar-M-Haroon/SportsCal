@@ -55,6 +55,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         if !Constants.sentryDSN.isEmpty {
             SentrySDK.start { options in
                 options.dsn = Constants.sentryDSN
+                #if DEBUG
+                // Unset, the environment defaults to "production": Xcode runs then file
+                // app-hang issues (unsymbolicated, so one issue per hang) and alert like
+                // real users. Alert rules filter to environment:production.
+                options.environment = "debug"
+                #endif
                 options.tracesSampleRate = 0.05
                 options.beforeSend = { event in
                     // Redact breadcrumbs that may carry device tokens or push payloads.
@@ -197,6 +203,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if !Constants.sentryDSN.isEmpty {
             SentrySDK.start { options in
                 options.dsn = Constants.sentryDSN
+                #if DEBUG
+                // Unset, the environment defaults to "production": Xcode runs then file
+                // app-hang issues (unsymbolicated, so one issue per hang) and alert like
+                // real users. Alert rules filter to environment:production.
+                options.environment = "debug"
+                #endif
                 options.tracesSampleRate = 0.05
                 options.beforeSend = { event in
                     // Redact breadcrumbs that may carry device tokens or push payloads.

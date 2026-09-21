@@ -524,12 +524,7 @@ struct ContentView: View {
     }
 
     private func sidebarTeamRow(_ team: Team) -> some View {
-        let next = team.idTeam.flatMap { id in
-            (viewModel.totalGames ?? [])
-                .filter { $0.idHomeTeam == id || $0.idAwayTeam == id }
-                .filter { ($0.standardDate ?? .distantPast) >= Calendar.current.date(byAdding: .hour, value: -4, to: Date())! }
-                .min { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
-        }
+        let next = team.idTeam.flatMap { viewModel.nextGame(forTeamID: $0) }
         return HStack(spacing: 8) {
             sidebarTeamBadge(team.strTeamBadge)
             VStack(alignment: .leading, spacing: 1) {

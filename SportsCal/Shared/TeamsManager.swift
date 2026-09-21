@@ -27,6 +27,11 @@ final class TeamsManager {
 
     /// Lookup index: normalized (lowercased + diacritic-folded) name/alias → idTeam.
     private var byNameKey: [String: String] = [:]
+    /// Exact (un-normalized) canonical name/alias → idTeam, resolved through `byNameKey`
+    /// so it always agrees with the normalized lookup. `Favorites.contains` resolves two
+    /// names per game across the whole schedule on every filter pass, and normalizing
+    /// (lowercase + diacritic fold) each one showed up in main-thread hang reports.
+    private var byExactName: [String: String] = [:]
     private var isRefreshing = false
 
     private init() {
@@ -47,7 +52,8 @@ final class TeamsManager {
 
     /// idTeam for a name or alias if known. Used by Favorites for migration.
     func teamID(forName name: String) -> String? {
-        byNameKey[TeamsManager.normalize(name)]
+        if let id = byExactName[name] { return id }
+        return byNameKey[TeamsManager.normalize(name)]
     }
 
     /// Trigger a background refresh if the cache is stale or empty. Cheap if not needed.
@@ -114,11 +120,13 @@ final class TeamsManager {
     private func apply(teams: [Team]) {
         var byID: [String: Team] = [:]
         var byNameKey: [String: String] = [:]
+        var exactNames: [String] = []
         for team in teams {
             guard let id = team.idTeam, !id.isEmpty,
                   let canonical = team.strTeam, !canonical.isEmpty else { continue }
             byID[id] = team
 
+            exactNames.append(canonical)
             let canonicalKey = TeamsManager.normalize(canonical)
             if byNameKey[canonicalKey] == nil { byNameKey[canonicalKey] = id }
 
@@ -126,6 +134,7 @@ final class TeamsManager {
                 for alt in alternate.components(separatedBy: ", ") {
                     let trimmed = alt.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmed.isEmpty else { continue }
+                    exactNames.append(trimmed)
                     let key = TeamsManager.normalize(trimmed)
                     if byNameKey[key] == nil { byNameKey[key] = id }
                 }
@@ -133,7 +142,12 @@ final class TeamsManager {
         }
         self.teams = teams
         self.byID = byID
+        var byExactName: [String: String] = [:]
+        for name in exactNames where byExactName[name] == nil {
+            byExactName[name] = byNameKey[TeamsManager.normalize(name)]
+        }
         self.byNameKey = byNameKey
+        self.byExactName = byExactName
     }
 
     private static func normalize(_ s: String) -> String {

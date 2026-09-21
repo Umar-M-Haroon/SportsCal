@@ -151,14 +151,44 @@ public class GameViewModel: NSObject {
     var calendarGames: [Game]? {
         guard let total = totalGames else { return nil }
         if let cached = _calendarGamesCache { return cached }
+        let hiddenCompetitions = GameFilterContext(appStorage: appStorage).hiddenCompetitions
         let built = total.filter { game in
             guard let leagueString = game.idLeague,
                   let intLeague = Int(leagueString),
                   let league = Leagues(rawValue: intLeague), league.isSoccer else { return true }
-            return !appStorage.hiddenCompetitions.contains(league.leagueName)
+            return !hiddenCompetitions.contains(league.leagueName)
         }.sorted { ($0.standardDate ?? .now) < ($1.standardDate ?? .now) }
         _calendarGamesCache = built
         return built
+    }
+    /// Backing memo for `nextGame(forTeamID:)`, invalidated alongside `_calendarGamesCache`.
+    @ObservationIgnored private var _nextGameByTeamID: (builtAt: Date, games: [String: Game])?
+    /// A game counts as "next" until this long after kickoff, so one in progress still shows.
+    private static let nextGameGrace: TimeInterval = 4 * 60 * 60
+
+    /// The soonest game for a team that kicked off no more than `nextGameGrace` ago.
+    /// The Mac sidebar asks this once per followed team on every render; scanning all of
+    /// `totalGames` per row, per render, was a main-thread hang on every live tick. One
+    /// pass indexes every team instead. Reading `totalGames` keeps observation wired.
+    func nextGame(forTeamID id: String) -> Game? {
+        guard let total = totalGames else { return nil }
+        let now = Date()
+        // Data changes drop the memo, but the grace window slides with the clock even
+        // when nothing changes, so it also expires on its own after a few minutes.
+        if let cached = _nextGameByTeamID, now.timeIntervalSince(cached.builtAt) < 5 * 60 {
+            return cached.games[id]
+        }
+        let cutoff = now.addingTimeInterval(-Self.nextGameGrace)
+        var best: [String: Game] = [:]
+        for game in total {
+            guard let date = game.standardDate, date >= cutoff else { continue }
+            for teamID in [game.idHomeTeam, game.idAwayTeam].compactMap({ $0 }) where !teamID.isEmpty {
+                if let current = best[teamID]?.standardDate, current <= date { continue }
+                best[teamID] = game
+            }
+        }
+        _nextGameByTeamID = (now, best)
+        return best[id]
     }
     var teamString: String? = ""
     var favoriteGames: [Game]?
@@ -356,7 +386,7 @@ public class GameViewModel: NSObject {
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
-                if !league.isBasketball || appStorage.hiddenCompetitions.contains(league.leagueName) { return false }
+                if !league.isBasketball || context.hiddenCompetitions.contains(league.leagueName) { return false }
                 return league == .wnba ? appStorage.shouldShowWNBA : appStorage.shouldShowNBA
             }
             if !filtered.isEmpty { sports.append(.basketball) }
@@ -413,7 +443,7 @@ public class GameViewModel: NSObject {
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
-                return league.isBasketball && !appStorage.hiddenCompetitions.contains(league.leagueName)
+                return league.isBasketball && !context.hiddenCompetitions.contains(league.leagueName)
             }
             if !filteredNBA.isEmpty {
                 counts[.basketball] = filteredNBA.count
@@ -575,7 +605,7 @@ public class GameViewModel: NSObject {
                       let league = Leagues(rawValue: intLeague) else {
                     return true
                 }
-                if !league.isBasketball || appStorage.hiddenCompetitions.contains(league.leagueName) { return true }
+                if !league.isBasketball || context.hiddenCompetitions.contains(league.leagueName) { return true }
                 return league == .wnba ? !appStorage.shouldShowWNBA : !appStorage.shouldShowNBA
             })
             if let basketballGames {
@@ -658,12 +688,13 @@ public class GameViewModel: NSObject {
             currentLiveInfo?.tennis?.events,
             currentLiveInfo?.racing?.events
         ]
+        let hiddenCompetitions = GameFilterContext(appStorage: appStorage).hiddenCompetitions
         let games = allSportEvents.compactMap { $0 }.flatMap { $0 }.filter { game in
             guard let leagueString = game.idLeague,
                   let intLeague = Int(leagueString),
                   let league = Leagues(rawValue: intLeague) else { return false }
             if league.isSoccer {
-                return !appStorage.hiddenCompetitions.contains(league.leagueName)
+                return !hiddenCompetitions.contains(league.leagueName)
             }
             return true
         }
@@ -1735,6 +1766,7 @@ public class GameViewModel: NSObject {
         // The calendar's memo is keyed off nothing finer than "the games changed", and
         // rebuilding it is lazy, so dropping it is cheap and keeps it honest.
         _calendarGamesCache = nil
+        _nextGameByTeamID = nil
         rebuildSportCountsCache()
         // The old path reached these through `filterSports`. They're coalesced to at
         // most once a minute now, but they still have to be *asked* for, or the widget
@@ -2151,6 +2183,7 @@ public class GameViewModel: NSObject {
         // chokepoint for every change that affects calendar membership (data
         // fetches and filter/competition toggles), so nil-ing here is sufficient.
         _calendarGamesCache = nil
+        _nextGameByTeamID = nil
 
         rebuildSportCountsCache()
         AppLogger.viewModel.info("Total games: \(self.totalGames?.count ?? 0), filtered: \(self.filteredGames?.count ?? 0)")
