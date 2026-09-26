@@ -171,6 +171,8 @@ struct BrowseSportView: View {
     @State private var shouldShowSportsCalProAlert = false
     @State private var sheetType: SheetType?
     @State private var timeFilter: BrowseTimeFilter = .upcoming
+    /// Golf only: the tour being browsed. Nil until the user picks one — see `golfTourSections`.
+    @State private var selectedGolfTour: Leagues?
 
     var body: some View {
         Group {
@@ -272,6 +274,9 @@ struct BrowseSportView: View {
             if sport == .tennis {
                 // Tennis: drill-in tournament hub (group all matches into tournaments).
                 tennisTournamentSections(browseVM)
+            } else if sport == .golf {
+                // Golf: pick a tour, then that tour's tournaments.
+                golfTourSections(browseVM)
             } else {
             switch timeFilter {
             case .upcoming:
@@ -322,7 +327,7 @@ struct BrowseSportView: View {
                     .listRowBackground(Color.clear)
                 }
             }
-            } // end non-tennis branch
+            } // end team-sport / racing branch
         }
     }
 
@@ -419,31 +424,50 @@ struct BrowseSportView: View {
         }
     }
 
-    @ViewBuilder
     private func tennisTournamentCard(_ tournament: TennisTournament) -> some View {
+        tournamentCard(
+            systemImage: "tennisball.fill",
+            name: tournament.name,
+            badge: tournament.tourBadge,
+            dateText: dateRangeText(tournament.startDate, tournament.endDate),
+            isLive: tournament.isLive
+        )
+    }
+
+    /// One row per tournament in the tennis and golf lists: sport icon, name, an optional tint
+    /// badge (tour for tennis, "Major" for golf), date range and an optional detail line.
+    @ViewBuilder
+    private func tournamentCard(systemImage: String, name: String, badge: String?, dateText: String,
+                                detail: String? = nil, isLive: Bool) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: "tennisball.fill")
-                .foregroundStyle(Color.app(.tennis))
+            Image(systemName: systemImage)
+                .foregroundStyle(Color.app(sport))
             VStack(alignment: .leading, spacing: 2) {
-                Text(tournament.name)
+                Text(name)
                     .font(.headline)
                     .lineLimit(1)
                 HStack(spacing: 6) {
-                    if let badge = tournament.tourBadge {
+                    if let badge {
                         Text(badge)
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(Color.app(.tennis))
+                            .foregroundStyle(Color.app(sport))
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
-                            .background(Color.app(.tennis).opacity(0.15), in: Capsule())
+                            .background(Color.app(sport).opacity(0.15), in: Capsule())
                     }
-                    Text(dateRangeText(tournament.startDate, tournament.endDate))
+                    Text(dateText)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                if let detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer()
-            if tournament.isLive {
+            if isLive {
                 Text("LIVE")
                     .font(.caption2.bold())
                     .foregroundColor(.white)
@@ -467,6 +491,138 @@ struct BrowseSportView: View {
             return "\(start.formatted(.dateTime.month(.abbreviated).day()))–\(cal.component(.day, from: end))"
         }
         return "\(start.formatted(.dateTime.month(.abbreviated).day())) – \(end.formatted(.dateTime.month(.abbreviated).day()))"
+    }
+
+    // MARK: - Golf tours
+
+    /// Golf browse: a tour strip (only tours with events), then the selected tour's
+    /// tournaments for the Upcoming/Past filter. Like tennis browse, this is the unfiltered
+    /// catalog — a tour hidden from the schedule is still browsable (so you can find it again),
+    /// but it isn't opened on by default and says it's hidden; the coverage preference isn't
+    /// applied either, and majors are badged instead.
+    @ViewBuilder
+    private func golfTourSections(_ browseVM: SportBrowseViewModel) -> some View {
+        let games = browseVM.fetchedGames
+        let tours = GolfTourBoard.tours(in: games)
+        let hidden = Set(storage.hiddenCompetitions)
+        if let tour = selectedGolfTour.flatMap({ tours.contains($0) ? $0 : nil })
+            ?? GolfTourBoard.defaultTour(in: tours, hidden: hidden) {
+            if tours.count > 1 {
+                Section {
+                    golfTourStrip(tours, selected: tour, hidden: hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                        .listRowBackground(Color.clear)
+                }
+            }
+
+            let events = GolfTourBoard.events(for: tour, in: games)
+            let startOfToday = Calendar.current.startOfDay(for: Date())
+            let listed = timeFilter == .upcoming
+                ? GolfTourBoard.upcoming(events, startOfToday: startOfToday)
+                : GolfTourBoard.past(events, startOfToday: startOfToday)
+            let isHidden = hidden.contains(tour.leagueName)
+
+            if listed.isEmpty {
+                Section {
+                    if timeFilter == .past { pastEmptyState } else { emptyState }
+                } footer: {
+                    if isHidden { hiddenTourFooter(tour) }
+                }
+                .listRowBackground(Color.clear)
+            } else {
+                Section {
+                    ForEach(listed) { game in
+                        NavigationLink {
+                            TournamentDetailView(game: game)
+                                .environment(viewModel)
+                                .environment(favorites)
+                        } label: {
+                            golfTournamentCard(game)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    Text(timeFilter == .upcoming ? tour.leagueName : "\(tour.leagueName) Results")
+                } footer: {
+                    if isHidden { hiddenTourFooter(tour) }
+                }
+            }
+        } else {
+            Section {
+                if timeFilter == .past { pastEmptyState } else { emptyState }
+            }
+            .listRowBackground(Color.clear)
+        }
+    }
+
+    private func hiddenTourFooter(_ tour: Leagues) -> some View {
+        Text("\(tour.leagueName) is hidden from your schedule. Show it again in Settings.")
+    }
+
+    private func golfTourStrip(_ tours: [Leagues], selected: Leagues, hidden: Set<String>) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(tours, id: \.self) { tour in
+                        let isSelected = tour == selected
+                        Button {
+                            selectedGolfTour = tour
+                        } label: {
+                            HStack(spacing: 4) {
+                                if hidden.contains(tour.leagueName) {
+                                    Image(systemName: "eye.slash")
+                                        .font(.caption2)
+                                }
+                                Text(tour.golfTourShortName ?? tour.leagueName)
+                                    .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule().fill(isSelected ? Color.app(.golf).opacity(0.2) : Color.gray.opacity(0.12))
+                            )
+                            .overlay(
+                                Capsule().strokeBorder(isSelected ? Color.app(.golf) : .clear, lineWidth: 1.5)
+                            )
+                            .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
+                        .id(tour)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+            .onAppear { proxy.scrollTo(selected, anchor: .center) }
+        }
+    }
+
+    private func golfTournamentCard(_ game: Game) -> some View {
+        let span = game.eventDaySpan
+        return tournamentCard(
+            systemImage: "figure.golf",
+            name: game.strHomeTeam,
+            badge: game.eventTier == .major ? "Major" : nil,
+            dateText: dateRangeText(span?.first, span?.last),
+            detail: golfDetail(game),
+            isLive: GolfTourBoard.isLive(game)
+        )
+    }
+
+    /// Leader while live, winner once finished, else the venue.
+    private func golfDetail(_ game: Game) -> String? {
+        let leader: String? = {
+            let name = game.leaderboardEntries?.first?.name ?? game.strAwayTeam
+            // TheSportsDB rows fall back to the event name when there are no players.
+            guard !name.isEmpty, name != "TBD", name != game.strHomeTeam else { return nil }
+            return name
+        }()
+        if GolfTourBoard.isLive(game), let leader {
+            if let score = game.intAwayScore, !score.isEmpty { return "Leader: \(leader) (\(score))" }
+            return "Leader: \(leader)"
+        }
+        if game.hasDoneStatus, let leader { return "Winner: \(leader)" }
+        return game.venueName
     }
 
     // MARK: - Section dispatchers

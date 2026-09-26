@@ -386,7 +386,19 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         return 4 // fallback
                     }
                 }()
-                let derivedCoursePar = holePars?.reduce(0, +)
+                // Par from completed rounds' strokes vs. to-par (every tour's board carries
+                // these). The hole sum is only a fallback, and only for a full 18: summed over
+                // a round still in progress it's the par of the holes played so far.
+                let completedRounds: Int = {
+                    let current = competition.status?.period ?? event.status?.period ?? 0
+                    return golfState == "post" ? current : current - 1
+                }()
+                let roundPar = GolfPar.inferred(fromRounds: (competition.competitors ?? []).flatMap { competitor in
+                    (competitor.linescores ?? [])
+                        .filter { ($0.period ?? .max) <= completedRounds }
+                        .map { (strokes: $0.value, toPar: $0.displayValue) }
+                })
+                let derivedCoursePar = roundPar ?? holePars.flatMap { $0.count == 18 ? $0.reduce(0, +) : nil }
 
                 // Build course info if we have hole data
                 let courseInfo: GolfCourseInfo? = {
@@ -1167,15 +1179,13 @@ extension Game {
         eventTier == .major
     }
 
-    /// Course par — from enrichment data when available, falling back to hardcoded majors
+    /// Course par: from the feed (ESPN's course summary, or inferred from completed rounds —
+    /// see `GolfPar.inferred`) when we have it, else the Masters' fixed par. Nil otherwise:
+    /// the views that use it fall back to raw strokes rather than guess at a to-par.
     public var coursePar: Int? {
         if let par = golfCourseInfo?.par { return par }
-        let name = strHomeTeam.lowercased()
-        if name.contains("masters") { return 72 }
-        if name.contains("pga championship") { return 72 }
-        if name.contains("u.s. open") || name.contains("us open") { return 70 }
-        if name.contains("the open") { return 72 }
-        return nil
+        if let sport = sportType, sport != .golf { return nil }
+        return GolfPar.fixedVenuePar(eventName: strHomeTeam, tour: golfTour)
     }
 
     public var sportType: SportType? {

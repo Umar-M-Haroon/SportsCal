@@ -59,7 +59,9 @@ class SportBrowseViewModel {
     /// Tennis browse drills in by tournament (see `BrowsePage.tennisTournamentSections`) and only
     /// reads `fetchedGames` — it never touches today/upcoming/recent. Running `categorize()` over a
     /// full two-season tennis schedule (~20k matches) calls `resolveGameWithTeams` per match, which
-    /// is the bulk of the tennis load time. Skip it entirely for tennis.
+    /// is the bulk of the tennis load time. Skip it entirely for tennis. (Golf browse also reads
+    /// only `fetchedGames`, but `SportBrowseSheet` still lists golf by today/upcoming/recent,
+    /// and a few hundred tournaments are cheap to categorize.)
     private func categorizeIfNeeded(_ games: [Game]) {
         guard sport != .tennis else { return }
         categorize(games)
