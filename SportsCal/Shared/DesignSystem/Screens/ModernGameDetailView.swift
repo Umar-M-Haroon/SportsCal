@@ -352,11 +352,15 @@ struct ModernGameDetailView: View {
         align: HorizontalAlignment
     ) -> some View {
         VStack(alignment: align, spacing: .appSpace2) {
-            teamBadge(team: team, fallbackName: fallbackName)
-            Text(team.strTeam ?? fallbackName)
-                .font(.appHeadline)
-                .lineLimit(1)
-                .foregroundStyle(leader ? accent : Color.appInkSoft)
+            TeamDetailLink(team: team, isEnabled: !game.isIndividualSport) {
+                VStack(alignment: align, spacing: .appSpace2) {
+                    teamBadge(team: team, fallbackName: fallbackName)
+                    Text(team.strTeam ?? fallbackName)
+                        .font(.appHeadline)
+                        .lineLimit(1)
+                        .foregroundStyle(leader ? accent : Color.appInkSoft)
+                }
+            }
             // Numeric score is meaningful only for live / final games.
             // Upcoming games surface kickoff time in the centered column instead.
             if !isUpcoming {

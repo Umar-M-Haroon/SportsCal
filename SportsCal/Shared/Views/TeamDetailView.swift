@@ -437,3 +437,38 @@ private struct PlayerRow: View {
         }
     }
 }
+
+// MARK: - Team link
+
+/// Wraps game-detail hero content (badge / name) in a link to the team's page.
+/// Individual sports (golf/tennis/F1) have no team to drill into, so pass
+/// `isEnabled: false` and the content is returned untapped.
+///
+/// View-based on purpose: game rows push the game detail with view-destination
+/// NavigationLinks, and mixing in a value-based `NavigationLink(value: team)` there
+/// makes the stack re-push the current view instead of resolving
+/// `navigationDestination(for: Team.self)` at the root. Needs a NavigationStack
+/// ancestor — hosts that show a game detail outside one must provide it.
+struct TeamDetailLink<Label: View>: View {
+    let team: Team
+    var isEnabled: Bool = true
+    @ViewBuilder let label: () -> Label
+
+    @Environment(GameViewModel.self) private var viewModel
+    @Environment(Favorites.self) private var favorites
+
+    var body: some View {
+        if isEnabled {
+            NavigationLink {
+                TeamDetailView(team: team)
+                    .environment(viewModel)
+                    .environment(favorites)
+            } label: {
+                label()
+            }
+            .buttonStyle(.plain)
+        } else {
+            label()
+        }
+    }
+}
