@@ -86,7 +86,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         UNUserNotificationCenter.current().requestAuthorization(options: authOptions) { granted, error in
             if let error = error {
                 AppLogger.notifications.error("Error requesting notification authorization: \(error.localizedDescription)")
-                SentrySDK.capture(error: error)
+                // `.notificationsNotAllowed` is the user's (or device policy's) choice,
+                // not a bug — it fires on every launch once denied (SPORTS-CAL-7Q).
+                if (error as? UNError)?.code != .notificationsNotAllowed {
+                    SentrySDK.capture(error: error)
+                }
             }
             if granted {
                 AppLogger.notifications.info("Notification authorization granted")
@@ -232,7 +236,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         UNUserNotificationCenter.current().requestAuthorization(options: authOptions) { granted, error in
             if let error = error {
                 AppLogger.notifications.error("Error requesting notification authorization: \(error.localizedDescription)")
-                SentrySDK.capture(error: error)
+                // `.notificationsNotAllowed` is the user's (or device policy's) choice,
+                // not a bug — it fires on every launch once denied (SPORTS-CAL-7Q).
+                if (error as? UNError)?.code != .notificationsNotAllowed {
+                    SentrySDK.capture(error: error)
+                }
             }
             if granted {
                 AppLogger.notifications.info("Notification authorization granted")
