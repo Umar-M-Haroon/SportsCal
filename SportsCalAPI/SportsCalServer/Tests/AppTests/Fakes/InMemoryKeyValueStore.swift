@@ -139,6 +139,33 @@ final class InMemoryKeyValueStore: KeyValueStore, @unchecked Sendable {
         return true
     }
 
+    /// Exact-set stand-in for a HyperLogLog: the element set is stored JSON-encoded
+    /// in the entry value (so it shows up in `rawSnapshot`/`scanKeys` like the real
+    /// key would). Counts are exact rather than ~0.8% estimates.
+    func hllAdd(_ key: String, element: String, ttl: TimeInterval) async throws {
+        lock.lock()
+        defer { lock.unlock() }
+        purgeExpiredLocked()
+        var members = hllMembersLocked(key)
+        members.insert(element)
+        let raw = (try? encoder.encode(members.sorted())).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        let expiresAt = storage[key]?.expiresAt ?? clock.now.addingTimeInterval(ttl)
+        storage[key] = Entry(value: raw, expiresAt: expiresAt)
+    }
+
+    func hllCount(_ keys: [String]) async throws -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        purgeExpiredLocked()
+        return keys.reduce(into: Set<String>()) { $0.formUnion(hllMembersLocked($1)) }.count
+    }
+
+    private func hllMembersLocked(_ key: String) -> Set<String> {
+        guard let data = storage[key]?.value.data(using: .utf8),
+              let members = try? decoder.decode([String].self, from: data) else { return [] }
+        return Set(members)
+    }
+
     // MARK: - Internals
 
     private func purgeExpiredLocked() {

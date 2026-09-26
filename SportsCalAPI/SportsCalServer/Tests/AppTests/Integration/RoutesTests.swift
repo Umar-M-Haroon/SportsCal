@@ -306,8 +306,103 @@ final class RoutesTests: XCTestCase {
             XCTAssertEqual(res.status, .ok)
         }
         let snapshot = kv.rawSnapshot
-        XCTAssertEqual(snapshot["telemetry:client.paywall_shown:\(telemetryDay)"], "1",
-                       "allowed client events feed the namespaced per-day Redis counter")
+        XCTAssertEqual(snapshot["telemetry:client.paywall_shown:unknown:\(telemetryDay)"], "1",
+                       "pre-channel clients feed the namespaced per-day counter under `unknown`")
+    }
+
+    func testTelemetryChannelTaggedEventWritesChannelDimensionAndUniqueKeys() async throws {
+        var headers = authed
+        headers.add(name: "X-Install-ID", value: "install-1")
+        try app.test(.POST, "v2025/telemetry", headers: headers, beforeRequest: { req in
+            try req.content.encode(ClientTelemetryEvent(event: "paywall_shown", fields: [
+                "trigger": "nth_session", "channel": "appstore", "platform": "ios", "build": "412",
+            ]))
+        }) { res in
+            XCTAssertEqual(res.status, .ok)
+        }
+        let day = telemetryDay
+        let snapshot = kv.rawSnapshot
+        XCTAssertEqual(snapshot["telemetry:client.paywall_shown:appstore:\(day)"], "1")
+        XCTAssertEqual(snapshot["telemetry:client.paywall_shown:appstore:trigger=nth_session:\(day)"], "1")
+        let uniques = try await kv.hllCount(["telemetry:uniq:client.paywall_shown:appstore:\(day)"])
+        XCTAssertEqual(uniques, 1)
+        XCTAssertFalse(snapshot.keys.contains { $0.contains("412") }, "build is log-only, never a key segment")
+    }
+
+    func testTelemetryUnknownChannelIsNormalized() async throws {
+        try app.test(.POST, "v2025/telemetry", headers: authed, beforeRequest: { req in
+            try req.content.encode(ClientTelemetryEvent(event: "gate_hit", fields: ["channel": "evil*chan"]))
+        }) { res in
+            XCTAssertEqual(res.status, .ok)
+        }
+        let snapshot = kv.rawSnapshot
+        XCTAssertEqual(snapshot["telemetry:client.gate_hit:unknown:\(telemetryDay)"], "1")
+        XCTAssertFalse(snapshot.keys.contains { $0.contains("evil") }, "free-form channels must not mint keys")
+    }
+
+    func testTelemetryAppActiveFeedsDAU() async throws {
+        for (install, platform) in [("i1", "ios"), ("i1", "ios"), ("m1", "macos")] {
+            var headers = authed
+            headers.add(name: "X-Install-ID", value: install)
+            try app.test(.POST, "v2025/telemetry", headers: headers, beforeRequest: { req in
+                try req.content.encode(ClientTelemetryEvent(event: "app_active", fields: [
+                    "channel": "appstore", "platform": platform,
+                ]))
+            }) { res in
+                XCTAssertEqual(res.status, .ok)
+            }
+        }
+        let day = telemetryDay
+        let ios = try await kv.hllCount(["telemetry:dau:appstore:ios:\(day)"])
+        let all = try await kv.hllCount(["telemetry:dau:appstore:ios:\(day)", "telemetry:dau:appstore:macos:\(day)"])
+        XCTAssertEqual(ios, 1)
+        XCTAssertEqual(all, 2)
+        XCTAssertEqual(kv.rawSnapshot["telemetry:client.app_active:appstore:\(day)"], "3",
+                       "the plain counter still counts every ping")
+    }
+
+    func testAdminTelemetryReportsChannelsActiveUsersAndConversion() async throws {
+        let adminKey = "admin-test-key"
+        let adminHash = SHA256.hash(data: Data(adminKey.utf8)).map { String(format: "%02x", $0) }.joined()
+        setenv("ADMIN_API_KEY_HASH", adminHash, 1)
+        defer { unsetenv("ADMIN_API_KEY_HASH") }
+
+        let day = telemetryDay
+        // Legacy (pre-channel) shape still readable.
+        _ = try await kv.increment("telemetry:client.paywall_shown:\(day)", ttl: 3600)
+        _ = try await kv.increment("telemetry:apns.tick:\(day)", ttl: 3600)
+        let clock = SystemClock()
+        let counters = ClientTelemetryCounters(kv: kv, clock: clock)
+        let telemetry = RedisTelemetry(kv: kv, clock: clock)
+        for id in ["A", "B", "C", "D"] {
+            await counters.record(event: "app_active", channel: "appstore", platform: "ios", installID: id, fields: [:])
+        }
+        await counters.record(event: "app_active", channel: "debug", platform: "macos", installID: "DEV", fields: [:])
+        for id in ["A", "A", "B"] {
+            await telemetry.info("client.paywall_shown", ["channel": "appstore"])
+            await counters.record(event: "paywall_shown", channel: "appstore", platform: "ios",
+                                  installID: id, fields: ["trigger": "post_onboarding"])
+        }
+        await counters.record(event: "trial_started", channel: "appstore", platform: "ios", installID: "A", fields: [:])
+        await counters.record(event: "purchase_completed", channel: "appstore", platform: "ios", installID: "A", fields: [:])
+
+        try app.test(.GET, "api/admin/telemetry?days=7", headers: ["X-Admin-API-Key": adminKey]) { res in
+            XCTAssertEqual(res.status, .ok)
+            let body = try res.content.decode(AdminController.TelemetryResponse.self)
+            XCTAssertEqual(body.windowDays, 7)
+            XCTAssertEqual(body.counters["client.paywall_shown"]?[String(day)], 1, "legacy key shape still parsed")
+            XCTAssertEqual(body.counters["apns.tick"]?[String(day)], 1)
+            XCTAssertEqual(body.channels["appstore"]?["client.paywall_shown"]?[String(day)], 3)
+            XCTAssertEqual(body.dimensions["appstore"]?["client.paywall_shown"]?["trigger=post_onboarding"]?[String(day)], 3)
+            XCTAssertEqual(body.activeUsers["appstore"]?.total.dau, 4)
+            XCTAssertEqual(body.activeUsers["appstore"]?.total.mau, 4)
+            XCTAssertEqual(body.activeUsers["appstore"]?.byPlatform["ios"]?.wau, 4)
+            XCTAssertEqual(body.activeUsers["debug"]?.total.dau, 1, "debug is segregated, not dropped")
+            XCTAssertEqual(body.activeUsers["all"]?.total.dau, 5)
+            XCTAssertEqual(body.uniqueInstalls["appstore"]?["client.paywall_shown"], 2)
+            XCTAssertEqual(body.uniqueInstalls["appstore"]?["client.purchase_or_trial"], 1,
+                           "trial + purchase by the same install is one converter")
+        }
     }
 
     func testTelemetryUnknownEventIsDroppedButStillOK() async throws {
