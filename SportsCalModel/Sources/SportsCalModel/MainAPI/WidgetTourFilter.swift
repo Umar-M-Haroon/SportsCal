@@ -32,14 +32,16 @@ public enum WidgetTourFilter {
     /// Drops games whose league is in `hidden`. Tennis matches go by `tennisTours`, so a
     /// women's match cached under the ATP board is hidden with the WTA, and a mixed-doubles
     /// match shows while either tour does. A match that shipped once per tour board (same
-    /// `idEvent`) is kept once.
+    /// `idEvent`) is kept once — the first *visible* copy, so a draw-less match whose first
+    /// copy sits on a hidden board still shows from the other one.
     public static func filter(_ games: [Game], hidingLeagues hidden: Set<String>) -> [Game] {
         var seenTennis = Set<String>()
         return games.filter { game in
             let tours = game.tennisTours
             if !tours.isEmpty, game.isTennisMatch {
-                if let id = game.idEvent, !seenTennis.insert(id).inserted { return false }
-                return tours.contains { !hidden.contains($0.leagueName) }
+                guard tours.contains(where: { !hidden.contains($0.leagueName) }) else { return false }
+                guard let id = game.idEvent else { return true }
+                return seenTennis.insert(id).inserted
             }
             guard !hidden.isEmpty, let name = game.strLeague else { return true }
             return !hidden.contains(name)

@@ -79,6 +79,18 @@ final class WidgetTourFilterTests: XCTestCase {
         XCTAssertEqual(WidgetTourFilter.filter(games, hidingLeagues: []).count, 1)
     }
 
+    /// With no draw the board decides, so a hidden first copy must not swallow the
+    /// visible second one.
+    func testDuplicateWithoutDrawKeepsVisibleCopy() throws {
+        let hidden = try XCTUnwrap(WidgetTourFilter.hiddenLeagueNames(selected: [.wta]))
+        let games = [
+            tennis("9", board: .atp, draw: nil),
+            tennis("9", board: .wta, draw: nil),
+        ]
+        let kept = WidgetTourFilter.filter(games, hidingLeagues: hidden)
+        XCTAssertEqual(kept.map(\.idLeague), ["\(Leagues.wta.rawValue)"])
+    }
+
     func testAppHiddenCompetitionsStillApply() {
         let games = [soccer(.English_Premier_League), soccer(.La_Liga), golf("Open", tour: .pga)]
         let kept = WidgetTourFilter.filter(games, hidingLeagues: [Leagues.La_Liga.leagueName])
