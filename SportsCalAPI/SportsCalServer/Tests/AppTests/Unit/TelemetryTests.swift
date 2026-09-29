@@ -124,6 +124,22 @@ final class TelemetryTests: XCTestCase {
                      "only allow-listed funnel events get an HLL")
     }
 
+    func testOversizedOrEmptyInstallIDIsNotCounted() async throws {
+        let clock = MutableClock()
+        let kv = InMemoryKeyValueStore(clock: clock)
+        let counters = ClientTelemetryCounters(kv: kv, clock: clock)
+        let day = TelemetryKeys.epochDay(clock.now)
+
+        for id in [String(repeating: "x", count: 65), ""] {
+            await counters.record(event: "app_active", channel: "appstore", platform: "ios", installID: id, fields: [:])
+        }
+        await counters.record(event: "app_active", channel: "appstore", platform: "ios",
+                              installID: String(repeating: "y", count: 64), fields: [:])
+
+        let dau = try await kv.hllCount([TelemetryKeys.dau(channel: "appstore", platform: "ios", day: day)])
+        XCTAssertEqual(dau, 1, "install IDs over 64 chars (or empty) never reach PFADD")
+    }
+
     func testIncrementArmsTTLOnCreation() async throws {
         let clock = MutableClock()
         let kv = InMemoryKeyValueStore(clock: clock)
