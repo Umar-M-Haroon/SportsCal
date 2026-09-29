@@ -59,7 +59,9 @@ struct LoggingTelemetry: Telemetry {
 
 /// Persists a per-day counter per event so questions like "how many push sends /
 /// rate-limit rejections happened today (and yesterday)?" survive restarts and
-/// deploys. Key shape: `telemetry:{event}:{epochDay}` → INCR with a 30-day TTL.
+/// deploys. Key shape: `telemetry:{event}:{epochDay}` → INCR with a 30-day TTL,
+/// or `telemetry:{event}:{channel}:{epochDay}` when a `channel` field is present
+/// (client events — see `TelemetryKeys`).
 ///
 /// Epoch-day bucketing (floor(now / 86400)) avoids any timezone/formatter
 /// surprises and sorts naturally. Fail-open by construction: `increment` is
@@ -74,9 +76,90 @@ struct RedisTelemetry: Telemetry {
     static let retention: TimeInterval = 60 * 60 * 24 * 30
 
     func record(_ event: String, level: TelemetryLevel, fields: [String: String]) async {
-        let day = Int(clock.now.timeIntervalSince1970) / 86_400
-        let key = "telemetry:\(event):\(day)"
+        let day = TelemetryKeys.epochDay(clock.now)
+        let key = TelemetryKeys.counter(event, channel: fields["channel"], day: day)
         _ = try? await kv.increment(key, ttl: Self.retention)
+    }
+}
+
+/// Single source of truth for telemetry key shapes (writers and the admin
+/// reader both go through here).
+///
+///   telemetry:{event}:{day}                               server events + pre-channel client events
+///   telemetry:{event}:{channel}:{day}                     client events (channel-tagged)
+///   telemetry:{event}:{channel}:{field}={value}:{day}     allow-listed dimension breakouts
+///   telemetry:dau:{channel}:{platform}:{day}              HLL of install IDs sending app_active
+///   telemetry:uniq:{event}:{channel}:{day}                HLL of install IDs per funnel event
+///
+/// `channel` is a reserved field: when present `RedisTelemetry` keys by it.
+/// Only the client ingestion route sets it, always to a normalized value from
+/// `ClientTelemetryEvent.allowedChannels` (or `unknown`), so it can't mint keys.
+enum TelemetryKeys {
+    static let dauPrefix = "telemetry:dau:"
+    static let uniquePrefix = "telemetry:uniq:"
+
+    static func epochDay(_ date: Date) -> Int {
+        Int(date.timeIntervalSince1970) / 86_400
+    }
+
+    static func counter(_ event: String, channel: String?, day: Int) -> String {
+        guard let channel else { return "telemetry:\(event):\(day)" }
+        return "telemetry:\(event):\(channel):\(day)"
+    }
+
+    static func dimension(_ event: String, channel: String, field: String, value: String, day: Int) -> String {
+        "telemetry:\(event):\(channel):\(field)=\(value):\(day)"
+    }
+
+    static func dau(channel: String, platform: String, day: Int) -> String {
+        "\(dauPrefix)\(channel):\(platform):\(day)"
+    }
+
+    static func unique(_ event: String, channel: String, day: Int) -> String {
+        "\(uniquePrefix)\(event):\(channel):\(day)"
+    }
+}
+
+/// Client-only extras on top of the plain per-channel counter `RedisTelemetry`
+/// already wrote: bounded dimension breakouts and HyperLogLog unique-install
+/// sets (DAU + per-user funnel). Fail-open like `RedisTelemetry` — every write
+/// is best-effort.
+struct ClientTelemetryCounters: Sendable {
+    let kv: KeyValueStore
+    let clock: AppClock
+
+    /// HLLs back WAU/MAU and month-over-month comparisons, so keep them longer
+    /// than the 30-day event counters. Each is tiny at our cardinality.
+    static let uniqueRetention: TimeInterval = 60 * 60 * 24 * 90
+
+    /// `event` is the bare client event (no `client.` prefix); `channel` and
+    /// `platform` are already normalized by the route.
+    func record(
+        event: String,
+        channel: String,
+        platform: String,
+        installID: String?,
+        fields: [String: String]
+    ) async {
+        let day = TelemetryKeys.epochDay(clock.now)
+        let name = "client.\(event)"
+
+        for field in ClientTelemetryEvent.breakoutFields[event] ?? [] {
+            guard let raw = fields[field] else { continue }
+            let allowed = ClientTelemetryEvent.breakoutValues[field] ?? []
+            let value = allowed.contains(raw) ? raw : "other"
+            let key = TelemetryKeys.dimension(name, channel: channel, field: field, value: value, day: day)
+            _ = try? await kv.increment(key, ttl: RedisTelemetry.retention)
+        }
+
+        guard let installID, !installID.isEmpty, installID.count <= 64 else { return }
+        if event == "app_active" {
+            let key = TelemetryKeys.dau(channel: channel, platform: platform, day: day)
+            try? await kv.hllAdd(key, element: installID, ttl: Self.uniqueRetention)
+        } else if ClientTelemetryEvent.uniqueEvents.contains(event) {
+            let key = TelemetryKeys.unique(name, channel: channel, day: day)
+            try? await kv.hllAdd(key, element: installID, ttl: Self.uniqueRetention)
+        }
     }
 }
 

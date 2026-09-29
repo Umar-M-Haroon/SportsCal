@@ -219,3 +219,32 @@ export interface ForceRefreshResponse {
 }
 
 export type SportType = 'basketball' | 'soccer' | 'hockey' | 'football' | 'baseball' | 'golf' | 'tennis' | 'racing'
+
+// /api/admin/telemetry — mirrors AdminController.TelemetryResponse.
+export interface ActiveUserCounts {
+  dau: number
+  wau: number
+  mau: number
+}
+
+export interface ActiveUsers {
+  total: ActiveUserCounts
+  byPlatform: Record<string, ActiveUserCounts>
+  /** epochDay → DAU over the requested window */
+  daily: Record<string, number>
+}
+
+export interface TelemetryResponse {
+  /** Legacy key shape: server events + pre-channel client events. event → day → count */
+  counters: Record<string, Record<string, number>>
+  /** channel → event → day → count */
+  channels: Record<string, Record<string, Record<string, number>>>
+  /** channel → event → "field=value" → day → count */
+  dimensions: Record<string, Record<string, Record<string, Record<string, number>>>>
+  /** channel (+ "all") → active users from app_active HLLs */
+  activeUsers: Record<string, ActiveUsers>
+  /** channel (+ "all") → event → unique installs over windowDays */
+  uniqueInstalls: Record<string, Record<string, number>>
+  windowDays: number
+  today: number
+}

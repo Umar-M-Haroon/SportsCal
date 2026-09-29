@@ -79,6 +79,40 @@ struct ClientTelemetryEvent: Codable, Content {
         "activation_notifications_enabled",
         "whats_new_shown",
         "whats_new_action",
+        "app_active",
+    ]
+
+    /// Distribution channel tag (`fields.channel`). Anything else → `unknown`
+    /// (also what pre-channel app builds land in). `debug` is kept, segregated.
+    static let allowedChannels: Set<String> = ["debug", "testflight", "appstore"]
+
+    /// `fields.platform`. Anything else → `unknown`.
+    static let allowedPlatforms: Set<String> = ["ios", "macos"]
+
+    /// Events whose install IDs go into a per-day HLL so the funnel can be read
+    /// per user, not per event. `app_active` has its own DAU key (by platform).
+    static let uniqueEvents: Set<String> = [
+        "gate_hit",
+        "paywall_shown",
+        "paywall_dismissed",
+        "purchase_completed",
+        "trial_started",
+        "activation_first_favorite",
+        "activation_notifications_enabled",
+    ]
+
+    /// Which fields get their own `field=value` counter per event. Values are
+    /// allow-listed too (unknown → `other`) so key cardinality stays bounded.
+    /// (trial vs paid needs no breakout — they're separate events.)
+    static let breakoutFields: [String: [String]] = [
+        "paywall_shown": ["trigger"],
+        "gate_hit": ["feature"],
+    ]
+
+    /// Keep in sync with iOS `UpsellTrigger` raw values and `ProFeature` cases.
+    static let breakoutValues: [String: Set<String>] = [
+        "trigger": ["post_onboarding", "free_reminder_cap", "favorite_live_opened", "nth_session"],
+        "feature": ["adFree", "proSettings", "goalAlerts", "preGameReminders", "unlimitedReminders", "calendarExport"],
     ]
 }
 
