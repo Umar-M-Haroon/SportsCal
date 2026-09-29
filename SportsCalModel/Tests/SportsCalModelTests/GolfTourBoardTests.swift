@@ -93,6 +93,8 @@ final class GolfTourBoardTests: XCTestCase {
         XCTAssertNil(GolfPar.inferred(fromRounds: [(65, "-6"), (65, "-7"), (70, "-2"), (70, "-1")]), "tie")
         // A feed that put strokes in displayValue would give 0 — never a par.
         XCTAssertNil(GolfPar.inferred(fromRounds: [(65, "65"), (70, "70")]))
+        // Stableford (Barracuda): ESPN sends points in both fields, so strokes − to-par is 0.
+        XCTAssertNil(GolfPar.inferred(fromRounds: [(7, "+7"), (15, "+15"), (12, "+12"), (-4, "-4")]))
     }
 
     /// Real DP World board (FedEx Open de France, after round 3): par comes from the rounds,

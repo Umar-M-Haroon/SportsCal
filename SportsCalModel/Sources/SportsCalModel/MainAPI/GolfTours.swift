@@ -80,20 +80,27 @@ public enum GolfTourBoard {
 
     /// Events still to finish — live now, or whose last day is today or later — live first,
     /// then soonest start.
+    ///
+    /// Browse calls this from `body`, so each event's span (which parses `endDate`) is
+    /// worked out once, not twice per sort comparison.
     public static func upcoming(_ events: [Game], startOfToday: Date) -> [Game] {
         events
-            .filter { isLive($0) || ($0.eventDaySpan?.last ?? .distantFuture) >= startOfToday }
+            .map { (game: $0, live: isLive($0), span: $0.eventDaySpan) }
+            .filter { $0.live || ($0.span?.last ?? .distantFuture) >= startOfToday }
             .sorted {
-                if isLive($0) != isLive($1) { return isLive($0) }
-                return ($0.eventDaySpan?.first ?? .distantFuture) < ($1.eventDaySpan?.first ?? .distantFuture)
+                if $0.live != $1.live { return $0.live }
+                return ($0.span?.first ?? .distantFuture) < ($1.span?.first ?? .distantFuture)
             }
+            .map(\.game)
     }
 
     /// Finished events, most recent first.
     public static func past(_ events: [Game], startOfToday: Date) -> [Game] {
         events
-            .filter { !isLive($0) && ($0.eventDaySpan?.last ?? .distantFuture) < startOfToday }
-            .sorted { ($0.eventDaySpan?.last ?? .distantPast) > ($1.eventDaySpan?.last ?? .distantPast) }
+            .map { (game: $0, live: isLive($0), last: $0.eventDaySpan?.last) }
+            .filter { !$0.live && ($0.last ?? .distantFuture) < startOfToday }
+            .sorted { ($0.last ?? .distantPast) > ($1.last ?? .distantPast) }
+            .map(\.game)
     }
 
     public static func isLive(_ game: Game) -> Bool {

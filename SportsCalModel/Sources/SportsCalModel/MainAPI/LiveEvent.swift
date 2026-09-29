@@ -398,7 +398,13 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         .filter { ($0.period ?? .max) <= completedRounds }
                         .map { (strokes: $0.value, toPar: $0.displayValue) }
                 })
-                let derivedCoursePar = roundPar ?? holePars.flatMap { $0.count == 18 ? $0.reduce(0, +) : nil }
+                // Range-checked like the inferred par: on a Stableford board (Barracuda) a hole's
+                // `value` is points, so the "par" summed from it lands near 12.
+                let derivedCoursePar = roundPar ?? holePars.flatMap { pars -> Int? in
+                    guard pars.count == 18 else { return nil }
+                    let sum = pars.reduce(0, +)
+                    return GolfPar.plausiblePar.contains(sum) ? sum : nil
+                }
 
                 // Build course info if we have hole data
                 let courseInfo: GolfCourseInfo? = {
