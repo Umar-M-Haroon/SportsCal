@@ -344,6 +344,9 @@ struct SportsCalApp: App {
                 .environment(viewModel)
                 .environment(favorites)
                 .environment(appStorage)
+                // Team links push TeamDetailView → AdaptiveGameDetail, which is
+                // classic GameDetailView under the Classic theme and needs this.
+                .environment(engagementTracker)
                 .environment(subscriptionManager)
         }
         .defaultSize(width: 460, height: 660)

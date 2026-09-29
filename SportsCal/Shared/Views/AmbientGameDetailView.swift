@@ -156,6 +156,7 @@ struct AmbientGameDetailView: View {
 
             HStack(alignment: .lastTextBaseline, spacing: 14) {
                 sideColumn(
+                    team: awayTeam,
                     label: AmbientFormat.abbreviation(team: awayTeam, fallback: game.strAwayTeam),
                     score: awayScore,
                     isLeader: leader == .away,
@@ -165,6 +166,7 @@ struct AmbientGameDetailView: View {
                     .font(.ambientDisplay(40, weight: .light))
                     .foregroundStyle(AmbientPalette.ink.opacity(0.3))
                 sideColumn(
+                    team: homeTeam,
                     label: AmbientFormat.abbreviation(team: homeTeam, fallback: game.strHomeTeam),
                     score: homeScore,
                     isLeader: leader == .home,
@@ -180,16 +182,18 @@ struct AmbientGameDetailView: View {
         }
     }
 
-    private func sideColumn(label: String, score: Int?, isLeader: Bool, isFavorite: Bool) -> some View {
+    private func sideColumn(team: Team, label: String, score: Int?, isLeader: Bool, isFavorite: Bool) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text(label)
-                    .font(.ambientDisplay(14, weight: .semibold))
-                    .foregroundStyle(isLeader ? AmbientPalette.highlight : AmbientPalette.muted)
-                if isFavorite {
-                    Text("★")
-                        .font(.ambientDisplay(12, weight: .bold))
-                        .foregroundStyle(AmbientPalette.highlight)
+            TeamDetailLink(team: team, isEnabled: !game.isIndividualSport) {
+                HStack(spacing: 6) {
+                    Text(label)
+                        .font(.ambientDisplay(14, weight: .semibold))
+                        .foregroundStyle(isLeader ? AmbientPalette.highlight : AmbientPalette.muted)
+                    if isFavorite {
+                        Text("★")
+                            .font(.ambientDisplay(12, weight: .bold))
+                            .foregroundStyle(AmbientPalette.highlight)
+                    }
                 }
             }
             if let score {

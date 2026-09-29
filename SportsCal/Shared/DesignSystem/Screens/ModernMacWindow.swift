@@ -1499,13 +1499,20 @@ struct ModernMacWindow: View {
     @ViewBuilder
     private var inspector: some View {
         if let game = selectedGame {
-            // Build minimal team wrappers so ModernGameDetailView can render.
-            let home = Team(strTeam: game.strHomeTeam)
-            let away = Team(strTeam: game.strAwayTeam)
-            ModernGameDetailView(game: game, homeTeam: home, awayTeam: away)
-                .environment(viewModel)
-                .environment(favorites)
-                .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 540)
+            // Resolve real teams (ids/badges) for the hero + team links; fall back
+            // to minimal wrappers when the lookup misses.
+            let teams = viewModel.getTeams(for: game)
+            let home = teams?.home ?? Team(strTeam: game.strHomeTeam)
+            let away = teams?.away ?? Team(strTeam: game.strAwayTeam)
+            // Own stack so the hero's team links can push; keyed by game so a new
+            // selection pops any pushed team page.
+            NavigationStack {
+                ModernGameDetailView(game: game, homeTeam: home, awayTeam: away)
+                    .environment(viewModel)
+                    .environment(favorites)
+            }
+            .id(game.id)
+            .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 540)
         } else {
             VStack(spacing: .appSpace3) {
                 Image(systemName: "rectangle.righthalf.inset.filled.arrow.right")
