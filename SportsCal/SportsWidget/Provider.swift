@@ -356,7 +356,7 @@ class Provider: AppIntentTimelineProvider {
 
     private func applyPerSportFavoritesFilter(_ games: [Game], favorites: Favorites) -> [Game] {
         #if os(watchOS)
-        let defaults = UserDefaults.standard
+        let defaults: UserDefaults? = UserDefaults.standard
         #else
         let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
         #endif
@@ -402,7 +402,7 @@ class Provider: AppIntentTimelineProvider {
         // watchOS: read from standard UserDefaults (synced via WatchConnectivity)
         // iOS/macOS: read from shared app group
         #if os(watchOS)
-        let defaults = UserDefaults.standard
+        let defaults: UserDefaults? = UserDefaults.standard
         #else
         let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
         #endif

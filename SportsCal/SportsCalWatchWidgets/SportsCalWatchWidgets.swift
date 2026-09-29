@@ -32,9 +32,6 @@ struct WatchWidgetEntryView: View {
         case .accessoryCorner:
             SportsWidgetCornerView(entry: entry)
                 .containerBackground(for: .widget) { Color.clear }
-        case .accessoryExtraLarge:
-            SportsWidgetExtraLargeView(entry: entry)
-                .containerBackground(for: .widget) { Color.clear }
         default:
             SportsWidgetCircularView(entry: entry)
                 .containerBackground(for: .widget) { Color.clear }
@@ -61,8 +58,9 @@ struct SportsCalWatchWidget: Widget {
             .accessoryCircular,
             .accessoryRectangular,
             .accessoryInline,
-            .accessoryCorner,
-            .accessoryExtraLarge
+            .accessoryCorner
+            // No `.accessoryExtraLarge` family exists in the watchOS SDK, so
+            // `SportsWidgetExtraLargeView` stays unused until one does.
         ])
         .contentMarginsDisabled()
     }
