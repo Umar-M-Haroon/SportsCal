@@ -1,0 +1,217 @@
+{
+ "leagues": [
+  {
+   "id": "7002",
+   "slug": "eur",
+   "name": "DP World Tour"
+  }
+ ],
+ "events": [
+  {
+   "id": "401822703",
+   "uid": "s:1100~l:7002~e:401822703",
+   "date": "2026-09-24T04:00Z",
+   "endDate": "2026-09-27T04:00Z",
+   "name": "FedEx Open de France",
+   "shortName": "FedEx Open de France",
+   "season": {
+    "year": 2026,
+    "type": 2,
+    "slug": "regular-season"
+   },
+   "competitions": [
+    {
+     "id": "401822703",
+     "uid": "s:1100~l:7002~e:401822703~c:401822703",
+     "date": "2026-09-24T04:00Z",
+     "endDate": "2026-09-27T04:00Z",
+     "timeValid": false,
+     "neutralSite": false,
+     "conferenceCompetition": false,
+     "playByPlayAvailable": false,
+     "recent": true,
+     "competitors": [
+      {
+       "id": "9037",
+       "uid": "s:1100~l:7002~a:9037",
+       "type": "athlete",
+       "order": 1,
+       "athlete": {
+        "fullName": "Matt Fitzpatrick",
+        "displayName": "Matt Fitzpatrick",
+        "shortName": "M. Fitzpatrick",
+        "flag": {
+         "href": "https://a.espncdn.com/i/teamlogos/countries/500/eng.png",
+         "alt": "England",
+         "rel": [
+          "country-flag"
+         ]
+        }
+       },
+       "score": "-19",
+       "linescores": [
+        {
+         "value": 65.0,
+         "displayValue": "-6",
+         "period": 1
+        },
+        {
+         "value": 64.0,
+         "displayValue": "-7",
+         "period": 2
+        },
+        {
+         "value": 65.0,
+         "displayValue": "-6",
+         "period": 3
+        },
+        {
+         "period": 4
+        }
+       ]
+      },
+      {
+       "id": "5076095",
+       "uid": "s:1100~l:7002~a:5076095",
+       "type": "athlete",
+       "order": 2,
+       "athlete": {
+        "fullName": "Tom Vaillant",
+        "displayName": "Tom Vaillant",
+        "shortName": "T. Vaillant",
+        "flag": {
+         "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+         "alt": "France",
+         "rel": [
+          "country-flag"
+         ]
+        }
+       },
+       "score": "-14",
+       "linescores": [
+        {
+         "value": 67.0,
+         "displayValue": "-4",
+         "period": 1
+        },
+        {
+         "value": 65.0,
+         "displayValue": "-6",
+         "period": 2
+        },
+        {
+         "value": 67.0,
+         "displayValue": "-4",
+         "period": 3
+        },
+        {
+         "period": 4
+        }
+       ]
+      },
+      {
+       "id": "4565467",
+       "uid": "s:1100~l:7002~a:4565467",
+       "type": "athlete",
+       "order": 3,
+       "athlete": {
+        "fullName": "Eugenio Chacarra",
+        "displayName": "Eugenio Chacarra",
+        "shortName": "E. Chacarra",
+        "flag": {
+         "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+         "alt": "Spain",
+         "rel": [
+          "country-flag"
+         ]
+        }
+       },
+       "score": "-13",
+       "linescores": [
+        {
+         "value": 70.0,
+         "displayValue": "-1",
+         "period": 1
+        },
+        {
+         "value": 68.0,
+         "displayValue": "-3",
+         "period": 2
+        },
+        {
+         "value": 62.0,
+         "displayValue": "-9",
+         "period": 3
+        },
+        {
+         "period": 4
+        }
+       ]
+      },
+      {
+       "id": "6280",
+       "uid": "s:1100~l:7002~a:6280",
+       "type": "athlete",
+       "order": 4,
+       "athlete": {
+        "fullName": "Brandon Stone",
+        "displayName": "Brandon Stone",
+        "shortName": "B. Stone",
+        "flag": {
+         "href": "https://a.espncdn.com/i/teamlogos/countries/500/rsa.png",
+         "alt": "South Africa",
+         "rel": [
+          "country-flag"
+         ]
+        }
+       },
+       "score": "-13",
+       "linescores": [
+        {
+         "value": 66.0,
+         "displayValue": "-5",
+         "period": 1
+        },
+        {
+         "value": 71.0,
+         "displayValue": "E",
+         "period": 2
+        },
+        {
+         "value": 63.0,
+         "displayValue": "-8",
+         "period": 3
+        },
+        {
+         "period": 4
+        }
+       ]
+      }
+     ],
+     "status": {
+      "period": 3,
+      "type": {
+       "id": "35",
+       "name": "STATUS_PLAY_COMPLETE",
+       "state": "post",
+       "completed": true,
+       "description": "Play Complete",
+       "detail": "Round 3 - Play Complete",
+       "shortDetail": "Round 3 - Play Complete"
+      }
+     },
+     "startDate": "2026-09-24T04:00Z"
+    }
+   ],
+   "status": {
+    "type": {
+     "id": "2",
+     "name": "STATUS_IN_PROGRESS",
+     "state": "in",
+     "completed": false,
+     "description": "In Progress"
+    }
+   }
+  }
+ ]
+}
