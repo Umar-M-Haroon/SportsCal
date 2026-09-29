@@ -100,8 +100,15 @@ struct SportsWidgetIntent: WidgetConfigurationIntent, CustomIntentMigratedAppInt
                         \.$favoritesOnly
                     }
                 } otherwise: {
-                    Summary("Show \(\.$sport) games") {
-                        \.$favoritesOnly
+                    When(\SportsWidgetIntent.$sport, .equalTo, .golf) {
+                        Summary("Show \(\.$sport) games") {
+                            \.$selectedLeagues
+                            \.$favoritesOnly
+                        }
+                    } otherwise: {
+                        Summary("Show \(\.$sport) games") {
+                            \.$favoritesOnly
+                        }
                     }
                 }
             }
@@ -135,6 +142,14 @@ enum LeagueSelection: String, AppEnum {
     // Tennis
     case atp
     case wta
+    // Golf — added after soccer/tennis; picking one narrows golf only (see
+    // `WidgetTourFilter.hiddenLeagueNames`), so older picks keep showing every tour.
+    case pga
+    case dpWorld
+    case lpga
+    case livGolf
+    case championsTour
+    case kornFerry
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation {
         "League"
@@ -165,6 +180,12 @@ enum LeagueSelection: String, AppEnum {
             .womensWorldCup: "Women's World Cup",
             .atp: "ATP Tour",
             .wta: "WTA Tour",
+            .pga: "PGA Tour",
+            .dpWorld: "DP World Tour",
+            .lpga: "LPGA Tour",
+            .livGolf: "LIV Golf",
+            .championsTour: "PGA Tour Champions",
+            .kornFerry: "Korn Ferry Tour",
         ]
     }
 
@@ -193,6 +214,12 @@ enum LeagueSelection: String, AppEnum {
         case .womensWorldCup: return .Womens_World_Cup
         case .atp: return .atp
         case .wta: return .wta
+        case .pga: return .pga
+        case .dpWorld: return .dpWorld
+        case .lpga: return .lpga
+        case .livGolf: return .livGolf
+        case .championsTour: return .championsTour
+        case .kornFerry: return .kornFerry
         }
     }
 

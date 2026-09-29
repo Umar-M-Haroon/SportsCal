@@ -62,7 +62,10 @@ enum WidgetTokens {
 
 private extension Color {
     init(light: Int, dark: Int) {
-        #if canImport(UIKit)
+        #if os(watchOS)
+        // No trait-based dynamic colors on watchOS, and the watch face is always dark.
+        self.init(rgbHex: dark)
+        #elseif canImport(UIKit)
         self.init(uiColor: UIColor(dynamicProvider: { trait in
             trait.userInterfaceStyle == .dark
                 ? UIColor(rgbHex: dark)

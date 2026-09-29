@@ -329,18 +329,13 @@ class Provider: AppIntentTimelineProvider {
         return Timeline(entries: [entry], policy: .after(entryDate))
     }
 
-    /// Returns the set of league names that should be hidden based on widget config or app defaults
+    /// Returns the set of league names that should be hidden based on widget config or app defaults.
+    /// An explicit widget pick replaces the app's `hiddenCompetitions`, like a follow does:
+    /// picking a tour shows it even if it's hidden app-wide.
     private func hiddenLeagueNames(for configuration: SportsWidgetIntent) -> Set<String> {
-        let selected = configuration.selectedLeagues
-        if !selected.isEmpty {
-            // Explicit widget override — hide everything NOT selected
-            let selectedNames = Set(selected.map(\.leagueName))
-            let allMultiLeagueNames = Set(
-                Leagues.allCases
-                    .filter { $0.isSoccer || $0.isTennis }
-                    .map(\.leagueName)
-            )
-            return allMultiLeagueNames.subtracting(selectedNames)
+        let selected = Set(configuration.selectedLeagues.map(\.league))
+        if let hidden = WidgetTourFilter.hiddenLeagueNames(selected: selected) {
+            return hidden
         }
         // Fallback: app's hiddenCompetitions
         #if os(watchOS)
@@ -353,18 +348,15 @@ class Provider: AppIntentTimelineProvider {
         return Set(hidden)
     }
 
-    /// Filters out games belonging to hidden leagues
+    /// Filters out games belonging to hidden leagues (tennis by draw, so ATP/WTA picks
+    /// split a combined slam correctly)
     private func applyLeagueFilter(_ games: [Game], hiddenLeagues: Set<String>) -> [Game] {
-        guard !hiddenLeagues.isEmpty else { return games }
-        return games.filter { game in
-            guard let name = game.strLeague else { return true }
-            return !hiddenLeagues.contains(name)
-        }
+        WidgetTourFilter.filter(games, hidingLeagues: hiddenLeagues)
     }
 
     private func applyPerSportFavoritesFilter(_ games: [Game], favorites: Favorites) -> [Game] {
         #if os(watchOS)
-        let defaults = UserDefaults.standard
+        let defaults: UserDefaults? = UserDefaults.standard
         #else
         let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
         #endif
@@ -410,7 +402,7 @@ class Provider: AppIntentTimelineProvider {
         // watchOS: read from standard UserDefaults (synced via WatchConnectivity)
         // iOS/macOS: read from shared app group
         #if os(watchOS)
-        let defaults = UserDefaults.standard
+        let defaults: UserDefaults? = UserDefaults.standard
         #else
         let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
         #endif
