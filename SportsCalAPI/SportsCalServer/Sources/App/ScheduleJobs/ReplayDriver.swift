@@ -118,7 +118,8 @@ enum ReplayDriver {
             awaySeed: shell.awaySeed,
             tournamentName: shell.tournamentName,
             round: shell.round,
-            playoff: shell.playoff
+            playoff: shell.playoff,
+            season: shell.season, seasonPhase: shell.seasonPhase
         )
     }
 

@@ -1547,7 +1547,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 aggregateScore: game.aggregateScore,
                 homeSeed: game.homeSeed,
                 awaySeed: game.awaySeed,
-                playoff: game.playoff
+                playoff: game.playoff,
+                season: game.season, seasonPhase: game.seasonPhase
             )
         }
 

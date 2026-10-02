@@ -3,8 +3,9 @@
 //  SportsCal
 //
 //  A team profile screen: badge + name header, a favorite toggle, and the team's
-//  upcoming schedule and recent results derived from the games already loaded into
-//  GameViewModel. Roster / stats are stubbed pending a dedicated server endpoint.
+//  schedule — every loaded game, grouped season → phase (preseason / regular season /
+//  play-in / playoffs) in date order, opened scrolled to the current game. Built from
+//  the games already loaded into GameViewModel.
 //
 //  Reached via `.navigationDestination(for: Team.self)` — push by giving a
 //  `NavigationLink(value: team)` anywhere inside a NavigationStack that registers it.
@@ -24,6 +25,9 @@ struct TeamDetailView: View {
     /// resolves; an empty/failed fetch leaves it nil so the section shows "unavailable".
     @State private var detail: TeamDetail?
     @State private var didLoadDetail = false
+    /// Scroll to the current game once, when the schedule first has one — never again,
+    /// or every live-score tick would yank the list back.
+    @State private var didScrollToAnchor = false
 
     // MARK: - Derived schedule
 
@@ -40,20 +44,8 @@ struct TeamDetailView: View {
         }
     }
 
-    private var upcomingGames: [Game] {
-        teamGames
-            .filter { !$0.hasDoneStatus }
-            .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
-    }
-
-    private var recentGames: [Game] {
-        teamGames
-            .filter { $0.hasDoneStatus }
-            .sorted { ($0.standardDate ?? .distantPast) > ($1.standardDate ?? .distantPast) }
-    }
-
-    private var sportType: SportType? {
-        teamGames.lazy.compactMap { $0.sportType }.first
+    private var teamNames: Set<String> {
+        Set([team.strTeam, team.strAlternate].compactMap { $0 })
     }
 
     private func isTeamHome(in game: Game) -> Bool {
@@ -64,8 +56,8 @@ struct TeamDetailView: View {
     /// Current win–loss record, read from the most recent game carrying one for this
     /// team's side (future/scheduled games carry the up-to-date season record). ESPN-
     /// sourced and already on every `Game`, so this needs no extra fetch.
-    private var teamRecord: String? {
-        let byRecency = teamGames.sorted { ($0.standardDate ?? .distantPast) > ($1.standardDate ?? .distantPast) }
+    private func teamRecord(in games: [Game]) -> String? {
+        let byRecency = games.sorted { ($0.standardDate ?? .distantPast) > ($1.standardDate ?? .distantPast) }
         for game in byRecency {
             let record = isTeamHome(in: game) ? game.homeRecord : game.awayRecord
             if let record, !record.isEmpty { return record }
@@ -81,41 +73,59 @@ struct TeamDetailView: View {
     // MARK: - Body
 
     var body: some View {
-        List {
-            Section {
-                header
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-            }
+        // One pass over the loaded games per render; everything below reads these.
+        let games = teamGames
+        let schedule = TeamSeasonSchedule(games: games)
+        let record = teamRecord(in: games)
 
-            if !upcomingGames.isEmpty {
-                Section("Upcoming") {
-                    ForEach(upcomingGames) { gameRow($0) }
-                }
-            }
-
-            if !recentGames.isEmpty {
-                Section("Recent Results") {
-                    ForEach(recentGames.prefix(20)) { gameRow($0) }
-                }
-            }
-
-            if teamGames.isEmpty {
+        ScrollViewReader { proxy in
+            List {
                 Section {
-                    ContentUnavailableView(
-                        "No Games Scheduled",
-                        systemImage: "calendar.badge.exclamationmark",
-                        description: Text("There are no loaded games for this team right now.")
-                    )
+                    header(sport: games.lazy.compactMap(\.sportType).first, record: record)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
-            }
 
-            rosterAndInfoSections
+                ForEach(schedule.seasons) { season in
+                    ForEach(season.phases) { group in
+                        Section {
+                            ForEach(group.games) { game in
+                                gameRow(game)
+                                    .id(game.id)
+                            }
+                        } header: {
+                            phaseHeader(season: season, group: group)
+                        }
+                    }
+                }
+
+                if schedule.isEmpty {
+                    Section {
+                        ContentUnavailableView(
+                            "No Games Scheduled",
+                            systemImage: "calendar.badge.exclamationmark",
+                            description: Text("There are no loaded games for this team right now.")
+                        )
+                    }
+                }
+
+                rosterAndInfoSections(record: record)
+            }
+            #if os(iOS)
+            .listStyle(.insetGrouped)
+            #endif
+            .task(id: schedule.anchorGameID) {
+                guard !didScrollToAnchor, let anchor = schedule.anchorGameID else { return }
+                // Let the List lay out its rows before asking it to scroll. A single
+                // yield lands before the first layout pass on push, and a scrollTo
+                // against an unlaid-out List is a silent no-op, so wait a frame or two.
+                try? await Task.sleep(for: .milliseconds(80))
+                guard !Task.isCancelled else { return }
+                proxy.scrollTo(anchor, anchor: .center)
+                didScrollToAnchor = true
+            }
         }
-        #if os(iOS)
-        .listStyle(.insetGrouped)
-        #endif
         .task(id: team.idTeam) { await loadDetail() }
         .navigationTitle(team.strTeam ?? "Team")
         #if os(iOS)
@@ -134,7 +144,7 @@ struct TeamDetailView: View {
 
     // MARK: - Header
 
-    private var header: some View {
+    private func header(sport sportType: SportType?, record teamRecord: String?) -> some View {
         VStack(spacing: 12) {
             badge(team.strTeamBadge, size: 96)
 
@@ -173,6 +183,34 @@ struct TeamDetailView: View {
         .padding()
     }
 
+    // MARK: - Section headers
+
+    /// The phase name and this team's record in it; the first phase of each season also
+    /// carries the season title, so a season reads as one block.
+    @ViewBuilder
+    private func phaseHeader(season: TeamSeasonSchedule.SeasonGroup,
+                             group: TeamSeasonSchedule.PhaseGroup) -> some View {
+        let record = group.record(forTeamID: team.idTeam, teamNames: teamNames)
+        let isFirstPhase = group.id == season.phases.first?.id
+        VStack(alignment: .leading, spacing: 6) {
+            if isFirstPhase && group.phase != nil {
+                Text(season.displayName)
+                    .font(.title3.bold())
+                    .foregroundStyle(.primary)
+            }
+            HStack {
+                Text(group.phase?.displayName ?? season.displayName)
+                Spacer()
+                if let record {
+                    Text(record)
+                        .monospacedDigit()
+                }
+            }
+        }
+        .textCase(nil)
+        .padding(.top, isFirstPhase ? 8 : 0)
+    }
+
     // MARK: - Rows
 
     @ViewBuilder
@@ -197,7 +235,7 @@ struct TeamDetailView: View {
     }
 
     @ViewBuilder
-    private var rosterAndInfoSections: some View {
+    private func rosterAndInfoSections(record teamRecord: String?) -> some View {
         if teamRecord != nil || hasProfileInfo {
             Section("Info") {
                 // Record comes from local ESPN game data — shows immediately, even
@@ -322,6 +360,11 @@ private struct TeamScheduleRow: View {
     private var homeScore: Int? { game.intHomeScore.flatMap { Int($0) } }
     private var awayScore: Int? { game.intAwayScore.flatMap { Int($0) } }
     private var hasScores: Bool { homeScore != nil && awayScore != nil }
+    /// In progress: has a score but isn't final, postponed, or a scheduled "pre" 0–0.
+    private var isLive: Bool {
+        hasScores && !game.isFinalStatus && !game.isCalledOff
+            && game.strStatus != "pre" && game.strStatus != "NS"
+    }
 
     private var resultBadge: (text: String, color: Color)? {
         guard let h = homeScore, let a = awayScore else { return nil }
@@ -340,7 +383,7 @@ private struct TeamScheduleRow: View {
                     .font(.subheadline)
                     .lineLimit(1)
                 if let date = game.standardDate {
-                    Text(date.formatted(.dateTime.month().day().year()))
+                    Text(date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -348,7 +391,7 @@ private struct TeamScheduleRow: View {
 
             Spacer(minLength: 4)
 
-            if hasScores, let result = resultBadge {
+            if game.isFinalStatus, let result = resultBadge {
                 HStack(spacing: 6) {
                     Text(result.text)
                         .font(.caption.bold())
@@ -357,6 +400,18 @@ private struct TeamScheduleRow: View {
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
+            } else if isLive {
+                HStack(spacing: 6) {
+                    Text("LIVE")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.red)
+                    Text("\(awayScore ?? 0)–\(homeScore ?? 0)")
+                        .font(.subheadline.monospacedDigit())
+                }
+            } else if game.isCalledOff {
+                Text(game.calledOffKind?.rawValue ?? "Cancelled")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             } else if let date = game.standardDate {
                 GameTimeLabel(date: date)
                     .font(.caption2)

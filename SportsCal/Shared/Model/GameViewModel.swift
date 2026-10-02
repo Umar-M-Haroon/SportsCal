@@ -1664,7 +1664,13 @@ public class GameViewModel: NSObject {
                 // first score arrived.
                 tournamentName: scheduled.tournamentName ?? live.tournamentName,
                 round: scheduled.round ?? live.round,
-                drawSlug: scheduled.drawSlug ?? live.drawSlug
+                drawSlug: scheduled.drawSlug ?? live.drawSlug,
+                playoff: live.playoff ?? scheduled.playoff,
+                endDate: scheduled.endDate ?? live.endDate,
+                // The team page groups by these. Rebuilding without them sent a live
+                // playoff game back to "Regular Season" for the duration of the game.
+                season: scheduled.season ?? live.season,
+                seasonPhase: live.seasonPhase ?? scheduled.seasonPhase
             )
             changedByID[scheduled.id] = games[i]
         }
