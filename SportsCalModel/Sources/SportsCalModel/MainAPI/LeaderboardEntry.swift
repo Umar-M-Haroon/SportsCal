@@ -66,4 +66,51 @@ public struct EventSession: Codable, Equatable, Hashable {
     public var startDate: Date? {
         date.flatMap(DateParsers.parse)
     }
+
+    /// Full human name. ESPN sends sprint sessions as bare "SS"/"SR" codes with
+    /// the same code as the name, so derive from the type rather than trusting `sessionName`.
+    public var displayName: String {
+        switch sessionType.lowercased() {
+        case "fp1": "Free Practice 1"
+        case "fp2": "Free Practice 2"
+        case "fp3": "Free Practice 3"
+        case "qual", "qualifying": "Qualifying"
+        case "ss", "sq", "sprint qualifying", "sprint shootout": "Sprint Qualifying"
+        case "sr", "sprint": "Sprint"
+        case "race", "r": "Race"
+        default: sessionName.isEmpty ? sessionType : sessionName
+        }
+    }
+
+    /// Compact label for pills and tabs ("FP1", "Quali", "Sprint Q").
+    public var shortName: String {
+        switch sessionType.lowercased() {
+        case "qual", "qualifying": "Quali"
+        case "ss", "sq", "sprint qualifying", "sprint shootout": "Sprint Q"
+        case "sr", "sprint": "Sprint"
+        case "": sessionName.isEmpty ? "?" : sessionName
+        default: sessionType
+        }
+    }
+
+    /// Ranks by how much the session decides the weekend (race > sprint > quali > practice).
+    public var importance: Int {
+        switch sessionType.lowercased() {
+        case "race", "r": 6
+        case "sr", "sprint": 5
+        case "qual", "qualifying": 4
+        case "ss", "sq", "sprint qualifying", "sprint shootout": 3
+        case "fp3": 2
+        case "fp2": 1
+        default: 0
+        }
+    }
+
+    /// Practice and qualifying formats are ranked by best lap, not race time.
+    public var isTimedLapSession: Bool {
+        switch sessionType.lowercased() {
+        case "race", "r", "sr", "sprint": false
+        default: true
+        }
+    }
 }

@@ -191,7 +191,7 @@ struct SessionIndicatorStrip: View {
 
         HStack(spacing: 4) {
             statusGlyph(for: session)
-            Text(shortLabel(session.sessionType))
+            Text(session.shortName)
                 .font(.caption2)
                 .fontWeight(isLive || isFocused ? .bold : .regular)
             if isLive {
@@ -241,16 +241,6 @@ struct SessionIndicatorStrip: View {
         }
     }
 
-    /// Tidy short label for the pill (keeps it compact: "Quali" reads better than "Qual").
-    private func shortLabel(_ type: String) -> String {
-        switch type.lowercased() {
-        case "qual", "qualifying": return "Quali"
-        case "sprint qualifying", "sprint shootout", "sq", "ss": return "Sprint Q"
-        case "": return "?"
-        default: return type
-        }
-    }
-
     /// For a completed session that has a ranked result (qualifying / sprint / race), show the
     /// leader's surname so the green check has meaning. Practice sessions get no hint.
     private func resultHint(for session: EventSession) -> String? {
@@ -258,7 +248,7 @@ struct SessionIndicatorStrip: View {
               let leader = session.leaderboard.first else { return nil }
         switch session.sessionType.lowercased() {
         case "qual", "qualifying", "sprint qualifying", "sprint shootout", "sq", "ss",
-             "sprint", "race", "r":
+             "sprint", "sr", "race", "r":
             return leader.name.split(separator: " ").last.map(String.init) ?? leader.name
         default:
             return nil
