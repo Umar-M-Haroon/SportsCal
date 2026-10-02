@@ -117,10 +117,13 @@ struct TeamDetailView: View {
             #endif
             .task(id: schedule.anchorGameID) {
                 guard !didScrollToAnchor, let anchor = schedule.anchorGameID else { return }
-                didScrollToAnchor = true
-                // Let the List lay out its rows before asking it to scroll.
-                await Task.yield()
+                // Let the List lay out its rows before asking it to scroll. A single
+                // yield lands before the first layout pass on push, and a scrollTo
+                // against an unlaid-out List is a silent no-op, so wait a frame or two.
+                try? await Task.sleep(for: .milliseconds(80))
+                guard !Task.isCancelled else { return }
                 proxy.scrollTo(anchor, anchor: .center)
+                didScrollToAnchor = true
             }
         }
         .task(id: team.idTeam) { await loadDetail() }
@@ -406,7 +409,7 @@ private struct TeamScheduleRow: View {
                         .font(.subheadline.monospacedDigit())
                 }
             } else if game.isCalledOff {
-                Text(game.strStatus == "PST" ? "Postponed" : "Cancelled")
+                Text(game.calledOffKind?.rawValue ?? "Cancelled")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             } else if let date = game.standardDate {

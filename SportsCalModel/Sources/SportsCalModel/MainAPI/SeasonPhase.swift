@@ -131,7 +131,10 @@ public extension Leagues {
     func seasonLabel(for date: Date, calendar: Calendar = .current) -> String {
         let year = calendar.component(.year, from: date)
         let month = calendar.component(.month, from: date)
-        if sportsDBSingleYearSeason {
+        // WNBA and MLS run inside one calendar year too, but are fetched from ESPN,
+        // so `sportsDBSingleYearSeason` (which drives the TheSportsDB fetch) leaves
+        // them out. Both ESPN's `season.year` and TheSportsDB label them "2025".
+        if sportsDBSingleYearSeason || self == .wnba || self == .MLS {
             if self == .nfl, month < 3 { return "\(year - 1)" }
             return "\(year)"
         }

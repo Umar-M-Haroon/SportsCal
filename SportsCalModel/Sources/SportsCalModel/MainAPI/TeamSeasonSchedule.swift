@@ -120,6 +120,9 @@ public extension Game {
     /// completed flag.
     var isFinalStatus: Bool {
         if isCompleted == true { return true }
+        // ESPN files a postponed game as state "post" with 0–0 scores; without this
+        // it would render as a final tie and count one in the phase record.
+        if isCalledOff { return false }
         return [strStatus, strProgress].contains { status in
             guard let status else { return false }
             return Self.finalStatuses.contains(status) || status.hasPrefix("Final")
@@ -127,11 +130,34 @@ public extension Game {
     }
 
     /// Postponed, cancelled or abandoned — neither upcoming nor a result.
-    var isCalledOff: Bool {
-        guard let status = strStatus else { return false }
-        return Self.calledOffStatuses.contains(status)
+    ///
+    /// TheSportsDB puts it in `strStatus` (PST / CANC / ABD); ESPN leaves `strStatus`
+    /// at "post" and says "Postponed" / "Canceled" in `strProgress`.
+    var isCalledOff: Bool { calledOffKind != nil }
+
+    /// Which way the game was called off, for display.
+    var calledOffKind: CalledOffKind? {
+        for value in [strStatus, strProgress] {
+            guard let value, let kind = CalledOffKind(status: value) else { continue }
+            return kind
+        }
+        return nil
     }
 
     private static let finalStatuses: Set<String> = ["FT", "AOT", "AP", "AET", "PEN", "post", "Match Finished"]
-    private static let calledOffStatuses: Set<String> = ["PST", "CANC", "ABD", "Postponed", "Cancelled", "Abandoned"]
+}
+
+public enum CalledOffKind: String, Sendable {
+    case postponed = "Postponed"
+    case cancelled = "Cancelled"
+    case abandoned = "Abandoned"
+
+    init?(status: String) {
+        switch status.lowercased() {
+        case "pst", "postponed": self = .postponed
+        case "canc", "cancelled", "canceled": self = .cancelled
+        case "abd", "abandoned": self = .abandoned
+        default: return nil
+        }
+    }
 }

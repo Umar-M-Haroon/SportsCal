@@ -111,6 +111,10 @@ final class SeasonPhaseTests: XCTestCase {
         XCTAssertEqual(Leagues.mlb.seasonLabel(for: date(2026, 3), calendar: calendar), "2026")
         XCTAssertEqual(Leagues.nfl.seasonLabel(for: date(2027, 1), calendar: calendar), "2026")
         XCTAssertEqual(Leagues.nfl.seasonLabel(for: date(2026, 8), calendar: calendar), "2026")
+        // ESPN-only single-year leagues must match ESPN's `season.year` label, or a
+        // game that arrives without one starts a second "2026–27" season block.
+        XCTAssertEqual(Leagues.wnba.seasonLabel(for: date(2026, 8), calendar: calendar), "2026")
+        XCTAssertEqual(Leagues.MLS.seasonLabel(for: date(2026, 10), calendar: calendar), "2026")
 
         XCTAssertEqual(Leagues.nba.seasonLabel(espnYear: 2027), "2026-2027")
         XCTAssertEqual(Leagues.nfl.seasonLabel(espnYear: 2026), "2026")

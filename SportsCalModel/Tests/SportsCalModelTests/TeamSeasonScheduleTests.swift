@@ -7,9 +7,9 @@ final class TeamSeasonScheduleTests: XCTestCase {
     private func game(_ id: String, _ daysFromNow: Double, league: Leagues = .nba,
                       status: String? = nil, home: String = "Celtics", away: String = "Knicks",
                       score: (String, String)? = nil, season: String? = "2025-2026",
-                      phase: SeasonPhase? = nil) -> Game {
+                      phase: SeasonPhase? = nil, progress: String? = nil) -> Game {
         Game(idEvent: id, idLeague: "\(league.rawValue)", strHomeTeam: home, strAwayTeam: away,
-             intHomeScore: score?.0, intAwayScore: score?.1, strStatus: status,
+             intHomeScore: score?.0, intAwayScore: score?.1, strStatus: status, strProgress: progress,
              isoDate: now.addingTimeInterval(daysFromNow * 86_400),
              season: season, seasonPhase: phase)
     }
@@ -49,6 +49,27 @@ final class TeamSeasonScheduleTests: XCTestCase {
         XCTAssertTrue(game("x", -1, status: "AOT").isFinalStatus)
         XCTAssertTrue(game("x", -1, status: "post").isFinalStatus)
         XCTAssertTrue(game("x", -1, status: "Final/OT").isFinalStatus)
+    }
+
+    /// ESPN files a postponed game as state "post" with "Postponed" in the detail and
+    /// 0–0 scores; TheSportsDB uses PST/CANC/ABD in `strStatus`. Neither is a final.
+    func testCalledOffGamesAreNeitherFinalNorResults() {
+        let espnPostponed = game("x", -1, status: "post", score: ("0", "0"), progress: "Postponed")
+        XCTAssertFalse(espnPostponed.isFinalStatus)
+        XCTAssertEqual(espnPostponed.calledOffKind, .postponed)
+        XCTAssertEqual(game("x", -1, status: "post", progress: "Canceled").calledOffKind, .cancelled)
+        XCTAssertEqual(game("x", -1, status: "PST").calledOffKind, .postponed)
+        XCTAssertEqual(game("x", -1, status: "ABD").calledOffKind, .abandoned)
+        XCTAssertNil(game("x", -1, status: "post", progress: "Final").calledOffKind)
+
+        let games = [
+            game("w", -3, status: "FT", score: ("100", "90")),
+            espnPostponed,
+            game("n", 2, status: "NS"),
+        ]
+        let schedule = TeamSeasonSchedule(games: games, now: now)
+        XCTAssertEqual(schedule.seasons.last?.phases.first?.record(forTeamID: nil, teamNames: ["Celtics"]), "1–0",
+                       "a postponed 0–0 must not count as a tie")
     }
 
     func testAnchorsOnLiveGame() {
