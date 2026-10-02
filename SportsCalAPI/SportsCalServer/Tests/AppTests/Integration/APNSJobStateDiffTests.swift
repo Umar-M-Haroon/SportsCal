@@ -25,7 +25,8 @@ final class APNSJobStateDiffTests: XCTestCase {
     }
 
     private func registrationKey(_ token: String) -> String { "\(keyPrefix)\(token)" }
-    private func eventStateKey(_ eventID: String) -> String { "EventState-\(eventID)" }
+    /// Last-pushed state is kept per device (event + token).
+    private func eventStateKey(_ eventID: String) -> String { "EventState-\(eventID)-\(token)" }
 
     private func registerDevice(eventID: String, home: String? = nil, away: String? = nil) async throws {
         let registration = APNSRegistration(eventID: eventID, homeTeam: home, awayTeam: away)

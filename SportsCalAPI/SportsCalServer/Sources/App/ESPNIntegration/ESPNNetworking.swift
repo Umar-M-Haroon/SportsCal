@@ -651,6 +651,30 @@ class ESPNNetworking {
         }
     }
 
+    // MARK: - Team season stats with league ranks (core API)
+
+    /// The league's current season (`year` is ESPN's: 2027 for the NBA's 2026–27).
+    static func getCoreSeason(req: some Client, league: Leagues) async throws -> ESPNCoreSeason {
+        guard let slug = league.espnSlug else { throw NetworkError.invalidLeague }
+        let uri = URI(string: "https://sports.core.api.espn.com/v2/sports/\(league.sport)/leagues/\(slug)/season")
+        return try await performGet(req, uri).content.decode(ESPNCoreSeason.self)
+    }
+
+    /// A season's label ("2025-26"), for when the stats fall back to last season.
+    static func getCoreSeason(req: some Client, league: Leagues, year: Int) async throws -> ESPNCoreSeason {
+        guard let slug = league.espnSlug else { throw NetworkError.invalidLeague }
+        let uri = URI(string: "https://sports.core.api.espn.com/v2/sports/\(league.sport)/leagues/\(slug)/seasons/\(year)")
+        return try await performGet(req, uri).content.decode(ESPNCoreSeason.self)
+    }
+
+    /// One team's regular-season statistics with league ranks. Throws on 404, which is
+    /// what ESPN returns for a season with no games played yet.
+    static func getCoreTeamStatistics(req: some Client, league: Leagues, year: Int, espnTeamID: String) async throws -> ESPNCoreTeamStatistics {
+        guard let slug = league.espnSlug else { throw NetworkError.invalidLeague }
+        let uri = URI(string: "https://sports.core.api.espn.com/v2/sports/\(league.sport)/leagues/\(slug)/seasons/\(year)/types/2/teams/\(espnTeamID)/statistics")
+        return try await performGet(req, uri).content.decode(ESPNCoreTeamStatistics.self)
+    }
+
     // MARK: - Soccer Summary (per-event box score: team stats, lineups, key events)
 
     /// Fetches ESPN's per-event soccer summary, decoding only the box-score slice

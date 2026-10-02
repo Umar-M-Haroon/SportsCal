@@ -20,6 +20,8 @@ enum RedisEndpoint {
     case pushToStartTokenIndex(String) // "PushToStartTokenIndex-{token}" → installID
     case eventStateClaim(String, String) // "EventStateClaim-{eventID}-{stateHash}"
     case jobLock(String) // "JobLock-{name}"
+    case clutchAlert(String) // "ClutchAlert-{eventID}-{token}-{momentKey}"
+    case clutchAlertCount(String) // "ClutchAlertCount-{eventID}-{token}"
     enum SportsDB {
         case latestLiveInfo
         case latestFullLiveInfo
@@ -246,6 +248,10 @@ enum RedisEndpoint {
             return "EventStateClaim-\(eventID)-\(hash)"
         case .jobLock(let name):
             return "JobLock-\(name)"
+        case .clutchAlert(let key):
+            return "ClutchAlert-\(key)"
+        case .clutchAlertCount(let key):
+            return "ClutchAlertCount-\(key)"
         }
     }
     public var debugValue: RedisKey {
@@ -272,6 +278,10 @@ enum RedisEndpoint {
             return "debug-EventStateClaim-\(eventID)-\(hash)"
         case .jobLock(let name):
             return "debug-JobLock-\(name)"
+        case .clutchAlert(let key):
+            return "debug-ClutchAlert-\(key)"
+        case .clutchAlertCount(let key):
+            return "debug-ClutchAlertCount-\(key)"
         }
     }
     public func getValue(isDebug: Bool = false) -> RedisKey {

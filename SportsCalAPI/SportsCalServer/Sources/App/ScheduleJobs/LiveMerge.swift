@@ -24,6 +24,9 @@ enum LiveMerge {
     struct Result: Equatable {
         let liveScore: LiveScore
         let changedEventIDs: Set<String>
+        /// Games whose live situation (count, runners, down and distance) moved without a
+        /// score change. Worth publishing to the socket, not worth a push scan.
+        var situationChangedEventIDs: Set<String> = []
     }
 
     /// Back-compat entry point — same-source (ESPN) soccer overlay matched by `idEvent`.
@@ -50,7 +53,16 @@ enum LiveMerge {
             return Result(liveScore: cached, changedEventIDs: [])
         }
         let (merged, changed) = overlayEvents(bucket, fresh: fresh, strategy: strategy)
-        return Result(liveScore: replacing(cached, sport: sport, with: merged), changedEventIDs: changed)
+        // The overlay never adds, drops or reorders games, so old and new line up by index.
+        var situationChanged = Set<String>()
+        for (old, new) in zip(bucket, merged) where old.situation != new.situation {
+            if let id = new.idEvent, !changed.contains(id) { situationChanged.insert(id) }
+        }
+        return Result(
+            liveScore: replacing(cached, sport: sport, with: merged),
+            changedEventIDs: changed,
+            situationChangedEventIDs: situationChanged
+        )
     }
 
     /// Core overlay over a single bucket's events. Returns the merged events and the set of
@@ -72,7 +84,7 @@ enum LiveMerge {
                 || f.strStatus != game.strStatus
             if scoreChanged, let id = game.idEvent { changed.insert(id) }
 
-            return game.updated(
+            var merged = game.updated(
                 intHomeScore: f.intHomeScore,
                 intAwayScore: f.intAwayScore,
                 strStatus: f.strStatus,
@@ -83,8 +95,15 @@ enum LiveMerge {
                 homeLeaders: f.homeLeaders,
                 awayLeaders: f.awayLeaders,
                 isCompleted: f.isCompleted,
-                aggregateScore: f.aggregateScore
+                aggregateScore: f.aggregateScore,
+                // A source without situation data (most of them) keeps ESPN's from the
+                // last full fetch; one that has it (MLB statsapi) is fresher.
+                situation: f.situation
             )
+            // `updated` can't clear a field, and a game that just ended must not keep
+            // claiming two on and two out.
+            if f.strStatus != "in" { merged.situation = nil }
+            return merged
         }
         return (merged, changed)
     }

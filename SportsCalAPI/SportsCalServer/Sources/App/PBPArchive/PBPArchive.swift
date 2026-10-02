@@ -68,6 +68,13 @@ actor PBPArchive {
         _ = try await connection.query("""
             CREATE INDEX IF NOT EXISTS idx_pbp_archive_fetched ON pbp_archive(fetched_at)
         """).get()
+        // Added for win probability / team stats / excitement. SQLite has no
+        // "ADD COLUMN IF NOT EXISTS", so check the schema first; rows archived before
+        // the column existed read back with no extras.
+        let columns = try await connection.query("PRAGMA table_info(pbp_archive)").get()
+        if !columns.contains(where: { $0.column("name")?.string == "extras_json" }) {
+            _ = try await connection.query("ALTER TABLE pbp_archive ADD COLUMN extras_json BLOB").get()
+        }
         logger.info("PBP archive ready", metadata: ["path": "\(connection)"])
     }
 
@@ -84,6 +91,14 @@ actor PBPArchive {
         let playsData = try JSONEncoder().encode(cached.plays)
         var buffer = ByteBufferAllocator().buffer(capacity: playsData.count)
         buffer.writeBytes(playsData)
+        let extras = cached.extras
+        var extrasBind = SQLiteData.null
+        if !extras.isEmpty {
+            let extrasData = try JSONEncoder().encode(extras)
+            var extrasBuffer = ByteBufferAllocator().buffer(capacity: extrasData.count)
+            extrasBuffer.writeBytes(extrasData)
+            extrasBind = .blob(extrasBuffer)
+        }
 
         let binds: [SQLiteData] = [
             .text(espnEventID),
@@ -93,13 +108,14 @@ actor PBPArchive {
             cached.lastPlayId.isEmpty ? .null : .text(cached.lastPlayId),
             .integer(cached.isFinal ? 1 : 0),
             .integer(Int(cached.fetchedAt.timeIntervalSince1970)),
-            .blob(buffer)
+            .blob(buffer),
+            extrasBind
         ]
 
         _ = try await connection.query("""
             INSERT INTO pbp_archive
-                (espn_event_id, tsdb_event_id, sport, league, last_play_id, is_final, fetched_at, plays_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (espn_event_id, tsdb_event_id, sport, league, last_play_id, is_final, fetched_at, plays_json, extras_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(espn_event_id) DO UPDATE SET
                 tsdb_event_id = excluded.tsdb_event_id,
                 sport = excluded.sport,
@@ -107,7 +123,8 @@ actor PBPArchive {
                 last_play_id = excluded.last_play_id,
                 is_final = excluded.is_final,
                 fetched_at = excluded.fetched_at,
-                plays_json = excluded.plays_json
+                plays_json = excluded.plays_json,
+                extras_json = excluded.extras_json
         """, binds).get()
     }
 
@@ -117,7 +134,7 @@ actor PBPArchive {
     /// or nil if no row matches.
     func lookup(eventID: String) async throws -> CachedPlays? {
         let rows = try await connection.query("""
-            SELECT espn_event_id, tsdb_event_id, last_play_id, is_final, fetched_at, plays_json
+            SELECT espn_event_id, tsdb_event_id, last_play_id, is_final, fetched_at, plays_json, extras_json
             FROM pbp_archive
             WHERE espn_event_id = ? OR tsdb_event_id = ?
             LIMIT 1
@@ -163,13 +180,21 @@ actor PBPArchive {
         let lastPlayID = row.column("last_play_id")?.string ?? ""
         let isFinal = (row.column("is_final")?.integer ?? 0) != 0
         let fetchedSeconds = row.column("fetched_at")?.integer ?? 0
+        // Best-effort: a row from before the column existed, or an unreadable blob,
+        // still serves its plays.
+        let extras = row.column("extras_json")?.blob.flatMap {
+            try? JSONDecoder().decode(CachedPlaysExtras.self, from: Data($0.readableBytesView))
+        }
 
         return CachedPlays(
             eventID: clientEventID,
             lastPlayId: lastPlayID,
             plays: plays,
             isFinal: isFinal,
-            fetchedAt: Date(timeIntervalSince1970: TimeInterval(fetchedSeconds))
+            fetchedAt: Date(timeIntervalSince1970: TimeInterval(fetchedSeconds)),
+            winProbability: extras?.winProbability,
+            teamStats: extras?.teamStats,
+            excitement: extras?.excitement
         )
     }
 }

@@ -17,6 +17,9 @@ public struct ContentState: Codable, Hashable {
     var status: String?
     var progress: String?
     var lastPlay: String? = nil
+    /// Outs and runners, down and distance, win probability. Optional so builds that
+    /// predate it decode the payload fine; they just don't show the strip.
+    var situation: LiveActivitySituation? = nil
 
     /// Deterministic content hash, safe to share across processes. Swift's
     /// `Hashable.hashValue` uses a per-process random seed and cannot be used

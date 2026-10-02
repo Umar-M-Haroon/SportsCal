@@ -24,7 +24,7 @@ Run this checklist against a dev server (`.development` env) before shipping any
 4. Tap "Transition to live" (uses `DebugGameFactory.transitionToLive()` under the hood).
 5. **Assert:** push-to-start notification arrives within 30s; Lock Screen shows the activity; Dynamic Island shows compact/expanded representations.
 6. Tap "Simulate score +7 home"; **assert:** Lock Screen updates within the next `APNSJob` tick (≤ 60s) and Dynamic Island follows.
-7. Tap "Force final status"; **assert:** end push arrives; activity dismisses via the dismissal policy; `debug-APNS-{token}` and `debug-EventState-{eventID}` are removed from Redis (verify via Admin → Redis Viewer).
+7. Tap "Force final status"; **assert:** end push arrives; activity dismisses via the dismissal policy; `debug-APNS-{token}` and `debug-EventState-{eventID}-{token}` are removed from Redis (verify via Admin → Redis Viewer).
 
 ### 2. Relaunch with an active activity
 

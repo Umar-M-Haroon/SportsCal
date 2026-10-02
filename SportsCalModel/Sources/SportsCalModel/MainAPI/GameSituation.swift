@@ -229,3 +229,54 @@ public extension GameSituation {
         (value * 1000).rounded() / 1000
     }
 }
+
+// MARK: - Live Activity
+
+/// The slice of a `GameSituation` a Live Activity shows, sent in its push payload.
+///
+/// Deliberately coarser than the full situation: every change here is a push, and a
+/// Live Activity that updates on every pitch gets throttled by iOS. So it carries outs
+/// and runners but not the count, the down-and-distance line but not the clock, and win
+/// probability in whole percent.
+public struct LiveActivitySituation: Codable, Hashable, Sendable {
+    public var outs: Int?
+    /// Runners as a bitmask: 1 = first, 2 = second, 4 = third.
+    public var bases: Int?
+    /// "3rd & 4 at KC 32"
+    public var downDistance: String?
+    public var possession: GameSituation.Side?
+    public var redZone: Bool?
+    /// Home win probability, 0...100.
+    public var homeWinPct: Int?
+
+    public init(outs: Int? = nil, bases: Int? = nil, downDistance: String? = nil,
+                possession: GameSituation.Side? = nil, redZone: Bool? = nil, homeWinPct: Int? = nil) {
+        self.outs = outs
+        self.bases = bases
+        self.downDistance = downDistance
+        self.possession = possession
+        self.redZone = redZone
+        self.homeWinPct = homeWinPct
+    }
+
+    /// Nil when there's nothing worth showing.
+    public init?(_ situation: GameSituation?) {
+        guard let s = situation else { return nil }
+        self.init()
+        if s.hasBaseballState {
+            outs = s.outs
+            bases = (s.onFirst == true ? 1 : 0) | (s.onSecond == true ? 2 : 0) | (s.onThird == true ? 4 : 0)
+        }
+        if s.hasFootballState {
+            downDistance = s.downDistanceText ?? s.shortDownDistanceText
+            possession = s.possession
+            redZone = s.isRedZone == true ? true : nil
+        }
+        homeWinPct = s.homeWinProbability.map { Int(($0 * 100).rounded()) }
+        if outs == nil, bases == nil, downDistance == nil, possession == nil, homeWinPct == nil { return nil }
+    }
+
+    public var onFirst: Bool { (bases ?? 0) & 1 != 0 }
+    public var onSecond: Bool { (bases ?? 0) & 2 != 0 }
+    public var onThird: Bool { (bases ?? 0) & 4 != 0 }
+}

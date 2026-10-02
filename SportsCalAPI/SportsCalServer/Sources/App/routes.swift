@@ -1154,6 +1154,29 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return encodeResult(res: detail)
     }
 
+    // Team season stats with league ranks ("3rd in points per game") for the team page.
+    // `:teamID` is a TheSportsDB idTeam; `league` (query) is its idLeague, needed because
+    // the ESPN ID map shares one "nba" bucket across NBA, WNBA and NCAA teams. 404 for a
+    // league without ranks (soccer) or a team ESPN doesn't know. Cached 6h.
+    routes.get("team", ":teamID", "season-stats") { req async throws -> String in
+        guard let teamID = req.parameters.get("teamID"), !teamID.isEmpty,
+              let leagueRaw = req.query[Int.self, at: "league"],
+              let league = Leagues(rawValue: leagueRaw) else {
+            throw Abort(.badRequest)
+        }
+        guard !TeamSeasonStats.specs(for: league).isEmpty else { throw Abort(.notFound) }
+        let isDebug = req.application.environment == .development
+        let cacheKey: RedisKey = isDebug ? "debug-Team Season Stats-\(league.rawValue)-\(teamID)" : "Team Season Stats-\(league.rawValue)-\(teamID)"
+        if let cached = try? await req.application.redis.get(cacheKey, asJSON: TeamSeasonStats.self) {
+            return encodeResult(res: cached)
+        }
+        guard let stats = await TeamSeasonStatsResolver.resolve(app: req.application, teamID: teamID, league: league, isDebug: isDebug) else {
+            throw Abort(.notFound)
+        }
+        try? await req.application.redis.setex(cacheKey, toJSON: stats, expirationInSeconds: 60 * 60 * 6).get()
+        return encodeResult(res: stats)
+    }
+
     // Per-match box score (team stats, lineups, goal/card/sub timeline) — fetched
     // lazily from ESPN's per-event summary and cached briefly so a live match stays
     // fresh while finals aren't re-fetched on every detail open. Returns 404 when ESPN
@@ -1548,7 +1571,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 homeSeed: game.homeSeed,
                 awaySeed: game.awaySeed,
                 playoff: game.playoff,
-                season: game.season, seasonPhase: game.seasonPhase
+                season: game.season, seasonPhase: game.seasonPhase,
+                situation: game.situation, excitement: game.excitement
             )
         }
 

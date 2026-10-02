@@ -787,7 +787,9 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 playoff: espnGame.playoff ?? scheduleGame.playoff,
                 season: scheduleGame.season ?? espnGame.season,
                 // ESPN's season.type is authoritative; TheSportsDB's round codes are the fallback.
-                seasonPhase: espnGame.seasonPhase ?? scheduleGame.seasonPhase
+                seasonPhase: espnGame.seasonPhase ?? scheduleGame.seasonPhase,
+                situation: espnGame.situation,
+                excitement: espnGame.excitement ?? scheduleGame.excitement
             )
         }
 

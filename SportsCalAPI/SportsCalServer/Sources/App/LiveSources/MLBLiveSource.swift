@@ -102,7 +102,8 @@ struct MLBGame: Content {
             strProgress: progress,
             strTimestamp: gameDate,
             isCompleted: completed,
-            isoDate: nil
+            isoDate: nil,
+            situation: strStatus == "in" ? linescore?.situation : nil
         )
     }
 }
@@ -129,4 +130,51 @@ struct MLBTeamRef: Content {
 struct MLBLinescore: Content {
     let currentInning: Int?
     let inningState: String?
+    let balls: Int?
+    let strikes: Int?
+    let outs: Int?
+    let offense: MLBOffense?
+    let defense: MLBDefense?
+
+    /// Count, outs, runners and matchup — fresher than ESPN's, which only arrives on the
+    /// slow pipeline. statsapi publishes no win probability; ESPN's stays until replaced.
+    var situation: GameSituation? {
+        guard let currentInning else { return nil }
+        return GameSituation(
+            period: currentInning,
+            inningHalf: inningState.flatMap { GameSituation.inningHalf(from: $0) },
+            balls: balls,
+            strikes: strikes,
+            outs: outs,
+            onFirst: offense?.first != nil,
+            onSecond: offense?.second != nil,
+            onThird: offense?.third != nil,
+            batter: offense?.batter?.shortName,
+            pitcher: defense?.pitcher?.shortName
+        )
+    }
+}
+
+struct MLBOffense: Content {
+    let batter: MLBPerson?
+    let first: MLBPerson?
+    let second: MLBPerson?
+    let third: MLBPerson?
+}
+
+struct MLBDefense: Content {
+    let pitcher: MLBPerson?
+}
+
+struct MLBPerson: Content {
+    let id: Int?
+    let fullName: String?
+
+    /// "Carson Benge" → "C. Benge", matching ESPN's short names.
+    var shortName: String? {
+        guard let fullName else { return nil }
+        let parts = fullName.split(separator: " ")
+        guard parts.count >= 2, let initial = parts.first?.first else { return fullName }
+        return "\(initial). \(parts.dropFirst().joined(separator: " "))"
+    }
 }

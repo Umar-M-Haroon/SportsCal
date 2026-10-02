@@ -192,15 +192,21 @@ struct APNSJob: AsyncScheduledJob {
         let tokenString = tokenFromKey(key, prefix: keyPrefix)
         let now = Int(clock.now.timeIntervalSince1970)
 
+        // What this device was last sent. Per device, not per game: with one key per game,
+        // the first device to be processed recorded the new state and every device after it
+        // compared equal and was skipped — only the first eight (the send concurrency) on
+        // any one game ever got an update.
+        let stateKey = RedisEndpoint.eventState(event.id + "-" + tokenString).getValue(isDebug: isDebug).rawValue
+
         if !event.hasDoneStatus {
             let contentState = ContentState(
                 homeScore: homeScore,
                 awayScore: awayScore,
                 status: event.strStatus,
                 progress: event.strProgress,
-                lastPlay: event.lastPlay
+                lastPlay: event.lastPlay,
+                situation: LiveActivitySituation(event.situation)
             )
-            let stateKey = RedisEndpoint.eventState(event.id).getValue(isDebug: isDebug).rawValue
             let savedState = try? await kv.getJSON(stateKey, as: ContentState.self)
             guard savedState != contentState else { return }
             // Atomic per-(token, eventID, contentState) claim: only one server
@@ -220,7 +226,15 @@ struct APNSJob: AsyncScheduledJob {
             // If the score went up versus the last state we pushed, send an
             // *alerting* update so the device vibrates / banners on the lock
             // screen. Clock ticks and status changes stay silent.
-            let goalAlert = scoreAlert(event: event, homeScore: homeScore, awayScore: awayScore, previous: savedState)
+            var alert = scoreAlert(event: event, homeScore: homeScore, awayScore: awayScore, previous: savedState)
+            // No score? Maybe a moment worth looking up for: the tying run at the plate,
+            // a one-score game in the red zone. Each moment alerts a device once.
+            if alert == nil,
+               let moment = clutchMoment(event: event, homeScore: homeScore, awayScore: awayScore, previous: savedState),
+               await claimClutchAlert(moment, eventID: event.id, token: tokenString, kv: kv, isDebug: isDebug) {
+                alert = LiveActivityAlert(title: moment.title, body: moment.body)
+                logger.info("Clutch alert for \(event.id) → \(tokenString.prefix(8))...: \(moment.kind.rawValue)")
+            }
             do {
                 // On badDeviceToken, retry the opposite gateway: the update token
                 // inherits the same env mislabeling as the push-to-start token, so
@@ -231,7 +245,7 @@ struct APNSJob: AsyncScheduledJob {
                         appID: "com.KomodoLLC.SportsCal",
                         contentState: contentState,
                         isFinal: false,
-                        alert: goalAlert,
+                        alert: alert,
                         timestamp: now,
                         environment: env
                     )
@@ -291,7 +305,6 @@ struct APNSJob: AsyncScheduledJob {
                 logger.error("Failed to send APNS end for \(event.id) [\(environment.rawValue)]: \(error)")
                 await metrics?.recordError(.other)
             }
-            let stateKey = RedisEndpoint.eventState(event.id).getValue(isDebug: isDebug).rawValue
             _ = try? await kv.delete([key, stateKey])
         }
     }
@@ -325,6 +338,33 @@ struct APNSJob: AsyncScheduledJob {
         }
         let body = "\(event.strHomeTeam) \(homeScore) – \(awayScore) \(event.strAwayTeam)"
         return LiveActivityAlert(title: title, body: body)
+    }
+
+    /// Most clutch alerts one device gets for one game. The rules are narrow, but extra
+    /// innings or a back-and-forth fourth quarter can string several together.
+    static let maxClutchAlertsPerGame = 4
+
+    /// The clutch moment in `event` right now, if any. See `ClutchMoment`.
+    static func clutchMoment(event: Game, homeScore: Int, awayScore: Int, previous: ContentState?) -> ClutchMoment? {
+        guard let sport = event.sportType, let situation = event.situation else { return nil }
+        // Only win probability is needed from before, to spot the favourite flipping.
+        let before = previous?.situation?.homeWinPct.map { GameSituation(homeWinProbability: Double($0) / 100) }
+        return ClutchMoment.detect(
+            sport: sport, situation: situation, previous: before,
+            homeScore: homeScore, awayScore: awayScore,
+            homeName: event.strHomeTeam, awayName: event.strAwayTeam
+        )
+    }
+
+    /// Claims the right to alert this device about `moment`: once per moment, and at
+    /// most `maxClutchAlertsPerGame` per game. Atomic, so concurrent jobs can't both win.
+    static func claimClutchAlert(_ moment: ClutchMoment, eventID: String, token: String, kv: KeyValueStore, isDebug: Bool) async -> Bool {
+        let ttl: TimeInterval = 60 * 60 * 12
+        let momentKey = RedisEndpoint.clutchAlert("\(eventID)-\(token)-\(moment.key)").getValue(isDebug: isDebug).rawValue
+        guard (try? await kv.setIfAbsent(momentKey, value: "1", ttl: ttl)) == true else { return false }
+        let countKey = RedisEndpoint.clutchAlertCount("\(eventID)-\(token)").getValue(isDebug: isDebug).rawValue
+        let count = (try? await kv.increment(countKey, ttl: ttl)) ?? .max
+        return count <= maxClutchAlertsPerGame
     }
 
     /// Parses the Redis value into a registration. Supports both the JSON shape
