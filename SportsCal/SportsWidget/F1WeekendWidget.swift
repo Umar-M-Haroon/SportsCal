@@ -82,9 +82,7 @@ struct F1WeekendProvider: TimelineProvider {
             guard let sessions = game.sessions else { return false }
             return sessions.contains { session in
                 if let status = session.status?.lowercased(), status == "in" { return true }
-                if let dateStr = session.date,
-                   let sessionDate = DateFormatters.isoFormatter.date(from: dateStr),
-                   sessionDate > now { return true }
+                if let sessionDate = session.startDate, sessionDate > now { return true }
                 return false
             }
         } ?? racingGames.first
@@ -186,7 +184,7 @@ struct F1WeekendWidgetView: View {
                 .frame(width: 40, alignment: .leading)
 
             // Date/time
-            if let dateStr = session.date, let date = DateFormatters.isoFormatter.date(from: dateStr) {
+            if let date = session.startDate {
                 if sessionState == .upcoming {
                     Text(date, style: .relative)
                         .font(.system(size: 9))
@@ -216,9 +214,7 @@ struct F1WeekendWidgetView: View {
             if status == "in" { return .live }
             if status == "post" { return .completed }
         }
-        if let dateStr = session.date,
-           let date = DateFormatters.isoFormatter.date(from: dateStr),
-           date < Date() {
+        if let date = session.startDate, date < Date() {
             return .completed
         }
         return .upcoming

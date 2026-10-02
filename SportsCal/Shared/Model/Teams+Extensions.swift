@@ -73,9 +73,7 @@ extension Game {
     /// For multi-session events (F1), returns the last session's date (e.g. Race day)
     /// so the event appears under the correct day. Falls back to standardDate.
     var effectiveEndDate: Date? {
-        if let sessions = sessions, !sessions.isEmpty,
-           let lastDateStr = sessions.last?.date,
-           let lastDate = DateFormatters.isoFormatter.date(from: lastDateStr) {
+        if let lastDate = sessions?.last?.startDate {
             return lastDate
         }
         // A golf tournament's final round, so "hide past events" doesn't drop it on Friday.
@@ -133,10 +131,7 @@ extension Game {
         guard let sessions = sessions, !sessions.isEmpty else {
             return [standardDate].compactMap { $0 }
         }
-        return sessions.compactMap { session in
-            guard let dateStr = session.date else { return nil }
-            return DateFormatters.isoFormatter.date(from: dateStr)
-        }
+        return sessions.compactMap(\.startDate)
     }
 
     /// User-facing status text. Prefers `strProgress` (e.g. "6:43 - 3rd", "Final Round"),
@@ -202,9 +197,7 @@ extension Game {
                 return status != "post" && status != "in"
             }
             .compactMap { session -> (EventSession, Date)? in
-                guard let dateStr = session.date,
-                      let date = DateFormatters.isoFormatter.date(from: dateStr),
-                      date > now else { return nil }
+                guard let date = session.startDate, date > now else { return nil }
                 return (session, date)
             }
             .min { $0.1 < $1.1 }?.0
@@ -234,9 +227,7 @@ extension Game {
         if raceSessionEntry?.status?.lowercased() == "post" {
             return .finished
         }
-        if let next = nextUpcomingSession,
-           let dateStr = next.date,
-           let date = DateFormatters.isoFormatter.date(from: dateStr) {
+        if let next = nextUpcomingSession, let date = next.startDate {
             return .upcoming(label: sessionDisplayName(next.sessionType), date: date)
         }
         return .none

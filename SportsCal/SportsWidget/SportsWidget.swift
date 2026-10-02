@@ -100,7 +100,7 @@ struct SportsView: View {
                 .foregroundColor(type.widgetColor)
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 1) {
-                if let date = DateFormatters.isoFormatter.date(from: gameDate) {
+                if let date = DateParsers.parse(gameDate) {
                     HStack(spacing: 4) {
                         Text(date.formatted(.dateTime.hour().minute()))
                         if date > Date() {

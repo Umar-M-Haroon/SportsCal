@@ -59,4 +59,11 @@ public struct EventSession: Codable, Equatable, Hashable {
         self.date = date
         self.leaderboard = leaderboard
     }
+
+    /// When the session starts. ESPN sends minute precision ("2026-10-04T07:00Z"),
+    /// which `ISO8601DateFormatter` rejects outright — parse through `DateParsers`,
+    /// never a bare ISO formatter, or every session date silently comes back nil.
+    public var startDate: Date? {
+        date.flatMap(DateParsers.parse)
+    }
 }
