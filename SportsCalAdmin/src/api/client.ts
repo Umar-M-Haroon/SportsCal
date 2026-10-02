@@ -10,7 +10,8 @@ import type {
   ForceRefreshResponse,
   TriggerJobResponse,
   LiveScore,
-  Team
+  Team,
+  TelemetryResponse
 } from './types'
 
 class ApiClient {
@@ -45,10 +46,10 @@ class ApiClient {
     return this.fetch<MetricsResponse>('/api/admin/metrics')
   }
 
-  // Per-day telemetry counters: { event -> { epochDay -> count } }.
-  // Includes the client.* monetization funnel events.
-  async getTelemetry(): Promise<{ counters: Record<string, Record<string, number>> }> {
-    return this.fetch('/api/admin/telemetry')
+  // Per-day telemetry counters (legacy + per-channel), dimension breakouts,
+  // DAU/WAU/MAU and unique-install funnel counts over the trailing `days`.
+  async getTelemetry(days = 14): Promise<TelemetryResponse> {
+    return this.fetch<TelemetryResponse>(`/api/admin/telemetry?days=${days}`)
   }
 
   async getRedisKeys(): Promise<RedisKeysResponse> {

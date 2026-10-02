@@ -182,7 +182,11 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     // it doesn't collapse into the `strLeague` ("ATP Tour"/"WTA Tour") bucket.
                     tournamentName: league.isTennis ? event.name : nil,
                     playoff: playoff,
-                    lastPlayScoreboardID: competition.situation?.lastPlay?.id
+                    lastPlayScoreboardID: competition.situation?.lastPlay?.id,
+                    season: league.hasSeasonPhases ? event.season?.year.flatMap(league.seasonLabel(espnYear:)) : nil,
+                    seasonPhase: league.hasSeasonPhases
+                        ? (event.season?.type.flatMap(SeasonPhase.init(espnSeasonType:)) ?? (isPlayoff ? .postseason : nil))
+                        : nil
                 )]
             }
 
@@ -386,7 +390,25 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         return 4 // fallback
                     }
                 }()
-                let derivedCoursePar = holePars?.reduce(0, +)
+                // Par from completed rounds' strokes vs. to-par (every tour's board carries
+                // these). The hole sum is only a fallback, and only for a full 18: summed over
+                // a round still in progress it's the par of the holes played so far.
+                let completedRounds: Int = {
+                    let current = competition.status?.period ?? event.status?.period ?? 0
+                    return golfState == "post" ? current : current - 1
+                }()
+                let roundPar = GolfPar.inferred(fromRounds: (competition.competitors ?? []).flatMap { competitor in
+                    (competitor.linescores ?? [])
+                        .filter { ($0.period ?? .max) <= completedRounds }
+                        .map { (strokes: $0.value, toPar: $0.displayValue) }
+                })
+                // Range-checked like the inferred par: on a Stableford board (Barracuda) a hole's
+                // `value` is points, so the "par" summed from it lands near 12.
+                let derivedCoursePar = roundPar ?? holePars.flatMap { pars -> Int? in
+                    guard pars.count == 18 else { return nil }
+                    let sum = pars.reduce(0, +)
+                    return GolfPar.plausiblePar.contains(sum) ? sum : nil
+                }
 
                 // Build course info if we have hole data
                 let courseInfo: GolfCourseInfo? = {
@@ -656,7 +678,7 @@ public enum DateParsers {
 
 // MARK: - Event
 public struct Game: Identifiable, Equatable, Hashable {
-    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil, round: String? = nil, drawSlug: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil, endDate: String? = nil) {
+    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil, round: String? = nil, drawSlug: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil, endDate: String? = nil, season: String? = nil, seasonPhase: SeasonPhase? = nil, sportsDBRound: Int? = nil) {
         self.idLiveScore = idLiveScore
         self.idEvent = idEvent
         self._strSport = strSport
@@ -701,6 +723,9 @@ public struct Game: Identifiable, Equatable, Hashable {
         self.raceTiming = raceTiming
         self.playoff = playoff
         self.lastPlayScoreboardID = lastPlayScoreboardID
+        self.season = season
+        self.seasonPhase = seasonPhase
+        self.sportsDBRound = sportsDBRound
         // Pre-compute date from strTimestamp if isoDate not provided
         if let isoDate {
             self.isoDate = isoDate
@@ -783,6 +808,17 @@ public struct Game: Identifiable, Equatable, Hashable {
     /// or sent to clients — absent from Codable keys on purpose.
     public let lastPlayScoreboardID: String?
 
+    /// The season this game belongs to, in TheSportsDB's label format: "2025-2026", or
+    /// "2025" for single-year leagues. Sent as `strSeason`, TheSportsDB's own key, so
+    /// schedule rows carry it straight through. Read ``resolvedSeason`` for display.
+    public var season: String?
+    /// Preseason / regular season / play-in / playoffs, for leagues that have them.
+    /// `.regular` is omitted on the wire — read ``resolvedSeasonPhase``.
+    public var seasonPhase: SeasonPhase?
+    /// TheSportsDB `intRound`, decoded on ingest so ``SeasonPhase/assignPhases(_:league:)``
+    /// can derive `seasonPhase`. Never encoded.
+    public let sportsDBRound: Int?
+
     // MARK: - Computed Properties (derived from idLeague)
     // Private storage for backward compatibility when decoding old data
     private let _strSport: String?
@@ -821,6 +857,9 @@ extension Game: Codable {
         case homeInjuries, awayInjuries
         case raceTiming
         case playoff
+        case strSeason, seasonPhase
+        // TheSportsDB schedule round — decoded on ingest, never encoded
+        case intRound
         // Computed properties - decoded for backward compatibility, not encoded
         case strSport, strLeague
         // Individual sport fallback (golf/tennis have null strHomeTeam/strAwayTeam)
@@ -880,6 +919,17 @@ extension Game: Codable {
         awayInjuries = try container.decodeIfPresent([InjuryReport].self, forKey: .awayInjuries)
         raceTiming = try container.decodeIfPresent(F1RaceTiming.self, forKey: .raceTiming)
         playoff = try container.decodeIfPresent(PlayoffContext.self, forKey: .playoff)
+        season = try container.decodeIfPresent(String.self, forKey: .strSeason)
+        // Lenient: an unknown phase from a newer server must not fail the whole game.
+        seasonPhase = (try? container.decodeIfPresent(String.self, forKey: .seasonPhase))
+            .flatMap { $0.flatMap(SeasonPhase.init(rawValue:)) }
+        // TheSportsDB sends intRound as a string ("500"); accept a number too.
+        if let round = try? container.decodeIfPresent(Int.self, forKey: .intRound) {
+            sportsDBRound = round
+        } else {
+            sportsDBRound = (try? container.decodeIfPresent(String.self, forKey: .intRound))
+                .flatMap { $0.flatMap { Int($0) } }
+        }
         // Transient server-side field, not persisted
         lastPlayScoreboardID = nil
         // Decode for backward compatibility with old cached data
@@ -937,6 +987,12 @@ extension Game: Codable {
         try container.encodeIfPresent(awayInjuries, forKey: .awayInjuries)
         try container.encodeIfPresent(raceTiming, forKey: .raceTiming)
         try container.encodeIfPresent(playoff, forKey: .playoff)
+        try container.encodeIfPresent(season, forKey: .strSeason)
+        // `.regular` is the default reading of a missing phase — skip it to keep the
+        // schedule payload small.
+        if let seasonPhase, seasonPhase != .regular {
+            try container.encode(seasonPhase.rawValue, forKey: .seasonPhase)
+        }
         // Note: strSport and strLeague are not encoded - they're computed from idLeague
         // Deprecated fields are not encoded: strPlayer, idPlayer, intEventScore,
         // intEventScoreTotal, strEventTime, dateEvent, updated
@@ -1167,15 +1223,13 @@ extension Game {
         eventTier == .major
     }
 
-    /// Course par — from enrichment data when available, falling back to hardcoded majors
+    /// Course par: from the feed (ESPN's course summary, or inferred from completed rounds —
+    /// see `GolfPar.inferred`) when we have it, else the Masters' fixed par. Nil otherwise:
+    /// the views that use it fall back to raw strokes rather than guess at a to-par.
     public var coursePar: Int? {
         if let par = golfCourseInfo?.par { return par }
-        let name = strHomeTeam.lowercased()
-        if name.contains("masters") { return 72 }
-        if name.contains("pga championship") { return 72 }
-        if name.contains("u.s. open") || name.contains("us open") { return 70 }
-        if name.contains("the open") { return 72 }
-        return nil
+        if let sport = sportType, sport != .golf { return nil }
+        return GolfPar.fixedVenuePar(eventName: strHomeTeam, tour: golfTour)
     }
 
     public var sportType: SportType? {
@@ -1314,7 +1368,10 @@ public extension Game {
             raceTiming: raceTiming ?? self.raceTiming,
             playoff: playoff ?? self.playoff,
             lastPlayScoreboardID: lastPlayScoreboardID ?? self.lastPlayScoreboardID,
-            endDate: endDate ?? self.endDate
+            endDate: endDate ?? self.endDate,
+            season: self.season,
+            seasonPhase: self.seasonPhase,
+            sportsDBRound: self.sportsDBRound
         )
     }
 }

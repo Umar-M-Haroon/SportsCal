@@ -3,8 +3,10 @@
 //  SportsCal
 //
 //  A team profile screen: badge + name header with recent form, a follow toggle, the
-//  next (or live) game, the team's schedule and results derived from the games already
-//  loaded into GameViewModel, its league table, team alerts, and profile/roster.
+//  next (or live) game, and the team's schedule — every loaded game, grouped season →
+//  phase (preseason / regular season / play-in / playoffs) in date order, opened
+//  scrolled to the current game — plus its league table, team alerts, and
+//  profile/roster. Built from the games already loaded into GameViewModel.
 //
 //  Reached via `.navigationDestination(for: Team.self)` or a view-destination link.
 //  Everything this screen pushes (games, opponents) goes through item-based
@@ -36,7 +38,9 @@ struct TeamDetailView: View {
     @State private var didLoadStandings = false
     @State private var showFullTable = false
 
-    @State private var showAllUpcoming = false
+    /// Scroll to the current game once, when the schedule first has one — never again,
+    /// or every live-score tick would yank the list back.
+    @State private var didScrollToAnchor = false
     @State private var teamAlertsOn = false
     /// Set by NotifyButton's per-game reminder gate and by the team-alert gate.
     @State private var shouldShowSportsCalProAlert = false
@@ -45,8 +49,6 @@ struct TeamDetailView: View {
     @State private var sheetType: SheetType?
     @State private var selectedGameID: String?
     @State private var selectedOpponent: Team?
-
-    private static let upcomingPreviewCount = 10
 
     private var isFavorited: Bool { favorites.contains(team: team) }
 
@@ -60,68 +62,66 @@ struct TeamDetailView: View {
             games: viewModel.totalGames ?? [],
             liveEvents: viewModel.liveEvents
         )
+        let seasons = TeamSeasonSchedule(games: schedule.allGames)
 
-        List {
-            Section {
-                header(schedule)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-            }
-
-            if let featured = schedule.live.first ?? schedule.upcoming.first {
-                Section(schedule.live.isEmpty ? "Next Game" : "Live Now") {
-                    nextGameCard(featured, isLive: !schedule.live.isEmpty)
+        ScrollViewReader { proxy in
+            List {
+                Section {
+                    header(schedule)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
-            }
 
-            if schedule.live.count > 1 {
-                Section("Also Live") {
-                    ForEach(schedule.live.dropFirst()) { gameRow($0) }
-                }
-            }
-
-            // The first upcoming game is already the "Next Game" card unless a live
-            // game took that slot.
-            let remainingUpcoming = schedule.live.isEmpty ? Array(schedule.upcoming.dropFirst()) : schedule.upcoming
-            if !remainingUpcoming.isEmpty {
-                Section("Upcoming") {
-                    let shown = showAllUpcoming ? remainingUpcoming : Array(remainingUpcoming.prefix(Self.upcomingPreviewCount))
-                    ForEach(shown) { gameRow($0) }
-                    if remainingUpcoming.count > Self.upcomingPreviewCount {
-                        Button(showAllUpcoming ? "Show Less" : "Show All \(remainingUpcoming.count)") {
-                            withAnimation { showAllUpcoming.toggle() }
-                        }
-                        .font(.subheadline)
+                if let featured = schedule.live.first ?? schedule.next {
+                    Section(schedule.live.isEmpty ? "Next Game" : "Live Now") {
+                        nextGameCard(featured, isLive: !schedule.live.isEmpty)
                     }
                 }
-            }
 
-            if !schedule.results.isEmpty {
-                Section("Recent Results") {
-                    ForEach(schedule.results.prefix(20)) { gameRow($0) }
+                ForEach(seasons.seasons) { season in
+                    ForEach(season.phases) { group in
+                        Section {
+                            ForEach(group.games) { game in
+                                gameRow(game)
+                                    .id(game.id)
+                            }
+                        } header: {
+                            phaseHeader(season: season, group: group)
+                        }
+                    }
                 }
-            }
 
-            if schedule.isEmpty {
-                Section {
-                    ContentUnavailableView(
-                        "No Games Scheduled",
-                        systemImage: "calendar.badge.exclamationmark",
-                        description: Text("There are no loaded games for this team right now.")
-                    )
+                if seasons.isEmpty {
+                    Section {
+                        ContentUnavailableView(
+                            "No Games Scheduled",
+                            systemImage: "calendar.badge.exclamationmark",
+                            description: Text("There are no loaded games for this team right now.")
+                        )
+                    }
                 }
+
+                standingsSection
+
+                alertsSection
+
+                rosterAndInfoSections(record: schedule.record)
             }
-
-            standingsSection
-
-            alertsSection
-
-            rosterAndInfoSections(record: schedule.record)
+            #if os(iOS)
+            .listStyle(.insetGrouped)
+            #endif
+            .task(id: seasons.anchorGameID) {
+                guard !didScrollToAnchor, let anchor = seasons.anchorGameID else { return }
+                // Let the List lay out its rows before asking it to scroll. A single
+                // yield lands before the first layout pass on push, and a scrollTo
+                // against an unlaid-out List is a silent no-op, so wait a frame or two.
+                try? await Task.sleep(for: .milliseconds(80))
+                guard !Task.isCancelled else { return }
+                proxy.scrollTo(anchor, anchor: .center)
+                didScrollToAnchor = true
+            }
         }
-        #if os(iOS)
-        .listStyle(.insetGrouped)
-        #endif
         .task(id: team.idTeam) { await loadDetail() }
         .task(id: schedule.primaryLeague?.rawValue) { await loadStandings(league: schedule.primaryLeague) }
         .onAppear { teamAlertsOn = alertableTeamID.map { viewModel.appStorage.teamAlertTeamIDs.contains($0) } ?? false }
@@ -222,6 +222,38 @@ struct TeamDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
+    }
+
+    // MARK: - Section headers
+
+    private var teamNames: Set<String> {
+        Set([team.strTeam, team.strAlternate].compactMap { $0 })
+    }
+
+    /// The phase name and this team's record in it; the first phase of each season also
+    /// carries the season title, so a season reads as one block.
+    @ViewBuilder
+    private func phaseHeader(season: TeamSeasonSchedule.SeasonGroup,
+                             group: TeamSeasonSchedule.PhaseGroup) -> some View {
+        let record = group.record(forTeamID: team.idTeam, teamNames: teamNames)
+        let isFirstPhase = group.id == season.phases.first?.id
+        VStack(alignment: .leading, spacing: 6) {
+            if isFirstPhase && group.phase != nil {
+                Text(season.displayName)
+                    .font(.title3.bold())
+                    .foregroundStyle(.primary)
+            }
+            HStack {
+                Text(group.phase?.displayName ?? season.displayName)
+                Spacer()
+                if let record {
+                    Text(record)
+                        .monospacedDigit()
+                }
+            }
+        }
+        .textCase(nil)
+        .padding(.top, isFirstPhase ? 8 : 0)
     }
 
     /// Sport from the server profile's league name, for teams with no loaded games.
@@ -618,12 +650,15 @@ struct TeamDetailView: View {
 
 // MARK: - Schedule
 
-/// A team's games split for display, derived in a single pass over the loaded games.
+/// What the team page derives from the loaded games, in a single pass: the full list
+/// for the season schedule, plus the live/next game, form, record and home league.
 private struct TeamSchedule {
+    /// Every loaded game this team plays in (schedule copies), for `TeamSeasonSchedule`.
+    var allGames: [Game] = []
+    /// In progress, from the live feed (whose copy carries the current score).
     var live: [Game] = []
-    var upcoming: [Game] = []
-    /// Newest first.
-    var results: [Game] = []
+    /// The next game to be played.
+    var next: Game?
     var sport: SportType?
     /// Current season record, e.g. "12-5".
     var record: String?
@@ -632,31 +667,34 @@ private struct TeamSchedule {
     /// The competition this team plays most in — the table its standings come from.
     var primaryLeague: Leagues?
 
-    var isEmpty: Bool { live.isEmpty && upcoming.isEmpty && results.isEmpty }
-
-    init(team: Team, games: [Game], liveEvents: [Game]) {
+    init(team: Team, games: [Game], liveEvents: [Game], now: Date = Date()) {
         let liveIDs = Set(liveEvents.map(\.id))
-        // The live feed's copy carries the current score; the schedule's may not.
         live = liveEvents.filter { Self.plays(team, in: $0) }
+        var upcoming: [Game] = []
+        var results: [Game] = []
         var leagueCounts: [String: Int] = [:]
 
         for game in games where Self.plays(team, in: game) {
+            allGames.append(game)
             if let league = game.idLeague { leagueCounts[league, default: 0] += 1 }
-            switch game.scheduleState(liveIDs: liveIDs) {
+            // Postponed / cancelled games are neither next nor a result.
+            if game.isCalledOff { continue }
+            switch game.scheduleState(liveIDs: liveIDs, now: now) {
             case .live:
                 if !liveIDs.contains(game.id) { live.append(game) }
             case .upcoming:
                 upcoming.append(game)
             case .final:
-                results.append(game)
+                if game.isFinalStatus { results.append(game) }
             }
         }
 
         live.sort { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
         upcoming.sort { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
         results.sort { ($0.standardDate ?? .distantPast) > ($1.standardDate ?? .distantPast) }
+        next = upcoming.first
 
-        sport = (live + upcoming + results).lazy.compactMap(\.sportType).first
+        sport = allGames.lazy.compactMap(\.sportType).first
         primaryLeague = leagueCounts.max { $0.value < $1.value }
             .flatMap { Int($0.key) }
             .flatMap(Leagues.init(rawValue:))
@@ -700,7 +738,9 @@ private struct TeamSchedule {
 /// The last few results as coloured W / D / L chips, oldest on the left.
 private struct FormStrip: View {
     enum Result {
-        case win, draw, loss
+        case win, loss
+        /// Level score — `isSoccer` picks "D" (draw) over "T" (tie).
+        case level(isSoccer: Bool)
 
         /// Nil when the game has no usable score.
         init?(game: Game, isHome: Bool) {
@@ -708,21 +748,25 @@ private struct FormStrip: View {
                   let away = game.intAwayScore.flatMap({ Int($0) }) else { return nil }
             let ours = isHome ? home : away
             let theirs = isHome ? away : home
-            self = ours > theirs ? .win : (ours < theirs ? .loss : .draw)
+            if ours == theirs {
+                self = .level(isSoccer: game.sportType == .soccer)
+            } else {
+                self = ours > theirs ? .win : .loss
+            }
         }
 
         var letter: String {
             switch self {
             case .win: return "W"
-            case .draw: return "D"
             case .loss: return "L"
+            case .level(let isSoccer): return isSoccer ? "D" : "T"
             }
         }
 
         var color: Color {
             switch self {
             case .win: return .green
-            case .draw: return .gray
+            case .level: return .gray
             case .loss: return .red
             }
         }
@@ -746,7 +790,8 @@ private struct FormStrip: View {
 }
 
 /// A single schedule line: opponent badge + name (tappable → their team page), the
-/// @/vs indicator, and either this team's result and score or the start time.
+/// @/vs indicator, and this team's result and score, the live score, a postponed /
+/// cancelled note, or the start time.
 private struct TeamScheduleRow: View {
     let game: Game
     let isHome: Bool
@@ -756,13 +801,19 @@ private struct TeamScheduleRow: View {
     private var homeScore: Int? { game.intHomeScore.flatMap { Int($0) } }
     private var awayScore: Int? { game.intAwayScore.flatMap { Int($0) } }
 
+    private var hasScores: Bool { homeScore != nil && awayScore != nil }
+
     /// This team's score first, so "W 102–98" always reads as a win.
-    private var scoreLine: (result: FormStrip.Result, text: String)? {
-        guard let h = homeScore, let a = awayScore,
-              let result = FormStrip.Result(game: game, isHome: isHome) else { return nil }
-        let ours = isHome ? h : a
-        let theirs = isHome ? a : h
-        return (result, "\(ours)–\(theirs)")
+    private var scoreText: String {
+        let ours = (isHome ? homeScore : awayScore) ?? 0
+        let theirs = (isHome ? awayScore : homeScore) ?? 0
+        return "\(ours)–\(theirs)"
+    }
+
+    /// In progress: has a score but isn't final, postponed, or a scheduled "pre" 0–0.
+    private var isLive: Bool {
+        hasScores && !game.isFinalStatus && !game.isCalledOff
+            && game.strStatus != "pre" && game.strStatus != "NS"
     }
 
     var body: some View {
@@ -775,7 +826,7 @@ private struct TeamScheduleRow: View {
                             .font(.subheadline)
                             .lineLimit(1)
                         if let date = game.standardDate {
-                            Text(date.formatted(.dateTime.month().day().year()))
+                            Text(date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -788,15 +839,27 @@ private struct TeamScheduleRow: View {
 
             Spacer(minLength: 4)
 
-            if let score = scoreLine {
+            if game.isFinalStatus, let result = FormStrip.Result(game: game, isHome: isHome) {
                 HStack(spacing: 6) {
-                    Text(score.result.letter)
+                    Text(result.letter)
                         .font(.caption.bold())
-                        .foregroundStyle(score.result.color)
-                    Text(score.text)
+                        .foregroundStyle(result.color)
+                    Text(scoreText)
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
+            } else if isLive {
+                HStack(spacing: 6) {
+                    Text("LIVE")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.red)
+                    Text(scoreText)
+                        .font(.subheadline.monospacedDigit())
+                }
+            } else if game.isCalledOff {
+                Text(game.calledOffKind?.rawValue ?? "Cancelled")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             } else if let date = game.standardDate {
                 GameTimeLabel(date: date)
                     .font(.caption2)
@@ -896,6 +959,41 @@ private struct PlayerRow: View {
                 .resizable()
                 .frame(width: 36, height: 36)
                 .foregroundStyle(.tertiary)
+        }
+    }
+}
+
+// MARK: - Team link
+
+/// Wraps game-detail hero content (badge / name) in a link to the team's page.
+/// Individual sports (golf/tennis/F1) have no team to drill into, so pass
+/// `isEnabled: false` and the content is returned untapped.
+///
+/// View-based on purpose: game rows push the game detail with view-destination
+/// NavigationLinks, and mixing in a value-based `NavigationLink(value: team)` there
+/// makes the stack re-push the current view instead of resolving
+/// `navigationDestination(for: Team.self)` at the root. Needs a NavigationStack
+/// ancestor — hosts that show a game detail outside one must provide it.
+struct TeamDetailLink<Label: View>: View {
+    let team: Team
+    var isEnabled: Bool = true
+    @ViewBuilder let label: () -> Label
+
+    @Environment(GameViewModel.self) private var viewModel
+    @Environment(Favorites.self) private var favorites
+
+    var body: some View {
+        if isEnabled {
+            NavigationLink {
+                TeamDetailView(team: team)
+                    .environment(viewModel)
+                    .environment(favorites)
+            } label: {
+                label()
+            }
+            .buttonStyle(.plain)
+        } else {
+            label()
         }
     }
 }

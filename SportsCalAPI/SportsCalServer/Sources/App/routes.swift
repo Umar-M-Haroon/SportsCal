@@ -452,10 +452,26 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         }
         // Bound field cardinality/size so a leaked key can't bloat log/counter keys.
         var fields = (payload.fields ?? [:]).filter { $0.key.count <= 32 && $0.value.count <= 64 }
-        if let install = req.headers.first(name: "X-Install-ID") {
+        // Normalize the channel/platform tags against allow-lists: `channel`
+        // becomes a Redis key segment, so free-form values must never reach it.
+        // Pre-channel app builds send neither and land in `unknown`.
+        let channel = fields["channel"].flatMap {
+            ClientTelemetryEvent.allowedChannels.contains($0) ? $0 : nil
+        } ?? "unknown"
+        let platform = fields["platform"].flatMap {
+            ClientTelemetryEvent.allowedPlatforms.contains($0) ? $0 : nil
+        } ?? "unknown"
+        fields["channel"] = channel
+        fields["platform"] = platform
+        let install = req.headers.first(name: "X-Install-ID")
+        if let install {
             fields["install"] = String(install.prefix(8))
         }
         await req.telemetry.info("client.\(payload.event)", fields)
+        await ClientTelemetryCounters(kv: req.kv, clock: req.appClock).record(
+            event: payload.event, channel: channel, platform: platform,
+            installID: install, fields: fields
+        )
         return .ok
     }
 
@@ -1531,7 +1547,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 aggregateScore: game.aggregateScore,
                 homeSeed: game.homeSeed,
                 awaySeed: game.awaySeed,
-                playoff: game.playoff
+                playoff: game.playoff,
+                season: game.season, seasonPhase: game.seasonPhase
             )
         }
 

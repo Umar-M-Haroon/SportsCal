@@ -26,13 +26,17 @@ struct MacGameDetailWindow: View {
     var body: some View {
         Group {
             if let game {
-                ModernGameDetailView(
-                    game: game,
-                    homeTeam: Team(strTeam: game.strHomeTeam),
-                    awayTeam: Team(strTeam: game.strAwayTeam)
-                )
-                .environment(viewModel)
-                .environment(favorites)
+                // Own stack so the hero's team links (TeamDetailLink) can push.
+                let teams = viewModel.getTeams(for: game)
+                NavigationStack {
+                    ModernGameDetailView(
+                        game: game,
+                        homeTeam: teams?.home ?? Team(strTeam: game.strHomeTeam),
+                        awayTeam: teams?.away ?? Team(strTeam: game.strAwayTeam)
+                    )
+                    .environment(viewModel)
+                    .environment(favorites)
+                }
             } else {
                 ContentUnavailableView(
                     "Game Not Found",

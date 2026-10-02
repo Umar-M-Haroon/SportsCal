@@ -32,6 +32,14 @@ protocol KeyValueStore: Sendable {
     /// `RedisTelemetry` for persisted per-day counters.
     @discardableResult
     func increment(_ key: String, ttl: TimeInterval) async throws -> Int
+    /// `PFADD` into a HyperLogLog, arming a TTL the same way `increment` does
+    /// (`EXPIRE … NX`). Unique-count primitive for DAU / per-user funnel counts:
+    /// ~12KB worst case per key, ~0.8% error, and no install IDs are stored.
+    func hllAdd(_ key: String, element: String, ttl: TimeInterval) async throws
+    /// `PFCOUNT` over one or more keys — multiple keys return the cardinality of
+    /// their union, which is how WAU/MAU fall out of per-day keys. Missing keys
+    /// count as empty.
+    func hllCount(_ keys: [String]) async throws -> Int
 }
 
 struct RedisKeyValueStore: KeyValueStore, @unchecked Sendable {
@@ -143,6 +151,30 @@ struct RedisKeyValueStore: KeyValueStore, @unchecked Sendable {
             ]
         ).get()
         return count
+    }
+
+    func hllAdd(_ key: String, element: String, ttl: TimeInterval) async throws {
+        _ = try await redis.send(
+            command: "PFADD",
+            with: [key.convertedToRESPValue(), element.convertedToRESPValue()]
+        ).get()
+        _ = try? await redis.send(
+            command: "EXPIRE",
+            with: [
+                key.convertedToRESPValue(),
+                Int(ttl).convertedToRESPValue(),
+                "NX".convertedToRESPValue()
+            ]
+        ).get()
+    }
+
+    func hllCount(_ keys: [String]) async throws -> Int {
+        guard !keys.isEmpty else { return 0 }
+        let response = try await redis.send(
+            command: "PFCOUNT",
+            with: keys.map { $0.convertedToRESPValue() }
+        ).get()
+        return response.int ?? 0
     }
 }
 

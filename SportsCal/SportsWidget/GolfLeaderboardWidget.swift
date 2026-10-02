@@ -8,6 +8,7 @@
 #if os(iOS)
 import SwiftUI
 import WidgetKit
+import AppIntents
 import SportsCalModel
 
 // MARK: - Timeline Entry
@@ -21,81 +22,114 @@ struct GolfLeaderboardEntry: TimelineEntry {
     let progress: String?
 }
 
+// MARK: - Intent
+
+/// Which tour a leaderboard widget follows. The widget started out static; `.allTours`
+/// keeps that behaviour — the biggest event this week.
+enum GolfTourSelection: String, AppEnum {
+    case allTours
+    case pga
+    case dpWorld
+    case lpga
+    case livGolf
+    case championsTour
+    case kornFerry
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation {
+        "Tour"
+    }
+
+    static var caseDisplayRepresentations: [GolfTourSelection: DisplayRepresentation] {
+        [
+            .allTours: "All Tours",
+            .pga: "PGA Tour",
+            .dpWorld: "DP World Tour",
+            .lpga: "LPGA Tour",
+            .livGolf: "LIV Golf",
+            .championsTour: "PGA Tour Champions",
+            .kornFerry: "Korn Ferry Tour",
+        ]
+    }
+
+    var league: Leagues? {
+        switch self {
+        case .allTours: return nil
+        case .pga: return .pga
+        case .dpWorld: return .dpWorld
+        case .lpga: return .lpga
+        case .livGolf: return .livGolf
+        case .championsTour: return .championsTour
+        case .kornFerry: return .kornFerry
+        }
+    }
+}
+
+/// A picked tour shows regardless of the app's golf coverage or hidden competitions: the
+/// widget has never been gated by those, and picking a tour is as explicit as a follow.
+struct GolfLeaderboardIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "Golf Leaderboard"
+    static var description: IntentDescription = "Choose which tour's leaderboard to show"
+
+    @Parameter(title: "Tour", default: .allTours)
+    var tour: GolfTourSelection
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Show \(\.$tour) leaderboard")
+    }
+}
+
 // MARK: - Provider
 
-struct GolfLeaderboardProvider: TimelineProvider {
+struct GolfLeaderboardProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> GolfLeaderboardEntry {
         GolfLeaderboardEntry(date: .now, tournamentName: "Golf Tournament", venueName: nil, entries: [], status: nil, progress: nil)
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (GolfLeaderboardEntry) -> Void) {
-        completion(placeholder(in: context))
+    func snapshot(for configuration: GolfLeaderboardIntent, in context: Context) async -> GolfLeaderboardEntry {
+        placeholder(in: context)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<GolfLeaderboardEntry>) -> Void) {
-        Task {
-            let entry = await buildEntry()
-            let refreshDate = Date().addingTimeInterval(1800)
-            completion(Timeline(entries: [entry], policy: .after(refreshDate)))
-        }
+    func timeline(for configuration: GolfLeaderboardIntent, in context: Context) async -> Timeline<GolfLeaderboardEntry> {
+        let entry = await buildEntry(tour: configuration.tour.league)
+        let refreshDate = Date().addingTimeInterval(1800)
+        return Timeline(entries: [entry], policy: .after(refreshDate))
     }
 
-    private func buildEntry() async -> GolfLeaderboardEntry {
+    /// `tour` nil means every tour.
+    private func buildEntry(tour: Leagues?) async -> GolfLeaderboardEntry {
         // Try live endpoint first — it has active tournament leaderboards
         if let liveScore = try? await NetworkHandler.getLiveSnapshot(),
            let liveGolf = liveScore.golf?.events,
-           let activeGame = liveGolf
-            .filter({ !$0.resolvedLeaderboard.isEmpty })
-            // Several tours play the same week, so show the biggest event rather than
-            // whichever one ESPN happened to list first.
-            .max(by: { ($0.eventTier ?? .tour) < ($1.eventTier ?? .tour) }) {
-            let leaderboard = activeGame.resolvedLeaderboard
-            return GolfLeaderboardEntry(
-                date: .now,
-                tournamentName: activeGame.strHomeTeam,
-                venueName: activeGame.venueName,
-                entries: Array(leaderboard.prefix(8)),
-                status: activeGame.strStatus,
-                progress: activeGame.strProgress
-            )
+           let activeGame = WidgetTourFilter.featuredLiveGolfEvent(liveGolf, tour: tour) {
+            return entry(for: activeGame)
         }
 
         // Fall back to snapshot / widget schedule for upcoming tournaments
-        var games: [Game] = []
-        if let snapshot = WidgetDataStore.readSnapshot() {
-            games = snapshot.games
-        }
+        var game = WidgetTourFilter.scheduledGolfEvent(WidgetDataStore.readSnapshot()?.games ?? [], tour: tour)
 
-        var golfGames = games.filter { $0.sportType == .golf }
-
-        if golfGames.isEmpty {
-            if let result = try? await NetworkHandler.getWidgetScheduleFor(sports: [.golf], limit: 5) {
-                golfGames = result.games
+        if game == nil {
+            // The endpoint returns the soonest golf events across every tour, so ask for
+            // more when only one tour's will do.
+            let limit = tour == nil ? 5 : 30
+            if let result = try? await NetworkHandler.getWidgetScheduleFor(sports: [.golf], limit: limit) {
+                game = WidgetTourFilter.scheduledGolfEvent(result.games, tour: tour)
             }
         }
 
-        // Filter out cancelled/postponed events
-        let cancelledStatuses: Set<String> = ["cancelled", "canceled", "postponed", "suspended", "abandoned", "match finished"]
-        golfGames = golfGames.filter { game in
-            guard let status = game.strStatus?.lowercased() else { return true }
-            return !cancelledStatuses.contains(status)
-        }
-
-        golfGames.sort { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
-
-        let game = golfGames.first { !$0.resolvedLeaderboard.isEmpty } ?? golfGames.first
-
         guard let game else {
-            return GolfLeaderboardEntry(date: .now, tournamentName: "No Tournament", venueName: nil, entries: [], status: nil, progress: nil)
+            let name = tour.map { "No \($0.leagueName) Event" } ?? "No Tournament"
+            return GolfLeaderboardEntry(date: .now, tournamentName: name, venueName: nil, entries: [], status: nil, progress: nil)
         }
 
-        let leaderboard = game.resolvedLeaderboard
+        return entry(for: game)
+    }
 
-        return GolfLeaderboardEntry(
+    private func entry(for game: Game) -> GolfLeaderboardEntry {
+        GolfLeaderboardEntry(
             date: .now,
             tournamentName: game.strHomeTeam,
             venueName: game.venueName,
-            entries: Array(leaderboard.prefix(8)),
+            entries: Array(game.resolvedLeaderboard.prefix(8)),
             status: game.strStatus,
             progress: game.strProgress
         )
@@ -245,7 +279,9 @@ struct GolfLeaderboardWidget: Widget {
     let kind = "GolfLeaderboardWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: GolfLeaderboardProvider()) { entry in
+        // Same kind as when this was a StaticConfiguration, so placed widgets carry over
+        // with the intent's defaults.
+        AppIntentConfiguration(kind: kind, intent: GolfLeaderboardIntent.self, provider: GolfLeaderboardProvider()) { entry in
             GolfLeaderboardWidgetView(entry: entry)
         }
         .configurationDisplayName("Golf Leaderboard")

@@ -329,28 +329,10 @@ struct GameDetailView: View {
         }
     }
 
-    /// Wraps a hero element in a NavigationLink to the team's page for real team
-    /// sports. Individual sports (golf/tennis/F1) have no team to drill into, so the
-    /// content is returned untapped.
-    ///
-    /// View-based on purpose: game rows push this detail with view-destination
-    /// NavigationLinks, and mixing in a value-based link here makes the stack
-    /// re-push the current view instead of resolving `navigationDestination(for:
-    /// Team.self)` at the root.
-    @ViewBuilder
-    private func teamLink<Content: View>(_ team: Team, @ViewBuilder content: () -> Content) -> some View {
-        if game.isIndividualSport {
-            content()
-        } else {
-            NavigationLink {
-                TeamDetailView(team: team)
-                    .environment(viewModel)
-                    .environment(favorites)
-            } label: {
-                content()
-            }
-            .buttonStyle(.plain)
-        }
+    /// Wraps a hero element in a link to the team's page for real team sports.
+    /// See `TeamDetailLink` for why the link is view-based.
+    private func teamLink<Content: View>(_ team: Team, @ViewBuilder content: @escaping () -> Content) -> some View {
+        TeamDetailLink(team: team, isEnabled: !game.isIndividualSport, label: content)
     }
 
     private func teamBadge(url: String?, name: String?, size: CGFloat) -> some View {
@@ -1042,9 +1024,9 @@ struct GameDetailSections: View {
     /// first within a season.
     private var headToHeadSeasons: [H2HSeason] {
         let matchups = previousMatchups
-        let grouped = Dictionary(grouping: matchups) { $0.seasonLabel ?? "Earlier" }
+        let grouped = Dictionary(grouping: matchups) { $0.resolvedSeason ?? "Earlier" }
         return grouped
-            .map { H2HSeason(label: $0.key, games: $0.value) }
+            .map { H2HSeason(label: $0.key == "Earlier" ? $0.key : Game.seasonDisplayName($0.key), games: $0.value) }
             .sorted {
                 ($0.games.first?.standardDate ?? .distantPast) > ($1.games.first?.standardDate ?? .distantPast)
             }
@@ -1056,8 +1038,8 @@ struct GameDetailSections: View {
         return allGames.filter { g in
             g.id != game.id &&
             g.intHomeScore != nil && g.intAwayScore != nil &&
-            isSameFixture(g) &&
-            g.scheduleState(liveIDs: liveIDs) == .final
+            !liveIDs.contains(g.id) && g.isFinalStatus &&
+            isSameFixture(g)
         }
         .sorted { ($0.standardDate ?? .distantPast) > ($1.standardDate ?? .distantPast) }
     }

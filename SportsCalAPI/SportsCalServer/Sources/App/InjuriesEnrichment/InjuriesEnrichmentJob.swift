@@ -141,7 +141,8 @@ struct InjuriesEnrichmentJob: AsyncScheduledJob {
             homeSeed: game.homeSeed, awaySeed: game.awaySeed, tournamentName: game.tournamentName,
             homeInjuries: home, awayInjuries: away,
             raceTiming: game.raceTiming,
-            playoff: game.playoff
+            playoff: game.playoff,
+            season: game.season, seasonPhase: game.seasonPhase
         )
     }
 }

@@ -97,6 +97,7 @@ struct SportsCalApp: App {
                 .environment(engagementTracker)
                 .onAppear {
                     appStorage.launches += 1
+                    MonetizationTelemetry.appActive()
                     NetworkHandler.currentEnvironment = appStorage.serverEnvironment
                     Task { await NetworkHandler.refreshEnvironment() }
                     TeamsManager.shared.refreshIfStale()
@@ -267,6 +268,8 @@ struct SportsCalApp: App {
                 // and re-register Live Activity push tokens so the server's 12h TTL stays fresh
                 // even when BGAppRefresh hasn't fired in a while.
                 viewModel.ensureWebSocketConnected()
+                // Daily-active ping (no-op after the first of the UTC day).
+                MonetizationTelemetry.appActive()
                 #if canImport(ActivityKit) && os(iOS)
                 viewModel.reRegisterAllActivityTokens()
                 #endif
@@ -344,6 +347,9 @@ struct SportsCalApp: App {
                 .environment(viewModel)
                 .environment(favorites)
                 .environment(appStorage)
+                // Team links push TeamDetailView → AdaptiveGameDetail, which is
+                // classic GameDetailView under the Classic theme and needs this.
+                .environment(engagementTracker)
                 .environment(subscriptionManager)
         }
         .defaultSize(width: 460, height: 660)

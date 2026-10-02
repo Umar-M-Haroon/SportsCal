@@ -1064,28 +1064,141 @@ struct AdminController: RouteCollection {
     // MARK: - Telemetry (persisted)
 
     struct TelemetryResponse: Content {
-        /// `event` → (`epochDay` string → count). Persisted in Redis, so unlike
-        /// `pushMetrics` these survive restarts and deploys.
+        /// Legacy key shape `telemetry:{event}:{day}`: server events plus client
+        /// events recorded before channel tagging. `event` → (`epochDay` → count).
+        /// Persisted in Redis, so unlike `pushMetrics` these survive restarts.
         var counters: [String: [String: Int]]
+        /// Channel-tagged client counters: `channel` → `event` → `epochDay` → count.
+        var channels: [String: [String: [String: Int]]]
+        /// Allow-listed breakouts: `channel` → `event` → `field=value` → `epochDay` → count.
+        var dimensions: [String: [String: [String: [String: Int]]]]
+        /// `channel` (plus the synthetic `all`) → DAU/WAU/MAU from the app_active HLLs.
+        var activeUsers: [String: ActiveUsers]
+        /// `channel` (plus `all`) → `event` → unique installs over the trailing
+        /// `windowDays`. Includes a synthetic `client.purchase_or_trial` (union).
+        var uniqueInstalls: [String: [String: Int]]
+        var windowDays: Int
+        var today: Int
     }
 
-    /// Reads the per-day telemetry counters written by `RedisTelemetry`
-    /// (`telemetry:{event}:{epochDay}`). The dashboard graphs delivery health and
-    /// rate-limit rejections over time from this. Sentry would later supersede the
-    /// alerting half, but these counters stay cheap to keep for in-product views.
+    struct ActiveUserCounts: Content {
+        /// Today (UTC epoch day, partial).
+        var dau: Int
+        /// Trailing 7 days including today.
+        var wau: Int
+        /// Trailing 30 days including today.
+        var mau: Int
+    }
+
+    struct ActiveUsers: Content {
+        var total: ActiveUserCounts
+        var byPlatform: [String: ActiveUserCounts]
+        /// `epochDay` → DAU over the trailing `windowDays`.
+        var daily: [String: Int]
+    }
+
+    /// Reads the per-day telemetry counters written by `RedisTelemetry` /
+    /// `ClientTelemetryCounters` (shapes in `TelemetryKeys`) plus the HLL-derived
+    /// active-user and unique-install counts. `?days=N` (1–90, default 14) sets
+    /// the window for `uniqueInstalls` and the daily DAU series. The dashboard
+    /// graphs delivery health and the monetization funnel from this.
     func telemetryCounters(req: Request) async throws -> TelemetryResponse {
-        let keys = try await req.kv.scanKeys(matching: "telemetry:*")
-        var counters: [String: [String: Int]] = [:]
-        for key in keys {
-            // key = telemetry:{event}:{epochDay} — event may itself contain dots
-            // (e.g. "apns.tick"), so split off only the trailing day component.
-            let stripped = key.dropFirst("telemetry:".count)
-            guard let lastColon = stripped.lastIndex(of: ":") else { continue }
-            let event = String(stripped[..<lastColon])
-            let day = String(stripped[stripped.index(after: lastColon)...])
-            guard let raw = try await req.kv.getString(key), let value = Int(raw) else { continue }
-            counters[event, default: [:]][day] = value
+        let windowDays = min(max(req.query[Int.self, at: "days"] ?? 14, 1), 90)
+        let today = TelemetryKeys.epochDay(req.appClock.now)
+
+        // HLL keys are binary strings — skip them; they're read via PFCOUNT below.
+        let keys = try await req.kv.scanKeys(matching: "telemetry:*").filter {
+            !$0.hasPrefix(TelemetryKeys.dauPrefix) && !$0.hasPrefix(TelemetryKeys.uniquePrefix)
         }
-        return TelemetryResponse(counters: counters)
+        var values: [String: Int] = [:]
+        for batch in stride(from: 0, to: keys.count, by: 500).map({ Array(keys[$0..<min($0 + 500, keys.count)]) }) {
+            let raws = try await req.kv.mget(batch)
+            for (key, raw) in zip(batch, raws) {
+                if let raw, let value = Int(raw) { values[key] = value }
+            }
+        }
+
+        var counters: [String: [String: Int]] = [:]
+        var channels: [String: [String: [String: Int]]] = [:]
+        var dimensions: [String: [String: [String: [String: Int]]]] = [:]
+        for (key, value) in values {
+            // Event names may contain dots ("apns.tick") but never colons, so
+            // the component count identifies the shape (see `TelemetryKeys`).
+            let parts = key.dropFirst("telemetry:".count).split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+            switch parts.count {
+            case 2:
+                counters[parts[0], default: [:]][parts[1]] = value
+            case 3:
+                channels[parts[1], default: [:]][parts[0], default: [:]][parts[2]] = value
+            case 4:
+                dimensions[parts[1], default: [:]][parts[0], default: [:]][parts[2], default: [:]][parts[3]] = value
+            default:
+                continue
+            }
+        }
+
+        let channelNames = ClientTelemetryEvent.allowedChannels.sorted() + ["unknown"]
+        let platforms = ClientTelemetryEvent.allowedPlatforms.sorted() + ["unknown"]
+        let kv = req.kv
+
+        func dauKeys(_ channels: [String], _ platforms: [String], days: ClosedRange<Int>) -> [String] {
+            days.flatMap { day in
+                channels.flatMap { channel in
+                    platforms.map { TelemetryKeys.dau(channel: channel, platform: $0, day: day) }
+                }
+            }
+        }
+        func counts(_ channels: [String], _ platforms: [String]) async throws -> ActiveUserCounts {
+            ActiveUserCounts(
+                dau: try await kv.hllCount(dauKeys(channels, platforms, days: today...today)),
+                wau: try await kv.hllCount(dauKeys(channels, platforms, days: (today - 6)...today)),
+                mau: try await kv.hllCount(dauKeys(channels, platforms, days: (today - 29)...today))
+            )
+        }
+
+        var activeUsers: [String: ActiveUsers] = [:]
+        var uniqueInstalls: [String: [String: Int]] = [:]
+        let window = (today - windowDays + 1)...today
+        let uniqueEvents = ClientTelemetryEvent.uniqueEvents.map { "client.\($0)" }
+        for (label, group) in channelNames.map({ ($0, [$0]) }) + [("all", channelNames)] {
+            var byPlatform: [String: ActiveUserCounts] = [:]
+            for platform in platforms {
+                byPlatform[platform] = try await counts(group, [platform])
+            }
+            var daily: [String: Int] = [:]
+            for day in window {
+                daily[String(day)] = try await kv.hllCount(dauKeys(group, platforms, days: day...day))
+            }
+            activeUsers[label] = ActiveUsers(
+                total: try await counts(group, platforms),
+                byPlatform: byPlatform,
+                daily: daily
+            )
+
+            func uniqueKeys(_ events: [String]) -> [String] {
+                window.flatMap { day in
+                    events.flatMap { event in group.map { TelemetryKeys.unique(event, channel: $0, day: day) } }
+                }
+            }
+            var perEvent: [String: Int] = [:]
+            for event in uniqueEvents {
+                perEvent[event] = try await kv.hllCount(uniqueKeys([event]))
+            }
+            // Union, so a trialer who later converts counts once.
+            perEvent["client.purchase_or_trial"] = try await kv.hllCount(
+                uniqueKeys(["client.purchase_completed", "client.trial_started"])
+            )
+            uniqueInstalls[label] = perEvent
+        }
+
+        return TelemetryResponse(
+            counters: counters,
+            channels: channels,
+            dimensions: dimensions,
+            activeUsers: activeUsers,
+            uniqueInstalls: uniqueInstalls,
+            windowDays: windowDays,
+            today: today
+        )
     }
 }
