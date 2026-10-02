@@ -63,13 +63,19 @@ enum PlayResolver {
                 req: req.client, sport: resolvedSport, league: resolvedLeague, eventId: resolvedESPNID
             )
             let plays = summary.plays ?? []
-            guard !plays.isEmpty else { return nil }
+            // Football has no top-level plays but does have win probability and a box
+            // score, so an empty play list alone isn't a miss.
+            let league = Leagues(slug: resolvedLeague)
+            let extras = summary.extras(league: league, isFinal: false)
+            guard !plays.isEmpty || !extras.isEmpty else { return nil }
             let payload = CachedPlays(
                 eventID: eventID,
                 lastPlayId: plays.last?.id ?? "",
                 plays: plays,
                 isFinal: false,
-                fetchedAt: Date()
+                fetchedAt: Date(),
+                winProbability: extras.winProbability,
+                teamStats: extras.teamStats
             )
             // Write under the client-facing key so subsequent requests hit cache.
             try? await req.application.redis.set(key, toJSON: payload)

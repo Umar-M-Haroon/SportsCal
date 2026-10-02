@@ -144,6 +144,19 @@ struct GameScoreView: View {
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
 
+                if isLive, let situation = game.situation {
+                    GameStateStrip(
+                        situation: situation,
+                        sport: game.sportType,
+                        homeName: homeTeam.strTeamShort ?? homeTeam.strTeam ?? game.strHomeTeam,
+                        awayName: awayTeam.strTeamShort ?? awayTeam.strTeam ?? game.strAwayTeam
+                    )
+                    .frame(maxWidth: .infinity)
+                } else if !isLive, game.hasDoneStatus, let tier = game.excitementTier, tier.isWorthWatching {
+                    ExcitementBadge(tier: tier)
+                        .frame(maxWidth: .infinity)
+                }
+
                 // Rotating info: last play (weighted on live), leader categories, venue
                 rotatingInfoLine
 

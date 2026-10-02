@@ -186,7 +186,14 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     season: league.hasSeasonPhases ? event.season?.year.flatMap(league.seasonLabel(espnYear:)) : nil,
                     seasonPhase: league.hasSeasonPhases
                         ? (event.season?.type.flatMap(SeasonPhase.init(espnSeasonType:)) ?? (isPlayoff ? .postseason : nil))
-                        : nil
+                        : nil,
+                    situation: GameSituation(
+                        espn: competition.situation,
+                        status: competition.status ?? event.status,
+                        sport: sportType,
+                        homeTeamID: homeTeam.id,
+                        awayTeamID: awayTeam.id
+                    )
                 )]
             }
 
@@ -678,7 +685,7 @@ public enum DateParsers {
 
 // MARK: - Event
 public struct Game: Identifiable, Equatable, Hashable {
-    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil, round: String? = nil, drawSlug: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil, endDate: String? = nil, season: String? = nil, seasonPhase: SeasonPhase? = nil, sportsDBRound: Int? = nil) {
+    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, tournamentName: String? = nil, round: String? = nil, drawSlug: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil, endDate: String? = nil, season: String? = nil, seasonPhase: SeasonPhase? = nil, sportsDBRound: Int? = nil, situation: GameSituation? = nil, excitement: Int? = nil) {
         self.idLiveScore = idLiveScore
         self.idEvent = idEvent
         self._strSport = strSport
@@ -726,6 +733,8 @@ public struct Game: Identifiable, Equatable, Hashable {
         self.season = season
         self.seasonPhase = seasonPhase
         self.sportsDBRound = sportsDBRound
+        self.situation = situation
+        self.excitement = excitement
         // Pre-compute date from strTimestamp if isoDate not provided
         if let isoDate {
             self.isoDate = isoDate
@@ -819,6 +828,14 @@ public struct Game: Identifiable, Equatable, Hashable {
     /// can derive `seasonPhase`. Never encoded.
     public let sportsDBRound: Int?
 
+    /// Live state beyond the score — count and runners, down and distance, win
+    /// probability. Only meaningful while `strStatus == "in"`, and only encoded then,
+    /// so a final game never carries a stale situation on the wire.
+    public var situation: GameSituation?
+    /// "Worth watching" score, 0...100, for a finished game whose league publishes win
+    /// probability. Spoiler-free by design: it says how tense the game was, not who won.
+    public var excitement: Int?
+
     // MARK: - Computed Properties (derived from idLeague)
     // Private storage for backward compatibility when decoding old data
     private let _strSport: String?
@@ -858,6 +875,7 @@ extension Game: Codable {
         case raceTiming
         case playoff
         case strSeason, seasonPhase
+        case situation, excitement
         // TheSportsDB schedule round — decoded on ingest, never encoded
         case intRound
         // Computed properties - decoded for backward compatibility, not encoded
@@ -930,6 +948,9 @@ extension Game: Codable {
             sportsDBRound = (try? container.decodeIfPresent(String.self, forKey: .intRound))
                 .flatMap { $0.flatMap { Int($0) } }
         }
+        // Lenient: these are display extras; an unexpected shape must not fail the game.
+        situation = (try? container.decodeIfPresent(GameSituation.self, forKey: .situation)) ?? nil
+        excitement = (try? container.decodeIfPresent(Int.self, forKey: .excitement)) ?? nil
         // Transient server-side field, not persisted
         lastPlayScoreboardID = nil
         // Decode for backward compatibility with old cached data
@@ -993,6 +1014,10 @@ extension Game: Codable {
         if let seasonPhase, seasonPhase != .regular {
             try container.encode(seasonPhase.rawValue, forKey: .seasonPhase)
         }
+        if strStatus == "in" {
+            try container.encodeIfPresent(situation, forKey: .situation)
+        }
+        try container.encodeIfPresent(excitement, forKey: .excitement)
         // Note: strSport and strLeague are not encoded - they're computed from idLeague
         // Deprecated fields are not encoded: strPlayer, idPlayer, intEventScore,
         // intEventScoreTotal, strEventTime, dateEvent, updated
@@ -1321,7 +1346,9 @@ public extension Game {
         raceTiming: F1RaceTiming? = nil,
         playoff: PlayoffContext? = nil,
         lastPlayScoreboardID: String? = nil,
-        endDate: String? = nil
+        endDate: String? = nil,
+        situation: GameSituation? = nil,
+        excitement: Int? = nil
     ) -> Game {
         Game(
             idLiveScore: idLiveScore ?? self.idLiveScore,
@@ -1371,7 +1398,9 @@ public extension Game {
             endDate: endDate ?? self.endDate,
             season: self.season,
             seasonPhase: self.seasonPhase,
-            sportsDBRound: self.sportsDBRound
+            sportsDBRound: self.sportsDBRound,
+            situation: situation ?? self.situation,
+            excitement: excitement ?? self.excitement
         )
     }
 }

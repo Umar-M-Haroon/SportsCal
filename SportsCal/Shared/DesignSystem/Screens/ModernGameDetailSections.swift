@@ -33,9 +33,12 @@ struct ModernGameDetailSections: View {
 
     var body: some View {
         VStack(spacing: .appSpace5) {
+            liveSituationSection
             playoffSeriesSection
             boxScoreSection
+            winProbabilitySection
             momentumChartSection
+            teamStatsSection
             keyPlayersSection
             playByPlaySection
             injuriesSection
@@ -255,6 +258,66 @@ struct ModernGameDetailSections: View {
                 )
             }
             .appCard(fill: Color.appAlt)
+        }
+    }
+
+    // MARK: - Live situation, win probability, team stats
+
+    private var homeShortName: String { homeTeam.strTeamShort ?? homeTeam.strTeam ?? game.strHomeTeam }
+    private var awayShortName: String { awayTeam.strTeamShort ?? awayTeam.strTeam ?? game.strAwayTeam }
+    private var homeColor: Color { game.homeTeamColor.map { Color(hex: $0) } ?? accent }
+    private var awayColor: Color { game.awayTeamColor.map { Color(hex: $0) } ?? Color.appInkSoft }
+
+    @ViewBuilder
+    private var liveSituationSection: some View {
+        if game.strStatus == "in", let situation = game.situation,
+           situation.hasBaseballState || situation.hasFootballState || situation.homeWinProbability != nil {
+            VStack(alignment: .leading, spacing: .appSpace3) {
+                Text("LIVE").appEyebrow().foregroundStyle(Color.appLive)
+                LiveSituationPanel(
+                    situation: situation, sport: sportType,
+                    homeName: homeShortName, awayName: awayShortName,
+                    homeColor: homeColor, awayColor: awayColor
+                )
+            }
+            .appCard()
+        }
+    }
+
+    @ViewBuilder
+    private var winProbabilitySection: some View {
+        if let series = model.winProbability {
+            VStack(alignment: .leading, spacing: .appSpace2) {
+                HStack {
+                    Text("WIN PROBABILITY").appEyebrow().foregroundStyle(accent)
+                    Spacer()
+                    if let tier = game.excitementTier, game.hasDoneStatus {
+                        ExcitementBadge(tier: tier)
+                    }
+                }
+                WinProbabilityChart(
+                    series: series,
+                    homeName: homeShortName, awayName: awayShortName,
+                    homeColor: homeColor, awayColor: awayColor,
+                    league: league
+                )
+            }
+            .appCard(fill: Color.appAlt)
+        }
+    }
+
+    @ViewBuilder
+    private var teamStatsSection: some View {
+        if league != .FIFA_World_Cup, let stats = model.teamStats {
+            VStack(alignment: .leading, spacing: .appSpace3) {
+                Text("TEAM STATS").appEyebrow().foregroundStyle(accent)
+                TeamStatComparisonView(
+                    stats: stats,
+                    homeName: homeShortName, awayName: awayShortName,
+                    homeColor: homeColor, awayColor: awayColor
+                )
+            }
+            .appCard()
         }
     }
 

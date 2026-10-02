@@ -121,9 +121,13 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
         // Per-event play-by-play enrichment runs against `newResult` (which has soccer/tennis
         // merged in) BEFORE team ID translation strips `lastPlayScoreboardID` off rebuilt games.
-        // Side-effect only: writes to SQLite / Redis under PBP-{id}.
+        // Writes to SQLite / Redis under PBP-{id}, and hands back the excitement score of each
+        // finished game so the schedule can carry it.
         if let current = newResult {
-            await enrichWithPlays(from: current, context: context, isDebug: isDebug)
+            let excitement = await enrichWithPlays(from: current, context: context, isDebug: isDebug)
+            if !excitement.isEmpty {
+                newResult = Self.applyingExcitement(excitement, to: current)
+            }
         }
 
         // Translate ESPN team IDs to TheSportsDB IDs in all live games
@@ -276,11 +280,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
     ///
     /// Conditional on `lastPlay.id` from the scoreboard — if the cached ID already matches,
     /// we skip the ESPN call entirely. Bounded at 6 concurrent fetches to keep ESPN load low.
+    @discardableResult
     private func enrichWithPlays(
         from liveScore: LiveScore,
         context: Queues.QueueContext,
         isDebug: Bool
-    ) async {
+    ) async -> [String: Int] {
         // The iOS client carries TheSportsDB event IDs after the schedule merge, while
         // espnResult carries ESPN IDs. Load the schedule to bridge them.
         let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
@@ -323,7 +328,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             ))
         }
 
-        guard !candidates.isEmpty else { return }
+        guard !candidates.isEmpty else { return [:] }
 
         // Merge new [tsdbID → espnID/sport/league] into the persistent ESPN-Event-Map so the
         // /plays/:eventID on-demand path can resolve a client-supplied TSDB ID back to ESPN.
@@ -332,6 +337,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
         var fetched = 0
         var skipped = 0
         var failed = 0
+        var excitementByEvent: [String: Int] = [:]
 
         await withTaskGroup(of: PBPResult.self) { group in
             let maxConcurrent = 6
@@ -351,15 +357,36 @@ struct ESPNFetchJob: AsyncScheduledJob {
             while let result = await group.next() {
                 inFlight -= 1
                 switch result {
-                case .fetched: fetched += 1
-                case .skipped: skipped += 1
-                case .failed:  failed  += 1
+                case .fetched(let scored):
+                    fetched += 1
+                    if let scored { excitementByEvent[scored.eventID] = scored.score }
+                case .skipped(let scored):
+                    skipped += 1
+                    if let scored { excitementByEvent[scored.eventID] = scored.score }
+                case .failed:
+                    failed += 1
                 }
                 addNext()
             }
         }
 
-        Self.logger.info("PBP enrichment: fetched \(fetched), skipped \(skipped) (unchanged lastPlay.id), failed \(failed)")
+        Self.logger.info("PBP enrichment: fetched \(fetched), skipped \(skipped) (unchanged lastPlay.id or archived), failed \(failed)")
+        return excitementByEvent
+    }
+
+    /// Stamps each game's excitement score onto the snapshot, by ESPN event ID.
+    static func applyingExcitement(_ scores: [String: Int], to liveScore: LiveScore) -> LiveScore {
+        var result = liveScore
+        for (_, keyPath) in LiveScore.sportKeyPaths {
+            guard let events = result[keyPath: keyPath]?.events else { continue }
+            result[keyPath: keyPath] = LiveEvent(events: events.map { game in
+                guard let id = game.idEvent, let score = scores[id], game.excitement != score else { return game }
+                var scored = game
+                scored.excitement = score
+                return scored
+            })
+        }
+        return result
     }
 
     /// Whether a game should be considered for PBP enrichment.
@@ -372,9 +399,15 @@ struct ESPNFetchJob: AsyncScheduledJob {
         return false
     }
 
+    /// An excitement score for one event, by its ESPN ID.
+    private struct ScoredEvent {
+        let eventID: String
+        let score: Int
+    }
+
     private enum PBPResult {
-        case fetched
-        case skipped
+        case fetched(ScoredEvent?)
+        case skipped(ScoredEvent?)
         case failed
     }
 
@@ -441,6 +474,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
         let cached = try? await context.application.redis.get(primaryKey, asJSON: CachedPlays.self)
 
         let isFinal = (candidate.game.strStatus == "post" && candidate.game.isCompleted == true)
+        func scored(_ score: Int?) -> ScoredEvent? {
+            score.map { ScoredEvent(eventID: espnEventID, score: $0) }
+        }
 
         // Skip path: the cached snapshot matches the current scoreboard lastPlay.id
         // AND its finality state matches. This is the common case during live play when
@@ -449,7 +485,17 @@ struct ESPNFetchJob: AsyncScheduledJob {
            let currentLastPlayID = candidate.game.lastPlayScoreboardID,
            cached.lastPlayId == currentLastPlayID,
            cached.isFinal == isFinal {
-            return .skipped
+            return .skipped(scored(cached.excitement))
+        }
+
+        // A final game is moved to the archive and dropped from Redis, so the check above
+        // can't see it, and it used to be re-fetched from ESPN on every tick for as long as
+        // it stayed on the scoreboard. The archive is the record once a game is over.
+        // Rows archived before the extras existed are fetched once more to fill them in.
+        if isFinal,
+           let archive = context.application.pbpArchive,
+           let extras = try? await archive.finalExtras(eventID: espnEventID) {
+            return .skipped(scored(extras.excitement))
         }
 
         do {
@@ -461,12 +507,17 @@ struct ESPNFetchJob: AsyncScheduledJob {
             )
             let plays = summary.plays ?? []
             let clientFacingID = candidate.tsdbEventID ?? espnEventID
+            let league = candidate.game.idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))
+            let extras = summary.extras(league: league, isFinal: isFinal)
             let payload = CachedPlays(
                 eventID: clientFacingID,
                 lastPlayId: plays.last?.id ?? candidate.game.lastPlayScoreboardID ?? "",
                 plays: plays,
                 isFinal: isFinal,
-                fetchedAt: Date()
+                fetchedAt: Date(),
+                winProbability: extras.winProbability,
+                teamStats: extras.teamStats,
+                excitement: extras.excitement
             )
             if isFinal {
                 // Final state: persist to the SQLite archive (durable, no TTL) and flush the
@@ -510,7 +561,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                     try? await context.application.redis.set(secondaryKey, toJSON: payload)
                 }
             }
-            return .fetched
+            return .fetched(scored(extras.excitement))
         } catch {
             Self.logger.debug("PBP fetch failed", metadata: [
                 "sport": "\(candidate.sport)",
@@ -988,7 +1039,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
             awayScore: Int(game.intAwayScore ?? "") ?? 0,
             status: game.strStatus,
             progress: game.strProgress,
-            lastPlay: game.lastPlay
+            lastPlay: game.lastPlay,
+            situation: LiveActivitySituation(game.situation)
         )
 
         do {
@@ -1411,7 +1463,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 endDate: espnGame.endDate ?? scheduleGame.endDate,
                 season: scheduleGame.season ?? espnGame.season,
                 // ESPN's season.type is authoritative; TheSportsDB's round codes are the fallback.
-                seasonPhase: espnGame.seasonPhase ?? scheduleGame.seasonPhase
+                seasonPhase: espnGame.seasonPhase ?? scheduleGame.seasonPhase,
+                // Live-only, so ESPN's or nothing: a schedule copy is a stale snapshot.
+                situation: espnGame.situation,
+                // Sticky: ESPN drops a game off its board a day after it ends, and the
+                // schedule copy is then the only place the score lives.
+                excitement: espnGame.excitement ?? scheduleGame.excitement
             )
         }
 
@@ -1511,7 +1568,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             if let foundEvent = events.first(where: {$0.strHomeTeam == event.strHomeTeam && $0.strAwayTeam == event.strAwayTeam}) {
                 // Only include essential fields - strSport/strLeague are computed from idLeague
                 // Deprecated fields removed: strPlayer, idPlayer, intEventScore, intEventScoreTotal, strEventTime, dateEvent, updated
-                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, tournamentName: foundEvent.tournamentName ?? event.tournamentName, round: foundEvent.round ?? event.round, drawSlug: foundEvent.drawSlug ?? event.drawSlug, playoff: event.playoff, season: foundEvent.season ?? event.season, seasonPhase: event.seasonPhase ?? foundEvent.seasonPhase)
+                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, tournamentName: foundEvent.tournamentName ?? event.tournamentName, round: foundEvent.round ?? event.round, drawSlug: foundEvent.drawSlug ?? event.drawSlug, playoff: event.playoff, season: foundEvent.season ?? event.season, seasonPhase: event.seasonPhase ?? foundEvent.seasonPhase, situation: event.situation, excitement: event.excitement ?? foundEvent.excitement)
             } else {
                 return event
             }

@@ -30,6 +30,9 @@ final class GameDetailSectionsModel {
     var playsLoading = false
     var playsAvailable = true
     var selectedPeriod: Int?
+    /// Ride along with the plays on the same fetch.
+    var winProbability: WinProbabilitySeries?
+    var teamStats: TeamStatComparison?
 
     var worldCupBoxScore: WorldCupBoxScore?
     var boxScoreLoading = false
@@ -73,6 +76,10 @@ final class GameDetailSectionsModel {
             )
             plays = cached.plays
             playsAvailable = true
+            // Keep what we have when a refresh comes back without them: a 404'd
+            // box score mid-game shouldn't blank the panel.
+            winProbability = cached.winProbability ?? winProbability
+            teamStats = cached.teamStats ?? teamStats
         } catch is NetworkHandler.PlayByPlayNotAvailable {
             plays = []
             playsAvailable = false
@@ -520,10 +527,13 @@ struct GameDetailSections: View {
 
     var body: some View {
         VStack(spacing: 24) {
+            liveSituationSection
             playoffSeriesSection
             boxScoreSection
             worldCupBoxScoreSection
+            winProbabilitySection
             momentumChartSection
+            teamStatsSection
             keyPlayersSection
             playByPlaySection
             injuriesSection
@@ -756,6 +766,73 @@ struct GameDetailSections: View {
                 awayTeamName: awayTeam.strTeamShort ?? awayTeam.strTeam ?? game.strAwayTeam,
                 plays: model.plays
             )
+        }
+    }
+
+    // MARK: Live situation, win probability, team stats
+
+    private var homeShortName: String { homeTeam.strTeamShort ?? homeTeam.strTeam ?? game.strHomeTeam }
+    private var awayShortName: String { awayTeam.strTeamShort ?? awayTeam.strTeam ?? game.strAwayTeam }
+    private var homeColor: Color { game.homeTeamColor.map { Color(hex: $0) } ?? .blue }
+    private var awayColor: Color { game.awayTeamColor.map { Color(hex: $0) } ?? .red }
+
+    @ViewBuilder
+    private var liveSituationSection: some View {
+        if game.strStatus == "in", let situation = game.situation,
+           situation.hasBaseballState || situation.hasFootballState || situation.homeWinProbability != nil {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Live").font(.headline)
+                LiveSituationPanel(
+                    situation: situation, sport: sportType,
+                    homeName: homeShortName, awayName: awayShortName,
+                    homeColor: homeColor, awayColor: awayColor
+                )
+            }
+            .padding()
+            .background(Color.secondaryGroupedBackground)
+            .cornerRadius(12)
+        }
+    }
+
+    @ViewBuilder
+    private var winProbabilitySection: some View {
+        if let series = model.winProbability {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Win Probability").font(.headline)
+                    Spacer()
+                    if let tier = game.excitementTier, game.hasDoneStatus {
+                        ExcitementBadge(tier: tier)
+                    }
+                }
+                WinProbabilityChart(
+                    series: series,
+                    homeName: homeShortName, awayName: awayShortName,
+                    homeColor: homeColor, awayColor: awayColor,
+                    league: league
+                )
+            }
+            .padding()
+            .background(Color.secondaryGroupedBackground)
+            .cornerRadius(12)
+        }
+    }
+
+    @ViewBuilder
+    private var teamStatsSection: some View {
+        // The World Cup has its own richer box score above.
+        if league != .FIFA_World_Cup, let stats = model.teamStats {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Team Stats").font(.headline)
+                TeamStatComparisonView(
+                    stats: stats,
+                    homeName: homeShortName, awayName: awayShortName,
+                    homeColor: homeColor, awayColor: awayColor
+                )
+            }
+            .padding()
+            .background(Color.secondaryGroupedBackground)
+            .cornerRadius(12)
         }
     }
 

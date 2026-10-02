@@ -109,6 +109,7 @@ enum LiveTicker {
         let resolver = LiveSourceResolver.fromEnvironment()
         var working = cached
         var changed = Set<String>()
+        var situationChanged = Set<String>()
 
         for group in resolver.groups(for: leagues) {
             if let espn = group.source as? ESPNLiveSource {
@@ -125,6 +126,7 @@ enum LiveTicker {
                 let r = LiveMerge.overlay(cached: working, sport: .soccer, fresh: games, strategy: espn.matchStrategy)
                 working = r.liveScore
                 changed.formUnion(r.changedEventIDs)
+                situationChanged.formUnion(r.situationChangedEventIDs)
                 await refreshSoccerScoreboards(boards: boards, app: app, isDebug: isDebug)
             } else {
                 // Override source (FIFA / MLB / NHL / NBA / paid): overlay its sport's bucket.
@@ -136,10 +138,11 @@ enum LiveTicker {
                 let r = LiveMerge.overlay(cached: working, sport: source.sport, fresh: games, strategy: source.matchStrategy)
                 working = r.liveScore
                 changed.formUnion(r.changedEventIDs)
+                situationChanged.formUnion(r.situationChangedEventIDs)
             }
         }
 
-        guard !changed.isEmpty else { return fastInterval }
+        guard !changed.isEmpty || !situationChanged.isEmpty else { return fastInterval }
 
         // latestLiveInfo is served verbatim over /ws — write the fresh snapshot.
         try await app.redis.set(liveKey, toJSON: working)
@@ -151,8 +154,13 @@ enum LiveTicker {
 
         logger.info("LiveTicker updated live info", metadata: [
             "changed": "\(changed.count)",
+            "situationOnly": "\(situationChanged.count)",
             "leagues": "\(leagues.count)"
         ])
+
+        // A count or runner change alone republishes the snapshot (above) but skips the
+        // push scan; the minutely APNSJob carries it to Live Activities.
+        guard !changed.isEmpty else { return fastInterval }
 
         // Fast goal-push / Live-Activity pass — only when scores actually changed, so the
         // install-key scan is paid on real goals (rare), not every tick. APNSJob dedups

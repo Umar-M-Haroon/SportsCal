@@ -819,7 +819,10 @@ private struct ModernDayContent: View {
                 subtext: nil,
                 leverageLabel: isLeverage(game) ? "CLOSE" : nil,
                 awayBadgeURL: awayURL,
-                homeBadgeURL: homeURL
+                homeBadgeURL: homeURL,
+                situation: game.situation,
+                awayShort: shortName(game, home: false),
+                homeShort: shortName(game, home: true)
             )
         case .final:
             FinalGameRow(
@@ -829,7 +832,8 @@ private struct ModernDayContent: View {
                 homeScore: Int(game.intHomeScore ?? "") ?? 0,
                 awayScore: Int(game.intAwayScore ?? "") ?? 0,
                 awayBadgeURL: awayURL,
-                homeBadgeURL: homeURL
+                homeBadgeURL: homeURL,
+                excitementTier: game.excitementTier
             )
         case .pre:
             PreGameRow(
@@ -842,6 +846,13 @@ private struct ModernDayContent: View {
                 homeBadgeURL: homeURL
             )
         }
+    }
+
+    /// A team's short name for the live strip ("KC", not "Kansas City Chiefs").
+    private func shortName(_ game: Game, home: Bool) -> String {
+        let teams = viewModel.getTeams(for: game)
+        let team = home ? teams?.home : teams?.away
+        return team?.strTeamShort ?? team?.strTeam ?? (home ? game.strHomeTeam : game.strAwayTeam)
     }
 
     @ViewBuilder

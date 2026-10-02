@@ -19,6 +19,8 @@ public struct FinalGameRow: View {
     public var resultLine: String? = nil  // override; otherwise auto-generated
     public var awayBadgeURL: URL? = nil
     public var homeBadgeURL: URL? = nil
+    /// Badges a game that was worth watching. See `ExcitementTier`.
+    public var excitementTier: ExcitementTier? = nil
 
     public init(
         sport: SportType,
@@ -28,8 +30,10 @@ public struct FinalGameRow: View {
         awayScore: Int,
         resultLine: String? = nil,
         awayBadgeURL: URL? = nil,
-        homeBadgeURL: URL? = nil
+        homeBadgeURL: URL? = nil,
+        excitementTier: ExcitementTier? = nil
     ) {
+        self.excitementTier = excitementTier
         self.sport = sport
         self.homeAbbr = homeAbbr
         self.awayAbbr = awayAbbr
@@ -51,7 +55,13 @@ public struct FinalGameRow: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: .appSpace3) {
-            Text(summary).appEyebrow()
+            HStack {
+                Text(summary).appEyebrow()
+                Spacer()
+                if let excitementTier {
+                    ExcitementBadge(tier: excitementTier)
+                }
+            }
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     teamLine(name: homeAbbr, badgeURL: homeBadgeURL, won: homeWon)

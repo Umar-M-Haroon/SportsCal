@@ -149,7 +149,9 @@ struct AmbientDayPage: View {
             statusText: statusText(for: game, isLive: isLive, isFinal: isFinal),
             isLive: isLive,
             isFavorite: fav,
-            isFinal: isFinal
+            isFinal: isFinal,
+            situation: isLive ? game.situation : nil,
+            excitementTier: isFinal ? game.excitementTier : nil
         )
     }
 

@@ -15,7 +15,7 @@ Two scheduled jobs do all the work, plus one wire-format struct that travels bet
 The two jobs are deliberately separate because they answer different questions:
 
 - **`ESPNFetchJob`** owns the polling cycle and writes Redis. While it's there, it cheaply notices `pre → in` transitions and fires push-to-start.
-- **`APNSJob`** runs after, reading whatever `ESPNFetchJob` wrote, diffs it against `EventState-{eventID}`, and pushes update / end notifications.
+- **`APNSJob`** runs after, reading whatever `ESPNFetchJob` wrote, diffs it against `EventState-{eventID}-{token}`, and pushes update / end notifications.
 
 Splitting the responsibilities keeps each job's diff-and-decide logic small enough to test exhaustively (see <doc:PushTestingGuide>).
 
@@ -49,7 +49,7 @@ APNSJob.runOnce (every 60s)
        │
        ├── for each Game with hasDoneStatus=false:
        │       │
-       │       ├── load EventState-{eventID} from Redis
+       │       ├── load EventState-{eventID}-{token} from Redis
        │       ├── build ContentState from current Game
        │       ├── if cached == new: skip (no push)
        │       ├── else: send APNS update push
@@ -57,10 +57,10 @@ APNSJob.runOnce (every 60s)
        │       │       └── on .unregistered/.badDeviceToken:
        │       │             delete APNS-{token}
        │       │
-       │       └── write EventState-{eventID} = new ContentState
+       │       └── write EventState-{eventID}-{token} = new ContentState
        │
        └── for each Game with hasDoneStatus=true:
-               send end push, delete EventState-{eventID} and APNS-{token}
+               send end push, delete EventState-{eventID}-{token} and APNS-{token}
 ```
 
 The "skip if equal" check is what keeps the Lock Screen from flickering — `APNSJob` runs every 60s but only fires a push when ``ContentState`` actually changed. The same equality check on the iOS side (`LiveActivityMatcher.resolveUpdate`) handles redundant WebSocket updates.

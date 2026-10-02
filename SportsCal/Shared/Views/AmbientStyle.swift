@@ -57,6 +57,10 @@ struct AmbientDepartureRow: View {
     let isLive: Bool
     let isFavorite: Bool
     let isFinal: Bool
+    /// Live: bases and outs, or down and distance, beside the status.
+    var situation: GameSituation? = nil
+    /// Final: flags a game that was worth watching.
+    var excitementTier: ExcitementTier? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -87,6 +91,15 @@ struct AmbientDepartureRow: View {
                     .foregroundStyle(AmbientPalette.highlight)
             }
 
+            if isLive, let situation {
+                situationAccessory(situation)
+            } else if isFinal, let excitementTier, excitementTier.isWorthWatching {
+                Image(systemName: excitementTier == .classic ? "flame.fill" : "bolt.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(AmbientPalette.highlight)
+                    .accessibilityLabel(excitementTier.displayName)
+            }
+
             Text(statusText.uppercased())
                 .font(.ambientMono(9, weight: .bold))
                 .tracking(1)
@@ -99,6 +112,24 @@ struct AmbientDepartureRow: View {
             Rectangle()
                 .fill(AmbientPalette.divider)
                 .frame(height: 1)
+        }
+    }
+
+    @ViewBuilder
+    private func situationAccessory(_ s: GameSituation) -> some View {
+        if sport == .mlb, s.hasBaseballState {
+            HStack(spacing: 4) {
+                BaseDiamond(first: s.onFirst == true, second: s.onSecond == true, third: s.onThird == true,
+                            size: 16, tint: AmbientPalette.ink.opacity(0.8))
+                if let outs = s.outs {
+                    OutsIndicator(outs: outs, dotSize: 3.5, tint: AmbientPalette.ink.opacity(0.8))
+                }
+            }
+        } else if sport == .nfl, let text = s.shortDownDistanceText {
+            Text(text.uppercased())
+                .font(.ambientMono(9, weight: .regular))
+                .foregroundStyle(s.isRedZone == true ? AmbientPalette.live : AmbientPalette.muted)
+                .lineLimit(1)
         }
     }
 

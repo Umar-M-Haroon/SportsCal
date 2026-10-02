@@ -37,6 +37,7 @@ struct TeamDetailView: View {
     @State private var standingsLeague: Leagues?
     @State private var didLoadStandings = false
     @State private var showFullTable = false
+    @State private var seasonStats: TeamSeasonStats?
 
     /// Scroll to the current game once, when the schedule first has one — never again,
     /// or every live-score tick would yank the list back.
@@ -104,6 +105,8 @@ struct TeamDetailView: View {
 
                 standingsSection
 
+                seasonStatsSection
+
                 alertsSection
 
                 rosterAndInfoSections(record: schedule.record)
@@ -123,7 +126,11 @@ struct TeamDetailView: View {
             }
         }
         .task(id: team.idTeam) { await loadDetail() }
-        .task(id: schedule.primaryLeague?.rawValue) { await loadStandings(league: schedule.primaryLeague) }
+        .task(id: schedule.primaryLeague?.rawValue) {
+            async let standings: Void = loadStandings(league: schedule.primaryLeague)
+            async let ranks: Void = loadSeasonStats(league: schedule.primaryLeague)
+            _ = await (standings, ranks)
+        }
         .onAppear { teamAlertsOn = alertableTeamID.map { viewModel.appStorage.teamAlertTeamIDs.contains($0) } ?? false }
         .navigationTitle(team.strTeam ?? "Team")
         #if os(iOS)
@@ -443,6 +450,22 @@ struct TeamDetailView: View {
         }
     }
 
+    // MARK: - League ranks
+
+    @ViewBuilder
+    private var seasonStatsSection: some View {
+        if let seasonStats, let league = standingsLeague {
+            Section {
+                TeamRankCard(stats: seasonStats, accent: Color.app(SportType(league: league)))
+                    .padding(.vertical, 4)
+            } header: {
+                Text("League Ranks")
+            } footer: {
+                Text("Where the \(team.strTeam ?? "team") rank among \(league.leagueName) teams. 1st is best.")
+            }
+        }
+    }
+
     private var standingGroups: [(name: String?, entries: [Entry])]? {
         standing?.standings.children?.compactMap { child in
             guard let entries = child.standings?.entries, !entries.isEmpty else { return nil }
@@ -614,6 +637,14 @@ struct TeamDetailView: View {
         guard !Task.isCancelled, standingsLeague == league else { return }
         standing = loaded
         didLoadStandings = true
+    }
+
+    private func loadSeasonStats(league: Leagues?) async {
+        // Stand-in teams (opponents opened from a game row) have no real id to look up.
+        guard let league, let id = alertableTeamID else { return }
+        let loaded = try? await NetworkHandler.getTeamSeasonStats(teamID: id, league: league)
+        guard !Task.isCancelled else { return }
+        seasonStats = loaded ?? nil
     }
 
     // MARK: - Actions

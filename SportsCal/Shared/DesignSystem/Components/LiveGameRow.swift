@@ -22,6 +22,11 @@ public struct LiveGameRow: View {
     public var leverageDelta: Int? = nil
     public var awayBadgeURL: URL? = nil
     public var homeBadgeURL: URL? = nil
+    /// Live game state for the strip under the matchup (bases/outs, down & distance,
+    /// win probability), with the short names it labels sides by.
+    public var situation: GameSituation? = nil
+    public var awayShort: String? = nil
+    public var homeShort: String? = nil
 
     public init(
         sport: SportType,
@@ -33,8 +38,14 @@ public struct LiveGameRow: View {
         leverageLabel: String? = nil,
         leverageDelta: Int? = nil,
         awayBadgeURL: URL? = nil,
-        homeBadgeURL: URL? = nil
+        homeBadgeURL: URL? = nil,
+        situation: GameSituation? = nil,
+        awayShort: String? = nil,
+        homeShort: String? = nil
     ) {
+        self.situation = situation
+        self.awayShort = awayShort
+        self.homeShort = homeShort
         self.sport = sport
         self.matchup = matchup
         self.scoreLine = scoreLine
@@ -67,6 +78,15 @@ public struct LiveGameRow: View {
                             Text(subtext)
                                 .font(.appCallout)
                                 .foregroundStyle(Color.appInkSoft)
+                        }
+                        if let situation {
+                            GameStateStrip(
+                                situation: situation,
+                                sport: sport,
+                                homeName: homeShort ?? "Home",
+                                awayName: awayShort ?? "Away",
+                                tint: Color.appInkSoft
+                            )
                         }
                     }
                 }

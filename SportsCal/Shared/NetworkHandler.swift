@@ -674,6 +674,20 @@ struct NetworkHandler {
         return try Self.sharedDecoder.decode(TeamDetail.self, from: data)
     }
 
+    /// League ranks on the stats that matter for one team, or nil where the league has
+    /// none (soccer) or ESPN doesn't know the team (404).
+    static func getTeamSeasonStats(teamID: String, league: Leagues) async throws -> TeamSeasonStats? {
+        let encoded = teamID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? teamID
+        var components = URLComponents(string: "\(baseURL())/team/\(encoded)/season-stats")!
+        components.queryItems = [URLQueryItem(name: "league", value: String(league.rawValue))]
+        let (data, response) = try await performAuthorized(url: components.url!)
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            if httpResponse.statusCode == 404 { return nil }
+        }
+        return try Self.sharedDecoder.decode(TeamSeasonStats.self, from: data)
+    }
+
     static func getLiveSnapshot() async throws -> LiveScore {
         let isMockLive = ProcessInfo.processInfo.environment["mock-live"] != nil
 
