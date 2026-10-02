@@ -505,13 +505,20 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 league: candidate.league,
                 eventId: espnEventID
             )
-            let plays = summary.plays ?? []
+            // Football's plays live under drives; reading only the top-level list cached
+            // an empty play-by-play for every NFL game.
+            let plays = summary.allPlays
             let clientFacingID = candidate.tsdbEventID ?? espnEventID
             let league = candidate.game.idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))
             let extras = summary.extras(league: league, isFinal: isFinal)
             let payload = CachedPlays(
                 eventID: clientFacingID,
-                lastPlayId: plays.last?.id ?? candidate.game.lastPlayScoreboardID ?? "",
+                // The skip check compares this to the scoreboard's lastPlay.id. Drive play
+                // IDs aren't guaranteed to share that format, so for football record the
+                // scoreboard's own ID rather than risk a re-fetch on every tick.
+                lastPlayId: summary.playsFromDrives
+                    ? (candidate.game.lastPlayScoreboardID ?? plays.last?.id ?? "")
+                    : (plays.last?.id ?? candidate.game.lastPlayScoreboardID ?? ""),
                 plays: plays,
                 isFinal: isFinal,
                 fetchedAt: Date(),

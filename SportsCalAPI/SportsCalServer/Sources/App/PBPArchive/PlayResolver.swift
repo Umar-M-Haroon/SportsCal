@@ -62,8 +62,8 @@ enum PlayResolver {
             let summary = try await ESPNNetworking.getPlayByPlaySummary(
                 req: req.client, sport: resolvedSport, league: resolvedLeague, eventId: resolvedESPNID
             )
-            let plays = summary.plays ?? []
-            // Football has no top-level plays but does have win probability and a box
+            let plays = summary.allPlays
+            // Some summaries have no plays yet but do have win probability and a box
             // score, so an empty play list alone isn't a miss.
             let league = Leagues(slug: resolvedLeague)
             let extras = summary.extras(league: league, isFinal: false)

@@ -313,6 +313,20 @@ final class LiveSituationTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(series.home.last), 1.0, accuracy: 0.0001, "home (CLE) won")
     }
 
+    func testFootballPlaysComeFromDrives() throws {
+        // ESPN's NFL summary has no top-level plays; they're grouped by drive.
+        let nfl = try summary("nfl")
+        XCTAssertTrue(nfl.playsFromDrives)
+        XCTAssertEqual(nfl.allPlays.count, 195)
+        XCTAssertEqual(nfl.allPlays.first?.period?.number, 1)
+        XCTAssertEqual(nfl.allPlays.map { $0.period?.number ?? 0 }, nfl.allPlays.map { $0.period?.number ?? 0 }.sorted(),
+                       "drives flatten oldest first")
+
+        let nba = try summary("nba")
+        XCTAssertFalse(nba.playsFromDrives)
+        XCTAssertEqual(nba.allPlays.count, nba.plays?.count)
+    }
+
     func testExcitementAnchorsMapToPercentiles() throws {
         let nfl = try XCTUnwrap(ExcitementIndex.anchors(for: .nfl))
         XCTAssertEqual(ExcitementIndex.score(raw: nfl.p10, anchors: nfl), 10)

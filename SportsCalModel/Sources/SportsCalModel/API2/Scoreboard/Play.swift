@@ -88,6 +88,18 @@ public struct ESPNSummaryResponse: Codable {
         self.drives = drives
     }
 
+    /// The game's plays, oldest first, wherever ESPN put them: the top-level list for
+    /// most sports, the drives for football (whose top-level list is absent).
+    public var allPlays: [Play] {
+        if let plays, !plays.isEmpty { return plays }
+        return drives?.allPlays ?? []
+    }
+
+    /// Whether `allPlays` came from the drives.
+    public var playsFromDrives: Bool {
+        (plays?.isEmpty ?? true) && !(drives?.allPlays.isEmpty ?? true)
+    }
+
     enum CodingKeys: String, CodingKey { case plays, winprobability, boxscore, drives }
 
     public init(from decoder: Decoder) throws {
@@ -168,9 +180,8 @@ public extension ESPNSummaryResponse {
     /// Derives the cache extras from this summary. `league` picks the box-score layout
     /// and the excitement calibration; excitement is only scored once the game is final.
     func extras(league: Leagues?, isFinal: Bool) -> CachedPlaysExtras {
-        // Period boundaries come from joining play IDs; football's plays live under drives.
-        let periodSource = (plays?.isEmpty == false ? plays : nil) ?? drives?.allPlays ?? []
-        let series = winprobability.flatMap { WinProbabilitySeries(entries: $0, plays: periodSource) }
+        // Period boundaries come from joining play IDs.
+        let series = winprobability.flatMap { WinProbabilitySeries(entries: $0, plays: allPlays) }
         let sport = league.map(SportType.init(league:))
         let teamStats = sport.flatMap { TeamStatComparison(boxscore: boxscore, sport: $0) }
         var excitement: Int?
