@@ -84,30 +84,36 @@ class OpenF1Networking {
         let pit_duration: Double?
     }
 
-    /// Fetches meetings for a season. Returns mapping of meeting_name → circuit_image URL.
+    struct CircuitImage {
+        let meetingName: String
+        let location: String?
+        let imageURL: String
+    }
+
+    /// Fetches meetings for a season with their circuit_image URLs.
     /// This gives us track layout images that no other free API provides.
-    static func getCircuitImages(client: some Client, year: Int) async -> [String: String] {
+    /// Not keyed by meeting_name: names repeat (2026 has two "Bahrain Grand Prix"
+    /// meetings, Sakhir and Kuala Lumpur), so callers match on location first.
+    static func getCircuitImages(client: some Client, year: Int) async -> [CircuitImage] {
         let url = "\(baseURL)/meetings?year=\(year)"
         do {
             let response = try await client.get(URI(string: url))
             let meetings = try response.content.decode([Meeting].self)
-            var imageMap: [String: String] = [:]
-            for meeting in meetings {
-                if let name = meeting.meeting_name, let imageURL = meeting.circuit_image, !imageURL.isEmpty {
-                    imageMap[name] = imageURL
-                }
+            let images: [CircuitImage] = meetings.compactMap { meeting in
+                guard let name = meeting.meeting_name, let imageURL = meeting.circuit_image, !imageURL.isEmpty else { return nil }
+                return CircuitImage(meetingName: name, location: meeting.location, imageURL: imageURL)
             }
             logger.info("OpenF1 circuit images fetched", metadata: [
                 "year": "\(year)",
-                "count": "\(imageMap.count)"
+                "count": "\(images.count)"
             ])
-            return imageMap
+            return images
         } catch {
             logger.error("OpenF1 circuit images fetch failed", metadata: [
                 "year": "\(year)",
                 "error": "\(error)"
             ])
-            return [:]
+            return []
         }
     }
 
