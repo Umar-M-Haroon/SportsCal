@@ -19,6 +19,9 @@ struct LiveSportActivityAttributes: ActivityAttributes {
         var status: String?
         var progress: String?
         var lastPlay: String? // e.g., "Durant hits 3-pointer" or "Goal by Messi (45')"
+        /// Outs and runners, down and distance, win probability. Optional: pushes from
+        /// a server that predates it, and activities started before it, decode fine.
+        var situation: LiveActivitySituation? = nil
     }
 
     var homeTeam: String

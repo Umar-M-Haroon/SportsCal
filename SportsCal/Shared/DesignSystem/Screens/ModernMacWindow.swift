@@ -1373,7 +1373,10 @@ struct ModernMacWindow: View {
             clock: nil,
             subtext: nil,
             awayBadgeURL: badgeURL(game.strAwayTeamBadge),
-            homeBadgeURL: badgeURL(game.strHomeTeamBadge)
+            homeBadgeURL: badgeURL(game.strHomeTeamBadge),
+            situation: game.situation,
+            awayShort: viewModel.getTeams(for: game)?.away.strTeamShort ?? game.strAwayTeam,
+            homeShort: viewModel.getTeams(for: game)?.home.strTeamShort ?? game.strHomeTeam
         )
     }
 
@@ -1388,7 +1391,8 @@ struct ModernMacWindow: View {
             homeScore: home,
             awayScore: away,
             awayBadgeURL: badgeURL(game.strAwayTeamBadge),
-            homeBadgeURL: badgeURL(game.strHomeTeamBadge)
+            homeBadgeURL: badgeURL(game.strHomeTeamBadge),
+            excitementTier: game.excitementTier
         )
     }
 

@@ -1670,7 +1670,10 @@ public class GameViewModel: NSObject {
                 // The team page groups by these. Rebuilding without them sent a live
                 // playoff game back to "Regular Season" for the duration of the game.
                 season: scheduled.season ?? live.season,
-                seasonPhase: live.seasonPhase ?? scheduled.seasonPhase
+                seasonPhase: live.seasonPhase ?? scheduled.seasonPhase,
+                // Live-only: the live copy's or none, never a stale scheduled one.
+                situation: live.situation,
+                excitement: live.excitement ?? scheduled.excitement
             )
             changedByID[scheduled.id] = games[i]
         }
@@ -2925,7 +2928,7 @@ extension GameViewModel {
             }
         }
 
-        let initialContentState = LiveSportActivityAttributes.ContentState(homeScore: Int(game.intHomeScore ?? "") ?? 0, awayScore: Int(game.intAwayScore ?? "") ?? 0, status: game.strStatus, progress: game.strProgress, lastPlay: nil)
+        let initialContentState = LiveSportActivityAttributes.ContentState(homeScore: Int(game.intHomeScore ?? "") ?? 0, awayScore: Int(game.intAwayScore ?? "") ?? 0, status: game.strStatus, progress: game.strProgress, lastPlay: nil, situation: LiveActivitySituation(game.situation))
         let activityAttributes = LiveSportActivityAttributes(
             homeTeam: homeTeamName,
             awayTeam: awayTeamName,

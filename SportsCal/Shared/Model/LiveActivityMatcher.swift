@@ -31,7 +31,8 @@ enum LiveActivityMatcher {
                 awayScore: Int(game.intAwayScore ?? "") ?? 0,
                 status: game.strStatus,
                 progress: game.strProgress,
-                lastPlay: nil
+                lastPlay: nil,
+                situation: LiveActivitySituation(game.situation)
             )
             if let eventID = game.idEvent {
                 byEventID[eventID] = state

@@ -131,6 +131,15 @@ struct LiveSportActivityWidget: Widget {
                         IndividualTeamView(shortName: context.attributes.homeTeam, longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false)
                     }
                 }
+                if let situation = context.state.situation {
+                    LiveActivitySituationStrip(
+                        situation: situation,
+                        homeName: shortAbbreviation(short: context.attributes.homeTeamShort, full: context.attributes.homeTeam),
+                        awayName: shortAbbreviation(short: context.attributes.awayTeamShort, full: context.attributes.awayTeam),
+                        tint: WidgetTokens.inkSoft
+                    )
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
                 if let lastPlay = context.state.lastPlay, !lastPlay.isEmpty {
                     Text(lastPlay)
                         .font(.system(.caption2, design: .rounded).weight(.medium))
@@ -188,6 +197,15 @@ struct LiveSportActivityWidget: Widget {
                     VStack(spacing: 2) {
                         progressLabel(for: context.state)
                             .frame(maxWidth: .infinity, alignment: .center)
+                        if let situation = context.state.situation {
+                            LiveActivitySituationStrip(
+                                situation: situation,
+                                homeName: shortAbbreviation(short: context.attributes.homeTeamShort, full: context.attributes.homeTeam),
+                                awayName: shortAbbreviation(short: context.attributes.awayTeamShort, full: context.attributes.awayTeam),
+                                tint: WidgetTokens.ink
+                            )
+                            .frame(maxWidth: .infinity, alignment: .center)
+                        }
                         if let lastPlay = context.state.lastPlay, !lastPlay.isEmpty {
                             Text(lastPlay)
                                 .font(.system(.caption2, design: .rounded).weight(.medium))
@@ -239,5 +257,19 @@ struct LiveSportActivityWidget: Widget {
     LiveSportActivityWidget()
 } contentStates: {
     LiveSportActivityAttributes.ContentState(homeScore: 3, awayScore: 6, status: "in", progress: "2:14 - 2nd", lastPlay: "Goal by McDavid (PP)")
+}
+
+#Preview("Notification · Baseball", as: .content, using: LiveSportActivityAttributes(homeTeam: "Cleveland Guardians", awayTeam: "Detroit Tigers", eventID: "1", homeTeamShort: "CLE", awayTeamShort: "DET")) {
+    LiveSportActivityWidget()
+} contentStates: {
+    LiveSportActivityAttributes.ContentState(homeScore: 3, awayScore: 5, status: "in", progress: "Bot 9th", lastPlay: "Kwan singled to left.",
+                                             situation: LiveActivitySituation(outs: 1, bases: 3, homeWinPct: 21))
+}
+
+#Preview("Island Expanded · Football", as: .dynamicIsland(.expanded), using: LiveSportActivityAttributes(homeTeam: "Kansas City Chiefs", awayTeam: "Buffalo Bills", eventID: "2", homeTeamShort: "KC", awayTeamShort: "BUF")) {
+    LiveSportActivityWidget()
+} contentStates: {
+    LiveSportActivityAttributes.ContentState(homeScore: 20, awayScore: 17, status: "in", progress: "4th 2:31", lastPlay: nil,
+                                             situation: LiveActivitySituation(downDistance: "3rd & 4 at KC 12", possession: .away, redZone: true, homeWinPct: 58))
 }
 #endif
