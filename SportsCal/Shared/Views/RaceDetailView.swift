@@ -58,6 +58,9 @@ struct RaceDetailView: View {
                     legacyLeaderboard
                     raceTimingSection
                 }
+                if let standings = viewModel.f1Standings {
+                    F1TitleFightCard(standings: standings)
+                }
                 standingsSection
             }
             .padding()
@@ -312,7 +315,7 @@ struct RaceDetailView: View {
     private var gapRibbonSection: some View {
         let entries = gapRibbonEntries
         if entries.contains(where: { $0.gap != nil }), entries.count >= 3 {
-            F1GapRibbonView(entries: entries, sessionName: gapRibbonSessionName)
+            F1GapRibbonView(entries: entries, sessionName: gapRibbonSessionName, standings: viewModel.f1Standings)
         }
     }
 
@@ -351,6 +354,7 @@ struct RaceDetailView: View {
                 .foregroundColor(.secondary)
                 .padding(.bottom, 4)
 
+                let gained = sessions.positionsGainedVsQualifying(in: session)
                 ForEach(Array(session.leaderboard.enumerated()), id: \.offset) { index, entry in
                     let isLeader = index == 0
                     HStack(spacing: 0) {
@@ -358,9 +362,14 @@ struct RaceDetailView: View {
                             .frame(width: 32, alignment: .leading)
                         HeadshotView(url: entry.headshot, size: 28)
                             .padding(.trailing, 6)
-                        Text(entry.name)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .lineLimit(1)
+                        HStack(spacing: 4) {
+                            Text(entry.name)
+                                .lineLimit(1)
+                            if let change = gained[entry.name], change != 0 {
+                                PositionChangeBadge(change: change)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         Text(entry.constructor ?? "")
                             .frame(width: 90, alignment: .leading)
                             .lineLimit(1)
@@ -372,6 +381,11 @@ struct RaceDetailView: View {
                     .fontWeight(isLeader ? .bold : .regular)
                     .foregroundColor(isLeader ? .primary : .secondary)
                     .padding(.vertical, 2)
+                }
+                if !gained.isEmpty, let grid = sessions.gridSession(for: session) {
+                    Text("▲▼ places vs \(grid.displayName.lowercased()); grid penalties not included")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
             } else {
                 Text(session.flatMap { $0.status == "pre" || $0.status == nil ? $0.startDate : nil }
@@ -738,7 +752,7 @@ struct RaceDetailView: View {
                         .fontWeight(standing.position <= 3 ? .bold : .regular)
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(F1GapRibbonView.colorForConstructorName(standing.constructorName))
+                            .fill(F1GapRibbonView.colorForConstructorName(standing.constructorName, standings: viewModel.f1Standings))
                             .frame(width: 6, height: 6)
                         Text(standing.constructorName)
                             .lineLimit(1)
@@ -901,4 +915,16 @@ struct F1SessionPicker: View {
         F1SessionPicker(sessions: Array((game.sessions ?? []).prefix(3)), selectedIndex: .constant(0))
     }
     .padding()
+}
+
+/// "▲3" / "▼2" places gained or lost.
+struct PositionChangeBadge: View {
+    let change: Int
+
+    var body: some View {
+        Text("\(change > 0 ? "▲" : "▼")\(abs(change))")
+            .font(.caption2.weight(.semibold).monospacedDigit())
+            .foregroundStyle(change > 0 ? .green : .red)
+            .accessibilityLabel(change > 0 ? "gained \(change) places" : "lost \(-change) places")
+    }
 }

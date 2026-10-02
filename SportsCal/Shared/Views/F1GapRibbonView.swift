@@ -17,28 +17,18 @@ struct F1GapRibbonView: View {
 
     @State private var showAll = false
 
-    /// Static constructor color lookup for F1 teams
-    private static let constructorColors: [String: Color] = [
-        "Red Bull Racing": Color(hex: "3671C6"),
-        "Ferrari": Color(hex: "E8002D"),
-        "Mercedes": Color(hex: "27F4D2"),
-        "McLaren": Color(hex: "FF8000"),
-        "Aston Martin": Color(hex: "229971"),
-        "Alpine": Color(hex: "FF87BC"),
-        "Williams": Color(hex: "64C4FF"),
-        "Racing Bulls": Color(hex: "6692FF"),
-        "Audi": Color(hex: "BB0A30"),
-        "Cadillac": Color(hex: "C9A86A"),
-        "Haas F1 Team": Color(hex: "B6BABD"),
-        // Alternate names
-        "Red Bull": Color(hex: "3671C6"),
-        "RB": Color(hex: "6692FF"),
-        "Visa Cash App RB": Color(hex: "6692FF"),
-        "AlphaTauri": Color(hex: "6692FF"),
-        "Kick Sauber": Color(hex: "52E252"),
-        "Alfa Romeo": Color(hex: "52E252"),
-        "Sauber": Color(hex: "52E252"),
-        "Haas": Color(hex: "B6BABD"),
+    /// Carries OpenF1's official team colours and driver codes when the server has them.
+    var standings: F1Standings? = nil
+
+    /// Fallback when the server hasn't sent colours yet (OpenF1 2026 broadcast values),
+    /// keyed by `F1Standings.normalizedTeamName`.
+    private static let fallbackColors: [String: String] = [
+        "red bull": "4781D7", "ferrari": "ED1131", "mercedes": "00D7B6", "mclaren": "F47600",
+        "aston martin": "229971", "alpine": "00A1E8", "williams": "1868DB", "racing bulls": "6C98FF",
+        "audi": "F50537", "cadillac": "909090", "haas": "9C9FA2",
+        // Older names still in past-season data
+        "rb": "6692FF", "visa cash app rb": "6692FF", "alphatauri": "6692FF",
+        "kick sauber": "52E252", "sauber": "52E252", "alfa romeo": "52E252",
     ]
 
     private static let collapsedCount = 10
@@ -283,16 +273,19 @@ struct F1GapRibbonView: View {
 
     // MARK: - Helpers
 
-    static func colorForConstructorName(_ constructor: String) -> Color {
-        constructorColors[constructor] ?? .gray
+    static func colorForConstructorName(_ constructor: String, standings: F1Standings? = nil) -> Color {
+        let hex = standings?.teamColorHex(for: constructor)
+            ?? fallbackColors[F1Standings.normalizedTeamName(constructor)]
+        return Color(hex: hex) ?? .gray
     }
 
     private func colorForConstructor(_ constructor: String?) -> Color {
         guard let constructor else { return .gray }
-        return Self.constructorColors[constructor] ?? .gray
+        return Self.colorForConstructorName(constructor, standings: standings)
     }
 
     private func shortName(_ fullName: String) -> String {
+        if let code = standings?.driverCode(for: fullName) { return code }
         let parts = fullName.components(separatedBy: " ")
         if parts.count >= 2, let last = parts.last {
             return String(last.prefix(3)).uppercased()

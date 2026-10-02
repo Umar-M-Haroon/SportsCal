@@ -117,6 +117,55 @@ class OpenF1Networking {
         }
     }
 
+    // MARK: - Drivers (team colours, codes)
+
+    private struct OpenF1Driver: Decodable {
+        let full_name: String?
+        let first_name: String?
+        let last_name: String?
+        let name_acronym: String?
+        let team_name: String?
+        let team_colour: String?
+    }
+
+    struct DriverDirectory {
+        /// Team name → official broadcast hex colour.
+        let teamColors: [String: String]
+        /// `F1Standings.driverKey(full name)` → three-letter code.
+        let driverCodes: [String: String]
+    }
+
+    /// Drivers for the most recent session: the current grid with official team colours
+    /// and three-letter codes. ESPN's own vehicle.teamColor is unreliable (Williams is
+    /// white, Alpine yellow), so these are what the app paints with.
+    static func getDriverDirectory(client: some Client) async -> DriverDirectory {
+        let url = "\(baseURL)/drivers?session_key=latest"
+        do {
+            let response = try await client.get(URI(string: url))
+            let drivers = try response.content.decode([OpenF1Driver].self)
+            var teamColors: [String: String] = [:]
+            var driverCodes: [String: String] = [:]
+            for driver in drivers {
+                if let team = driver.team_name, let colour = driver.team_colour, colour.count == 6 {
+                    teamColors[team] = colour.uppercased()
+                }
+                // full_name is "Lando NORRIS"; first/last are properly cased.
+                let name = [driver.first_name, driver.last_name].compactMap { $0 }.joined(separator: " ")
+                if !name.isEmpty, let code = driver.name_acronym, !code.isEmpty {
+                    driverCodes[F1Standings.driverKey(name)] = code
+                }
+            }
+            logger.info("OpenF1 drivers fetched", metadata: [
+                "teams": "\(teamColors.count)",
+                "drivers": "\(driverCodes.count)"
+            ])
+            return DriverDirectory(teamColors: teamColors, driverCodes: driverCodes)
+        } catch {
+            logger.error("OpenF1 drivers fetch failed", metadata: ["error": "\(error)"])
+            return DriverDirectory(teamColors: [:], driverCodes: [:])
+        }
+    }
+
     /// Fetches all Race/Sprint sessions for a given year, sorted newest-first.
     static func getRaceSessions(client: some Client, year: Int) async -> [Session] {
         let url = "\(baseURL)/sessions?year=\(year)&session_type=Race"

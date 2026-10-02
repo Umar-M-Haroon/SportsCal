@@ -44,6 +44,11 @@ class JolpicaNetworking {
         let round: String
         let raceName: String
         let Circuit: JolpicaCircuit
+        /// Present only on sprint weekends.
+        let Sprint: JolpicaSession?
+    }
+    private struct JolpicaSession: Decodable {
+        let date: String?
     }
     private struct JolpicaCircuit: Decodable {
         let circuitId: String
@@ -115,47 +120,60 @@ class JolpicaNetworking {
 
     // MARK: - Public API
 
-    /// Fetches circuit info for all races in a season.
-    /// Returns a dictionary mapping race name → F1CircuitInfo for easy lookup.
-    static func getCircuits(client: some Client, season: Int) async -> [String: F1CircuitInfo] {
+    struct SeasonRound: Equatable {
+        let round: Int
+        let raceName: String
+        let hasSprint: Bool
+    }
+
+    struct Season {
+        /// Race name (e.g. "Australian Grand Prix") → circuit, for matching with ESPN data.
+        let circuits: [String: F1CircuitInfo]
+        let rounds: [SeasonRound]
+    }
+
+    /// Fetches the season calendar: circuit info plus round numbers and sprint weekends.
+    static func getSeason(client: some Client, season: Int) async -> Season {
         let url = "\(baseURL)/\(season).json?limit=30"
         do {
             let response = try await client.get(URI(string: url))
             let decoded = try response.content.decode(CircuitTableResponse.self)
             var circuits: [String: F1CircuitInfo] = [:]
+            var rounds: [SeasonRound] = []
             for race in decoded.MRData.RaceTable.Races {
                 let circuit = race.Circuit
-                let info = F1CircuitInfo(
+                circuits[race.raceName] = F1CircuitInfo(
                     circuitName: circuit.circuitName,
                     locality: circuit.Location.locality,
                     country: circuit.Location.country,
                     latitude: circuit.Location.lat,
                     longitude: circuit.Location.long
                 )
-                // Map by race name (e.g. "Australian Grand Prix") for matching with ESPN data
-                circuits[race.raceName] = info
+                if let round = Int(race.round) {
+                    rounds.append(SeasonRound(round: round, raceName: race.raceName, hasSprint: race.Sprint != nil))
+                }
             }
-            logger.info("Jolpica circuits fetched", metadata: [
+            logger.info("Jolpica season fetched", metadata: [
                 "season": "\(season)",
                 "count": "\(circuits.count)"
             ])
-            return circuits
+            return Season(circuits: circuits, rounds: rounds.sorted { $0.round < $1.round })
         } catch {
-            logger.error("Jolpica circuits fetch failed", metadata: [
+            logger.error("Jolpica season fetch failed", metadata: [
                 "season": "\(season)",
                 "error": "\(error)"
             ])
-            return [:]
+            return Season(circuits: [:], rounds: [])
         }
     }
 
-    /// Fetches current driver standings.
-    static func getDriverStandings(client: some Client, season: Int) async -> [F1DriverStanding] {
+    /// Fetches current driver standings and the round they're current through.
+    static func getDriverStandings(client: some Client, season: Int) async -> (standings: [F1DriverStanding], round: Int?) {
         let url = "\(baseURL)/\(season)/driverstandings.json"
         do {
             let response = try await client.get(URI(string: url))
             let decoded = try response.content.decode(DriverStandingsResponse.self)
-            guard let list = decoded.MRData.StandingsTable.StandingsLists.first else { return [] }
+            guard let list = decoded.MRData.StandingsTable.StandingsLists.first else { return ([], nil) }
             let standings = list.DriverStandings.compactMap { standing -> F1DriverStanding? in
                 guard let pos = Int(standing.position),
                       let pts = Double(standing.points),
@@ -171,13 +189,13 @@ class JolpicaNetworking {
                 "season": "\(season)",
                 "count": "\(standings.count)"
             ])
-            return standings
+            return (standings, list.round.flatMap(Int.init))
         } catch {
             logger.error("Jolpica driver standings fetch failed", metadata: [
                 "season": "\(season)",
                 "error": "\(error)"
             ])
-            return []
+            return ([], nil)
         }
     }
 

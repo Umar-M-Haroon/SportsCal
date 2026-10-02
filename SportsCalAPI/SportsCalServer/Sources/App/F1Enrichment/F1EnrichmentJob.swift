@@ -15,6 +15,29 @@ import Logging
 struct F1EnrichmentJob: AsyncScheduledJob {
     private static let logger = Logger(label: "com.sportscal.f1-enrichment")
 
+    /// Standings plus the calendar facts title math needs. Remaining rounds are counted
+    /// from the standings' own round (not today's date) so a lagging standings feed
+    /// never pairs old points with a calendar that's already moved on.
+    static func makeStandings(drivers: [F1DriverStanding], constructors: [F1ConstructorStanding],
+                              round: Int?, calendar: [JolpicaNetworking.SeasonRound],
+                              directory: OpenF1Networking.DriverDirectory) -> F1Standings {
+        var standings = F1Standings(
+            driverStandings: drivers,
+            constructorStandings: constructors,
+            teamColors: directory.teamColors.isEmpty ? nil : directory.teamColors,
+            driverCodes: directory.driverCodes.isEmpty ? nil : directory.driverCodes
+        )
+        if let round, !calendar.isEmpty {
+            let remaining = calendar.filter { $0.round > round }
+            standings.round = round
+            standings.remainingRaces = remaining.count
+            standings.remainingSprints = remaining.filter(\.hasSprint).count
+            standings.nextRoundName = remaining.first?.raceName
+            standings.nextRoundHasSprint = remaining.first?.hasSprint
+        }
+        return standings
+    }
+
     // Persist-guards: a failed source returns an empty collection (the fetchers are
     // non-throwing), so guard writes to avoid clobbering last-known-good Redis data.
     static func shouldPersistCircuits(_ circuits: [String: F1CircuitInfo]) -> Bool {
@@ -44,15 +67,18 @@ struct F1EnrichmentJob: AsyncScheduledJob {
 
         Self.logger.info("Fetching F1 enrichment data")
 
-        // Fetch all four data sources concurrently
-        async let circuitsTask = JolpicaNetworking.getCircuits(client: client, season: currentYear)
+        // Fetch all data sources concurrently
+        async let seasonTask = JolpicaNetworking.getSeason(client: client, season: currentYear)
         async let driverStandingsTask = JolpicaNetworking.getDriverStandings(client: client, season: currentYear)
         async let constructorStandingsTask = JolpicaNetworking.getConstructorStandings(client: client, season: currentYear)
         async let circuitImagesTask = OpenF1Networking.getCircuitImages(client: client, year: currentYear)
         async let sessionsTask = OpenF1Networking.getRaceSessions(client: client, year: currentYear)
+        async let driverDirectoryTask = OpenF1Networking.getDriverDirectory(client: client)
 
-        let circuits = await circuitsTask
-        let driverStandings = await driverStandingsTask
+        let season = await seasonTask
+        let circuits = season.circuits
+        let (driverStandings, standingsRound) = await driverStandingsTask
+        let driverDirectory = await driverDirectoryTask
         let constructorStandings = await constructorStandingsTask
         let circuitImages = await circuitImagesTask
         let sessions = await sessionsTask
@@ -94,9 +120,12 @@ struct F1EnrichmentJob: AsyncScheduledJob {
         }
 
         // Store standings
-        let standings = F1Standings(
-            driverStandings: driverStandings,
-            constructorStandings: constructorStandings
+        let standings = Self.makeStandings(
+            drivers: driverStandings,
+            constructors: constructorStandings,
+            round: standingsRound,
+            calendar: season.rounds,
+            directory: driverDirectory
         )
 
         // Save to Redis

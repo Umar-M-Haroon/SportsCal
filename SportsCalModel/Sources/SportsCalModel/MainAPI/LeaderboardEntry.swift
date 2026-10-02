@@ -114,3 +114,35 @@ public struct EventSession: Codable, Equatable, Hashable {
         }
     }
 }
+
+public extension Array where Element == EventSession {
+    /// The session whose order set `session`'s grid: Qualifying for the Race,
+    /// Sprint Qualifying for the Sprint. Nil for practice/qualifying sessions.
+    func gridSession(for session: EventSession) -> EventSession? {
+        let sourceTypes: Set<String>
+        switch session.sessionType.lowercased() {
+        case "race", "r": sourceTypes = ["qual", "qualifying"]
+        case "sr", "sprint": sourceTypes = ["ss", "sq", "sprint qualifying", "sprint shootout"]
+        default: return nil
+        }
+        return first { sourceTypes.contains($0.sessionType.lowercased()) }
+    }
+
+    /// Places gained (+) or lost (−) versus qualifying, keyed by driver name. Approximate
+    /// by design: grid penalties and pit-lane starts aren't in the feed, so this is
+    /// "vs qualifying", not "vs grid". Empty until qualifying has finished.
+    func positionsGainedVsQualifying(in session: EventSession) -> [String: Int] {
+        guard let grid = gridSession(for: session), grid.status == "post" else { return [:] }
+        let qualifying = Dictionary(
+            grid.leaderboard.filter { $0.position > 0 }.map { ($0.name, $0.position) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var gained: [String: Int] = [:]
+        for entry in session.leaderboard where entry.position > 0 {
+            if let start = qualifying[entry.name] {
+                gained[entry.name] = start - entry.position
+            }
+        }
+        return gained
+    }
+}
