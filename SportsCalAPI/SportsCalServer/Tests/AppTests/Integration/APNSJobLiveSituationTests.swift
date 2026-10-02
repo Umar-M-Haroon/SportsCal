@@ -132,12 +132,30 @@ final class APNSJobLiveSituationTests: XCTestCase {
         var granted = 0
         for i in 0..<10 {
             let distinct = ClutchMoment(kind: moment.kind, title: "t", body: "b", key: "k\(i)")
-            if await APNSJob.claimClutchAlert(distinct, eventID: "e", token: "tok", kv: kv, isDebug: false) { granted += 1 }
+            if let claim = await APNSJob.claimClutchAlert(distinct, eventID: "e", token: "tok", kv: kv, isDebug: false) {
+                granted += 1
+                _ = try await kv.increment(claim.countKey, ttl: 60)  // delivered
+            }
         }
         XCTAssertEqual(granted, APNSJob.maxClutchAlertsPerGame)
         // Another device on the same game has its own allowance.
         let otherDevice = await APNSJob.claimClutchAlert(moment, eventID: "e", token: "other", kv: kv, isDebug: false)
-        XCTAssertTrue(otherDevice)
+        XCTAssertNotNil(otherDevice)
+    }
+
+    func test_failedClutchPushIsNotSpent() async throws {
+        try await register(token: "tok", eventID: "m1")
+        apns.queueError(APNSSendError(reason: .internalServerError, underlying: nil), for: "tok")
+        try await seed(TestGameFactory.liveScore(mlb: [mlbGame(home: 3, away: 5, situation: tyingRunUp)]))
+        try await runJob()
+        XCTAssertTrue(apns.recorded.isEmpty, "the push failed")
+
+        // Same moment a pitch later: the device still gets its alert.
+        var twoOut = tyingRunUp
+        twoOut.outs = 2
+        try await seed(TestGameFactory.liveScore(mlb: [mlbGame(home: 3, away: 5, situation: twoOut)]))
+        try await runJob()
+        XCTAssertEqual(apns.recorded.last?.alertTitle, "Guardians: tying run at the plate")
     }
 
     func test_noSituationNoClutch() async throws {

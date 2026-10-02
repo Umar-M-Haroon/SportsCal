@@ -809,7 +809,7 @@ struct GameDetailSections: View {
                     series: series,
                     homeName: homeShortName, awayName: awayShortName,
                     homeColor: homeColor, awayColor: awayColor,
-                    periodLabel: GameDetailSectionsModel.periodLabel(for: sportType)
+                    league: league
                 )
             }
             .padding()

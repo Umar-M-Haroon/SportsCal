@@ -51,6 +51,7 @@ public extension ClutchMoment {
     ///   - homeName/awayName: Short team names for the alert copy.
     static func detect(
         sport: SportType,
+        league: Leagues? = nil,
         situation: GameSituation,
         previous: GameSituation?,
         homeScore: Int,
@@ -61,6 +62,10 @@ public extension ClutchMoment {
         let margin = abs(homeScore - awayScore)
         let scoreLine = "\(awayName) \(awayScore), \(homeName) \(homeScore)"
         let period = situation.period ?? 0
+        // The league decides the shape of the game: the NCAA tournament plays halves.
+        let league = league ?? Self.defaultLeague(for: sport)
+        let finalPeriod = league?.regulationPeriods ?? 4
+        func periodName(_ period: Int) -> String { league?.periodName(period) ?? "\(period)" }
 
         switch sport {
         case .mlb:
@@ -69,32 +74,32 @@ public extension ClutchMoment {
                 return moment
             }
         case .nfl:
-            if period >= 4, margin <= 8, situation.isRedZone == true, let side = situation.possession {
+            if period >= finalPeriod, margin <= 8, situation.isRedZone == true, let side = situation.possession {
                 let team = side == .home ? homeName : awayName
                 let down = situation.shortDownDistanceText.map { " · \($0)" } ?? ""
                 return ClutchMoment(
                     kind: .redZone,
                     title: "\(team) in the red zone",
-                    body: "\(periodName(sport: sport, period: period))\(down) · \(scoreLine)",
+                    body: "\(periodName(period))\(down) · \(scoreLine)",
                     // One alert per drive: a drive is one possession at one score.
                     key: "redzone-\(period)-\(side.rawValue)-\(awayScore)-\(homeScore)"
                 )
             }
         case .basketball:
-            if period >= 4, let clock = situation.clock, clock <= 120, margin <= 3 {
+            if period >= finalPeriod, let clock = situation.clock, clock <= 120, margin <= 3 {
                 return ClutchMoment(
                     kind: .crunchTime,
                     title: margin == 0 ? "Tied in the final 2 minutes" : "One-possession game, under 2 minutes",
-                    body: "\(periodName(sport: sport, period: period)) · \(scoreLine)",
+                    body: "\(periodName(period)) · \(scoreLine)",
                     key: "crunch-\(period)"
                 )
             }
         case .hockey:
-            if period >= 3, let clock = situation.clock, clock <= 120, margin == 1 {
+            if period >= finalPeriod, let clock = situation.clock, clock <= 120, margin == 1 {
                 return ClutchMoment(
                     kind: .finalMinutesOneGoal,
                     title: "One-goal game, under 2 minutes",
-                    body: "\(periodName(sport: sport, period: period)) · \(scoreLine)",
+                    body: "\(periodName(period)) · \(scoreLine)",
                     key: "onegoal-\(period)"
                 )
             }
@@ -103,7 +108,7 @@ public extension ClutchMoment {
         }
 
         // Late flip of the favourite — after the situation-specific rules, which say more.
-        if isLate(sport: sport, period: period),
+        if let regulation = league?.regulationPeriods, period >= (sport == .mlb ? 7 : regulation),
            let now = situation.homeWinProbability,
            let before = previous?.homeWinProbability,
            (before - 0.5) * (now - 0.5) < 0,
@@ -171,23 +176,14 @@ public extension ClutchMoment {
         return nil
     }
 
-    private static func isLate(sport: SportType, period: Int) -> Bool {
+    /// The league a sport's moments are judged by when the caller doesn't say.
+    static func defaultLeague(for sport: SportType) -> Leagues? {
         switch sport {
-        case .mlb: return period >= 7
-        case .nfl, .basketball: return period >= 4
-        case .hockey: return period >= 3
-        default: return false
-        }
-    }
-
-    static func periodName(sport: SportType, period: Int) -> String {
-        switch sport {
-        case .nfl, .basketball:
-            return period <= 4 ? "Q\(period)" : (period == 5 ? "OT" : "\(period - 4)OT")
-        case .hockey:
-            return period <= 3 ? "P\(period)" : (period == 4 ? "OT" : "\(period - 3)OT")
-        default:
-            return ordinal(period)
+        case .basketball: return .nba
+        case .nfl: return .nfl
+        case .hockey: return .nhl
+        case .mlb: return .mlb
+        default: return nil
         }
     }
 
@@ -201,5 +197,36 @@ public extension ClutchMoment {
         default: suffix = "th"
         }
         return "\(n)\(suffix)"
+    }
+}
+
+// MARK: - Periods
+
+public extension Leagues {
+    /// Periods in regulation: quarters, halves, periods or innings. Nil where it isn't
+    /// a fixed count we reason about (soccer, individual sports).
+    var regulationPeriods: Int? {
+        switch self {
+        case .nba, .wnba, .nfl: return 4
+        case .ncaaMBBTournament: return 2
+        case .nhl: return 3
+        case .mlb: return 9
+        default: return nil
+        }
+    }
+
+    /// "Q4", "H2", "P3", "OT", "2OT", or an inning ordinal.
+    func periodName(_ period: Int) -> String {
+        guard let regulation = regulationPeriods else { return "\(period)" }
+        if self == .mlb { return ClutchMoment.ordinal(period) }
+        if period <= regulation {
+            switch self {
+            case .ncaaMBBTournament: return "H\(period)"
+            case .nhl: return "P\(period)"
+            default: return "Q\(period)"
+            }
+        }
+        let overtime = period - regulation
+        return overtime == 1 ? "OT" : "\(overtime)OT"
     }
 }

@@ -255,6 +255,46 @@ final class LiveSituationTests: XCTestCase {
                             previous: GameSituation(period: 2, homeWinProbability: 0.62), home: 7, away: 10))
     }
 
+    func testNCAATournamentPlaysHalves() {
+        let s = GameSituation(period: 2, clock: 60)
+        let moment = ClutchMoment.detect(sport: .basketball, league: .ncaaMBBTournament, situation: s, previous: nil,
+                                         homeScore: 70, awayScore: 70, homeName: "Home", awayName: "Away")
+        XCTAssertEqual(moment?.kind, .crunchTime, "the 2nd half is the final period")
+        XCTAssertEqual(moment?.body, "H2 · Away 70, Home 70")
+        XCTAssertNil(detect(.basketball, s, home: 70, away: 70), "an NBA 2nd quarter is not crunch time")
+    }
+
+    func testPeriodNames() {
+        XCTAssertEqual(Leagues.nba.periodName(4), "Q4")
+        XCTAssertEqual(Leagues.nba.periodName(6), "2OT")
+        XCTAssertEqual(Leagues.ncaaMBBTournament.periodName(2), "H2")
+        XCTAssertEqual(Leagues.ncaaMBBTournament.periodName(3), "OT")
+        XCTAssertEqual(Leagues.nhl.periodName(5), "2OT")
+        XCTAssertEqual(Leagues.mlb.periodName(11), "11th")
+    }
+
+    func testBoundariesUseRecordedPeriodsNotPosition() {
+        // Q2 had no win-probability entries: the first boundary is the start of Q3.
+        let series = WinProbabilitySeries(home: [0.5, 0.6, 0.7], periodStarts: [1, 2], startPeriods: [3, 4])
+        XCTAssertEqual(series.boundaries(league: .nba).map(\.label), ["Q3", "Q4"])
+        // Series cached before periods were recorded fall back to position.
+        XCTAssertEqual(WinProbabilitySeries(home: [0.5, 0.6], periodStarts: [1]).boundaries(league: .nba).map(\.label), ["Q2"])
+    }
+
+    func testOverlayingKeepsWhatTheFresherSourceLacks() {
+        let espn = GameSituation(period: 7, inningHalf: .top, outs: 0, batter: "J. Soto", batterLine: "1-3, HR",
+                                 pitcher: "E. Clase", pitcherLine: "1.0 IP", homeWinProbability: 0.4)
+        // statsapi: same pitcher, a new batter, two outs, no lines or win probability.
+        let statsapi = GameSituation(period: 7, inningHalf: .top, outs: 2, onFirst: true, batter: "P. Alonso", pitcher: "E. Clase")
+        let merged = espn.overlaying(statsapi)
+        XCTAssertEqual(merged.outs, 2)
+        XCTAssertEqual(merged.onFirst, true)
+        XCTAssertEqual(merged.batter, "P. Alonso")
+        XCTAssertNil(merged.batterLine, "Soto's line must not follow Alonso")
+        XCTAssertEqual(merged.pitcherLine, "1.0 IP", "same pitcher keeps his line")
+        XCTAssertEqual(merged.homeWinProbability, 0.4)
+    }
+
     func testSoccerHasNoClutchMoments() {
         // Goals already alert through the score-change path.
         XCTAssertNil(detect(.soccer, GameSituation(period: 2), home: 1, away: 1))
@@ -269,6 +309,7 @@ final class LiveSituationTests: XCTestCase {
         XCTAssertEqual(series.home.count, 196)
         XCTAssertEqual(series.periodStarts.count, 3, "four quarters → three boundaries")
         XCTAssertEqual(series.periodStarts, series.periodStarts.sorted())
+        XCTAssertEqual(series.boundaries(league: .nfl).map(\.label), ["Q2", "Q3", "Q4"])
         XCTAssertEqual(try XCTUnwrap(series.home.last), 1.0, accuracy: 0.0001, "home (CLE) won")
     }
 
@@ -350,9 +391,10 @@ final class LiveSituationTests: XCTestCase {
         XCTAssertEqual(stats.rows.first?.label, "Possession")
         let possession = try XCTUnwrap(stats.rows.first)
         XCTAssertTrue(possession.home.hasSuffix("%"))
+        // ESPN sends both sides' passPct as "0.9"; the counts say 396/451 and 529/590.
         let passing = try XCTUnwrap(stats.rows.first { $0.name == "passPct" })
-        XCTAssertTrue(passing.home.hasSuffix("%"))
-        XCTAssertNotEqual(passing.home, "0%", "0...1 fractions are scaled to percent")
+        XCTAssertEqual(passing.home, "88%")
+        XCTAssertEqual(passing.away, "90%")
     }
 
     func testNumericParsing() {

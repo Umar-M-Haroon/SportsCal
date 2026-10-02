@@ -299,7 +299,7 @@ struct ModernGameDetailSections: View {
                     series: series,
                     homeName: homeShortName, awayName: awayShortName,
                     homeColor: homeColor, awayColor: awayColor,
-                    periodLabel: GameDetailSectionsModel.periodLabel(for: sportType)
+                    league: league
                 )
             }
             .appCard(fill: Color.appAlt)

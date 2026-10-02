@@ -91,14 +91,12 @@ actor PBPArchive {
         let playsData = try JSONEncoder().encode(cached.plays)
         var buffer = ByteBufferAllocator().buffer(capacity: playsData.count)
         buffer.writeBytes(playsData)
-        let extras = cached.extras
-        var extrasBind = SQLiteData.null
-        if !extras.isEmpty {
-            let extrasData = try JSONEncoder().encode(extras)
-            var extrasBuffer = ByteBufferAllocator().buffer(capacity: extrasData.count)
-            extrasBuffer.writeBytes(extrasData)
-            extrasBind = .blob(extrasBuffer)
-        }
+        // Always written, even as `{}`: a non-null column is what tells the fetch job a
+        // final game was already scored and needn't go back to ESPN.
+        let extrasData = try JSONEncoder().encode(cached.extras)
+        var extrasBuffer = ByteBufferAllocator().buffer(capacity: extrasData.count)
+        extrasBuffer.writeBytes(extrasData)
+        let extrasBind = SQLiteData.blob(extrasBuffer)
 
         let binds: [SQLiteData] = [
             .text(espnEventID),
@@ -141,6 +139,20 @@ actor PBPArchive {
         """, [.text(eventID), .text(eventID)]).get()
         guard let row = rows.first else { return nil }
         return try decodeRow(row, clientEventID: eventID)
+    }
+
+    /// The extras of a finalized, already-scored game, without decoding its plays — the
+    /// fetch job asks this of every final game on the board, every tick. Nil when the
+    /// game isn't archived as final, or was archived before extras existed.
+    func finalExtras(eventID: String) async throws -> CachedPlaysExtras? {
+        let rows = try await connection.query("""
+            SELECT extras_json
+            FROM pbp_archive
+            WHERE (espn_event_id = ? OR tsdb_event_id = ?) AND is_final = 1 AND extras_json IS NOT NULL
+            LIMIT 1
+        """, [.text(eventID), .text(eventID)]).get()
+        guard let blob = rows.first?.column("extras_json")?.blob else { return nil }
+        return try JSONDecoder().decode(CachedPlaysExtras.self, from: Data(blob.readableBytesView))
     }
 
     /// Returns a small summary of the archive — used by the admin dashboard and health checks.

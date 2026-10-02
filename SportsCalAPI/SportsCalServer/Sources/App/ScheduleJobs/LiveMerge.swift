@@ -95,13 +95,18 @@ enum LiveMerge {
                 homeLeaders: f.homeLeaders,
                 awayLeaders: f.awayLeaders,
                 isCompleted: f.isCompleted,
-                aggregateScore: f.aggregateScore,
-                // A source without situation data (most of them) keeps ESPN's from the
-                // last full fetch; one that has it (MLB statsapi) is fresher.
-                situation: f.situation
+                aggregateScore: f.aggregateScore
             )
-            // `updated` can't clear a field, and a game that just ended must not keep
-            // claiming two on and two out.
+            // A source with situation data (MLB statsapi) updates the fields it has and
+            // keeps the rest of ESPN's — game lines, win probability. One without keeps
+            // ESPN's from the last full fetch, minus the clock if the score just moved:
+            // that clock predates the basket, and the clutch rules read it.
+            if let fresh = f.situation {
+                merged.situation = game.situation.map { $0.overlaying(fresh) } ?? fresh
+            } else if scoreChanged {
+                merged.situation?.clock = nil
+            }
+            // A game that just ended must not keep claiming two on and two out.
             if f.strStatus != "in" { merged.situation = nil }
             return merged
         }

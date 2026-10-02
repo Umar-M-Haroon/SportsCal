@@ -280,3 +280,47 @@ public struct LiveActivitySituation: Codable, Hashable, Sendable {
     public var onSecond: Bool { (bases ?? 0) & 2 != 0 }
     public var onThird: Bool { (bases ?? 0) & 4 != 0 }
 }
+
+// MARK: - Merging sources
+
+public extension GameSituation {
+    /// This situation updated with whatever `fresh` knows, for a faster source that
+    /// carries only part of the picture (MLB statsapi has count, outs, runners and the
+    /// matchup, but no game lines or win probability).
+    ///
+    /// Fields `fresh` doesn't have are kept, except the batter's and pitcher's game
+    /// lines, which only survive while the same player is still up or on the mound.
+    func overlaying(_ fresh: GameSituation) -> GameSituation {
+        var merged = self
+        merged.period = fresh.period ?? period
+        merged.clock = fresh.clock ?? clock
+        merged.inningHalf = fresh.inningHalf ?? inningHalf
+        merged.balls = fresh.balls ?? balls
+        merged.strikes = fresh.strikes ?? strikes
+        merged.outs = fresh.outs ?? outs
+        merged.onFirst = fresh.onFirst ?? onFirst
+        merged.onSecond = fresh.onSecond ?? onSecond
+        merged.onThird = fresh.onThird ?? onThird
+        if let batter = fresh.batter {
+            merged.batter = batter
+            merged.batterLine = fresh.batterLine ?? (batter == self.batter ? batterLine : nil)
+        }
+        if let pitcher = fresh.pitcher {
+            merged.pitcher = pitcher
+            merged.pitcherLine = fresh.pitcherLine ?? (pitcher == self.pitcher ? pitcherLine : nil)
+        }
+        merged.down = fresh.down ?? down
+        merged.distance = fresh.distance ?? distance
+        merged.yardLine = fresh.yardLine ?? yardLine
+        merged.downDistanceText = fresh.downDistanceText ?? downDistanceText
+        merged.shortDownDistanceText = fresh.shortDownDistanceText ?? shortDownDistanceText
+        merged.possession = fresh.possession ?? possession
+        merged.isRedZone = fresh.isRedZone ?? isRedZone
+        merged.homeTimeouts = fresh.homeTimeouts ?? homeTimeouts
+        merged.awayTimeouts = fresh.awayTimeouts ?? awayTimeouts
+        merged.lastPlaySide = fresh.lastPlaySide ?? lastPlaySide
+        merged.homeWinProbability = fresh.homeWinProbability ?? homeWinProbability
+        merged.tieProbability = fresh.tieProbability ?? tieProbability
+        return merged
+    }
+}

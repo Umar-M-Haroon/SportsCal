@@ -66,12 +66,11 @@ final class LiveSituationSnapshotTests: XCTestCase {
             GameStateStrip(situation: mlb, sport: .mlb, homeName: "CLE", awayName: "DET")
             GameStateStrip(situation: nfl, sport: .nfl, homeName: "KC", awayName: "BUF")
             GameStateStrip(situation: GameSituation(period: 4, clock: 95, homeWinProbability: 0.71), sport: .basketball, homeName: "NY", awayName: "IND")
-            GameStateStrip(situation: mlb, sport: .mlb, homeName: "CLE", awayName: "DET", homeColor: guardians, awayColor: tigers, detailed: true)
             LiveActivitySituationStrip(situation: LiveActivitySituation(mlb)!, homeName: "CLE", awayName: "DET")
             LiveActivitySituationStrip(situation: LiveActivitySituation(nfl)!, homeName: "KC", awayName: "BUF")
-            HStack { ExcitementBadge(tier: .classic); ExcitementBadge(tier: .thriller); ExcitementBadge(tier: .thriller, compact: true) }
+            HStack { ExcitementBadge(tier: .classic); ExcitementBadge(tier: .thriller) }
         }
-        snap(view, "strips", height: 300)
+        snap(view, "strips", height: 260)
     }
 
     func test_livePanels() {
@@ -92,7 +91,7 @@ final class LiveSituationSnapshotTests: XCTestCase {
             WinProbabilityChart(series: series, homeName: "NY", awayName: "IND",
                                 homeColor: Color(red: 0.0, green: 0.42, blue: 0.71),
                                 awayColor: Color(red: 0.99, green: 0.73, blue: 0.13),
-                                periodLabel: GameDetailSectionsModel.periodLabel(for: .basketball))
+                                league: .nba)
         }
         snap(view, "win-probability", height: 260)
     }

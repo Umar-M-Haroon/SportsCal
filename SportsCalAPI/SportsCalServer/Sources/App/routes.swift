@@ -1167,14 +1167,25 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         guard !TeamSeasonStats.specs(for: league).isEmpty else { throw Abort(.notFound) }
         let isDebug = req.application.environment == .development
         let cacheKey: RedisKey = isDebug ? "debug-Team Season Stats-\(league.rawValue)-\(teamID)" : "Team Season Stats-\(league.rawValue)-\(teamID)"
+        let missKey: RedisKey = RedisKey(cacheKey.rawValue + "-miss")
         if let cached = try? await req.application.redis.get(cacheKey, asJSON: TeamSeasonStats.self) {
             return encodeResult(res: cached)
         }
-        guard let stats = await TeamSeasonStatsResolver.resolve(app: req.application, teamID: teamID, league: league, isDebug: isDebug) else {
+        if (try? await req.application.redis.exists(missKey).get()) ?? 0 > 0 {
             throw Abort(.notFound)
         }
-        try? await req.application.redis.setex(cacheKey, toJSON: stats, expirationInSeconds: 60 * 60 * 6).get()
-        return encodeResult(res: stats)
+        switch await TeamSeasonStatsResolver.resolve(app: req.application, teamID: teamID, league: league, isDebug: isDebug) {
+        case .stats(let stats):
+            try? await req.application.redis.setex(cacheKey, toJSON: stats, expirationInSeconds: 60 * 60 * 6).get()
+            return encodeResult(res: stats)
+        case .unavailable:
+            // Remember the miss briefly so an unmapped team doesn't cost a map load and
+            // several ESPN calls on every open.
+            _ = try? await req.application.redis.setex(missKey, to: "1", expirationInSeconds: 60 * 60).get()
+            throw Abort(.notFound)
+        case .failed:
+            throw Abort(.badGateway)
+        }
     }
 
     // Per-match box score (team stats, lineups, goal/card/sub timeline) — fetched

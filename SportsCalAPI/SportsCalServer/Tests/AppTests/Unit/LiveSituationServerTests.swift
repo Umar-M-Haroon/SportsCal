@@ -35,9 +35,33 @@ final class LiveSituationServerTests: XCTestCase {
         // NHL/NBA official feeds carry no situation: ESPN's (with win probability) stays.
         let espn = GameSituation(period: 4, clock: 90, homeWinProbability: 0.7)
         let cached = TestGameFactory.liveScore(mlb: [mlb("espn-1", situation: espn)])
-        let result = LiveMerge.overlay(cached: cached, sport: .mlb, fresh: [mlb("x", home: "4")], strategy: .teamsAndDay)
-        XCTAssertEqual(result.liveScore.mlb?.events.first?.situation, espn)
-        XCTAssertEqual(result.situationChangedEventIDs, [])
+        let sameScore = LiveMerge.overlay(cached: cached, sport: .mlb, fresh: [mlb("x")], strategy: .teamsAndDay)
+        XCTAssertEqual(sameScore.liveScore.mlb?.events.first?.situation, espn)
+
+        // A new score makes ESPN's clock stale; the clutch rules mustn't read it.
+        let scored = LiveMerge.overlay(cached: cached, sport: .mlb, fresh: [mlb("x", home: "4")], strategy: .teamsAndDay)
+        let situation = scored.liveScore.mlb?.events.first?.situation
+        XCTAssertNil(situation?.clock)
+        XCTAssertEqual(situation?.homeWinProbability, 0.7)
+    }
+
+    func testOverlayMergesPartialSituationInsteadOfReplacing() {
+        let espn = GameSituation(period: 5, outs: 0, batter: "J. Soto", batterLine: "1-3", homeWinProbability: 0.6)
+        let cached = TestGameFactory.liveScore(mlb: [mlb("espn-1", situation: espn)])
+        let fresh = mlb("mlb-9", situation: GameSituation(period: 5, outs: 1, batter: "J. Soto"))
+        let merged = LiveMerge.overlay(cached: cached, sport: .mlb, fresh: [fresh], strategy: .teamsAndDay)
+            .liveScore.mlb?.events.first?.situation
+        XCTAssertEqual(merged?.outs, 1)
+        XCTAssertEqual(merged?.batterLine, "1-3")
+        XCTAssertEqual(merged?.homeWinProbability, 0.6)
+    }
+
+    func testHourlyRebuildKeepsExcitement() {
+        let old = TestGameFactory.liveScore(nba: [
+            { var g = TestGameFactory.make(idEvent: "a", strHomeTeam: "A", strAwayTeam: "B", strStatus: "post"); g.excitement = 88; return g }()
+        ])
+        let rebuilt = TestGameFactory.liveScore(nba: [TestGameFactory.make(idEvent: "a", strHomeTeam: "A", strAwayTeam: "B", strStatus: "post")])
+        XCTAssertEqual(ScheduleUpdateJob.carryingExcitement(from: old, into: rebuilt).nba?.events.first?.excitement, 88)
     }
 
     func testOverlayClearsSituationWhenGameEnds() {

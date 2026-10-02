@@ -113,7 +113,7 @@ struct LiveSituationPanel: View {
     }
 
     private func winProbability(home: Double) -> some View {
-        let away = 1 - home - (situation.tieProbability ?? 0)
+        let away = situation.awayWinProbability ?? (1 - home)
         return VStack(spacing: 6) {
             HStack {
                 Text(awayName).foregroundStyle(.secondary)
@@ -177,8 +177,8 @@ struct WinProbabilityChart: View {
     let awayName: String
     let homeColor: Color
     let awayColor: Color
-    /// Labels each period boundary ("Q2", "P3", "4"); nil hides the labels.
-    var periodLabel: ((Int) -> String)? = nil
+    /// Names the periods on the boundary marks ("Q2", "H2", "OT"); nil hides the labels.
+    var league: Leagues? = nil
 
     @Environment(\.self) private var environment
     private var homeTint: Color { homeColor.legible(in: environment) }
@@ -231,13 +231,13 @@ struct WinProbabilityChart: View {
                 RuleMark(y: .value("Even", 0.5))
                     .foregroundStyle(Color.secondary.opacity(0.6))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                ForEach(Array(series.periodStarts.enumerated()), id: \.offset) { index, start in
-                    RuleMark(x: .value("Period", start))
+                ForEach(series.boundaries(league: league), id: \.index) { boundary in
+                    RuleMark(x: .value("Period", boundary.index))
                         .foregroundStyle(Color.secondary.opacity(0.3))
                         .lineStyle(StrokeStyle(lineWidth: 0.5))
                         .annotation(position: .bottom, alignment: .leading, spacing: 2) {
-                            if let periodLabel {
-                                Text(periodLabel(index + 2)).font(.system(size: 9)).foregroundStyle(.secondary)
+                            if league != nil {
+                                Text(boundary.label).font(.system(size: 9)).foregroundStyle(.secondary)
                             }
                         }
                 }
@@ -408,25 +408,6 @@ struct TeamRankCard: View {
                     .accessibilityLabel("\(stat.label): \(stat.value)\(stat.rankDisplay.map { ", ranked \($0) in the league" } ?? "")")
                 }
             }
-        }
-    }
-}
-
-// MARK: - Helpers
-
-extension GameDetailSectionsModel {
-    /// The labels that mark period boundaries on a win-probability chart.
-    static func periodLabel(for sport: SportType?) -> ((Int) -> String)? {
-        guard let sport else { return nil }
-        switch sport {
-        case .basketball, .nfl:
-            return { $0 <= 4 ? "Q\($0)" : ($0 == 5 ? "OT" : "\($0 - 4)OT") }
-        case .hockey:
-            return { $0 <= 3 ? "P\($0)" : "OT" }
-        case .mlb:
-            return { "\($0)" }
-        default:
-            return nil
         }
     }
 }

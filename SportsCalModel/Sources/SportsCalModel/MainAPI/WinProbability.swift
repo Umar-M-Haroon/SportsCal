@@ -14,10 +14,23 @@ public struct WinProbabilitySeries: Codable, Equatable, Hashable, Sendable {
     public var home: [Double]
     /// Index into `home` where each period after the first begins.
     public var periodStarts: [Int]
+    /// The period that begins at each of `periodStarts`. Recorded rather than inferred
+    /// from position: a period with no win-probability entries would otherwise shift
+    /// every later label by one.
+    public var startPeriods: [Int]?
 
-    public init(home: [Double], periodStarts: [Int] = []) {
+    public init(home: [Double], periodStarts: [Int] = [], startPeriods: [Int]? = nil) {
         self.home = home
         self.periodStarts = periodStarts
+        self.startPeriods = startPeriods
+    }
+
+    /// Each period boundary with its label ("Q2", "H2", "OT", "7th").
+    public func boundaries(league: Leagues?) -> [(index: Int, label: String)] {
+        periodStarts.enumerated().map { offset, index in
+            let period = startPeriods.flatMap { offset < $0.count ? $0[offset] : nil } ?? offset + 2
+            return (index, league?.periodName(period) ?? "\(period)")
+        }
     }
 
     /// Builds the series from a summary's `winprobability` entries, placing period
@@ -29,17 +42,21 @@ public struct WinProbabilitySeries: Codable, Equatable, Hashable, Sendable {
         )
         var home: [Double] = []
         var periodStarts: [Int] = []
+        var startPeriods: [Int] = []
         var lastPeriod: Int?
         for entry in entries {
             guard let value = entry.homeWinPercentage else { continue }
             if let id = entry.playId, let period = periodByPlay[id] {
-                if let lastPeriod, period > lastPeriod { periodStarts.append(home.count) }
+                if let lastPeriod, period > lastPeriod {
+                    periodStarts.append(home.count)
+                    startPeriods.append(period)
+                }
                 lastPeriod = period
             }
             home.append(GameSituation.rounded(value))
         }
         guard home.count >= 2 else { return nil }
-        self.init(home: home, periodStarts: periodStarts)
+        self.init(home: home, periodStarts: periodStarts, startPeriods: startPeriods)
     }
 }
 

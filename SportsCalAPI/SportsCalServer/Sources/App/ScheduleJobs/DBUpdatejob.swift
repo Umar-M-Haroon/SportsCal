@@ -592,6 +592,13 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
             }
         }
 
+        // Excitement is scored once, when a game goes final, and ESPN drops the game off
+        // its board a day later. The rebuild above starts from TheSportsDB, which never
+        // has it, so carry it over from the schedule being replaced.
+        if let existingSchedule {
+            schedule = Self.carryingExcitement(from: existingSchedule, into: schedule)
+        }
+
         // Compare with existing cache — only write to Redis if data actually changed
         let scheduleChanged = (existingSchedule != schedule)
         let newGameCount = countGames(in: schedule)
@@ -695,6 +702,18 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
     /// names + day, disambiguated by nearest kickoff (same teams can meet twice on one
     /// UTC day — see `ESPNFetchJob.closestByKickoff`). Single-value day keys here
     /// overlaid one game's ESPN status/fields onto the matchup's other game.
+    /// Copies `excitement` from `old` onto games in `new` that lack it, by event ID.
+    static func carryingExcitement(from old: LiveScore, into new: LiveScore) -> LiveScore {
+        var scores: [String: Int] = [:]
+        for (_, games) in old.allGamesBySport {
+            for game in games {
+                if let id = game.idEvent, let excitement = game.excitement { scores[id] = excitement }
+            }
+        }
+        guard !scores.isEmpty else { return new }
+        return ESPNFetchJob.applyingExcitement(scores, to: new)
+    }
+
     func mergeEnrichment(schedule: LiveEvent, espn: LiveEvent) -> LiveEvent {
         // Build ESPN lookup by team names + day
         var espnByNames: [String: [Game]] = [:]

@@ -132,13 +132,16 @@ struct WinProbabilityBar: View {
 /// so a bare percentage in a score row isn't mistaken for part of the score.
 struct WinProbabilityLabel: View {
     var home: Double
+    /// Draw probability, where a draw is possible; the away side gets what's left.
+    var tie: Double? = nil
     var homeName: String
     var awayName: String
     var showsIcon: Bool = false
 
     var body: some View {
-        let homeFavored = home >= 0.5
-        let percent = Int((max(home, 1 - home) * 100).rounded())
+        let away = max(0, 1 - home - (tie ?? 0))
+        let homeFavored = home >= away
+        let percent = Int((max(home, away) * 100).rounded())
         HStack(spacing: 3) {
             if showsIcon {
                 Image(systemName: "chart.line.uptrend.xyaxis").imageScale(.small)
@@ -161,40 +164,23 @@ struct GameStateStrip: View {
     let sport: SportType?
     var homeName: String
     var awayName: String
-    var homeColor: Color = .blue
-    var awayColor: Color = .red
     var tint: Color = .secondary
-    /// Adds the count and current batter in baseball and the win-probability bar.
-    var detailed: Bool = false
 
     var body: some View {
         if hasContent {
-            VStack(spacing: 4) {
-                HStack(spacing: 8) {
-                    if sport == .mlb, situation.hasBaseballState {
-                        baseball
-                    } else if sport == .nfl, situation.hasFootballState {
-                        football
-                    }
-                    if let home = situation.homeWinProbability, !detailed {
-                        WinProbabilityLabel(home: home, homeName: homeName, awayName: awayName, showsIcon: true)
-                    }
+            HStack(spacing: 8) {
+                if sport == .mlb, situation.hasBaseballState {
+                    baseball
+                } else if sport == .nfl, situation.hasFootballState {
+                    football
                 }
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(tint)
-
-                if detailed, let home = situation.homeWinProbability {
-                    HStack(spacing: 6) {
-                        Text("\(Int(((1 - home - (situation.tieProbability ?? 0)) * 100).rounded()))%")
-                        WinProbabilityBar(home: home, homeColor: homeColor, awayColor: awayColor)
-                        Text("\(Int((home * 100).rounded()))%")
-                    }
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(tint)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text("Win probability: \(awayName) \(Int(((1 - home) * 100).rounded())) percent, \(homeName) \(Int((home * 100).rounded())) percent"))
+                if let home = situation.homeWinProbability {
+                    WinProbabilityLabel(home: home, tie: situation.tieProbability,
+                                        homeName: homeName, awayName: awayName, showsIcon: true)
                 }
             }
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(tint)
         }
     }
 
@@ -211,14 +197,6 @@ struct GameStateStrip: View {
         if let outs = situation.outs {
             OutsIndicator(outs: outs, tint: tint)
         }
-        if detailed, let balls = situation.balls, let strikes = situation.strikes {
-            Text("\(balls)-\(strikes)")
-                .monospacedDigit()
-                .accessibilityLabel("\(balls) balls, \(strikes) strikes")
-        }
-        if detailed, let batter = situation.batter {
-            Text(batter).lineLimit(1)
-        }
     }
 
     @ViewBuilder
@@ -231,8 +209,7 @@ struct GameStateStrip: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(side == .home ? homeName : awayName) ball")
         }
-        if let text = detailed ? (situation.downDistanceText ?? situation.shortDownDistanceText)
-                               : (situation.shortDownDistanceText ?? situation.downDistanceText) {
+        if let text = situation.shortDownDistanceText ?? situation.downDistanceText {
             Text(text).lineLimit(1)
         }
         if situation.isRedZone == true {
@@ -296,20 +273,17 @@ struct LiveActivitySituationStrip: View {
 /// who won, so it's safe on a score-hidden list.
 struct ExcitementBadge: View {
     let tier: ExcitementTier
-    var compact: Bool = false
 
     var body: some View {
         if tier.isWorthWatching {
             HStack(spacing: 3) {
                 Image(systemName: tier == .classic ? "flame.fill" : "bolt.fill")
                     .imageScale(.small)
-                if !compact {
-                    Text(tier.displayName)
-                }
+                Text(tier.displayName)
             }
             .font(.caption2.weight(.bold))
             .foregroundStyle(.orange)
-            .padding(.horizontal, compact ? 4 : 6)
+            .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(Color.orange.opacity(0.15), in: Capsule())
             .accessibilityElement(children: .ignore)

@@ -494,10 +494,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // Rows archived before the extras existed are fetched once more to fill them in.
         if isFinal,
            let archive = context.application.pbpArchive,
-           let archived = try? await archive.lookup(eventID: espnEventID),
-           archived.isFinal,
-           !archived.extras.isEmpty {
-            return .skipped(scored(archived.excitement))
+           let extras = try? await archive.finalExtras(eventID: espnEventID) {
+            return .skipped(scored(extras.excitement))
         }
 
         do {

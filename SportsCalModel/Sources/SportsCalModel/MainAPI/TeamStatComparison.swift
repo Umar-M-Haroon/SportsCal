@@ -65,14 +65,15 @@ public extension TeamStatComparison {
         let name: String
         let label: String
         let lowerIsBetter: Bool
-        /// Multiplies the value for display, for ESPN's 0...1 fractions shown as percents.
-        let percentOfOne: Bool
+        /// Computes a percentage from two counting stats instead of reading `name`, for
+        /// rates ESPN only sends rounded (soccer pass accuracy arrives as "0.9").
+        let ratio: (numerator: String, denominator: String)?
 
-        init(_ name: String, _ label: String, lowerIsBetter: Bool = false, percentOfOne: Bool = false) {
+        init(_ name: String, _ label: String, lowerIsBetter: Bool = false, ratio: (String, String)? = nil) {
             self.name = name
             self.label = label
             self.lowerIsBetter = lowerIsBetter
-            self.percentOfOne = percentOfOne
+            self.ratio = ratio.map { (numerator: $0.0, denominator: $0.1) }
         }
     }
 
@@ -122,7 +123,7 @@ public extension TeamStatComparison {
                 Spec("totalShots", "Shots"),
                 Spec("shotsOnTarget", "On Target"),
                 Spec("wonCorners", "Corners"),
-                Spec("passPct", "Pass Accuracy", percentOfOne: true),
+                Spec("passPct", "Pass Accuracy", ratio: ("accuratePasses", "totalPasses")),
                 Spec("foulsCommitted", "Fouls", lowerIsBetter: true),
                 Spec("offsides", "Offsides", lowerIsBetter: true),
                 Spec("yellowCards", "Yellow Cards", lowerIsBetter: true),
@@ -153,12 +154,16 @@ public extension TeamStatComparison {
         let awayStats = away.flattenedStats()
 
         let rows: [Row] = Self.specs(for: sport).compactMap { spec in
+            if let ratio = spec.ratio {
+                guard let h = Self.percent(ratio, in: homeStats), let a = Self.percent(ratio, in: awayStats) else { return nil }
+                return Row(name: spec.name, label: spec.label, home: h, away: a, lowerIsBetter: spec.lowerIsBetter ? true : nil)
+            }
             guard let h = homeStats[spec.name], let a = awayStats[spec.name] else { return nil }
             return Row(
                 name: spec.name,
                 label: spec.label,
-                home: spec.format(h, sport: sport),
-                away: spec.format(a, sport: sport),
+                home: spec.format(h),
+                away: spec.format(a),
                 lowerIsBetter: spec.lowerIsBetter ? true : nil
             )
         }
@@ -167,11 +172,16 @@ public extension TeamStatComparison {
     }
 }
 
+extension TeamStatComparison {
+    static func percent(_ ratio: (numerator: String, denominator: String), in stats: [String: String]) -> String? {
+        guard let made = stats[ratio.numerator].flatMap(Row.numeric),
+              let total = stats[ratio.denominator].flatMap(Row.numeric), total > 0 else { return nil }
+        return "\(Int((made / total * 100).rounded()))%"
+    }
+}
+
 extension TeamStatComparison.Spec {
-    func format(_ value: String, sport: SportType) -> String {
-        if percentOfOne, let fraction = Double(value) {
-            return "\(Int((fraction * 100).rounded()))%"
-        }
+    func format(_ value: String) -> String {
         // Possession in soccer and plain percentages read better with the sign.
         if name == "possessionPct" || name.hasSuffix("Pct") || name.hasSuffix("Percent") {
             return value.hasSuffix("%") ? value : "\(value)%"
