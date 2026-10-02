@@ -276,6 +276,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                     partialResult.events += next.events
                 }
                 events.events = Self.normalizeLeagueEvents(events.events)
+                events.events = SeasonPhase.assignPhases(events.events, league: league)
 
                 // Collect all games for team extraction
                 allGames.append(contentsOf: events.events)
@@ -287,7 +288,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                         if let date = game.getDate(), date.timeIntervalSinceNow > 0 {
                             // Only include essential fields - strSport/strLeague are computed from idLeague
                             // Deprecated fields removed: strPlayer, idPlayer, intEventScore, intEventScoreTotal, strEventTime, dateEvent, updated
-                            let newGame = Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: game.idHomeTeam, idAwayTeam: game.idAwayTeam, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: nil, intAwayScore: nil, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: game.strStatus, strProgress: game.strProgress, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: game.strTimestamp, isoDate: game.getDate())
+                            let newGame = Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: game.idHomeTeam, idAwayTeam: game.idAwayTeam, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: nil, intAwayScore: nil, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: game.strStatus, strProgress: game.strProgress, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: game.strTimestamp, isoDate: game.getDate(), season: game.season, seasonPhase: game.seasonPhase)
                             return newGame
                         }
                         return game
@@ -783,7 +784,10 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 awayRecord: espnGame.awayRecord ?? scheduleGame.awayRecord,
                 homeSeed: espnGame.homeSeed ?? scheduleGame.homeSeed,
                 awaySeed: espnGame.awaySeed ?? scheduleGame.awaySeed,
-                playoff: espnGame.playoff ?? scheduleGame.playoff
+                playoff: espnGame.playoff ?? scheduleGame.playoff,
+                season: scheduleGame.season ?? espnGame.season,
+                // ESPN's season.type is authoritative; TheSportsDB's round codes are the fallback.
+                seasonPhase: espnGame.seasonPhase ?? scheduleGame.seasonPhase
             )
         }
 
