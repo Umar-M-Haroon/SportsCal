@@ -20,6 +20,8 @@ struct RaceDetailView: View {
     @State private var shouldShowSportsCalProAlert = false
     @State private var sheetType: SheetType?
     @State private var selectedSessionIndex: Int = 0
+    /// Lap chart / tyres / safety cars for the selected Race or Sprint, fetched on demand.
+    @State private var sessionDetail: F1SessionDetail?
     @State private var showStandings = false
     @State private var standingsTab: StandingsTab = .drivers
 
@@ -50,6 +52,9 @@ struct RaceDetailView: View {
                 actionsRow
                 if hasSessions {
                     gapRibbonSection
+                    if let sessionDetail, !sessionDetail.lapPositions.isEmpty {
+                        F1LapChartView(detail: sessionDetail)
+                    }
                     sessionLeaderboard
                     raceTimingSection
                     weekendSchedule
@@ -69,6 +74,11 @@ struct RaceDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .task(id: detailRequestStart) {
+            sessionDetail = nil
+            guard let start = detailRequestStart else { return }
+            sessionDetail = try? await NetworkHandler.fetchF1SessionDetail(start: start)
+        }
         .onAppear {
             selectDefaultSession()
         }
@@ -86,6 +96,15 @@ struct RaceDetailView: View {
                 EmptyView()
             }
         }
+    }
+
+    /// Start time of the selected session when it's a finished Race or Sprint (the only
+    /// sessions the server builds a detail for); nil otherwise.
+    private var detailRequestStart: Date? {
+        guard let sessions = game.sessions, selectedSessionIndex < sessions.count else { return nil }
+        let session = sessions[selectedSessionIndex]
+        guard session.status == "post", !session.isTimedLapSession else { return nil }
+        return session.startDate
     }
 
     // MARK: - Default Session Selection
@@ -555,7 +574,7 @@ struct RaceDetailView: View {
     // MARK: - Race Timing (laps / tires / pit stops)
     @ViewBuilder
     private var raceTimingSection: some View {
-        if let timing = game.raceTiming, !timing.drivers.isEmpty {
+        if let timing = sessionDetail?.timing ?? game.raceTiming, !timing.drivers.isEmpty {
             let leaders = Array(timing.drivers.prefix(10))
             let maxLap = timing.drivers.map { $0.totalLaps }.max() ?? 0
             VStack(alignment: .leading, spacing: 12) {

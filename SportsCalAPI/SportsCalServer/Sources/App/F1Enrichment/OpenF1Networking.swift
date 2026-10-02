@@ -63,6 +63,28 @@ class OpenF1Networking {
         let lap_number: Int?
         let lap_duration: Double?
         let is_pit_out_lap: Bool?
+        let date_start: String?
+    }
+
+    // MARK: - Position / race control / weather
+
+    struct PositionDTO: Decodable {
+        let driver_number: Int?
+        let date: String?
+        let position: Int?
+    }
+
+    struct RaceControlDTO: Decodable {
+        let lap_number: Int?
+        let category: String?
+        let flag: String?
+        let message: String?
+    }
+
+    struct WeatherDTO: Decodable {
+        let air_temperature: Double?
+        let track_temperature: Double?
+        let rainfall: Double?
     }
 
     // MARK: - Stints
@@ -192,11 +214,92 @@ class OpenF1Networking {
         async let stintsTask = fetchStints(client: client, sessionKey: sessionKey)
         async let pitsTask = fetchPitStops(client: client, sessionKey: sessionKey)
 
-        let drivers = await driversTask
-        let laps = await lapsTask
-        let stints = await stintsTask
-        let pits = await pitsTask
+        return buildRaceTiming(session: session, drivers: await driversTask, laps: await lapsTask,
+                               stints: await stintsTask, pits: await pitsTask)
+    }
 
+    /// Full post-session story for the race page: timing plus lap chart, safety car
+    /// periods and weather. Requests run one at a time with a short gap to stay inside
+    /// the free tier's 3 req/s; callers should space sessions out (30 req/min cap).
+    static func getSessionDetail(client: some Client, session: Session) async -> F1SessionDetail? {
+        let key = session.session_key
+        let pace: UInt64 = 400_000_000
+        let drivers = await fetchDrivers(client: client, sessionKey: key)
+        guard !drivers.isEmpty else { return nil }
+        try? await Task.sleep(nanoseconds: pace)
+        let laps = await fetchLaps(client: client, sessionKey: key)
+        try? await Task.sleep(nanoseconds: pace)
+        let stints = await fetchStints(client: client, sessionKey: key)
+        try? await Task.sleep(nanoseconds: pace)
+        let pits = await fetchPitStops(client: client, sessionKey: key)
+        try? await Task.sleep(nanoseconds: pace)
+        let positions = await fetch([PositionDTO].self, "\(baseURL)/position?session_key=\(key)", client: client)
+        try? await Task.sleep(nanoseconds: pace)
+        let raceControl = await fetch([RaceControlDTO].self, "\(baseURL)/race_control?session_key=\(key)", client: client)
+        try? await Task.sleep(nanoseconds: pace)
+        let weather = await fetch([WeatherDTO].self, "\(baseURL)/weather?session_key=\(key)", client: client)
+
+        guard !laps.isEmpty, !positions.isEmpty else {
+            logger.notice("OpenF1 session detail incomplete, will retry", metadata: [
+                "sessionKey": "\(key)", "laps": "\(laps.count)", "positions": "\(positions.count)"
+            ])
+            return nil
+        }
+
+        typealias B = F1SessionDetailBuilder
+        let positionSamples = positions.compactMap { p -> B.PositionSample? in
+            guard let n = p.driver_number, let pos = p.position, let d = p.date.flatMap(DateParsers.parse) else { return nil }
+            return B.PositionSample(driverNumber: n, date: d, position: pos)
+        }
+        let lapSamples = laps.compactMap { l -> B.LapSample? in
+            guard let n = l.driver_number, let lap = l.lap_number else { return nil }
+            return B.LapSample(driverNumber: n, lapNumber: lap, dateStart: l.date_start.flatMap(DateParsers.parse), duration: l.lap_duration)
+        }
+        let totalLaps = lapSamples.map(\.lapNumber).max() ?? 0
+        let lapPositions = drivers.compactMap { driver -> F1LapPositions? in
+            guard let number = driver.driver_number else { return nil }
+            let line = B.lapPositions(driverNumber: number, positions: positionSamples, laps: lapSamples)
+            guard !line.isEmpty else { return nil }
+            return F1LapPositions(
+                driverNumber: number,
+                acronym: driver.name_acronym ?? "",
+                name: [driver.first_name, driver.last_name].compactMap { $0 }.joined(separator: " "),
+                teamColour: driver.team_colour,
+                positions: line
+            )
+        }
+        let messages = raceControl.compactMap { m -> B.RaceControlMessage? in
+            guard let category = m.category, let message = m.message else { return nil }
+            return B.RaceControlMessage(lapNumber: m.lap_number, category: category, flag: m.flag, message: message)
+        }
+
+        return F1SessionDetail(
+            sessionKey: key,
+            sessionName: session.session_name ?? "Race",
+            dateStart: session.date_start ?? "",
+            totalLaps: totalLaps,
+            timing: buildRaceTiming(session: session, drivers: drivers, laps: laps, stints: stints, pits: pits),
+            // Classification order: most laps completed, then where they finished.
+            lapPositions: lapPositions.sorted {
+                ($0.positions.count, -($0.positions.last ?? 99)) > ($1.positions.count, -($1.positions.last ?? 99))
+            },
+            neutralizations: B.neutralizations(from: messages, totalLaps: totalLaps),
+            redFlagLaps: B.redFlagLaps(from: messages),
+            weather: B.weatherSummary(
+                air: weather.compactMap(\.air_temperature),
+                track: weather.compactMap(\.track_temperature),
+                rainfall: weather.compactMap(\.rainfall)
+            )
+        )
+    }
+
+    private static func fetch<T: Decodable>(_ type: [T].Type, _ url: String, client: some Client) async -> [T] {
+        (try? await client.get(URI(string: url)).content.decode([T].self)) ?? []
+    }
+
+    private static func buildRaceTiming(session: Session, drivers: [Driver], laps: [Lap],
+                                        stints: [StintDTO], pits: [PitDTO]) -> F1RaceTiming? {
+        let sessionKey = session.session_key
         guard !drivers.isEmpty else {
             logger.notice("OpenF1 session has no driver data, skipping telemetry", metadata: [
                 "sessionKey": "\(sessionKey)"

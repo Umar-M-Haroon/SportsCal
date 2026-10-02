@@ -895,6 +895,20 @@ struct AdminController: RouteCollection {
                 message: "F1EnrichmentJob executed successfully. Standings, circuits, and race timing refreshed.",
                 jobName: jobName
             )
+        case "F1SessionDetailJob":
+            let context = QueueContext(
+                queueName: .default,
+                configuration: .init(),
+                application: req.application,
+                logger: req.logger,
+                on: req.eventLoop
+            )
+            try await F1SessionDetailJob().run(context: context)
+            return TriggerJobResponse(
+                success: true,
+                message: "F1SessionDetailJob executed. Up to \(F1SessionDetailJob.perRun) finished sessions backfilled.",
+                jobName: jobName
+            )
         case "InjuriesEnrichmentJob":
             let context = QueueContext(
                 queueName: .default,
@@ -942,7 +956,7 @@ struct AdminController: RouteCollection {
         default:
             return TriggerJobResponse(
                 success: false,
-                message: "Job '\(jobName)' not recognized. Available jobs: ESPNTeamFetchJob, ScheduleUpdateJob, ESPNFetchJob, GolfEnrichmentJob, F1EnrichmentJob, InjuriesEnrichmentJob, WorldCupEnrichmentJob",
+                message: "Job '\(jobName)' not recognized. Available jobs: ESPNTeamFetchJob, ScheduleUpdateJob, ESPNFetchJob, GolfEnrichmentJob, F1EnrichmentJob, F1SessionDetailJob, InjuriesEnrichmentJob, WorldCupEnrichmentJob",
                 jobName: jobName
             )
         }

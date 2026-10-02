@@ -677,9 +677,23 @@ public enum DateParsers {
 
     public static func parse(_ timestamp: String) -> Date? {
         if let d = iso8601.date(from: timestamp) { return d }
+        if let d = parseFractional(timestamp) { return d }
         if let d = dashedSeconds.date(from: timestamp) { return d }
         if let d = dashedNoSeconds.date(from: timestamp) { return d }
         return dashedZ.date(from: timestamp)
+    }
+
+    /// OpenF1 sends microsecond fractions ("…T10:07:06.143000+00:00"). Strip the
+    /// fraction, parse the rest, add it back: avoids depending on how a given
+    /// Foundation (Darwin vs Linux) treats more than three fractional digits.
+    static func parseFractional(_ timestamp: String) -> Date? {
+        guard let dot = timestamp.firstIndex(of: ".") else { return nil }
+        let afterDot = timestamp[timestamp.index(after: dot)...]
+        let digits = afterDot.prefix { $0.isNumber }
+        guard !digits.isEmpty, let fraction = Double("0." + digits) else { return nil }
+        let rest = afterDot.dropFirst(digits.count)
+        guard let base = iso8601.date(from: String(timestamp[..<dot]) + rest) else { return nil }
+        return base.addingTimeInterval(fraction)
     }
 }
 

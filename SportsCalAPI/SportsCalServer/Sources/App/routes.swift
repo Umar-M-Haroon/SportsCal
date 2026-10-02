@@ -609,6 +609,23 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return encodeResult(res: cached)
     }
 
+    //MARK: - F1 session detail (lap chart, safety cars, weather, tyres)
+    // Reads only what F1SessionDetailJob cached; never calls OpenF1 on a request.
+    // `start` is the session's start time as the app has it (ESPN), matched within 3h.
+    routes.get("f1", "session") { req async throws -> String in
+        guard let raw = try? req.query.get(String.self, at: "start"), raw.count <= 40,
+              let start = DateParsers.parse(raw) else {
+            throw Abort(.badRequest)
+        }
+        let isDebug = req.application.environment == .development
+        guard let detail = try await F1SessionDetailJob.detail(
+            startingNear: start, kv: req.kv, isDebug: isDebug
+        ) else {
+            throw Abort(.notFound)
+        }
+        return encodeResult(res: detail)
+    }
+
     //MARK: - Live Websocket
     routes.webSocket("ws") { req, ws async in
         let isDebug = req.application.environment == .development

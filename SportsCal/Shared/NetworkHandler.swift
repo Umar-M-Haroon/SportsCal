@@ -628,6 +628,20 @@ struct NetworkHandler {
         return try decoder.decode(CachedPlays.self, from: data)
     }
 
+    /// Post-session race story (lap chart, safety cars, weather, tyres) for the F1 Race or
+    /// Sprint that started at `start`. Nil when the server hasn't built it yet (it backfills
+    /// finished sessions hourly) or the session isn't a race.
+    static func fetchF1SessionDetail(start: Date) async throws -> F1SessionDetail? {
+        var components = URLComponents(string: "\(baseURL())/f1/session")!
+        components.queryItems = [URLQueryItem(name: "start", value: ISO8601DateFormatter().string(from: start))]
+        let (data, response) = try await performAuthorized(url: components.url!)
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            if httpResponse.statusCode == 404 { return nil }
+        }
+        return try Self.sharedDecoder.decode(F1SessionDetail.self, from: data)
+    }
+
     /// Fetches play-by-play directly from **production**, regardless of the currently
     /// resolved environment. Used by the developer replay feature: `/replay` only exists on
     /// a local/dev server, but the recorded play-by-play lives on prod — so the app sources
