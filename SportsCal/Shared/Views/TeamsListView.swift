@@ -34,7 +34,7 @@ struct TeamsListView: View {
     }
 
     private var favoriteTeams: [Team] {
-        teams.filter { favorites.contains($0.strTeam ?? "") }
+        teams.filter { favorites.contains(team: $0) }
     }
 
     var body: some View {
@@ -86,7 +86,7 @@ struct TeamsListView: View {
                 Text(team.shortCode)
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
-                if favorites.contains(team.strTeam ?? "") {
+                if favorites.contains(team: team) {
                     Image(systemName: "star.fill")
                         .font(.caption)
                         .foregroundStyle(.yellow)

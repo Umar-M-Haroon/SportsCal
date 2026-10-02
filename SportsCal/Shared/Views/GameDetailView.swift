@@ -948,62 +948,31 @@ struct GameDetailSections: View {
 
     @ViewBuilder
     private var headToHeadSection: some View {
-        let matchups = previousMatchups
+        let seasons = headToHeadSeasons
         // Hide the section entirely when there are no prior meetings (e.g. World Cup
         // group-stage games) rather than showing an empty placeholder card.
-        if !matchups.isEmpty {
+        if !seasons.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Head-to-Head")
                     .font(.headline)
 
-                let record = computeRecord(matchups: matchups)
-                HStack {
-                    Text(awayTeam.strTeamShort ?? awayTeam.strTeam ?? "Away")
-                        .fontWeight(.semibold)
-                    Text("\(record.awayWins)")
-                        .foregroundColor(record.awayWins > record.homeWins ? .primary : .secondary)
-                    Spacer()
-                    if record.draws > 0 {
-                        Text("Draws: \(record.draws)")
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    Text("\(record.homeWins)")
-                        .foregroundColor(record.homeWins > record.awayWins ? .primary : .secondary)
-                    Text(homeTeam.strTeamShort ?? homeTeam.strTeam ?? "Home")
-                        .fontWeight(.semibold)
-                }
-                .font(.subheadline)
-                .padding(.horizontal, 4)
+                recordRow(computeRecord(matchups: seasons.flatMap(\.games)))
+                    .font(.subheadline)
+                    .padding(.horizontal, 4)
 
-                ForEach(matchups.prefix(10), id: \.id) { m in
-                    HStack {
-                        if let date = m.standardDate {
-                            Text(date.formatted(.dateTime.month(.abbreviated).day().year()))
+                ForEach(seasons, id: \.label) { season in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(season.label)
+                                .font(.subheadline.weight(.semibold))
+                            Spacer()
+                            recordRow(computeRecord(matchups: season.games), compact: true)
                                 .font(.caption)
-                                .foregroundColor(.secondary)
-                                .frame(width: 100, alignment: .leading)
+                                .foregroundStyle(.secondary)
                         }
-                        Spacer()
-                        Text(m.strAwayTeam)
-                            .font(.caption)
-                            .lineLimit(1)
-                        Text("\(m.intAwayScore ?? "-")")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .frame(width: 24)
-                        Text("-")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("\(m.intHomeScore ?? "-")")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .frame(width: 24)
-                        Text(m.strHomeTeam)
-                            .font(.caption)
-                            .lineLimit(1)
-                        Spacer()
+                        ForEach(season.games, id: \.id) { matchupRow($0) }
                     }
+                    .padding(.top, 4)
                 }
             }
             .padding()
@@ -1012,29 +981,121 @@ struct GameDetailSections: View {
         }
     }
 
+    /// "NYK 3  ·  Draws: 1  ·  2 BOS" — away on the left, home on the right, matching
+    /// the score rows below.
+    private func recordRow(_ record: Record, compact: Bool = false) -> some View {
+        let away = awayTeam.strTeamShort ?? awayTeam.strTeam ?? "Away"
+        let home = homeTeam.strTeamShort ?? homeTeam.strTeam ?? "Home"
+        return HStack(spacing: 6) {
+            Text(away).fontWeight(.semibold)
+            Text("\(record.awayWins)")
+                .foregroundColor(record.awayWins > record.homeWins ? .primary : .secondary)
+            if compact {
+                Text(record.draws > 0 ? "–  \(record.draws)D  –" : "–")
+            } else {
+                Spacer()
+                if record.draws > 0 {
+                    Text("Draws: \(record.draws)")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+            }
+            Text("\(record.homeWins)")
+                .foregroundColor(record.homeWins > record.awayWins ? .primary : .secondary)
+            Text(home).fontWeight(.semibold)
+        }
+    }
+
+    private func matchupRow(_ m: Game) -> some View {
+        HStack {
+            if let date = m.standardDate {
+                Text(date.formatted(.dateTime.month(.abbreviated).day()))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(width: 56, alignment: .leading)
+            }
+            Spacer()
+            Text(m.strAwayTeam)
+                .font(.caption)
+                .lineLimit(1)
+            Text("\(m.intAwayScore ?? "-")")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .frame(width: 24)
+            Text("-")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text("\(m.intHomeScore ?? "-")")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .frame(width: 24)
+            Text(m.strHomeTeam)
+                .font(.caption)
+                .lineLimit(1)
+            Spacer()
+        }
+    }
+
+    private struct H2HSeason { let label: String; let games: [Game] }
+
+    /// Finished meetings between these two teams, newest season first, newest game
+    /// first within a season.
+    private var headToHeadSeasons: [H2HSeason] {
+        let matchups = previousMatchups
+        let grouped = Dictionary(grouping: matchups) { $0.seasonLabel ?? "Earlier" }
+        return grouped
+            .map { H2HSeason(label: $0.key, games: $0.value) }
+            .sorted {
+                ($0.games.first?.standardDate ?? .distantPast) > ($1.games.first?.standardDate ?? .distantPast)
+            }
+    }
+
     private var previousMatchups: [Game] {
         guard let allGames = viewModel.totalGames else { return [] }
-        let home = game.strHomeTeam
-        let away = game.strAwayTeam
+        let liveIDs = Set(viewModel.liveEvents.map(\.id))
         return allGames.filter { g in
             g.id != game.id &&
             g.intHomeScore != nil && g.intAwayScore != nil &&
-            ((g.strHomeTeam == home && g.strAwayTeam == away) ||
-             (g.strHomeTeam == away && g.strAwayTeam == home))
+            isSameFixture(g) &&
+            g.scheduleState(liveIDs: liveIDs) == .final
         }
         .sorted { ($0.standardDate ?? .distantPast) > ($1.standardDate ?? .distantPast) }
     }
 
+    /// Whether `g` is between the same two teams (either way round). Either signal is
+    /// enough: names differ between sources ("Man Utd" / "Manchester United"), and IDs
+    /// can too — the server keeps raw ESPN ids when it has no TheSportsDB mapping.
+    private func isSameFixture(_ g: Game) -> Bool {
+        sameSides(g) != nil
+    }
+
+    /// For a meeting between these two teams: true when this game's home team was also
+    /// home in `g`, false when it was away, nil when `g` isn't between these teams.
+    /// Names are checked before ids, and matching and win attribution share this one
+    /// rule so they can't disagree.
+    private func sameSides(_ g: Game) -> Bool? {
+        let home = game.strHomeTeam, away = game.strAwayTeam
+        if g.strHomeTeam == home && g.strAwayTeam == away { return true }
+        if g.strHomeTeam == away && g.strAwayTeam == home { return false }
+        func id(_ s: String?) -> String? { (s?.isEmpty == false) ? s : nil }
+        if let h = id(game.idHomeTeam), let a = id(game.idAwayTeam),
+           let gh = id(g.idHomeTeam), let ga = id(g.idAwayTeam) {
+            if gh == h && ga == a { return true }
+            if gh == a && ga == h { return false }
+        }
+        return nil
+    }
+
     private struct Record { let homeWins: Int; let awayWins: Int; let draws: Int }
 
+    /// Wins are credited to this game's home/away team, whichever side they played on.
     private func computeRecord(matchups: [Game]) -> Record {
         var homeWins = 0, awayWins = 0, draws = 0
-        let home = game.strHomeTeam
         for m in matchups {
             guard let hs = Int(m.intHomeScore ?? ""), let as_ = Int(m.intAwayScore ?? "") else { continue }
             if hs == as_ {
                 draws += 1
-            } else if (m.strHomeTeam == home && hs > as_) || (m.strAwayTeam == home && as_ > hs) {
+            } else if (sameSides(m) ?? true) == (hs > as_) {
                 homeWins += 1
             } else {
                 awayWins += 1
@@ -1095,64 +1156,8 @@ struct GameDetailSections: View {
     }
 
     private func standingsGroup(name: String?, entries: [Entry]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let name {
-                Text(name)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.secondary)
-            }
-
-            HStack(spacing: 0) {
-                Text("#")
-                    .frame(width: 24, alignment: .leading)
-                Text("Team")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("W")
-                    .frame(width: 32, alignment: .center)
-                Text("L")
-                    .frame(width: 32, alignment: .center)
-                if league?.isSoccer == true {
-                    Text("D")
-                        .frame(width: 32, alignment: .center)
-                    Text("Pts")
-                        .frame(width: 36, alignment: .center)
-                }
-            }
-            .font(.caption2)
-            .foregroundColor(.secondary)
-
-            ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
-                let isGameTeam = isTeamInGame(entry: entry)
-                HStack(spacing: 0) {
-                    Text("\(index + 1)")
-                        .frame(width: 24, alignment: .leading)
-                    Text(entry.team?.shortDisplayName ?? entry.team?.displayName ?? "-")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .lineLimit(1)
-                    Text(statValue(entry: entry, name: "wins"))
-                        .frame(width: 32, alignment: .center)
-                    Text(statValue(entry: entry, name: "losses"))
-                        .frame(width: 32, alignment: .center)
-                    if league?.isSoccer == true {
-                        Text(statValue(entry: entry, name: "ties"))
-                            .frame(width: 32, alignment: .center)
-                        Text(statValue(entry: entry, name: "points"))
-                            .frame(width: 36, alignment: .center)
-                    }
-                }
-                .font(.caption)
-                .fontWeight(isGameTeam ? .bold : .regular)
-                .foregroundColor(isGameTeam ? .primary : .secondary)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func statValue(entry: Entry, name: String) -> String {
-        guard let stats = entry.stats,
-              let stat = stats.first(where: { $0.name == name }) else { return "-" }
-        return stat.displayValue ?? (stat.value.map { "\(Int($0))" } ?? "-")
+        LeagueStandingsTable(name: name, entries: entries, isSoccer: league?.isSoccer == true,
+                           isHighlighted: isTeamInGame(entry:))
     }
 
     private func isTeamInGame(entry: Entry) -> Bool {
@@ -1359,3 +1364,75 @@ struct GameDetailSections: View {
     }
 }
 
+
+// MARK: - Standings table
+
+/// One standings group (a conference, division or league table). Shared by the game
+/// detail and the team page; `isHighlighted` bolds the rows being looked at.
+struct LeagueStandingsTable: View {
+    let name: String?
+    let entries: [Entry]
+    let isSoccer: Bool
+    var isHighlighted: (Entry) -> Bool = { _ in false }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let name {
+                Text(name)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+            }
+
+            HStack(spacing: 0) {
+                Text("#")
+                    .frame(width: 24, alignment: .leading)
+                Text("Team")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("W")
+                    .frame(width: 32, alignment: .center)
+                Text("L")
+                    .frame(width: 32, alignment: .center)
+                if isSoccer {
+                    Text("D")
+                        .frame(width: 32, alignment: .center)
+                    Text("Pts")
+                        .frame(width: 36, alignment: .center)
+                }
+            }
+            .font(.caption2)
+            .foregroundColor(.secondary)
+
+            ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
+                let highlighted = isHighlighted(entry)
+                HStack(spacing: 0) {
+                    Text("\(index + 1)")
+                        .frame(width: 24, alignment: .leading)
+                    Text(entry.team?.shortDisplayName ?? entry.team?.displayName ?? "-")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .lineLimit(1)
+                    Text(Self.statValue(entry: entry, name: "wins"))
+                        .frame(width: 32, alignment: .center)
+                    Text(Self.statValue(entry: entry, name: "losses"))
+                        .frame(width: 32, alignment: .center)
+                    if isSoccer {
+                        Text(Self.statValue(entry: entry, name: "ties"))
+                            .frame(width: 32, alignment: .center)
+                        Text(Self.statValue(entry: entry, name: "points"))
+                            .frame(width: 36, alignment: .center)
+                    }
+                }
+                .font(.caption)
+                .fontWeight(highlighted ? .bold : .regular)
+                .foregroundColor(highlighted ? .primary : .secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    static func statValue(entry: Entry, name: String) -> String {
+        guard let stats = entry.stats,
+              let stat = stats.first(where: { $0.name == name }) else { return "-" }
+        return stat.displayValue ?? (stat.value.map { "\(Int($0))" } ?? "-")
+    }
+}

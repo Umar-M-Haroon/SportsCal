@@ -497,3 +497,80 @@ final class ProFeatureGatingTests: XCTestCase {
         XCTAssertEqual(DeepLink.parse(bracket), .worldCupBracket)
     }
 }
+
+// MARK: - Team page logic
+
+final class TeamPageLogicTests: XCTestCase {
+
+    // MARK: Team alert gate
+
+    func testTeamAlerts_freeUserGetsOneTeam() {
+        XCTAssertTrue(NotificationGate.teamAlertDecision(isPro: false, enabledTeamCount: 0, teamAlreadyEnabled: false).isAllowed)
+        XCTAssertEqual(
+            NotificationGate.teamAlertDecision(isPro: false, enabledTeamCount: 1, teamAlreadyEnabled: false),
+            .requiresPro(.unlimitedReminders)
+        )
+    }
+
+    func testTeamAlerts_reenablingSameTeamIsFree() {
+        XCTAssertTrue(NotificationGate.teamAlertDecision(isPro: false, enabledTeamCount: 1, teamAlreadyEnabled: true).isAllowed)
+    }
+
+    func testTeamAlerts_proIsUnlimited() {
+        XCTAssertTrue(NotificationGate.teamAlertDecision(isPro: true, enabledTeamCount: 12, teamAlreadyEnabled: false).isAllowed)
+    }
+
+    // MARK: Season labels
+
+    private func game(league: Leagues, _ iso: String, status: String? = nil) -> Game {
+        Game(idLeague: String(league.rawValue), strHomeTeam: "A", strAwayTeam: "B",
+             strStatus: status, isoDate: ISO8601DateFormatter().date(from: iso))
+    }
+
+    func testSeason_splitYearLeagueStraddlesNewYear() {
+        XCTAssertEqual(game(league: .English_Premier_League, "2025-08-16T14:00:00Z").seasonLabel, "2025–26")
+        XCTAssertEqual(game(league: .English_Premier_League, "2026-05-24T14:00:00Z").seasonLabel, "2025–26")
+        XCTAssertEqual(game(league: .nba, "2026-10-21T23:00:00Z").seasonLabel, "2026–27")
+    }
+
+    func testSeason_nflPlayoffsStayInKickoffYear() {
+        XCTAssertEqual(game(league: .nfl, "2026-01-18T20:00:00Z").seasonLabel, "2025")
+        XCTAssertEqual(game(league: .nfl, "2025-09-07T17:00:00Z").seasonLabel, "2025")
+    }
+
+    func testSeason_calendarYearLeagues() {
+        XCTAssertEqual(game(league: .mlb, "2026-03-27T17:00:00Z").seasonLabel, "2026")
+        XCTAssertEqual(game(league: .MLS, "2026-11-01T17:00:00Z").seasonLabel, "2026")
+    }
+
+    // MARK: Schedule state
+
+    func testScheduleState_preGameIsUpcomingNotFinal() {
+        let now = Date()
+        let g = Game(idLeague: "4387", strHomeTeam: "A", strAwayTeam: "B", strStatus: "pre",
+                     isoDate: now.addingTimeInterval(3600))
+        XCTAssertTrue(g.hasDoneStatus, "hasDoneStatus lumps pre in with finished — the bug this guards")
+        XCTAssertEqual(g.scheduleState(now: now), .upcoming)
+    }
+
+    func testScheduleState_liveFeedWinsOverStatus() {
+        let now = Date()
+        let g = Game(idEvent: "E1", idLeague: "4387", strHomeTeam: "A", strAwayTeam: "B", strStatus: "pre",
+                     isoDate: now.addingTimeInterval(-600))
+        XCTAssertEqual(g.scheduleState(liveIDs: ["E1"], now: now), .live)
+    }
+
+    func testScheduleState_staleInProgressIsFinal() {
+        let now = Date()
+        let g = Game(idLeague: "4328", strHomeTeam: "A", strAwayTeam: "B", strStatus: "in",
+                     isoDate: now.addingTimeInterval(-8 * 3600))
+        XCTAssertEqual(g.scheduleState(now: now), .final)
+    }
+
+    func testScheduleState_finishedIsFinal() {
+        let now = Date()
+        let g = Game(idLeague: "4387", strHomeTeam: "A", strAwayTeam: "B", strStatus: "FT",
+                     isoDate: now.addingTimeInterval(-3 * 3600))
+        XCTAssertEqual(g.scheduleState(now: now), .final)
+    }
+}

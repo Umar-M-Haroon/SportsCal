@@ -131,6 +131,47 @@ class Favorites: Equatable {
         NotificationCenter.default.post(name: .favoritesDidChange, object: nil)
     }
 
+    // MARK: Team-based
+    //
+    // For callers holding a real `Team` (team page, teams list). Going by `idTeam` skips
+    // the name → ID lookup, which can resolve to the wrong club when two teams share a
+    // name or a team has been renamed. Only ids TeamsManager knows count: `getTeams(for:)`
+    // builds stand-in teams whose `idTeam` is an event id or a name, and an unknown id
+    // would also be missing from `teams` (push-to-start, Spotlight). Those go by name.
+
+    /// The team's id when it is a real, known TheSportsDB team id.
+    private func knownID(_ team: Team) -> String? {
+        guard let id = team.idTeam, !id.isEmpty, TeamsManager.shared.team(byID: id) != nil else { return nil }
+        return id
+    }
+
+    func contains(team: Team) -> Bool {
+        if let id = knownID(team) { return teamIDs.contains(id) }
+        return team.strTeam.map(contains) ?? false
+    }
+
+    func add(team: Team) {
+        guard let id = knownID(team) else {
+            if let name = team.strTeam { add(name) }
+            return
+        }
+        teamIDs.insert(id)
+        if let name = team.strTeam { legacyTeamNames.remove(name) }
+        save()
+        NotificationCenter.default.post(name: .favoritesDidChange, object: nil)
+    }
+
+    func remove(team: Team) {
+        guard let id = knownID(team) else {
+            if let name = team.strTeam { remove(name) }
+            return
+        }
+        teamIDs.remove(id)
+        if let name = team.strTeam { legacyTeamNames.remove(name) }
+        save()
+        NotificationCenter.default.post(name: .favoritesDidChange, object: nil)
+    }
+
     func addPlayer(_ name: String) {
         players.insert(name)
         save()

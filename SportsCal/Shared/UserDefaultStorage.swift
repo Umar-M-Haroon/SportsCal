@@ -138,6 +138,22 @@ class UserDefaultStorage {
         freeReminderTeamIDs = ids
     }
 
+    // MARK: - Team Alerts
+
+    /// Team IDs with "alert me when every game starts" turned on (team page toggle).
+    /// `TeamAlertScheduler` turns these into pending game-start notifications.
+    private static let teamAlertsKey = "teamAlertTeamIDs"
+
+    var teamAlertTeamIDs: Set<String> {
+        get {
+            let array = UserDefaults(suiteName: Self.suiteName)?.stringArray(forKey: Self.teamAlertsKey) ?? []
+            return Set(array)
+        }
+        set {
+            UserDefaults(suiteName: Self.suiteName)?.set(Array(newValue), forKey: Self.teamAlertsKey)
+        }
+    }
+
     /// Event IDs of upcoming/in-progress World Cup matches that should be auto-followed
     /// while `followWorldCup` is on. If `followWorldCupTeam` is set, only that team's
     /// matches are returned. Past games are excluded so cleanup doesn't fight us.

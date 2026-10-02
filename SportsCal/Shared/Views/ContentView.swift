@@ -99,8 +99,11 @@ struct ContentView: View {
     @State private var selectedTab: Int = 0
     @State private var spotlightGameID: String?
     @State private var spotlightCalendarDate: Date?
-    /// Typed nav path for the Browse stack so a Spotlight team tap can push TeamDetailView.
-    @State private var browseTeamPath: [Team] = []
+    /// Nav path for the Browse stack so a Spotlight team tap can push TeamDetailView.
+    /// Everything pushed onto this stack must be value-based (`Team`, `BrowseRoute`):
+    /// a view-destination `NavigationLink` below a path-driven push makes SwiftUI
+    /// push the team twice.
+    @State private var browseTeamPath = NavigationPath()
 
     #if os(macOS)
     @State private var sidebarSelection: MacSidebarItem? = .games
@@ -175,6 +178,11 @@ struct ContentView: View {
             .refreshable(action: {
                 viewModel.getInfo()
             })
+            // Keep team-page "alert me for every game" notifications in step with the
+            // schedule: new fixtures get scheduled, moved ones retimed. Also on every
+            // foreground (below) — a reschedule doesn't change the game count, and games
+            // drift into the scheduling window day by day.
+            .task(id: viewModel.totalGames?.count ?? 0) { reconcileTeamAlerts() }
             .alert("Scoreline Pro", isPresented: $shouldShowSportsCalProAlert) {
                 Button("Subscribe") { sheetType = .paywall }
                 Button("Cancel", role: .cancel) { }
@@ -226,6 +234,7 @@ struct ContentView: View {
                 if newPhase == .active {
                     viewModel.getInfo()
                     viewModel.ensureWebSocketConnected()
+                    reconcileTeamAlerts()
                 }
             }
             .onChange(of: storage.hiddenCompetitions) { _, _ in
@@ -412,6 +421,14 @@ struct ContentView: View {
                         .environment(viewModel)
                         .environment(favorites)
                 }
+                .navigationDestination(for: BrowseRoute.self) { route in
+                    switch route {
+                    case .teams:
+                        TeamsListView()
+                            .environment(viewModel)
+                            .environment(favorites)
+                    }
+                }
             }
             .tabItem {
                 Label("Browse", systemImage: "rectangle.grid.2x2")
@@ -588,7 +605,7 @@ struct ContentView: View {
         // Every sidebar selection drives the day board, scoped by the chosen
         // filter (all / live / favorites / sport / team). The board itself is
         // the same DayPage; only its `macScope` changes.
-        NavigationStack {
+        NavigationStack(path: $browseTeamPath) {
             DayPage(
                 shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
                 spotlightGameID: $spotlightGameID,
@@ -598,7 +615,43 @@ struct ContentView: View {
             .environment(storage)
             .environment(favorites)
             .navigationTitle(macDetailTitle)
+            .toolbar {
+                if case .team(let id) = sidebarSelection ?? .games,
+                   let team = TeamsManager.shared.team(byID: id) {
+                    ToolbarItem {
+                        Button {
+                            browseTeamPath = NavigationPath([team])
+                        } label: {
+                            Label("Team Page", systemImage: "info.circle")
+                        }
+                        .help("Schedule, standings and roster for \(team.strTeam ?? "this team")")
+                    }
+                }
+                ToolbarItem {
+                    Button {
+                        browseTeamPath = NavigationPath([BrowseRoute.teams])
+                    } label: {
+                        Label("All Teams", systemImage: "person.3")
+                    }
+                    .help("Browse and follow any team")
+                }
+            }
+            .navigationDestination(for: Team.self) { team in
+                TeamDetailView(team: team)
+                    .environment(viewModel)
+                    .environment(favorites)
+            }
+            .navigationDestination(for: BrowseRoute.self) { route in
+                switch route {
+                case .teams:
+                    TeamsListView()
+                        .environment(viewModel)
+                        .environment(favorites)
+                }
+            }
         }
+        // A new sidebar scope starts from its board, not a team page left open.
+        .onChange(of: sidebarSelection) { _, _ in browseTeamPath = NavigationPath() }
     }
 
     private func dayScope(for item: MacSidebarItem) -> DayScope {
@@ -622,6 +675,13 @@ struct ContentView: View {
     }
     #endif
 
+    private func reconcileTeamAlerts() {
+        let teamIDs = storage.teamAlertTeamIDs
+        guard !teamIDs.isEmpty, let games = viewModel.totalGames, !games.isEmpty else { return }
+        TeamAlertScheduler.reconcile(games: games, teamIDs: teamIDs,
+                                     isPro: SubscriptionManager.shared.isPro)
+    }
+
     // MARK: - Deep Link Handling
 
     /// Handles Spotlight search result taps.
@@ -635,7 +695,7 @@ struct ContentView: View {
         } else if identifier.hasPrefix("team-") {
             let name = String(identifier.dropFirst("team-".count))
             if let team = TeamsManager.shared.team(byNameOrAlias: name) {
-                browseTeamPath = [team]
+                browseTeamPath = NavigationPath([team])
                 selectedTab = 2
             } else {
                 // Team not in cache — fall back to the favorites-filtered games view.

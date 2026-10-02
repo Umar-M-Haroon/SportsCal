@@ -6,6 +6,12 @@
 import SwiftUI
 import SportsCalModel
 
+/// Value-based destinations on the Browse stack (registered in ContentView). Links that
+/// lead to a `Team` push must be value-based too, or the team gets pushed twice.
+enum BrowseRoute: Hashable {
+    case teams
+}
+
 struct BrowsePage: View {
     @Environment(GameViewModel.self) private var viewModel
     @Environment(UserDefaultStorage.self) private var storage
@@ -72,11 +78,7 @@ struct BrowsePage: View {
                 }
             }
 
-            NavigationLink {
-                TeamsListView()
-                    .environment(viewModel)
-                    .environment(favorites)
-            } label: {
+            NavigationLink(value: BrowseRoute.teams) {
                 HStack(spacing: 12) {
                     Image(systemName: "person.3.fill")
                         .font(.title2)

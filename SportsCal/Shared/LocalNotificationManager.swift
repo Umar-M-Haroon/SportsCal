@@ -69,6 +69,10 @@ struct NotificationManager {
         AppLogger.notifications.info("Firing notification \(notificationIdentifier) at \(Date(timeIntervalSinceNow: interval))")
         let request = UNNotificationRequest(identifier: notificationIdentifier, content: notiContent, trigger: trig)
         let notiCenter = UNUserNotificationCenter.current()
+        // Don't fire twice: this reminder replaces a team alert for the same game.
+        if duration == .gameStarting, let eventID = item.idEvent {
+            notiCenter.removePendingNotificationRequests(withIdentifiers: [TeamAlertScheduler.identifierPrefix + eventID])
+        }
         notiCenter.add(request) { (error) in
             if let error {
                 AppLogger.notifications.error("Error adding notification: \(error.localizedDescription)")
@@ -123,5 +127,74 @@ struct NotificationManager {
             let isScheduled = requests.contains { $0.identifier == identifier }
             completion(isScheduled)
         }
+    }
+}
+
+/// Keeps pending "game starting" notifications in step with the team alerts turned on
+/// from team pages (`UserDefaultStorage.teamAlertTeamIDs`). Run whenever the alert set
+/// or the loaded schedule changes; it adds, retimes, and removes its own requests.
+enum TeamAlertScheduler {
+    static let identifierPrefix = "teamalert_"
+    /// iOS keeps at most 64 pending requests per app (silently dropping the latest),
+    /// shared with one-off reminders — leave them room.
+    private static let maxScheduled = 30
+    /// Only schedule this far ahead; later games get picked up on a future run.
+    private static let horizon: TimeInterval = 21 * 24 * 60 * 60
+
+    static func reconcile(games: [Game], teamIDs: Set<String>, isPro: Bool, now: Date = Date()) {
+        // A lapsed subscription keeps the free allowance, chosen stably.
+        let allowed = isPro ? teamIDs : Set(teamIDs.sorted().prefix(NotificationGate.freeTeamAlertLimit))
+
+        var seen = Set<String>()
+        let wanted: [(identifier: String, game: Game, date: Date)] = games
+            .compactMap { game -> (identifier: String, game: Game, date: Date)? in
+                guard !allowed.isEmpty,
+                      let eventID = game.idEvent, !eventID.isEmpty,
+                      let date = game.standardDate,
+                      date > now.addingTimeInterval(2 * 60),
+                      date < now.addingTimeInterval(horizon),
+                      involves(game, anyOf: allowed) else { return nil }
+                return (identifierPrefix + eventID, game, date)
+            }
+            .sorted { $0.date < $1.date }
+            .filter { seen.insert($0.identifier).inserted }
+            .prefix(maxScheduled)
+            .map { $0 }
+
+        let center = UNUserNotificationCenter.current()
+        center.getPendingNotificationRequests { requests in
+            let pending = Set(requests.map(\.identifier))
+            let stale = pending.filter { $0.hasPrefix(identifierPrefix) }
+                .subtracting(wanted.map(\.identifier))
+            if !stale.isEmpty {
+                center.removePendingNotificationRequests(withIdentifiers: Array(stale))
+            }
+            for item in wanted {
+                // A one-off "when game starts" reminder already covers this game.
+                let manualID = "\(item.game.idEvent ?? "")_\(NotificationDuration.gameStarting.rawValue)"
+                if pending.contains(manualID) { continue }
+
+                let content = UNMutableNotificationContent()
+                content.title = "Game Starting Now!"
+                content.body = "\(item.game.strAwayTeam) @ \(item.game.strHomeTeam) is about to begin"
+                content.sound = .default
+                content.categoryIdentifier = NotificationType.gameReminder.rawValue
+                // Re-adding under the same identifier replaces the request, which
+                // retimes it when a game is rescheduled.
+                let interval = item.date.addingTimeInterval(-60).timeIntervalSince(now)
+                guard interval > 0 else { continue }
+                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
+                center.add(UNNotificationRequest(identifier: item.identifier, content: content, trigger: trigger))
+            }
+            AppLogger.notifications.info("Team alerts: \(wanted.count) scheduled, \(stale.count) removed")
+        }
+    }
+
+    private static func involves(_ game: Game, anyOf teamIDs: Set<String>) -> Bool {
+        if let id = game.idHomeTeam, teamIDs.contains(id) { return true }
+        if let id = game.idAwayTeam, teamIDs.contains(id) { return true }
+        if let id = TeamsManager.shared.teamID(forName: game.strHomeTeam), teamIDs.contains(id) { return true }
+        if let id = TeamsManager.shared.teamID(forName: game.strAwayTeam), teamIDs.contains(id) { return true }
+        return false
     }
 }

@@ -145,4 +145,22 @@ public enum NotificationGate {
             return .requiresPro(.unlimitedReminders)
         }
     }
+
+    /// How many teams a free user may turn on "alert me for every game" for.
+    public static var freeTeamAlertLimit = 1
+
+    /// Decide whether a team-wide game-start alert may be turned on.
+    ///
+    /// - Parameters:
+    ///   - enabledTeamCount: teams that already have team alerts on.
+    ///   - teamAlreadyEnabled: this team is already on (re-enabling is free).
+    public static func teamAlertDecision(
+        isPro: Bool,
+        enabledTeamCount: Int,
+        teamAlreadyEnabled: Bool
+    ) -> GateDecision {
+        if isPro || teamAlreadyEnabled { return .allowed }
+        if enabledTeamCount < freeTeamAlertLimit { return .allowed }
+        return .requiresPro(.unlimitedReminders)
+    }
 }

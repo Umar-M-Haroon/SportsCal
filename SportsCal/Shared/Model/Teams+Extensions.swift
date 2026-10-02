@@ -233,3 +233,79 @@ extension Game {
         return .none
     }
 }
+
+// MARK: - Schedule state
+
+/// Where a game sits relative to now, for splitting schedules into upcoming / live /
+/// results. `hasDoneStatus` can't do this on its own: it means "not in progress", so it
+/// is also true for `pre`/`NS` games that haven't started.
+enum GameScheduleState {
+    case upcoming, live, final
+}
+
+extension Game {
+    /// A status stuck on "in" this long after kickoff is stale — the match is over.
+    private static let staleLiveInterval: TimeInterval = 6 * 60 * 60
+
+    /// Classifies the game. `liveIDs` (the ids in `GameViewModel.liveEvents`) wins over
+    /// the stored status, which lags the live feed.
+    func scheduleState(liveIDs: Set<String> = [], now: Date = Date()) -> GameScheduleState {
+        if liveIDs.contains(id) { return .live }
+        let status = (strStatus ?? "").lowercased()
+        let progress = (strProgress ?? "").lowercased()
+        let date = standardDate
+        if status == "pre" || status == "ns" || status == "not started" || progress == "pre" {
+            // "Not started" hours after kickoff means postponed or a status that never
+            // updated — either way it's no longer the next game.
+            if let date, now.timeIntervalSince(date) > 3 * 60 * 60 { return .final }
+            return .upcoming
+        }
+        if status == "in" {
+            if let date, now.timeIntervalSince(date) > Self.staleLiveInterval { return .final }
+            return .live
+        }
+        if hasDoneStatus { return .final }
+        guard let date else { return .upcoming }
+        if date > now { return .upcoming }
+        return now.timeIntervalSince(date) < Self.staleLiveInterval && isCompleted != true ? .live : .final
+    }
+}
+
+// MARK: - Seasons
+
+extension Leagues {
+    /// Leagues whose season straddles New Year and is named for both years ("2025–26").
+    var hasSplitYearSeason: Bool {
+        switch self {
+        case .English_Premier_League, .English_League_Championship, .German_Bundesliga,
+             .Serie_A, .Ligue_1, .La_Liga, .Eredivisie, .Liga_MX, .A_League,
+             .UEFA_Champions_League, .UEFA_Europa_League, .UEFA_Conference_League,
+             .FA_Cup, .Copa_del_Rey, .Coupe_De_France, .DFB_Pokal,
+             .nba, .nhl:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+extension Game {
+    /// The season this game belongs to, labelled the way the league names it:
+    /// "2025–26" for leagues that straddle New Year, "2025" for the NFL (named for the
+    /// year it kicks off, so January playoffs stay in it) and calendar-year leagues.
+    var seasonLabel: String? {
+        guard let date = standardDate else { return nil }
+        let calendar = Calendar(identifier: .gregorian)
+        let year = calendar.component(.year, from: date)
+        let month = calendar.component(.month, from: date)
+        let league = idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))
+        if league?.hasSplitYearSeason == true {
+            let start = month >= 7 ? year : year - 1
+            return "\(start)–\(String(format: "%02d", (start + 1) % 100))"
+        }
+        if league == .nfl {
+            return String(month >= 3 ? year : year - 1)
+        }
+        return String(year)
+    }
+}
