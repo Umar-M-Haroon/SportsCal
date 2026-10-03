@@ -60,4 +60,19 @@ final class F1DriverSeasonTests: XCTestCase {
         ])
         XCTAssertTrue(F1DriverSeason(driverName: "M. Verstappen", weekends: [race]).rounds.isEmpty)
     }
+
+    func testRoundNumbersCountWeekendsTheDriverMissed() {
+        let missed = weekend("A", day: 10, sessions: [
+            EventSession(sessionType: "Race", sessionName: "Race", status: "post", leaderboard: [entry("George Russell", 1)]),
+        ])
+        let cancelled = weekend("X", day: 15, sessions: [
+            EventSession(sessionType: "Race", sessionName: "Race", status: "post"),
+        ])
+        let raced = weekend("B", day: 20, sessions: [
+            EventSession(sessionType: "Race", sessionName: "Race", status: "post",
+                         leaderboard: [entry("George Russell", 2), entry("Kimi Antonelli", 1)]),
+        ])
+        let season = F1DriverSeason(driverName: "Kimi Antonelli", weekends: [missed, cancelled, raced])
+        XCTAssertEqual(season.rounds.map(\.roundNumber), [2], "round 2 of the championship, even though it's this driver's first result")
+    }
 }

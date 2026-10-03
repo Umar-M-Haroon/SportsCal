@@ -41,4 +41,13 @@ final class LiveActivityRaceTests: XCTestCase {
         ])
         XCTAssertNil(LiveActivityRace(game: game, standings: nil))
     }
+
+    func testLiveSessionWithoutTimingStillRaceState() throws {
+        let game = Game(strHomeTeam: "GP", strAwayTeam: "", isoDate: nil, sessions: [
+            EventSession(sessionType: "Race", sessionName: "Race", status: "in"),
+        ])
+        let race = try XCTUnwrap(LiveActivityRace(game: game, standings: nil))
+        XCTAssertEqual(race.session, "Race")
+        XCTAssertTrue(race.leaders.isEmpty)
+    }
 }

@@ -13,6 +13,9 @@ public struct F1DriverSeason: Equatable {
     public struct Round: Equatable, Identifiable {
         public var id: String { gameID }
         public let gameID: String
+        /// Championship round among the weekends given (1-based), counted whether or not
+        /// this driver took part, so two drivers' rounds line up on a shared axis.
+        public let roundNumber: Int
         public let raceName: String
         public let date: Date?
         public let qualifying: Int?
@@ -53,6 +56,7 @@ public struct F1DriverSeason: Equatable {
         let ordered = weekends.sorted { ($0.isoDate ?? .distantPast) < ($1.isoDate ?? .distantPast) }
         var total = 0
         var rounds: [Round] = []
+        var roundNumber = 0
         for weekend in ordered {
             guard let sessions = weekend.sessions else { continue }
             func finished(_ types: Set<String>) -> EventSession? {
@@ -62,6 +66,9 @@ public struct F1DriverSeason: Equatable {
             let sprint = finished(["sr", "sprint"])
             let quali = finished(["qual", "qualifying"])
             guard race != nil || sprint != nil else { continue }
+            // Cancelled rounds come through "post" with no results; they aren't rounds.
+            guard !(race?.leaderboard.isEmpty ?? true) || !(sprint?.leaderboard.isEmpty ?? true) else { continue }
+            roundNumber += 1
 
             let raceEntry = race.flatMap { Self.entry(for: driverName, in: $0.leaderboard) }
             let sprintEntry = sprint.flatMap { Self.entry(for: driverName, in: $0.leaderboard) }
@@ -74,6 +81,7 @@ public struct F1DriverSeason: Equatable {
             total += points
             rounds.append(Round(
                 gameID: weekend.idEvent ?? weekend.strHomeTeam,
+                roundNumber: roundNumber,
                 raceName: weekend.strHomeTeam,
                 date: weekend.isoDate,
                 qualifying: qualiEntry.map(\.position).flatMap { $0 > 0 ? $0 : nil },

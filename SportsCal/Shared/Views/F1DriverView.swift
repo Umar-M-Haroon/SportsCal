@@ -144,20 +144,20 @@ struct F1DriverContent: View {
             }
             Chart {
                 if let leader {
-                    ForEach(Array(leader.rounds.enumerated()), id: \.offset) { index, round in
-                        LineMark(x: .value("Round", index + 1), y: .value("Points", round.cumulativePoints),
+                    ForEach(leader.rounds) { round in
+                        LineMark(x: .value("Round", round.roundNumber), y: .value("Points", round.cumulativePoints),
                                  series: .value("Driver", "leader"))
                             .foregroundStyle(Color.secondary.opacity(0.5))
                             .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                     }
                 }
-                ForEach(Array(season.rounds.enumerated()), id: \.offset) { index, round in
-                    LineMark(x: .value("Round", index + 1), y: .value("Points", round.cumulativePoints),
+                ForEach(season.rounds) { round in
+                    LineMark(x: .value("Round", round.roundNumber), y: .value("Points", round.cumulativePoints),
                              series: .value("Driver", "driver"))
                         .foregroundStyle(teamColor)
                         .lineStyle(StrokeStyle(lineWidth: 2.5))
                     if round.race == 1 {
-                        PointMark(x: .value("Round", index + 1), y: .value("Points", round.cumulativePoints))
+                        PointMark(x: .value("Round", round.roundNumber), y: .value("Points", round.cumulativePoints))
                             .foregroundStyle(teamColor)
                             .symbolSize(30)
                     }
@@ -169,7 +169,7 @@ struct F1DriverContent: View {
                     AxisValueLabel { if let r = value.as(Int.self) { Text("R\(r)") } }
                 }
             }
-            .chartXScale(domain: 1...max(season.rounds.count, leader?.rounds.count ?? 0, 2))
+            .chartXScale(domain: 1...max(season.rounds.last?.roundNumber ?? 0, leader?.rounds.last?.roundNumber ?? 0, 2))
             .frame(height: 180)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Points by round: \(season.rounds.last?.cumulativePoints ?? 0) points after \(season.rounds.count) rounds")

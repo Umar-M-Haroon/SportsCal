@@ -177,6 +177,12 @@ private struct RaceLockScreenView: View {
                     .foregroundStyle(WidgetTokens.inkSoft)
                 progressLabel(for: state)
             }
+            if race.leaders.isEmpty {
+                Text("Waiting for timing…")
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundStyle(WidgetTokens.inkSoft)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             ForEach(race.leaders, id: \.position) { driver in
                 RaceLeaderRow(driver: driver, ink: WidgetTokens.ink)
             }
@@ -321,10 +327,10 @@ struct LiveSportActivityWidget: Widget {
                 // Use the team's short abbreviation instead — always legible,
                 // never tinted, identifies the team at a glance. Real logos still
                 // show in expanded and on the lock screen.
-                if let leader = context.state.race?.leaders.first {
+                if let race = context.state.race {
                     HStack(spacing: 3) {
                         Image(systemName: "flag.checkered")
-                        Text(leader.code)
+                        Text(race.leaders.first?.code ?? race.session)
                     }
                     .font(.system(.caption, design: .rounded).weight(.heavy))
                     .foregroundColor(WidgetTokens.ink)

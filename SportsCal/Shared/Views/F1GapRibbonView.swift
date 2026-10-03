@@ -66,6 +66,16 @@ struct F1GapRibbonView: View {
             (lhs.position == 0 ? Int.max : lhs.position) < (rhs.position == 0 ? Int.max : rhs.position)
         }
         guard let leader = sorted.first else { return [] }
+        // Sprint qualifying sends absolute lap times with a "+" ("+1:11.608" behind a
+        // "1:11.567" pole). A real gap is never half a lap, so anything that large is a
+        // time: convert it to a gap from the leader's.
+        let leaderTime: Double? = leader.gap.flatMap {
+            if case .time(let t) = Self.parseGap($0) { return t } else { return nil }
+        }
+        func normalized(_ gap: Gap) -> Gap {
+            guard case .time(let value) = gap, let leaderTime, leaderTime > 0, value >= leaderTime * 0.5 else { return gap }
+            return .time(max(value - leaderTime, 0))
+        }
         var timed: [Row] = []
         var trailing: [Row] = []
         for entry in sorted {
@@ -74,7 +84,7 @@ struct F1GapRibbonView: View {
                 continue
             }
             guard let raw = entry.gap else { continue }
-            let gap = Self.parseGap(raw)
+            let gap = normalized(Self.parseGap(raw))
             switch gap {
             case .time: timed.append(Row(entry: entry, gap: gap))
             default: trailing.append(Row(entry: entry, gap: gap))
@@ -297,7 +307,10 @@ struct F1GapRibbonView: View {
         switch row.gap {
         // P1's feed value is the total race time / fastest lap.
         case .leader: row.entry.gap ?? "Leader"
-        case .time, .laps: row.entry.gap ?? ""
+        case .time(let seconds):
+            // Show the computed gap when the feed sent an absolute time.
+            Self.parseGap(row.entry.gap ?? "") == .time(seconds) ? (row.entry.gap ?? "") : String(format: "+%.3f", seconds)
+        case .laps: row.entry.gap ?? ""
         case .out: (row.entry.gap ?? "").uppercased() == "RETIRED" ? "DNF" : (row.entry.gap ?? "")
         }
     }
@@ -389,6 +402,20 @@ struct F1GapRibbonView: View {
                 LeaderboardEntry(name: d.0, score: "P\(i + 1)", position: i + 1, constructor: d.1, gap: d.2)
             },
             sessionName: "Race"
+        )
+        .padding()
+    }
+}
+
+#Preview("Sprint qualifying (absolute times)") {
+    let times = ["1:11.567", "+1:11.608", "+1:11.622", "+1:11.666", "+1:12.010"]
+    let names = ["Lando Norris", "Oscar Piastri", "Max Verstappen", "George Russell", "Charles Leclerc"]
+    ScrollView {
+        F1GapRibbonView(
+            entries: zip(names, times).enumerated().map { i, d in
+                LeaderboardEntry(name: d.0, score: "P\(i + 1)", position: i + 1, constructor: "McLaren", gap: d.1)
+            },
+            sessionName: "Sprint Qualifying"
         )
         .padding()
     }

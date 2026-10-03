@@ -35,6 +35,14 @@ struct F1SessionDetailJob: AsyncScheduledJob {
         (isDebug ? "debug-" : "") + "F1 Session Detail \(sessionKey)"
     }
 
+    /// Set when a fetch comes back empty (e.g. a cancelled session OpenF1 has no laps
+    /// for), so newest-first retries don't spend every run's slots on it and starve
+    /// the backlog. Expires so a slow-to-publish session still gets retried.
+    static func missKey(_ sessionKey: Int, isDebug: Bool) -> String {
+        (isDebug ? "debug-" : "") + "F1 Session Detail Miss \(sessionKey)"
+    }
+    static let missRetryAfter: TimeInterval = 6 * 3600
+
     func run(context: QueueContext) async throws {
         let app = context.application
         let isDebug = app.environment == .development
@@ -53,7 +61,10 @@ struct F1SessionDetailJob: AsyncScheduledJob {
         for session in finished {
             let key = Self.detailKey(session.session_key, isDebug: isDebug)
             var have = (try? await app.kv.exists(key)) ?? false
-            if !have, fetchedThisRun < Self.perRun {
+            let missKey = Self.missKey(session.session_key, isDebug: isDebug)
+            var recentlyMissed = false
+            if !have { recentlyMissed = (try? await app.kv.exists(missKey)) ?? false }
+            if !have, !recentlyMissed, fetchedThisRun < Self.perRun {
                 if fetchedThisRun > 0 { try? await Task.sleep(nanoseconds: 20_000_000_000) }
                 fetchedThisRun += 1
                 if let detail = await OpenF1Networking.getSessionDetail(client: app.client, session: session) {
@@ -63,6 +74,8 @@ struct F1SessionDetailJob: AsyncScheduledJob {
                         "sessionKey": "\(session.session_key)", "name": "\(session.session_name ?? "")",
                         "laps": "\(detail.totalLaps)", "drivers": "\(detail.lapPositions.count)"
                     ])
+                } else {
+                    try? await app.kv.setString(missKey, value: "1", ttl: Self.missRetryAfter)
                 }
             }
             if have, let start = session.date_start {

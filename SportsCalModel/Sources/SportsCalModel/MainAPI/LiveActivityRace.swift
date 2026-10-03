@@ -45,11 +45,13 @@ public struct LiveActivityRace: Codable, Hashable, Sendable {
     /// finished one. Nil when there's nothing classified yet.
     public init?(game: Game, standings: F1Standings?) {
         let sessions = game.sessions ?? []
-        let session = sessions.first { $0.status == "in" }
-            ?? sessions.last { $0.status == "post" && !$0.leaderboard.isEmpty }
+        let live = sessions.first { $0.status == "in" }
+        let session = live ?? sessions.last { $0.status == "post" && !$0.leaderboard.isEmpty }
         let entries = session?.leaderboard ?? game.leaderboardEntries ?? []
         let top = entries.filter { $0.position > 0 }.sorted { $0.position < $1.position }.prefix(Self.leaderCount)
-        guard !top.isEmpty else { return nil }
+        // A session that just went green often has no timing yet: still a race state
+        // (empty leaders), so push-to-start lands on the F1 layout, not a "0-0" score.
+        guard !top.isEmpty || live != nil else { return nil }
 
         self.session = session?.shortName ?? "Race"
         self.leaders = top.map { entry in

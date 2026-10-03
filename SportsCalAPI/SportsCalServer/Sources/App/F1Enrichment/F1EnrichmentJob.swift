@@ -228,9 +228,16 @@ struct F1EnrichmentJob: AsyncScheduledJob {
     private func findCircuitForGame(_ game: Game, circuits: [String: F1CircuitInfo]) -> F1CircuitInfo? {
         let raceName = normalizedPlace(game.strHomeTeam)
         // ESPN sponsor-prefixes names ("Gulf Air Bahrain Grand Prix in Malaysia").
-        if let hit = circuits.first(where: { key, _ in
+        // Several keys can match ("bahrain grand prix" and "bahrain grand prix in malaysia"
+        // both sit inside ESPN's name): take an exact match, else the longest key, so the
+        // result never depends on dictionary order.
+        let nameHits = circuits.filter { key, _ in
             let normalized = normalizedPlace(key)
             return raceName.contains(normalized) || normalized.contains(raceName)
+        }
+        if let hit = nameHits.max(by: { lhs, rhs in
+            let l = normalizedPlace(lhs.key), r = normalizedPlace(rhs.key)
+            return (l == raceName ? 1 : 0, l.count) < (r == raceName ? 1 : 0, r.count)
         }) {
             return hit.value
         }
