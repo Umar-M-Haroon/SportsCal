@@ -15,6 +15,29 @@ import Logging
 struct F1EnrichmentJob: AsyncScheduledJob {
     private static let logger = Logger(label: "com.sportscal.f1-enrichment")
 
+    /// Standings plus the calendar facts title math needs. Remaining rounds are counted
+    /// from the standings' own round (not today's date) so a lagging standings feed
+    /// never pairs old points with a calendar that's already moved on.
+    static func makeStandings(drivers: [F1DriverStanding], constructors: [F1ConstructorStanding],
+                              round: Int?, calendar: [JolpicaNetworking.SeasonRound],
+                              directory: OpenF1Networking.DriverDirectory) -> F1Standings {
+        var standings = F1Standings(
+            driverStandings: drivers,
+            constructorStandings: constructors,
+            teamColors: directory.teamColors.isEmpty ? nil : directory.teamColors,
+            driverCodes: directory.driverCodes.isEmpty ? nil : directory.driverCodes
+        )
+        if let round, !calendar.isEmpty {
+            let remaining = calendar.filter { $0.round > round }
+            standings.round = round
+            standings.remainingRaces = remaining.count
+            standings.remainingSprints = remaining.filter(\.hasSprint).count
+            standings.nextRoundName = remaining.first?.raceName
+            standings.nextRoundHasSprint = remaining.first?.hasSprint
+        }
+        return standings
+    }
+
     // Persist-guards: a failed source returns an empty collection (the fetchers are
     // non-throwing), so guard writes to avoid clobbering last-known-good Redis data.
     static func shouldPersistCircuits(_ circuits: [String: F1CircuitInfo]) -> Bool {
@@ -44,15 +67,18 @@ struct F1EnrichmentJob: AsyncScheduledJob {
 
         Self.logger.info("Fetching F1 enrichment data")
 
-        // Fetch all four data sources concurrently
-        async let circuitsTask = JolpicaNetworking.getCircuits(client: client, season: currentYear)
+        // Fetch all data sources concurrently
+        async let seasonTask = JolpicaNetworking.getSeason(client: client, season: currentYear)
         async let driverStandingsTask = JolpicaNetworking.getDriverStandings(client: client, season: currentYear)
         async let constructorStandingsTask = JolpicaNetworking.getConstructorStandings(client: client, season: currentYear)
         async let circuitImagesTask = OpenF1Networking.getCircuitImages(client: client, year: currentYear)
         async let sessionsTask = OpenF1Networking.getRaceSessions(client: client, year: currentYear)
+        async let driverDirectoryTask = OpenF1Networking.getDriverDirectory(client: client)
 
-        let circuits = await circuitsTask
-        let driverStandings = await driverStandingsTask
+        let season = await seasonTask
+        let circuits = season.circuits
+        let (driverStandings, standingsRound) = await driverStandingsTask
+        let driverDirectory = await driverDirectoryTask
         let constructorStandings = await constructorStandingsTask
         let circuitImages = await circuitImagesTask
         let sessions = await sessionsTask
@@ -75,26 +101,31 @@ struct F1EnrichmentJob: AsyncScheduledJob {
 
         // Store circuits (with images merged in)
         var enrichedCircuits = circuits
-        for (meetingName, imageURL) in circuitImages {
-            // Try to match OpenF1 meeting names to Jolpica race names
-            // OpenF1: "Australian Grand Prix", Jolpica: "Australian Grand Prix"
-            if let matchingKey = enrichedCircuits.keys.first(where: { raceNameMatches($0, meetingName) }) {
-                var info = enrichedCircuits[matchingKey]!
-                enrichedCircuits[matchingKey] = F1CircuitInfo(
-                    circuitName: info.circuitName,
-                    locality: info.locality,
-                    country: info.country,
-                    circuitImageURL: imageURL,
-                    latitude: info.latitude,
-                    longitude: info.longitude
-                )
-            }
+        for (raceName, info) in circuits {
+            // Location first: race names drift between sources ("Brazilian Grand Prix" vs
+            // OpenF1 "São Paulo Grand Prix") and can repeat (two 2026 "Bahrain Grand Prix"
+            // meetings — Sakhir and the Kuala Lumpur relocation). Name match covers
+            // venues whose locality differs (Abu Dhabi vs "Yas Marina", Miami, Spa).
+            let image = circuitImages.first(where: { normalizedPlace($0.location ?? "") == normalizedPlace(info.locality) })
+                ?? circuitImages.first(where: { raceNameMatches($0.meetingName, raceName) })
+            guard let image else { continue }
+            enrichedCircuits[raceName] = F1CircuitInfo(
+                circuitName: info.circuitName,
+                locality: info.locality,
+                country: info.country,
+                circuitImageURL: image.imageURL,
+                latitude: info.latitude,
+                longitude: info.longitude
+            )
         }
 
         // Store standings
-        let standings = F1Standings(
-            driverStandings: driverStandings,
-            constructorStandings: constructorStandings
+        let standings = Self.makeStandings(
+            drivers: driverStandings,
+            constructors: constructorStandings,
+            round: standingsRound,
+            calendar: season.rounds,
+            directory: driverDirectory
         )
 
         // Save to Redis
@@ -184,22 +215,41 @@ struct F1EnrichmentJob: AsyncScheduledJob {
         return normalize(name1) == normalize(name2)
     }
 
+    /// Case/diacritic-insensitive place name ("São Paulo" == "Sao Paulo").
+    private func normalizedPlace(_ name: String) -> String {
+        name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespaces)
+    }
+
     /// Finds matching circuit info for a game by comparing race name with circuit map keys.
+    /// Runs each strategy across every circuit before falling back, so dictionary order
+    /// can't let a loose venue/locality hit beat an exact race-name hit.
     private func findCircuitForGame(_ game: Game, circuits: [String: F1CircuitInfo]) -> F1CircuitInfo? {
-        let raceName = game.strHomeTeam.lowercased().replacingOccurrences(of: "-", with: " ")
-        for (key, info) in circuits {
-            let normalized = key.lowercased().replacingOccurrences(of: "-", with: " ")
-            if raceName.contains(normalized) || normalized.contains(raceName) {
-                return info
-            }
-            // Also try matching by locality/country in the venue name
-            if let venue = game.venueName?.lowercased() {
-                if venue.contains(info.locality.lowercased()) || venue.contains(info.country.lowercased()) {
-                    return info
-                }
-            }
+        let raceName = normalizedPlace(game.strHomeTeam)
+        // ESPN sponsor-prefixes names ("Gulf Air Bahrain Grand Prix in Malaysia").
+        // Several keys can match ("bahrain grand prix" and "bahrain grand prix in malaysia"
+        // both sit inside ESPN's name): take an exact match, else the longest key, so the
+        // result never depends on dictionary order.
+        let nameHits = circuits.filter { key, _ in
+            let normalized = normalizedPlace(key)
+            return raceName.contains(normalized) || normalized.contains(raceName)
         }
-        return nil
+        if let hit = nameHits.max(by: { lhs, rhs in
+            let l = normalizedPlace(lhs.key), r = normalizedPlace(rhs.key)
+            return (l == raceName ? 1 : 0, l.count) < (r == raceName ? 1 : 0, r.count)
+        }) {
+            return hit.value
+        }
+        // Venue name, when ESPN sends one.
+        if let venue = game.venueName.map(normalizedPlace), !venue.isEmpty,
+           let hit = circuits.values.first(where: {
+               venue.contains(normalizedPlace($0.locality)) || venue.contains(normalizedPlace($0.country))
+           }) {
+            return hit
+        }
+        // Locality in the race name: "MSC Cruises São Paulo Grand Prix" vs Jolpica "Brazilian Grand Prix".
+        return circuits.values.first(where: { raceName.contains(normalizedPlace($0.locality)) })
     }
 
     /// Creates a new Game with circuit info and/or race timing attached.

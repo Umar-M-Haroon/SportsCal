@@ -84,12 +84,16 @@ struct APNSJob: AsyncScheduledJob {
         events.append(contentsOf: liveScore?.golf?.events ?? [])
         events.append(contentsOf: liveScore?.tennis?.events ?? [])
         events.append(contentsOf: liveScore?.racing?.events ?? [])
+        // Codes and team colours for F1 activities; only read when a race weekend is in the feed.
+        let f1Standings: F1Standings? = (liveScore?.racing?.events.isEmpty ?? true) ? nil
+            : try? await kv.getJSON(RedisEndpoint.ESPN.f1Standings.getValue(isDebug: isDebug).rawValue, as: F1Standings.self)
 
         try await dispatchBatch(
             keys: prodKeys,
             keyPrefix: "APNS-",
             environment: .production,
             events: events,
+            f1Standings: f1Standings,
             kv: kv,
             apns: apns,
             clock: clock,
@@ -102,6 +106,7 @@ struct APNSJob: AsyncScheduledJob {
             keyPrefix: "debug-APNS-",
             environment: .sandbox,
             events: events,
+            f1Standings: f1Standings,
             kv: kv,
             apns: apns,
             clock: clock,
@@ -120,6 +125,7 @@ struct APNSJob: AsyncScheduledJob {
         keyPrefix: String,
         environment: APNSEnvironment,
         events: [Game],
+        f1Standings: F1Standings?,
         kv: KeyValueStore,
         apns: APNSSending,
         clock: AppClock,
@@ -151,6 +157,7 @@ struct APNSJob: AsyncScheduledJob {
                         key: item.key,
                         rawValue: item.raw,
                         events: events,
+                        f1Standings: f1Standings,
                         keyPrefix: keyPrefix,
                         environment: environment,
                         kv: kv,
@@ -175,6 +182,7 @@ struct APNSJob: AsyncScheduledJob {
         key: String,
         rawValue: String,
         events: [Game],
+        f1Standings: F1Standings?,
         keyPrefix: String,
         environment: APNSEnvironment,
         kv: KeyValueStore,
@@ -186,8 +194,21 @@ struct APNSJob: AsyncScheduledJob {
     ) async {
         let registration = decodeRegistration(from: rawValue)
         guard let event = matchEvent(events: events, registration: registration) else { return }
-        guard let homeScore = Int(event.intHomeScore ?? ""),
-              let awayScore = Int(event.intAwayScore ?? "") else { return }
+        // F1 has no scores (intHomeScore is nil): it carries the running order in `race`
+        // instead, and never `lastPlay`, which for F1 is the whole leaderboard.
+        let homeScore: Int
+        let awayScore: Int
+        if event.isRace {
+            homeScore = 0
+            awayScore = 0
+        } else {
+            guard let home = Int(event.intHomeScore ?? ""),
+                  let away = Int(event.intAwayScore ?? "") else { return }
+            homeScore = home
+            awayScore = away
+        }
+        let race = event.isRace ? LiveActivityRace(game: event, standings: f1Standings) : nil
+        let lastPlay = event.isRace ? nil : event.lastPlay
 
         let tokenString = tokenFromKey(key, prefix: keyPrefix)
         let now = Int(clock.now.timeIntervalSince1970)
@@ -204,8 +225,9 @@ struct APNSJob: AsyncScheduledJob {
                 awayScore: awayScore,
                 status: event.strStatus,
                 progress: event.strProgress,
-                lastPlay: event.lastPlay,
-                situation: LiveActivitySituation(event.situation)
+                lastPlay: lastPlay,
+                situation: LiveActivitySituation(event.situation),
+                race: race
             )
             let savedState = try? await kv.getJSON(stateKey, as: ContentState.self)
             guard savedState != contentState else { return }
@@ -287,7 +309,8 @@ struct APNSJob: AsyncScheduledJob {
                 awayScore: awayScore,
                 status: event.strStatus,
                 progress: event.strProgress,
-                lastPlay: event.lastPlay
+                lastPlay: lastPlay,
+                race: race
             )
             do {
                 let (_, delivered) = try await sendWithEnvironmentFallback(primary: environment) { env in

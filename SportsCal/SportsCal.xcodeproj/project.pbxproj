@@ -245,6 +245,9 @@
 		1DEA4E0129053AB900CD1D8F /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D486AFF28A834470024BC32 /* GameViewModel.swift */; };
 		1DEADBEEF0000000000000A2 /* TeamDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEADBEEF0000000000000A1 /* TeamDetailView.swift */; };
 		1DEADBEEF0000000000000B2 /* TeamsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEADBEEF0000000000000B1 /* TeamsListView.swift */; };
+		1DEBC5923070785D00310FA1 /* F1TitleFightCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEBC5913070785D00310FA1 /* F1TitleFightCard.swift */; };
+		1DEBC59430707B3F00310FA1 /* F1LapChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEBC59330707B3F00310FA1 /* F1LapChartView.swift */; };
+		1DEBC59630707D1A00310FA1 /* F1DriverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEBC59530707D1A00310FA1 /* F1DriverView.swift */; };
 		1DEC76CC268EFB6700D217A1 /* Tests_macOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76CB268EFB6700D217A1 /* Tests_macOS.swift */; };
 		1DEC76CD268EFB6700D217A1 /* SportsCalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76AB268EFB6600D217A1 /* SportsCalApp.swift */; };
 		1DEC76CF268EFB6700D217A1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEC76AC268EFB6600D217A1 /* ContentView.swift */; };
@@ -599,6 +602,9 @@
 		1DE897EF2F44FD70006657FF /* DayChipStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayChipStrip.swift; sourceTree = "<group>"; };
 		1DEADBEEF0000000000000A1 /* TeamDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamDetailView.swift; sourceTree = "<group>"; };
 		1DEADBEEF0000000000000B1 /* TeamsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamsListView.swift; sourceTree = "<group>"; };
+		1DEBC5913070785D00310FA1 /* F1TitleFightCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = F1TitleFightCard.swift; sourceTree = "<group>"; };
+		1DEBC59330707B3F00310FA1 /* F1LapChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = F1LapChartView.swift; sourceTree = "<group>"; };
+		1DEBC59530707D1A00310FA1 /* F1DriverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = F1DriverView.swift; sourceTree = "<group>"; };
 		1DEC76AB268EFB6600D217A1 /* SportsCalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportsCalApp.swift; sourceTree = "<group>"; };
 		1DEC76AC268EFB6600D217A1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1DEC76AD268EFB6700D217A1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -622,7 +628,7 @@
 		1F42FF48D17EC968747E1967 /* LiveSituationViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveSituationViews.swift; sourceTree = "<group>"; };
 		335B393EC9209A0B2D3AA263 /* WhatsNew.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WhatsNew.swift; sourceTree = "<group>"; };
 		4A2441523C698CE02569B8D8 /* WhatsNewPolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WhatsNewPolicyTests.swift; sourceTree = "<group>"; };
-		4C829CEF9B7FBBDE4D1C7046 /* SportsCalUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = SportsCalUITests.xctest; path = SportsCalUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4C829CEF9B7FBBDE4D1C7046 /* SportsCalUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SportsCalUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		646E3595BC2675FEC473BF53 /* GameInsightsViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameInsightsViews.swift; sourceTree = "<group>"; };
 		76D5045DF8D41342C8DE40A3 /* WhatsNewSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WhatsNewSheet.swift; sourceTree = "<group>"; };
 		9B1E2F492F3810A100C1D2E3 /* TournamentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TournamentDetailView.swift; sourceTree = "<group>"; };
@@ -678,7 +684,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		1D7F46592F45004E00F44569 /* Exceptions for "SportsCalWatchWidgets" folder in "SportsCalWatchWidgetsExtension" target */ = {
+		1D7F46592F45004E00F44569 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -688,51 +694,10 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		1D7F45F42F44FFE600F44569 /* SportsCalWatch Watch App */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = "SportsCalWatch Watch App";
-			sourceTree = "<group>";
-		};
-		1D7F46022F44FFE800F44569 /* SportsCalWatch Watch AppTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = "SportsCalWatch Watch AppTests";
-			sourceTree = "<group>";
-		};
-		1D7F460C2F44FFE800F44569 /* SportsCalWatch Watch AppUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = "SportsCalWatch Watch AppUITests";
-			sourceTree = "<group>";
-		};
-		1D7F464A2F45004C00F44569 /* SportsCalWatchWidgets */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				1D7F46592F45004E00F44569 /* Exceptions for "SportsCalWatchWidgets" folder in "SportsCalWatchWidgetsExtension" target */,
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = SportsCalWatchWidgets;
-			sourceTree = "<group>";
-		};
+		1D7F45F42F44FFE600F44569 /* SportsCalWatch Watch App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "SportsCalWatch Watch App"; sourceTree = "<group>"; };
+		1D7F46022F44FFE800F44569 /* SportsCalWatch Watch AppTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "SportsCalWatch Watch AppTests"; sourceTree = "<group>"; };
+		1D7F460C2F44FFE800F44569 /* SportsCalWatch Watch AppUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "SportsCalWatch Watch AppUITests"; sourceTree = "<group>"; };
+		1D7F464A2F45004C00F44569 /* SportsCalWatchWidgets */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (1D7F46592F45004E00F44569 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = SportsCalWatchWidgets; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1021,6 +986,9 @@
 				76D5045DF8D41342C8DE40A3 /* WhatsNewSheet.swift */,
 				1F42FF48D17EC968747E1967 /* LiveSituationViews.swift */,
 				646E3595BC2675FEC473BF53 /* GameInsightsViews.swift */,
+				1DEBC5913070785D00310FA1 /* F1TitleFightCard.swift */,
+				1DEBC59330707B3F00310FA1 /* F1LapChartView.swift */,
+				1DEBC59530707D1A00310FA1 /* F1DriverView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1815,6 +1783,7 @@
 				1D16B0652FA6B18F00490122 /* Font+App.swift in Sources */,
 				1D16B0862FA6B2C900490122 /* SkeletonView.swift in Sources */,
 				1DE4EBB92F3AE86000CAC2E8 /* CalendarPage.swift in Sources */,
+				1DEBC59630707D1A00310FA1 /* F1DriverView.swift in Sources */,
 				1D16B0632FA6B18F00490122 /* Color+Sport.swift in Sources */,
 				1D20B33F292A115200956B14 /* SubscriptionSheet.swift in Sources */,
 				1D40808C290B7CED00729FFE /* IndividualTeamView.swift in Sources */,
@@ -1850,6 +1819,7 @@
 				1DEDD0F126D353ED005ABF93 /* CalendarRepresentable.swift in Sources */,
 				1D16B0AB2FA71EBC00490122 /* ModernMacWindow.swift in Sources */,
 				1D16B0672FA6B19000490122 /* CGFloat+Space.swift in Sources */,
+				1DEBC5923070785D00310FA1 /* F1TitleFightCard.swift in Sources */,
 				1D5C463126C9C5F900BA827B /* SubscriptionManager.swift in Sources */,
 				1D20B338292893DD00956B14 /* GameManager.swift in Sources */,
 				1DE897D92F403960006657FF /* DebugGameFactory.swift in Sources */,
@@ -1930,6 +1900,7 @@
 				1D8324302F38101D00AED413 /* TournamentScoreView.swift in Sources */,
 				9B1E2F4A2F3810A100C1D2E3 /* TournamentDetailView.swift in Sources */,
 				1DF1FD942741EFA800783E62 /* UserDefaultStorage.swift in Sources */,
+				1DEBC59430707B3F00310FA1 /* F1LapChartView.swift in Sources */,
 				1D1239A026D0D180001B503E /* LocalNotificationManager.swift in Sources */,
 				1DF1FD922740AECB00783E62 /* Favorites.swift in Sources */,
 				EE00020200000001 /* EngagementTracker.swift in Sources */,

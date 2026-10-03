@@ -7,6 +7,9 @@
 
 import SwiftUI
 import SportsCalModel
+#if canImport(ActivityKit) && os(iOS)
+import ActivityKit
+#endif
 #if os(iOS)
 import EventKit
 import EventKitUI
@@ -20,6 +23,8 @@ struct RaceDetailView: View {
     @State private var shouldShowSportsCalProAlert = false
     @State private var sheetType: SheetType?
     @State private var selectedSessionIndex: Int = 0
+    /// Lap chart / tyres / safety cars for the selected Race or Sprint, fetched on demand.
+    @State private var sessionDetail: F1SessionDetail?
     @State private var showStandings = false
     @State private var standingsTab: StandingsTab = .drivers
 
@@ -44,12 +49,15 @@ struct RaceDetailView: View {
                 circuitImageSection
                 raceHeader
                 if hasSessions {
-                    sessionPicker
+                    F1SessionPicker(sessions: game.sessions ?? [], selectedIndex: $selectedSessionIndex)
                 }
                 gameInfo
                 actionsRow
                 if hasSessions {
                     gapRibbonSection
+                    if let sessionDetail, !sessionDetail.lapPositions.isEmpty {
+                        F1LapChartView(detail: sessionDetail)
+                    }
                     sessionLeaderboard
                     raceTimingSection
                     weekendSchedule
@@ -57,6 +65,9 @@ struct RaceDetailView: View {
                     gapRibbonSection
                     legacyLeaderboard
                     raceTimingSection
+                }
+                if let standings = viewModel.f1Standings {
+                    F1TitleFightCard(standings: standings)
                 }
                 standingsSection
             }
@@ -66,6 +77,11 @@ struct RaceDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .task(id: detailRequestStart) {
+            sessionDetail = nil
+            guard let start = detailRequestStart else { return }
+            sessionDetail = try? await NetworkHandler.fetchF1SessionDetail(start: start)
+        }
         .onAppear {
             selectDefaultSession()
         }
@@ -85,6 +101,15 @@ struct RaceDetailView: View {
         }
     }
 
+    /// Start time of the selected session when it's a finished Race or Sprint (the only
+    /// sessions the server builds a detail for); nil otherwise.
+    private var detailRequestStart: Date? {
+        guard let sessions = game.sessions, selectedSessionIndex < sessions.count else { return nil }
+        let session = sessions[selectedSessionIndex]
+        guard session.status == "post", !session.isTimedLapSession else { return nil }
+        return session.startDate
+    }
+
     // MARK: - Default Session Selection
     private func selectDefaultSession() {
         guard let sessions = game.sessions, !sessions.isEmpty else { return }
@@ -92,15 +117,11 @@ struct RaceDetailView: View {
         if let liveIndex = sessions.firstIndex(where: { $0.status == "in" }) {
             selectedSessionIndex = liveIndex
         } else {
-            let priorities = ["Race": 6, "Sprint": 5, "Qual": 4, "FP3": 3, "FP2": 2, "FP1": 1]
             var bestIndex = sessions.count - 1
             var bestPriority = -1
-            for (i, session) in sessions.enumerated() where session.status == "post" {
-                let p = priorities[session.sessionType] ?? 0
-                if p > bestPriority {
-                    bestPriority = p
-                    bestIndex = i
-                }
+            for (i, session) in sessions.enumerated() where session.status == "post" && session.importance > bestPriority {
+                bestPriority = session.importance
+                bestIndex = i
             }
             selectedSessionIndex = bestIndex
         }
@@ -178,44 +199,6 @@ struct RaceDetailView: View {
         .cornerRadius(12)
     }
 
-    // MARK: - Session Picker
-    private var sessionPicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                if let sessions = game.sessions {
-                    ForEach(Array(sessions.enumerated()), id: \.offset) { index, session in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                selectedSessionIndex = index
-                            }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(sessionStatusColor(session.status))
-                                    .frame(width: 6, height: 6)
-                                Text(session.sessionType.isEmpty ? session.sessionName : session.sessionType)
-                                    .font(.caption)
-                                    .fontWeight(index == selectedSessionIndex ? .bold : .regular)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                Capsule()
-                                    .fill(index == selectedSessionIndex ? Color.accentColor.opacity(0.2) : Color.gray.opacity(0.1))
-                            )
-                            .overlay(
-                                Capsule()
-                                    .strokeBorder(index == selectedSessionIndex ? Color.accentColor : Color.clear, lineWidth: 1.5)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            .padding(.horizontal, 4)
-        }
-    }
-
     private func sessionStatusColor(_ status: String?) -> Color {
         switch status {
         case "post": return .green
@@ -262,6 +245,7 @@ struct RaceDetailView: View {
 
             #if canImport(ActivityKit) && os(iOS)
             autoFollowAction
+            liveFollowAction
             #endif
 
             #if os(iOS)
@@ -300,6 +284,32 @@ struct RaceDetailView: View {
         .background(Color.secondaryGroupedBackground)
         .cornerRadius(12)
     }
+
+    // MARK: - Live Activity (session in progress)
+    #if canImport(ActivityKit) && os(iOS)
+    /// Follow a session that's already running. Before the weekend goes live,
+    /// `autoFollowAction` covers it by asking the server for a push-to-start.
+    @ViewBuilder
+    private var liveFollowAction: some View {
+        if isLive, let teams = viewModel.getTeams(for: game) {
+            let isFollowing = Activity<LiveSportActivityAttributes>.activities.contains { $0.attributes.eventID == game.idEvent }
+            Menu {
+                LiveActivityFollowMenu(game: game, homeTeam: teams.home, awayTeam: teams.away)
+                    .environment(viewModel)
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: isFollowing ? "clock.badge.checkmark.fill" : "clock.badge")
+                        .font(.title3)
+                        .foregroundColor(isFollowing ? .accentColor : .secondary)
+                    Text(isFollowing ? "Following" : "Follow")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+    #endif
 
     // MARK: - Auto-Follow Action
     #if canImport(ActivityKit) && os(iOS)
@@ -345,11 +355,16 @@ struct RaceDetailView: View {
         }
     }
 
+    private var gapRibbonSessionName: String? {
+        guard hasSessions, let sessions = game.sessions, selectedSessionIndex < sessions.count else { return nil }
+        return sessions[selectedSessionIndex].displayName
+    }
+
     @ViewBuilder
     private var gapRibbonSection: some View {
         let entries = gapRibbonEntries
         if entries.contains(where: { $0.gap != nil }), entries.count >= 3 {
-            F1GapRibbonView(entries: entries)
+            F1GapRibbonView(entries: entries, sessionName: gapRibbonSessionName, standings: viewModel.f1Standings)
         }
     }
 
@@ -358,7 +373,7 @@ struct RaceDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             let sessions = game.sessions ?? []
             let session = selectedSessionIndex < sessions.count ? sessions[selectedSessionIndex] : nil
-            let sessionName = session?.sessionName ?? "Standings"
+            let sessionName = session?.displayName ?? "Standings"
 
             HStack {
                 Text(sessionName)
@@ -388,16 +403,23 @@ struct RaceDetailView: View {
                 .foregroundColor(.secondary)
                 .padding(.bottom, 4)
 
+                let gained = sessions.positionsGainedVsQualifying(in: session)
                 ForEach(Array(session.leaderboard.enumerated()), id: \.offset) { index, entry in
                     let isLeader = index == 0
+                    NavigationLink { F1DriverView(driverName: viewModel.f1Standings?.driverStanding(matching: entry.name)?.driverName ?? entry.name) } label: {
                     HStack(spacing: 0) {
                         Text("\(entry.position)")
                             .frame(width: 32, alignment: .leading)
                         HeadshotView(url: entry.headshot, size: 28)
                             .padding(.trailing, 6)
-                        Text(entry.name)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .lineLimit(1)
+                        HStack(spacing: 4) {
+                            Text(entry.name)
+                                .lineLimit(1)
+                            if let change = gained[entry.name], change != 0 {
+                                PositionChangeBadge(change: change)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         Text(entry.constructor ?? "")
                             .frame(width: 90, alignment: .leading)
                             .lineLimit(1)
@@ -409,9 +431,19 @@ struct RaceDetailView: View {
                     .fontWeight(isLeader ? .bold : .regular)
                     .foregroundColor(isLeader ? .primary : .secondary)
                     .padding(.vertical, 2)
+                    .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                if !gained.isEmpty, let grid = sessions.gridSession(for: session) {
+                    Text("▲▼ places vs \(grid.displayName.lowercased()); grid penalties not included")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
             } else {
-                Text("No standings available for this session")
+                Text(session.flatMap { $0.status == "pre" || $0.status == nil ? $0.startDate : nil }
+                    .map { "Starts \($0.formatted(.dateTime.weekday(.wide).hour().minute()))" }
+                    ?? "No standings available for this session")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -436,7 +468,7 @@ struct RaceDetailView: View {
                             .fill(sessionStatusColor(session.status))
                             .frame(width: 8, height: 8)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(session.sessionName)
+                            Text(session.displayName)
                                 .font(.subheadline)
                             if let sessionDate = parseSessionDate(session.date) {
                                 GameTimeLabel(date: sessionDate, includeDate: true)
@@ -576,7 +608,7 @@ struct RaceDetailView: View {
     // MARK: - Race Timing (laps / tires / pit stops)
     @ViewBuilder
     private var raceTimingSection: some View {
-        if let timing = game.raceTiming, !timing.drivers.isEmpty {
+        if let timing = sessionDetail?.timing ?? game.raceTiming, !timing.drivers.isEmpty {
             let leaders = Array(timing.drivers.prefix(10))
             let maxLap = timing.drivers.map { $0.totalLaps }.max() ?? 0
             VStack(alignment: .leading, spacing: 12) {
@@ -728,6 +760,7 @@ struct RaceDetailView: View {
             .padding(.bottom, 6)
 
             ForEach(standings, id: \.position) { standing in
+                NavigationLink { F1DriverView(driverName: standing.driverName) } label: {
                 HStack(spacing: 0) {
                     Text("\(standing.position)")
                         .frame(width: 32, alignment: .leading)
@@ -746,6 +779,9 @@ struct RaceDetailView: View {
                 .font(.caption)
                 .foregroundColor(standing.position <= 3 ? .primary : .secondary)
                 .padding(.vertical, 2)
+                .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -773,7 +809,7 @@ struct RaceDetailView: View {
                         .fontWeight(standing.position <= 3 ? .bold : .regular)
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(F1GapRibbonView.colorForConstructorName(standing.constructorName))
+                            .fill(F1GapRibbonView.colorForConstructorName(standing.constructorName, standings: viewModel.f1Standings))
                             .frame(width: 6, height: 6)
                         Text(standing.constructorName)
                             .lineLimit(1)
@@ -806,4 +842,146 @@ struct RaceDetailView: View {
         return CalendarRepresentable(eventStore: eventStore, event: event)
     }
     #endif
+}
+
+/// Segmented row of session tiles. Each tile carries its own state so the weekend
+/// reads at a glance: finished sessions name the winner, the live one pulses,
+/// upcoming ones show when they start.
+struct F1SessionPicker: View {
+    let sessions: [EventSession]
+    @Binding var selectedIndex: Int
+    @Namespace private var namespace
+
+    var body: some View {
+        let tiles = HStack(spacing: 4) {
+            ForEach(Array(sessions.enumerated()), id: \.offset) { index, session in
+                tile(session, index: index)
+            }
+        }
+        .padding(4)
+        .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+        .sensoryFeedback(.selection, trigger: selectedIndex)
+
+        // Equal-width tiles normally; scroll only when Dynamic Type won't fit them.
+        return ViewThatFits(in: .horizontal) {
+            tiles
+            ScrollView(.horizontal, showsIndicators: false) {
+                tiles.fixedSize()
+            }
+        }
+    }
+
+    private func tile(_ session: EventSession, index: Int) -> some View {
+        let isSelected = index == selectedIndex
+        let isUpcoming = session.status != "post" && session.status != "in"
+        return Button {
+            withAnimation(.snappy(duration: 0.25)) {
+                selectedIndex = index
+            }
+        } label: {
+            VStack(spacing: 3) {
+                Text(session.shortName)
+                    .font(.subheadline.weight(isSelected ? .bold : .semibold))
+                    .foregroundStyle(isSelected ? Color.accentColor : (isUpcoming ? .secondary : .primary))
+                    .minimumScaleFactor(0.8)
+                tileDetail(session)
+                    .font(.caption2)
+                    .minimumScaleFactor(0.7)
+            }
+            .lineLimit(1)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.secondaryGroupedBackground)
+                        .shadow(color: .black.opacity(0.08), radius: 2, y: 1)
+                        .matchedGeometryEffect(id: "sessionSelection", in: namespace)
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel(session))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private func tileDetail(_ session: EventSession) -> some View {
+        switch session.status {
+        case "in":
+            HStack(spacing: 3) {
+                Circle().fill(.red).frame(width: 5, height: 5)
+                    .phaseAnimator([1.0, 0.3]) { dot, opacity in dot.opacity(opacity) } animation: { _ in .easeInOut(duration: 0.8) }
+                Text("LIVE").fontWeight(.bold).foregroundStyle(.red)
+            }
+        case "post":
+            if let winner = session.leaderboard.first(where: { $0.position == 1 }) ?? session.leaderboard.first {
+                HStack(spacing: 2) {
+                    Image(systemName: "checkmark").font(.system(size: 7, weight: .bold))
+                    Text(Self.driverCode(winner.name))
+                }
+                .foregroundStyle(.secondary)
+            } else {
+                Text("Done").foregroundStyle(.secondary)
+            }
+        default:
+            if let start = session.startDate {
+                Text(Self.startText(start)).foregroundStyle(.secondary)
+            } else {
+                Text("TBC").foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    /// "Sat 4:30" style: weekday when not today, time always.
+    private static func startText(_ date: Date) -> String {
+        if Calendar.current.isDateInToday(date) {
+            return date.formatted(date: .omitted, time: .shortened)
+        }
+        return date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+    }
+
+    private static func driverCode(_ name: String) -> String {
+        let last = name.split(separator: " ").last.map(String.init) ?? name
+        return String(last.prefix(3)).uppercased()
+    }
+
+    private func accessibilityLabel(_ session: EventSession) -> String {
+        var label = session.displayName
+        switch session.status {
+        case "in": label += ", live"
+        case "post":
+            if let winner = session.leaderboard.first { label += ", finished, \(session.isTimedLapSession ? "fastest" : "won by") \(winner.name)" }
+            else { label += ", finished" }
+        default:
+            if let start = session.startDate { label += ", starts \(start.formatted(date: .abbreviated, time: .shortened))" }
+        }
+        return label
+    }
+}
+
+#Preview("Session picker") {
+    @Previewable @State var selected = 2
+    // Real Dutch GP sprint weekend sessions from prod, statuses rewritten to show done / live / upcoming.
+    let json = #"{"idLiveScore":"600057441","strStatus":"in","intAwayScore":"P1","leaderboardEntries":[{"score":"P1","name":"Lando Norris","constructor":"McLaren","position":1,"gap":"2:04:44.859","rounds":[]},{"position":2,"name":"Kimi Antonelli","rounds":[],"score":"P2","constructor":"Mercedes","gap":"+11.536"},{"gap":"+15.906","score":"P3","name":"George Russell","rounds":[],"position":3,"constructor":"Mercedes"},{"rounds":[],"gap":"+16.755","score":"P4","name":"Lewis Hamilton","constructor":"Ferrari","position":4},{"score":"P5","constructor":"Ferrari","name":"Charles Leclerc","gap":"+17.258","rounds":[],"position":5},{"constructor":"McLaren","score":"P6","position":6,"name":"Oscar Piastri","gap":"+32.332","rounds":[]},{"score":"P7","rounds":[],"name":"Liam Lawson","position":7,"constructor":"Red Bull","gap":"+1:19.915"},{"score":"P8","position":8,"name":"Nico Hülkenberg","rounds":[]},{"rounds":[],"name":"Fernando Alonso","constructor":"Aston Martin","position":9,"score":"P9"},{"name":"Pierre Gasly","score":"P10","constructor":"Alpine","position":10,"rounds":[]},{"score":"P11","rounds":[],"position":11,"name":"Yuki Tsunoda","constructor":"Racing Bulls"},{"score":"P12","name":"Arvid Lindblad","position":12,"rounds":[]},{"name":"Gabriel Bortoleto","score":"P13","position":13,"rounds":[]},{"score":"P14","name":"Franco Colapinto","rounds":[],"position":14},{"position":15,"score":"P15","name":"Sergio Pérez","rounds":[]},{"constructor":"Williams","score":"P16","position":16,"name":"Carlos Sainz","rounds":[]},{"score":"P17","position":17,"constructor":"Williams","rounds":[],"name":"Alexander Albon"},{"score":"P18","rounds":[],"name":"Valtteri Bottas","position":18},{"rounds":[],"score":"P19","position":19,"constructor":"Haas","name":"Esteban Ocon"},{"score":"P20","rounds":[],"constructor":"Aston Martin","position":20,"name":"Lance Stroll"},{"constructor":"Haas","name":"Oliver Bearman","rounds":[],"score":"P21","position":21},{"constructor":"Red Bull","name":"Max Verstappen","score":"P22","rounds":[],"position":22}],"strTimestamp":"2026-08-21T10:30Z","isoDate":809001000,"sessions":[{"date":"2026-08-21T10:30Z","sessionName":"Free Practice 1","progress":"Final","leaderboard":[{"rounds":[],"name":"Kimi Antonelli","constructor":"Mercedes","gap":"1:12.949","position":1,"score":"P1"},{"rounds":[],"constructor":"McLaren","position":2,"name":"Lando Norris","gap":"+0.121","score":"P2"},{"score":"P3","position":3,"rounds":[],"name":"George Russell","constructor":"Mercedes","gap":"+0.125"},{"rounds":[],"name":"Lewis Hamilton","score":"P4","constructor":"Ferrari","gap":"+0.190","position":4},{"rounds":[],"score":"P5","position":5,"gap":"+0.289","name":"Charles Leclerc","constructor":"Ferrari"},{"position":6,"rounds":[],"name":"Oscar Piastri","gap":"+0.659","score":"P6","constructor":"McLaren"}],"sessionType":"FP1","status":"post"},{"progress":"Final","sessionName":"SS","leaderboard":[{"name":"George Russell","score":"P1","rounds":[],"position":1,"constructor":"Mercedes","gap":"1:11.567"},{"rounds":[],"constructor":"McLaren","score":"P2","name":"Lando Norris","gap":"+1:11.608","position":2},{"constructor":"Ferrari","gap":"+1:11.622","rounds":[],"position":3,"score":"P3","name":"Charles Leclerc"},{"position":4,"score":"P4","name":"Oscar Piastri","rounds":[],"constructor":"McLaren","gap":"+1:11.666"},{"constructor":"Mercedes","score":"P5","gap":"+1:11.794","name":"Kimi Antonelli","position":5,"rounds":[]},{"constructor":"Red Bull","score":"P6","rounds":[],"position":6,"gap":"+1:12.094","name":"Max Verstappen"}],"sessionType":"SS","status":"post","date":"2026-08-21T14:30Z"},{"progress":"Final","date":"2026-08-22T10:00Z","sessionType":"SR","leaderboard":[{"score":"P1","gap":"30:25.318","position":1,"rounds":[],"name":"George Russell","constructor":"Mercedes"},{"rounds":[],"name":"Charles Leclerc","constructor":"Ferrari","score":"P2","position":2,"gap":"+1.360"},{"rounds":[],"constructor":"McLaren","score":"P3","position":3,"gap":"+5.196","name":"Lando Norris"},{"position":4,"name":"Kimi Antonelli","constructor":"Mercedes","gap":"+5.581","score":"P4","rounds":[]},{"score":"P5","position":5,"name":"Oscar Piastri","constructor":"McLaren","rounds":[],"gap":"+10.185"},{"position":6,"gap":"+10.529","name":"Max Verstappen","rounds":[],"score":"P6","constructor":"Red Bull"}],"sessionName":"SR","status":"in"},{"date":"2026-08-22T14:00Z","sessionName":"Qualifying","progress":null,"leaderboard":[],"sessionType":"Qual","status":"pre"},{"leaderboard":[],"date":"2026-08-23T13:00Z","progress":null,"sessionName":"Race","status":"pre","sessionType":"Race"}],"lastPlay":"Lando Norris|P1|2:04:44.859|McLaren\nKimi Antonelli|P2|+11.536|Mercedes\nGeorge Russell|P3|+15.906|Mercedes\nLewis Hamilton|P4|+16.755|Ferrari\nCharles Leclerc|P5|+17.258|Ferrari\nOscar Piastri|P6|+32.332|McLaren\nLiam Lawson|P7|+1:19.915|Red Bull\nNico Hülkenberg|P8||\nFernando Alonso|P9||Aston Martin\nPierre Gasly|P10||Alpine\nYuki Tsunoda|P11||Racing Bulls\nArvid Lindblad|P12||\nGabriel Bortoleto|P13||\nFranco Colapinto|P14||\nSergio Pérez|P15||\nCarlos Sainz|P16||Williams\nAlexander Albon|P17||Williams\nValtteri Bottas|P18||\nEsteban Ocon|P19||Haas\nLance Stroll|P20||Aston Martin\nOliver Bearman|P21||Haas\nMax Verstappen|P22||Red Bull","circuitInfo":null,"isCompleted":true,"strAwayTeam":"Lando Norris","idLeague":"4370","idEvent":"600057441","strHomeTeam":"Heineken Dutch Grand Prix","strProgress":"Final"}"#
+    let game = try! JSONDecoder().decode(Game.self, from: Data(json.utf8))
+    VStack(spacing: 24) {
+        F1SessionPicker(sessions: game.sessions ?? [], selectedIndex: $selected)
+        F1SessionPicker(sessions: Array((game.sessions ?? []).prefix(3)), selectedIndex: .constant(0))
+    }
+    .padding()
+}
+
+/// "▲3" / "▼2" places gained or lost.
+struct PositionChangeBadge: View {
+    let change: Int
+
+    var body: some View {
+        Text("\(change > 0 ? "▲" : "▼")\(abs(change))")
+            .font(.caption2.weight(.semibold).monospacedDigit())
+            .foregroundStyle(change > 0 ? .green : .red)
+            .accessibilityLabel(change > 0 ? "gained \(change) places" : "lost \(-change) places")
+    }
 }

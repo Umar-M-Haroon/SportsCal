@@ -989,6 +989,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
     ///
     /// `environment` selects which APNS gateway to send to (sandbox vs production)
     /// and which Redis keyspace to read/delete from for dedup and cleanup.
+    /// Live Activity `awayTeam` attribute for F1. Must match the app's
+    /// `GameViewModel.raceActivitySubtitle` so update matching agrees.
+    static let raceActivitySubtitle = "Formula 1"
+
     static func sendPushToStartNotification(
         game: Game,
         token: String,
@@ -1005,7 +1009,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
     ) async {
         guard let eventID = game.idEvent else { return }
         let homeTeam = game.strHomeTeam
-        let awayTeam = game.strAwayTeam
+        // F1's strAwayTeam is whoever leads right now; a static attribute would freeze it.
+        let awayTeam = game.isRace ? Self.raceActivitySubtitle : game.strAwayTeam
         // Validate the ID-based lookup by name to guard against cross-sport ID collisions
         // (e.g. ESPN NBA ID 18 ≠ ESPN NHL ID 18 — a wrong translation would return "LAC"
         // for the Knicks). Fall back to name-based lookup if the ID resolves to a different team.
@@ -1046,8 +1051,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
             awayScore: Int(game.intAwayScore ?? "") ?? 0,
             status: game.strStatus,
             progress: game.strProgress,
-            lastPlay: game.lastPlay,
-            situation: LiveActivitySituation(game.situation)
+            // F1's lastPlay is the full leaderboard: too big for APNS, and `race` covers it.
+            lastPlay: game.isRace ? nil : game.lastPlay,
+            situation: LiveActivitySituation(game.situation),
+            race: game.isRace ? LiveActivityRace(game: game, standings: nil) : nil
         )
 
         do {
@@ -1060,8 +1067,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
                     appID: "com.KomodoLLC.SportsCal",
                     attributes: attributes,
                     contentState: contentState,
-                    alertTitle: "\(homeTeam) vs \(awayTeam)",
-                    alertBody: "Game is starting now!",
+                    alertTitle: game.isRace ? homeTeam : "\(homeTeam) vs \(awayTeam)",
+                    alertBody: game.isRace ? "Session is live" : "Game is starting now!",
                     timestamp: Int(clock.now.timeIntervalSince1970),
                     environment: env
                 )

@@ -445,4 +445,54 @@ final class RoutesTests: XCTestCase {
                           "web fallback shows the App Store smart banner")
         }
     }
+
+    // MARK: - F1 session detail
+
+    private func seedF1Session(key: Int, start: String) async throws {
+        let detail = F1SessionDetail(
+            sessionKey: key, sessionName: "Race", dateStart: start, totalLaps: 51, timing: nil,
+            lapPositions: [F1LapPositions(driverNumber: 63, acronym: "RUS", name: "George Russell", teamColour: "00D7B6", positions: [1, 1])],
+            neutralizations: [F1Neutralization(kind: .safetyCar, startLap: 31, endLap: 35)],
+            redFlagLaps: [], weather: nil
+        )
+        try await kv.setJSON(F1SessionDetailJob.detailKey(key, isDebug: false), value: detail, ttl: nil)
+        try await kv.setJSON(F1SessionDetailJob.indexKey(isDebug: false),
+                             value: [F1SessionDetailJob.IndexEntry(sessionKey: key, sessionName: "Race", dateStart: start)], ttl: nil)
+    }
+
+    func testF1SessionMatchesByStartTimeWithinTolerance() async throws {
+        try await seedF1Session(key: 11377, start: "2026-09-26T11:00:00.000000+00:00")
+
+        // ESPN's minute-precision start, 0 min off; then 2h off (still matches).
+        for start in ["2026-09-26T11:00Z", "2026-09-26T13:00Z"] {
+            try app.test(.GET, "v2025/f1/session?start=\(start)", headers: authed) { res in
+                XCTAssertEqual(res.status, .ok)
+                let detail = try Self.decodeBody(F1SessionDetail.self, from: res)
+                XCTAssertEqual(detail.sessionKey, 11377)
+                XCTAssertEqual(detail.neutralizations.first?.startLap, 31)
+            }
+        }
+    }
+
+    func testF1SessionNotFoundOutsideTolerance() async throws {
+        try await seedF1Session(key: 11377, start: "2026-09-26T11:00:00+00:00")
+        try app.test(.GET, "v2025/f1/session?start=2026-09-27T11:00Z", headers: authed) { res in
+            XCTAssertEqual(res.status, .notFound)
+        }
+    }
+
+    func testF1SessionRejectsMissingOrBadStart() throws {
+        try app.test(.GET, "v2025/f1/session", headers: authed) { res in
+            XCTAssertEqual(res.status, .badRequest)
+        }
+        try app.test(.GET, "v2025/f1/session?start=not-a-date", headers: authed) { res in
+            XCTAssertEqual(res.status, .badRequest)
+        }
+    }
+
+    func testF1SessionRequiresAPIKey() throws {
+        try app.test(.GET, "v2025/f1/session?start=2026-09-26T11:00Z") { res in
+            XCTAssertEqual(res.status, .forbidden)
+        }
+    }
 }

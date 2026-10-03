@@ -12,10 +12,76 @@ import Foundation
 public struct F1Standings: Codable, Equatable, Hashable {
     public var driverStandings: [F1DriverStanding]
     public var constructorStandings: [F1ConstructorStanding]
+    /// Round these standings are current through (Jolpica `StandingsList.round`).
+    public var round: Int?
+    /// Grands Prix / sprints still to run after `round`. Computed alongside the
+    /// standings so title math never mixes a fresh calendar with stale points.
+    public var remainingRaces: Int?
+    public var remainingSprints: Int?
+    /// The round after `round`, so title math can say what happens "this weekend".
+    public var nextRoundName: String?
+    public var nextRoundHasSprint: Bool?
+    /// Official broadcast team colours from OpenF1, team name → hex ("McLaren": "F47600").
+    /// Names vary by source ("Red Bull" / "Red Bull Racing"); look up via `teamColorHex(for:)`.
+    public var teamColors: [String: String]?
+    /// Driver full name (folded, lowercased) → three-letter code ("nico hulkenberg": "HUL").
+    public var driverCodes: [String: String]?
 
-    public init(driverStandings: [F1DriverStanding] = [], constructorStandings: [F1ConstructorStanding] = []) {
+    public init(driverStandings: [F1DriverStanding] = [], constructorStandings: [F1ConstructorStanding] = [],
+                round: Int? = nil, remainingRaces: Int? = nil, remainingSprints: Int? = nil,
+                nextRoundName: String? = nil, nextRoundHasSprint: Bool? = nil,
+                teamColors: [String: String]? = nil, driverCodes: [String: String]? = nil) {
         self.driverStandings = driverStandings
         self.constructorStandings = constructorStandings
+        self.round = round
+        self.remainingRaces = remainingRaces
+        self.remainingSprints = remainingSprints
+        self.nextRoundName = nextRoundName
+        self.nextRoundHasSprint = nextRoundHasSprint
+        self.teamColors = teamColors
+        self.driverCodes = driverCodes
+    }
+
+    /// Normalizes team names across ESPN / Jolpica / OpenF1 ("Haas F1 Team" == "Haas",
+    /// "Red Bull Racing" == "Red Bull"). "Racing Bulls" keeps its name: only a trailing
+    /// " racing" is dropped.
+    public static func normalizedTeamName(_ name: String) -> String {
+        var key = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .trimmingCharacters(in: .whitespaces)
+        for suffix in [" f1 team", " racing", " formula 1 team"] where key.hasSuffix(suffix) {
+            key.removeLast(suffix.count)
+        }
+        return key
+    }
+
+    public func teamColorHex(for teamName: String) -> String? {
+        guard let teamColors else { return nil }
+        let target = Self.normalizedTeamName(teamName)
+        return teamColors.first { Self.normalizedTeamName($0.key) == target }?.value
+    }
+
+    public static func driverKey(_ fullName: String) -> String {
+        fullName.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Standing for a driver named by any source: exact folded name, else unique surname
+    /// (ESPN "Andrea Kimi Antonelli" → Jolpica "Kimi Antonelli").
+    public func driverStanding(matching name: String) -> F1DriverStanding? {
+        let key = Self.driverKey(name)
+        if let exact = driverStandings.first(where: { Self.driverKey($0.driverName) == key }) { return exact }
+        let surname = key.split(separator: " ").last.map(String.init)
+        let hits = driverStandings.filter { Self.driverKey($0.driverName).split(separator: " ").last.map(String.init) == surname }
+        return hits.count == 1 ? hits.first : nil
+    }
+
+    public func driverCode(for fullName: String) -> String? {
+        guard let driverCodes else { return nil }
+        if let code = driverCodes[Self.driverKey(fullName)] { return code }
+        // ESPN sometimes adds/drops middle names ("Andrea Kimi Antonelli"): fall back to surname.
+        let surname = Self.driverKey(fullName).split(separator: " ").last.map(String.init) ?? ""
+        let hits = driverCodes.filter { $0.key.split(separator: " ").last.map(String.init) == surname }
+        return hits.count == 1 ? hits.first?.value : nil
     }
 }
 
