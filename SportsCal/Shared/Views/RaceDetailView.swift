@@ -376,6 +376,7 @@ struct RaceDetailView: View {
                 let gained = sessions.positionsGainedVsQualifying(in: session)
                 ForEach(Array(session.leaderboard.enumerated()), id: \.offset) { index, entry in
                     let isLeader = index == 0
+                    NavigationLink { F1DriverView(driverName: viewModel.f1Standings?.driverStanding(matching: entry.name)?.driverName ?? entry.name) } label: {
                     HStack(spacing: 0) {
                         Text("\(entry.position)")
                             .frame(width: 32, alignment: .leading)
@@ -400,6 +401,9 @@ struct RaceDetailView: View {
                     .fontWeight(isLeader ? .bold : .regular)
                     .foregroundColor(isLeader ? .primary : .secondary)
                     .padding(.vertical, 2)
+                    .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
                 if !gained.isEmpty, let grid = sessions.gridSession(for: session) {
                     Text("▲▼ places vs \(grid.displayName.lowercased()); grid penalties not included")
@@ -726,6 +730,7 @@ struct RaceDetailView: View {
             .padding(.bottom, 6)
 
             ForEach(standings, id: \.position) { standing in
+                NavigationLink { F1DriverView(driverName: standing.driverName) } label: {
                 HStack(spacing: 0) {
                     Text("\(standing.position)")
                         .frame(width: 32, alignment: .leading)
@@ -744,6 +749,9 @@ struct RaceDetailView: View {
                 .font(.caption)
                 .foregroundColor(standing.position <= 3 ? .primary : .secondary)
                 .padding(.vertical, 2)
+                .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
     }

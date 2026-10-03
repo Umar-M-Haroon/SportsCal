@@ -65,6 +65,16 @@ public struct F1Standings: Codable, Equatable, Hashable {
             .trimmingCharacters(in: .whitespaces)
     }
 
+    /// Standing for a driver named by any source: exact folded name, else unique surname
+    /// (ESPN "Andrea Kimi Antonelli" → Jolpica "Kimi Antonelli").
+    public func driverStanding(matching name: String) -> F1DriverStanding? {
+        let key = Self.driverKey(name)
+        if let exact = driverStandings.first(where: { Self.driverKey($0.driverName) == key }) { return exact }
+        let surname = key.split(separator: " ").last.map(String.init)
+        let hits = driverStandings.filter { Self.driverKey($0.driverName).split(separator: " ").last.map(String.init) == surname }
+        return hits.count == 1 ? hits.first : nil
+    }
+
     public func driverCode(for fullName: String) -> String? {
         guard let driverCodes else { return nil }
         if let code = driverCodes[Self.driverKey(fullName)] { return code }
