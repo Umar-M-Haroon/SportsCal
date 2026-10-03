@@ -148,6 +148,12 @@ struct RaceScoreView: View {
             HStack {
                 Spacer()
                 Menu {
+                    #if canImport(ActivityKit) && os(iOS)
+                    if isLive, let teams = viewModel.getTeams(for: game) {
+                        LiveActivityFollowMenu(game: game, homeTeam: teams.home, awayTeam: teams.away)
+                            .environment(viewModel)
+                    }
+                    #endif
                     CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
                     NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
                 } label: {

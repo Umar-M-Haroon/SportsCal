@@ -70,5 +70,24 @@ final class LiveActivityCodableTests: XCTestCase {
         XCTAssertEqual(decoded.progress, "Final")
         XCTAssertNil(decoded.lastPlay, "Server-originated payloads omit lastPlay; client decoder must accept that")
     }
+
+    // MARK: - F1
+
+    func test_contentState_withoutRace_decodesFromOlderPayload() throws {
+        // What servers and activities that predate F1 support send.
+        let json = #"{"homeScore":2,"awayScore":1,"status":"in","progress":"67'"}"#
+        let decoded = try JSONDecoder().decode(LiveSportActivityAttributes.ContentState.self, from: Data(json.utf8))
+        XCTAssertNil(decoded.race)
+        XCTAssertEqual(decoded.homeScore, 2)
+    }
+
+    func test_contentState_decodesServerRacePayload() throws {
+        // Shape the server's ContentState encodes for an F1 push.
+        let json = #"{"homeScore":0,"awayScore":0,"status":"in","progress":"Lap 23/62","race":{"session":"Race","leaders":[{"position":1,"code":"PIA","teamColor":"F47600"},{"position":2,"code":"NOR","gap":"+1.204","teamColor":"F47600"}]}}"#
+        let decoded = try JSONDecoder().decode(LiveSportActivityAttributes.ContentState.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.race?.session, "Race")
+        XCTAssertEqual(decoded.race?.leaders.map(\.code), ["PIA", "NOR"])
+        XCTAssertNil(decoded.race?.leaders.first?.gap)
+    }
 }
 #endif

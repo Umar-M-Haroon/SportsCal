@@ -2913,9 +2913,12 @@ extension GameViewModel {
         // as "PHI" will pick up whichever Philly team's badge was cached last. Full
         // team names like "Philadelphia Flyers" are unique and disambiguate cleanly.
         guard let homeTeamName = homeTeam.strTeam ?? homeTeam.strTeamShort,
-              let awayTeamName = awayTeam.strTeam ?? awayTeam.strTeamShort else { throw ModelErrors.unknownTeam(game) }
-        let homeShort = homeTeam.strTeamShort
-        let awayShort = awayTeam.strTeamShort
+              let rawAwayTeamName = awayTeam.strTeam ?? awayTeam.strTeamShort else { throw ModelErrors.unknownTeam(game) }
+        // F1: the "away team" is the leader when you tap Follow; label the activity
+        // "Formula 1" instead of freezing that driver into its static attributes.
+        let awayTeamName = game.isRace ? LiveSportActivityAttributes.raceSubtitle : rawAwayTeamName
+        let homeShort = game.isRace ? "F1" : homeTeam.strTeamShort
+        let awayShort = game.isRace ? nil : awayTeam.strTeamShort
 
         // Download and cache badge images independently (don't require both to succeed)
         if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") {
@@ -2928,7 +2931,7 @@ extension GameViewModel {
             }
         }
 
-        let initialContentState = LiveSportActivityAttributes.ContentState(homeScore: Int(game.intHomeScore ?? "") ?? 0, awayScore: Int(game.intAwayScore ?? "") ?? 0, status: game.strStatus, progress: game.strProgress, lastPlay: nil, situation: LiveActivitySituation(game.situation))
+        let initialContentState = LiveSportActivityAttributes.ContentState.make(for: game, standings: f1Standings)
         let activityAttributes = LiveSportActivityAttributes(
             homeTeam: homeTeamName,
             awayTeam: awayTeamName,
@@ -3464,7 +3467,7 @@ extension GameViewModel {
     }
 
     func updateLiveActivities() async throws {
-        let lookup = LiveActivityMatcher.buildLookup(from: allLiveEvents)
+        let lookup = LiveActivityMatcher.buildLookup(from: allLiveEvents, f1Standings: f1Standings)
         for activity in Activity<LiveSportActivityAttributes>.activities {
             let previousState = activity.contentState
             if let newState = LiveActivityMatcher.resolveUpdate(

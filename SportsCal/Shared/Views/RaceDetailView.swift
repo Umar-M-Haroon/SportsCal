@@ -7,6 +7,9 @@
 
 import SwiftUI
 import SportsCalModel
+#if canImport(ActivityKit) && os(iOS)
+import ActivityKit
+#endif
 #if os(iOS)
 import EventKit
 import EventKitUI
@@ -242,6 +245,7 @@ struct RaceDetailView: View {
 
             #if canImport(ActivityKit) && os(iOS)
             autoFollowAction
+            liveFollowAction
             #endif
 
             #if os(iOS)
@@ -280,6 +284,32 @@ struct RaceDetailView: View {
         .background(Color.secondaryGroupedBackground)
         .cornerRadius(12)
     }
+
+    // MARK: - Live Activity (session in progress)
+    #if canImport(ActivityKit) && os(iOS)
+    /// Follow a session that's already running. Before the weekend goes live,
+    /// `autoFollowAction` covers it by asking the server for a push-to-start.
+    @ViewBuilder
+    private var liveFollowAction: some View {
+        if isLive, let teams = viewModel.getTeams(for: game) {
+            let isFollowing = Activity<LiveSportActivityAttributes>.activities.contains { $0.attributes.eventID == game.idEvent }
+            Menu {
+                LiveActivityFollowMenu(game: game, homeTeam: teams.home, awayTeam: teams.away)
+                    .environment(viewModel)
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: isFollowing ? "clock.badge.checkmark.fill" : "clock.badge")
+                        .font(.title3)
+                        .foregroundColor(isFollowing ? .accentColor : .secondary)
+                    Text(isFollowing ? "Following" : "Follow")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+    #endif
 
     // MARK: - Auto-Follow Action
     #if canImport(ActivityKit) && os(iOS)

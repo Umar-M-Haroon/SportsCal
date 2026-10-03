@@ -22,7 +22,28 @@ struct LiveSportActivityAttributes: ActivityAttributes {
         /// Outs and runners, down and distance, win probability. Optional: pushes from
         /// a server that predates it, and activities started before it, decode fine.
         var situation: LiveActivitySituation? = nil
+        /// F1: session + top three. Optional for the same reasons as `situation`.
+        var race: LiveActivityRace? = nil
+
+        /// The state for `game` as the app sees it. Mirrors the server's APNS state so a
+        /// foreground update and a push agree (and the state diff doesn't flap).
+        static func make(for game: SportsCalModel.Game, standings: F1Standings?) -> ContentState {
+            ContentState(
+                homeScore: Int(game.intHomeScore ?? "") ?? 0,
+                awayScore: Int(game.intAwayScore ?? "") ?? 0,
+                status: game.strStatus,
+                progress: game.strProgress,
+                lastPlay: nil,
+                situation: LiveActivitySituation(game.situation),
+                race: game.isRace ? LiveActivityRace(game: game, standings: standings) : nil
+            )
+        }
     }
+
+    /// `awayTeam` for F1 activities. Attributes are fixed at start, and F1's strAwayTeam
+    /// is whoever leads at that moment, so a constant label stands in. Matches the
+    /// server's `ESPNFetchJob.raceActivitySubtitle`.
+    static let raceSubtitle = "Formula 1"
 
     var homeTeam: String
     var awayTeam: String

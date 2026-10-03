@@ -22,21 +22,17 @@ enum LiveActivityMatcher {
 
     /// Build the lookup from live event games. A game without `idEvent` still
     /// gets a team-key entry so the fallback path can match it.
-    static func buildLookup(from liveEvents: [Game]) -> StateLookup {
+    static func buildLookup(from liveEvents: [Game], f1Standings: F1Standings? = nil) -> StateLookup {
         var byEventID: [String: LiveSportActivityAttributes.ContentState] = [:]
         var byTeams: [String: LiveSportActivityAttributes.ContentState] = [:]
         for game in liveEvents {
-            let state = LiveSportActivityAttributes.ContentState(
-                homeScore: Int(game.intHomeScore ?? "") ?? 0,
-                awayScore: Int(game.intAwayScore ?? "") ?? 0,
-                status: game.strStatus,
-                progress: game.strProgress,
-                lastPlay: nil,
-                situation: LiveActivitySituation(game.situation)
-            )
+            let state = LiveSportActivityAttributes.ContentState.make(for: game, standings: f1Standings)
             if let eventID = game.idEvent {
                 byEventID[eventID] = state
             }
+            // A race's "away team" is the current leader, so a name key would match
+            // the wrong activity once the lead changes: races match by eventID only.
+            guard !game.isRace else { continue }
             let teamKey = teamKey(home: game.strHomeTeam, away: game.strAwayTeam)
             byTeams[teamKey] = state
         }

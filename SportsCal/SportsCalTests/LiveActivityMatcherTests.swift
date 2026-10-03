@@ -192,5 +192,17 @@ final class LiveActivityMatcherTests: XCTestCase {
         )
         XCTAssertEqual(result?.homeScore, 14)
     }
+
+    // MARK: - F1
+
+    func test_race_matchesByEventIDOnly_neverByLeaderName() {
+        let race = Game(idEvent: "f1", idLeague: "4370", strHomeTeam: "Singapore Grand Prix", strAwayTeam: "Oscar Piastri",
+                        strStatus: "in", strProgress: "Lap 23/62", isoDate: nil,
+                        sessions: [EventSession(sessionType: "Race", sessionName: "Race", status: "in",
+                                                leaderboard: [LeaderboardEntry(name: "Oscar Piastri", score: "", position: 1)])])
+        let lookup = LiveActivityMatcher.buildLookup(from: [race])
+        XCTAssertEqual(lookup.byEventID["f1"]?.race?.leaders.first?.code, "PIA")
+        XCTAssertTrue(lookup.byTeams.isEmpty, "a race's away team is the current leader; keying on it mismatches once the lead changes")
+    }
 }
 #endif
