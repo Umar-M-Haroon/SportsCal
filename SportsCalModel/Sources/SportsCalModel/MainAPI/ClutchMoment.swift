@@ -47,8 +47,14 @@ public extension ClutchMoment {
     /// The most important clutch moment in `situation` right now, if any.
     ///
     /// - Parameters:
+    ///   - sport: The game's sport; decides which moments apply.
+    ///   - league: Sets the period structure (the NCAA tournament plays halves); defaults per sport.
+    ///   - situation: The game situation right now.
     ///   - previous: The situation as of the last check, used to spot a win-probability flip.
-    ///   - homeName/awayName: Short team names for the alert copy.
+    ///   - homeScore: Current home score.
+    ///   - awayScore: Current away score.
+    ///   - homeName: Short home team name for the alert copy.
+    ///   - awayName: Short away team name for the alert copy.
     static func detect(
         sport: SportType,
         league: Leagues? = nil,

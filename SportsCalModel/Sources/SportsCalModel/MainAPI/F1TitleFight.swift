@@ -59,7 +59,10 @@ public struct F1TitleFight: Equatable {
     public let champion: String?
 
     /// - Parameters:
+    ///   - kind: Drivers' or constructors' championship (sets the points per round).
     ///   - standings: entrants in championship order (name, points).
+    ///   - remainingRaces: Grands Prix still to run.
+    ///   - remainingSprints: sprints still to run.
     ///   - nextRoundHasSprint: whether the very next round is a sprint weekend.
     public init?(kind: Kind, standings: [(name: String, points: Double)],
                  remainingRaces: Int, remainingSprints: Int, nextRoundHasSprint: Bool) {
