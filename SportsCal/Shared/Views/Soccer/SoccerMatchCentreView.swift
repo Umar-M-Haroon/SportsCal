@@ -41,11 +41,17 @@ struct SoccerMatchCentreView: View {
             if !match.events.isEmpty {
                 eventsCard
             }
+            if !match.momentum.isEmpty {
+                momentumCard
+            }
             if !match.home.players.isEmpty || !match.away.players.isEmpty {
                 lineupsCard
             }
             if !displayedTeamStats.isEmpty {
                 teamStatsCard
+            }
+            if !match.shots.isEmpty {
+                shotMapCard
             }
             if !match.home.form.isEmpty || !match.away.form.isEmpty {
                 formCard
@@ -197,6 +203,31 @@ struct SoccerMatchCentreView: View {
         case .substitution: return .secondary
         case .goal, .penaltyGoal, .ownGoal: return isHome ? homeColor : awayColor
         default: return .secondary
+        }
+    }
+
+    // MARK: - Momentum and shot map
+
+    private var homeName: String { match.home.teamName.isEmpty ? game.strHomeTeam : match.home.teamName }
+    private var awayName: String { match.away.teamName.isEmpty ? game.strAwayTeam : match.away.teamName }
+
+    private var momentumCard: some View {
+        card("Momentum") {
+            SoccerMomentumView(
+                momentum: match.momentum, shots: match.shots,
+                homeName: homeName, awayName: awayName,
+                homeColor: homeColor, awayColor: awayColor
+            )
+        }
+    }
+
+    private var shotMapCard: some View {
+        card("Shot Map") {
+            SoccerShotMapView(
+                shots: match.shots,
+                homeName: homeName, awayName: awayName,
+                homeColor: homeColor, awayColor: awayColor
+            )
         }
     }
 

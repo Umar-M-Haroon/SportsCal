@@ -47,13 +47,7 @@ struct SoccerPitchView: View {
             }
         }
         .aspectRatio(Self.aspectRatio, contentMode: .fit)
-        .background(
-            LinearGradient(
-                colors: [Color(red: 0.13, green: 0.42, blue: 0.24), Color(red: 0.10, green: 0.35, blue: 0.20)],
-                startPoint: .top, endPoint: .bottom
-            ),
-            in: RoundedRectangle(cornerRadius: 10)
-        )
+        .background(PitchMarkings.turf, in: RoundedRectangle(cornerRadius: 10))
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Starting lineups")
@@ -220,9 +214,26 @@ private struct SoccerPlayerStatsCard: View {
 
 // MARK: - Pitch markings
 
-/// The lines of a vertical pitch, scaled to the view (proportions of a 68 × 105 m pitch).
-private struct PitchMarkings: Shape {
+/// The lines of a pitch, scaled to the view (proportions of a 68 × 105 m pitch).
+/// Vertical by default; `horizontal` lays the goals at the left and right.
+struct PitchMarkings: Shape {
+    var horizontal = false
+
+    /// The grass the markings sit on.
+    static let turf = LinearGradient(
+        colors: [Color(red: 0.13, green: 0.42, blue: 0.24), Color(red: 0.10, green: 0.35, blue: 0.20)],
+        startPoint: .top, endPoint: .bottom
+    )
+
     func path(in rect: CGRect) -> Path {
+        guard horizontal else { return verticalPath(in: rect) }
+        // Draw it upright in a swapped rect, then turn it a quarter: (x, y) → (y, height − x).
+        let upright = verticalPath(in: CGRect(x: 0, y: 0, width: rect.height, height: rect.width))
+        let quarterTurn = CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: rect.minX, ty: rect.minY + rect.height)
+        return upright.applying(quarterTurn)
+    }
+
+    private func verticalPath(in rect: CGRect) -> Path {
         let inset = rect.insetBy(dx: 6, dy: 6)
         let w = inset.width, h = inset.height
         let mx = w / 68, my = h / 105

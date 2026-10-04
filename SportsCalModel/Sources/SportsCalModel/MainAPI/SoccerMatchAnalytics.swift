@@ -123,46 +123,77 @@ public enum SoccerMomentum {
         public enum Kind: Equatable { case goal, shot, corner, offside, freeKickWon }
 
         public var minute: Double
+        /// 1 and 2 are the halves, 3 and 4 extra time.
+        public var period: Int
         public var side: BracketSide
         public var x: Double
         public var kind: Kind
 
-        public init(minute: Double, side: BracketSide, x: Double, kind: Kind) {
+        public init(minute: Double, period: Int, side: BracketSide, x: Double, kind: Kind) {
             self.minute = minute
+            self.period = period
             self.side = side
             self.x = x
             self.kind = kind
         }
     }
 
-    public static func compute(_ actions: [Action], through lastMinute: Int? = nil) -> [SoccerMomentumPoint] {
-        guard !actions.isEmpty else { return [] }
-        let end = max(lastMinute ?? 0, Int(actions.map(\.minute).max() ?? 0) + 1)
-        var raw = Array(repeating: 0.0, count: end + 1)
-        for action in actions {
-            let minute = min(max(Int(action.minute), 0), end)
-            let signed = threat(action) * (action.side == .home ? 1 : -1)
-            raw[minute] += signed
+    /// The match minute each period kicks off at.
+    static func startMinute(ofPeriod period: Int) -> Int {
+        switch period {
+        case 1: return 0
+        case 2: return 45
+        case 3: return 90
+        default: return 105
+        }
+    }
+
+    /// Per-minute momentum, one run of points per period. Each period is smoothed on
+    /// its own so pressure late in the first half doesn't bleed into the second, and
+    /// first-half stoppage keeps its own minutes (46', 47'…) inside period 1.
+    /// `lastMinutes` extends a period's run to at least that minute (a finished half
+    /// with a quiet ending still reaches 45').
+    public static func compute(_ actions: [Action], lastMinutes: [Int: Int] = [:]) -> [SoccerMomentumPoint] {
+        let periods = Dictionary(grouping: actions.filter { (1...4).contains($0.period) }, by: \.period)
+        guard !periods.isEmpty else { return [] }
+
+        var runs: [(period: Int, start: Int, values: [Double])] = []
+        for period in periods.keys.sorted() {
+            let start = startMinute(ofPeriod: period)
+            let periodActions = periods[period] ?? []
+            let latest = Int(periodActions.map(\.minute).max() ?? Double(start))
+            let end = max(latest, lastMinutes[period] ?? 0, start)
+            var raw = Array(repeating: 0.0, count: end - start + 1)
+            for action in periodActions {
+                let index = min(max(Int(action.minute) - start, 0), raw.count - 1)
+                raw[index] += threat(action) * (action.side == .home ? 1 : -1)
+            }
+            runs.append((period, start, smooth(raw)))
         }
 
-        // Gaussian smoothing, σ ≈ 1.5 minutes.
+        // One scale across the whole match, so halves compare.
+        let peak = runs.flatMap(\.values).map(abs).max() ?? 0
+        guard peak > 0 else { return [] }
+        return runs.flatMap { run in
+            run.values.enumerated().map { offset, value in
+                SoccerMomentumPoint(period: run.period, minute: run.start + offset,
+                                    value: (value / peak * 100).rounded() / 100)
+            }
+        }
+    }
+
+    /// Gaussian smoothing, σ ≈ 1.5 minutes, clamped at the ends of the run.
+    static func smooth(_ raw: [Double]) -> [Double] {
         let radius = 4
         let sigma = 1.5
         let kernel = (-radius...radius).map { exp(-Double($0 * $0) / (2 * sigma * sigma)) }
-        var smoothed = Array(repeating: 0.0, count: raw.count)
-        for i in raw.indices {
+        return raw.indices.map { i in
             var total = 0.0
             for (k, weight) in kernel.enumerated() {
                 let j = i + k - radius
                 if raw.indices.contains(j) { total += raw[j] * weight }
             }
-            smoothed[i] = total
-        }
-
-        let peak = smoothed.map(abs).max() ?? 0
-        guard peak > 0 else { return [] }
-        return smoothed.enumerated().map { minute, value in
-            SoccerMomentumPoint(minute: minute, value: (value / peak * 100).rounded() / 100)
+            return total
         }
     }
 

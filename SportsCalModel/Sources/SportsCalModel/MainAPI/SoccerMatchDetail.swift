@@ -331,6 +331,8 @@ public struct SoccerShot: Codable, Equatable, Hashable, Identifiable {
     public var clock: String
     /// Minutes elapsed when the shot was taken (stoppage time included), for charts.
     public var minute: Double
+    /// 1 and 2 are the halves, 3 and 4 extra time. Nil when ESPN omits it.
+    public var period: Int?
     public var outcome: SoccerShotOutcome
     public var bodyPart: SoccerShotBodyPart
     public var situation: SoccerShotSituation
@@ -351,6 +353,7 @@ public struct SoccerShot: Codable, Equatable, Hashable, Identifiable {
         playerName: String? = nil,
         clock: String,
         minute: Double,
+        period: Int? = nil,
         outcome: SoccerShotOutcome,
         bodyPart: SoccerShotBodyPart = .other,
         situation: SoccerShotSituation = .openPlay,
@@ -364,6 +367,7 @@ public struct SoccerShot: Codable, Equatable, Hashable, Identifiable {
         self.playerName = playerName
         self.clock = clock
         self.minute = minute
+        self.period = period
         self.outcome = outcome
         self.bodyPart = bodyPart
         self.situation = situation
@@ -377,11 +381,16 @@ public struct SoccerShot: Codable, Equatable, Hashable, Identifiable {
 // MARK: - Momentum
 
 public struct SoccerMomentumPoint: Codable, Equatable, Hashable {
+    /// 1 and 2 are the halves, 3 and 4 extra time.
+    public var period: Int
+    /// Match minute, running through stoppage: first-half stoppage reads 46, 47…
+    /// within period 1, so plot by period rather than by minute alone.
     public var minute: Int
     /// −1…1: positive when the home side is pressing, negative for the away side.
     public var value: Double
 
-    public init(minute: Int, value: Double) {
+    public init(period: Int, minute: Int, value: Double) {
+        self.period = period
         self.minute = minute
         self.value = value
     }

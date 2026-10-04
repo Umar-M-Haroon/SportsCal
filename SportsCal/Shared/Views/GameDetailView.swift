@@ -757,9 +757,11 @@ struct GameDetailSections: View {
 
     @ViewBuilder
     private var momentumChartSection: some View {
+        // Soccer's match centre draws real attack momentum instead of the score line.
         if let homeLs = game.homeLinescores, let awayLs = game.awayLinescores,
            !homeLs.isEmpty, !awayLs.isEmpty,
-           game.intHomeScore != nil {
+           game.intHomeScore != nil,
+           model.soccerMatch?.momentum.isEmpty ?? true {
             MomentumChartView(
                 game: game,
                 homeTeamName: homeTeam.strTeamShort ?? homeTeam.strTeam ?? game.strHomeTeam,

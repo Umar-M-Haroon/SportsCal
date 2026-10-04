@@ -257,7 +257,7 @@ enum SoccerMatchBuilder {
             teamStats: makeTeamStats(home: homeBox, away: awayBox),
             events: makeEvents(summary.keyEvents ?? [], sides: sides),
             shots: makeShots(commentary, sides: sides),
-            momentum: makeMomentum(commentary, sides: sides),
+            momentum: makeMomentum(commentary, sides: sides, isFinished: summary.matchState == "post"),
             commentary: makeCommentary(commentary, sides: sides),
             headToHead: makeHeadToHead(summary, homeTeamID: homeTeamRef?.id)
         )
@@ -420,6 +420,7 @@ enum SoccerMatchBuilder {
                 playerName: play.participants?.first?.athlete?.displayName,
                 clock: entry.time?.displayValue ?? "",
                 minute: (entry.time?.value ?? 0) / 60,
+                period: play.period?.number,
                 outcome: outcome,
                 bodyPart: bodyPart,
                 situation: situation,
@@ -433,8 +434,14 @@ enum SoccerMatchBuilder {
 
     // MARK: Momentum
 
-    private static func makeMomentum(_ commentary: [SoccerCommentary], sides: SideResolver) -> [SoccerMomentumPoint] {
+    /// Match minute each period's regulation time ends at.
+    private static let periodEndMinute = [1: 45, 2: 90, 3: 105, 4: 120]
+
+    private static func makeMomentum(_ commentary: [SoccerCommentary], sides: SideResolver, isFinished: Bool) -> [SoccerMomentumPoint] {
+        // Period-boundary rows carry no period, so carry the last one forward.
+        var period = 1
         let actions = commentary.compactMap { entry -> SoccerMomentum.Action? in
+            if let number = entry.play?.period?.number { period = number }
             guard let play = entry.play, let typeKey = play.type?.type,
                   let x = play.fieldPositionX,
                   let side = sides.side(of: play.team) else { return nil }
@@ -442,22 +449,28 @@ enum SoccerMatchBuilder {
             let text = entry.text ?? ""
             if typeKey == "own-goal" { return nil }
             if let outcome = SoccerShotText.outcome(typeKey: typeKey, text: text) {
-                return .init(minute: minute, side: side, x: x, kind: outcome == .goal ? .goal : .shot)
+                return .init(minute: minute, period: period, side: side, x: x, kind: outcome == .goal ? .goal : .shot)
             }
             switch typeKey {
             case "corner-awarded":
-                return .init(minute: minute, side: side, x: x, kind: .corner)
+                return .init(minute: minute, period: period, side: side, x: x, kind: .corner)
             case "offside":
-                return .init(minute: minute, side: side, x: x, kind: .offside)
+                return .init(minute: minute, period: period, side: side, x: x, kind: .offside)
             case "foul", "handball":
                 // The team on these rows is the offender, located from its own view;
                 // the pressure belongs to the side that won the free kick.
-                return .init(minute: minute, side: side.opposite, x: 100 - x, kind: .freeKickWon)
+                return .init(minute: minute, period: period, side: side.opposite, x: 100 - x, kind: .freeKickWon)
             default:
                 return nil
             }
         }
-        return SoccerMomentum.compute(actions)
+        // Every period but the one in play has finished, so its run reaches full time.
+        let latest = actions.map(\.period).max() ?? 1
+        var lastMinutes: [Int: Int] = [:]
+        for (p, end) in periodEndMinute where p < latest || (p == latest && isFinished) {
+            lastMinutes[p] = end
+        }
+        return SoccerMomentum.compute(actions, lastMinutes: lastMinutes)
     }
 
     // MARK: Commentary

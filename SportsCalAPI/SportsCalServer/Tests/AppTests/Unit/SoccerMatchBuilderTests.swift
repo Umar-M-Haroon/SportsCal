@@ -83,9 +83,16 @@ final class SoccerMatchBuilderTests: XCTestCase {
         // Liverpool out-shot Bournemouth 12–9 from better spots.
         XCTAssertGreaterThan(match.expectedGoals(.away), match.expectedGoals(.home))
 
-        // Momentum spans the match and is normalised to ±1.
-        XCTAssertGreaterThanOrEqual(match.momentum.count, 90)
+        // Momentum runs through both halves (full time, so each reaches its end) and
+        // is normalised to ±1.
+        let halves = Dictionary(grouping: match.momentum, by: \.period)
+        XCTAssertEqual(halves.keys.sorted(), [1, 2])
+        XCTAssertEqual(halves[1]?.first?.minute, 0)
+        XCTAssertGreaterThanOrEqual(halves[1]?.last?.minute ?? 0, 45)
+        XCTAssertEqual(halves[2]?.first?.minute, 45)
+        XCTAssertGreaterThanOrEqual(halves[2]?.last?.minute ?? 0, 90)
         XCTAssertEqual(match.momentum.map { abs($0.value) }.max(), 1)
+        XCTAssertTrue(match.shots.allSatisfy { $0.period == 1 || $0.period == 2 })
 
         // Commentary keeps every line, with goals and subs classified.
         XCTAssertGreaterThan(match.commentary.count, 90)

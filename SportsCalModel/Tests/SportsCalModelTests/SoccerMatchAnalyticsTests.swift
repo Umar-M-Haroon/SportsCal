@@ -73,18 +73,35 @@ final class SoccerMatchAnalyticsTests: XCTestCase {
         var actions: [SoccerMomentum.Action] = []
         // Home pin the away side back for the first 20 minutes…
         for minute in stride(from: 1.0, through: 20, by: 2) {
-            actions.append(.init(minute: minute, side: .home, x: 90, kind: .shot))
+            actions.append(.init(minute: minute, period: 1, side: .home, x: 90, kind: .shot))
         }
         // …then the away side take over.
         for minute in stride(from: 60.0, through: 80, by: 2) {
-            actions.append(.init(minute: minute, side: .away, x: 92, kind: .corner))
+            actions.append(.init(minute: minute, period: 2, side: .away, x: 92, kind: .corner))
         }
-        let series = SoccerMomentum.compute(actions, through: 90)
-        XCTAssertEqual(series.count, 91)
-        XCTAssertGreaterThan(series[10].value, 0.5)
-        XCTAssertLessThan(series[70].value, -0.3)
-        XCTAssertEqual(series[40].value, 0, accuracy: 0.01)
+        let series = SoccerMomentum.compute(actions, lastMinutes: [1: 45, 2: 90])
+        let value = { (period: Int, minute: Int) in
+            series.first { $0.period == period && $0.minute == minute }?.value
+        }
+        XCTAssertEqual(series.count, 46 + 46, "0…45 then 45…90")
+        XCTAssertGreaterThan(value(1, 10) ?? 0, 0.5)
+        XCTAssertLessThan(value(2, 70) ?? 0, -0.3)
+        XCTAssertEqual(value(1, 40) ?? 1, 0, accuracy: 0.01)
         XCTAssertLessThanOrEqual(series.map { abs($0.value) }.max() ?? 0, 1)
+    }
+
+    func testFirstHalfStoppageStaysInTheFirstHalf() {
+        let actions: [SoccerMomentum.Action] = [
+            .init(minute: 47.5, period: 1, side: .home, x: 95, kind: .goal),   // 45'+3'
+            .init(minute: 46.2, period: 2, side: .away, x: 80, kind: .shot),   // 46'
+        ]
+        let series = SoccerMomentum.compute(actions)
+        let firstHalf = series.filter { $0.period == 1 }
+        let secondHalf = series.filter { $0.period == 2 }
+        XCTAssertEqual(firstHalf.last?.minute, 47)
+        XCTAssertGreaterThan(firstHalf.last?.value ?? 0, 0, "home goal in stoppage")
+        XCTAssertEqual(secondHalf.first?.minute, 45)
+        XCTAssertTrue(secondHalf.allSatisfy { $0.value <= 0 }, "no bleed from the first half")
     }
 
     func testMomentumIsEmptyWithoutActions() {
