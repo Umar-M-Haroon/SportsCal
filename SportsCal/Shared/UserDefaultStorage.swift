@@ -69,7 +69,16 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("showSuggestedForYou") var showSuggestedForYou: Bool = true
     @ObservationIgnored @AppStorage("serverEnvironment") var serverEnvironment: ServerEnvironment = .auto
     @ObservationIgnored @AppStorage("sportOrder") var sportOrder: [String] = []
+    /// The theme picked in Settings → Appearance (debug only). Read `effectiveAppTheme`
+    /// to decide what to render, never this.
     @ObservationIgnored @AppStorage("appTheme") var appTheme: AppTheme = .classic
+
+    /// The theme the app actually renders. Ambient and Modern are debug-only
+    /// experiments: everyone outside debug mode gets Classic, whatever they picked
+    /// before, so a stale selection (or one synced from a debug device) can't strand
+    /// them on an unfinished design. The stored pick is kept, so turning debug back
+    /// on restores it.
+    var effectiveAppTheme: AppTheme { debugMode ? appTheme : .classic }
 
     var orderedSports: [SportType] {
         let ordered = sportOrder.compactMap { SportType(rawValue: $0) }

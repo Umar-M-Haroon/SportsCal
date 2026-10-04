@@ -30,7 +30,7 @@ struct CalendarPage: View {
             sportFilter: $sportFilter
         )
         .conditionalModifier(
-            storage.appTheme == .ambient,
+            storage.effectiveAppTheme == .ambient,
             ifTrue: { $0.background(AmbientPalette.bg.ignoresSafeArea()).preferredColorScheme(.dark) },
             ifFalse: { $0 }
         )
