@@ -753,7 +753,18 @@ struct ModernGameDetailSections: View {
     private var standingsSection: some View {
         if !game.isIndividualSport {
             VStack(alignment: .leading, spacing: .appSpace3) {
-                Text("STANDINGS").appEyebrow().foregroundStyle(accent)
+                HStack {
+                    Text("STANDINGS").appEyebrow().foregroundStyle(accent)
+                    Spacer()
+                    if sportType == .soccer, let league {
+                        // The competition hub: full table with form, matches, top scorers.
+                        NavigationLink("Full table") {
+                            SoccerCompetitionHubView(league: league)
+                        }
+                        .font(.appCaption)
+                        .tint(accent)
+                    }
+                }
 
                 if model.standingsLoading {
                     HStack { Spacer(); ProgressView(); Spacer() }

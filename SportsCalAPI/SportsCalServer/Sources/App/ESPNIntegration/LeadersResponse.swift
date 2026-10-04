@@ -81,5 +81,12 @@ struct LeagueStatisticsResponse: Decodable {
         let shortName: String?
         let jersey: String?
         let team: LeadersResponse.LeaderTeam?
+        /// The leader's line: appearances, goals, assists…
+        let statistics: [AthleteStat]?
+    }
+
+    struct AthleteStat: Decodable {
+        let name: String?
+        let value: Double?
     }
 }

@@ -1172,8 +1172,18 @@ struct GameDetailSections: View {
     private var standingsSection: some View {
         if !game.isIndividualSport {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Standings")
-                    .font(.headline)
+                HStack {
+                    Text("Standings")
+                        .font(.headline)
+                    Spacer()
+                    if sportType == .soccer, let league {
+                        // The competition hub: full table with form, matches, top scorers.
+                        NavigationLink("Full table") {
+                            SoccerCompetitionHubView(league: league)
+                        }
+                        .font(.subheadline)
+                    }
+                }
 
                 if model.standingsLoading {
                     HStack {

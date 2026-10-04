@@ -16,6 +16,9 @@ struct SoccerPitchView: View {
     let away: SoccerLineup
     let homeColor: Color
     let awayColor: Color
+    /// Opens a player's profile from their stats popover. The popover isn't part of
+    /// the navigation stack, so the owner does the push.
+    var onOpenProfile: ((SoccerLineupPlayer) -> Void)?
 
     @State private var selected: SoccerLineupPlayer?
 
@@ -108,8 +111,16 @@ struct SoccerPitchView: View {
             get: { selected?.id == player.id },
             set: { if !$0 { selected = nil } }
         )) {
-            SoccerPlayerStatsCard(player: player)
-                .presentationCompactAdaptation(.popover)
+            SoccerPlayerStatsCard(
+                player: player,
+                onOpenProfile: player.athleteID == nil ? nil : onOpenProfile.map { open in
+                    {
+                        selected = nil
+                        open(player)
+                    }
+                }
+            )
+            .presentationCompactAdaptation(.popover)
         }
     }
 
@@ -170,6 +181,7 @@ struct SoccerPitchView: View {
 
 private struct SoccerPlayerStatsCard: View {
     let player: SoccerLineupPlayer
+    var onOpenProfile: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -205,6 +217,11 @@ private struct SoccerPlayerStatsCard: View {
                         }
                     }
                 }
+            }
+            if let onOpenProfile {
+                Button("Player profile", systemImage: "person.crop.circle", action: onOpenProfile)
+                    .font(.subheadline)
+                    .padding(.top, 2)
             }
         }
         .padding()

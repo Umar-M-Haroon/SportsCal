@@ -1044,6 +1044,31 @@ struct NetworkHandler {
         return try Self.sharedDecoder.decode(SoccerMatchDetail.self, from: data)
     }
 
+    /// One soccer competition's table (zones, form) with its top scorers and assisters.
+    /// Throws `SoccerMatchNotAvailable` on 404 (a cup with neither).
+    static func getSoccerCompetition(league: Leagues) async throws -> SoccerCompetitionHub {
+        let url = URL(string: "\(baseURL())/soccer/competition/\(league.rawValue)")!
+        let (data, response) = try await performAuthorized(url: url)
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            if httpResponse.statusCode == 404 { throw SoccerMatchNotAvailable() }
+        }
+        return try Self.sharedDecoder.decode(SoccerCompetitionHub.self, from: data)
+    }
+
+    /// A soccer player's bio, season lines, last five matches and next fixture, by
+    /// ESPN athlete id. Throws `SoccerMatchNotAvailable` on 404.
+    static func getSoccerPlayer(athleteID: String) async throws -> SoccerPlayerProfile {
+        let encoded = athleteID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? athleteID
+        let url = URL(string: "\(baseURL())/soccer/player/\(encoded)")!
+        let (data, response) = try await performAuthorized(url: url)
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            if httpResponse.statusCode == 404 { throw SoccerMatchNotAvailable() }
+        }
+        return try Self.sharedDecoder.decode(SoccerPlayerProfile.self, from: data)
+    }
+
     static func getStandingsHistory(leagueID: Int, days: Int = 30) async throws -> [StandingsHistoryDay] {
         let urlString = "\(baseURL())/standings/\(leagueID)/history?days=\(days)"
         let url = URL(string: urlString)!

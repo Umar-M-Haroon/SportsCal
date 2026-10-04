@@ -24,6 +24,8 @@ struct SoccerMatchCentreView: View {
 
     @State private var lineupMode: LineupMode = .pitch
     @State private var showsAllCommentary = false
+    /// Set from the pitch's player popover, which sits outside the navigation stack.
+    @State private var profilePlayer: SoccerLineupPlayer?
 
     private enum LineupMode: String, CaseIterable, Identifiable {
         case pitch = "Pitch"
@@ -62,6 +64,9 @@ struct SoccerMatchCentreView: View {
             if !match.commentary.isEmpty {
                 commentaryCard
             }
+        }
+        .navigationDestination(item: $profilePlayer) { player in
+            SoccerPlayerView(athleteID: player.athleteID ?? "", name: player.name)
         }
     }
 
@@ -250,7 +255,8 @@ struct SoccerMatchCentreView: View {
             if pitchAvailable && lineupMode == .pitch {
                 SoccerPitchView(
                     home: match.home, away: match.away,
-                    homeColor: homeColor, awayColor: awayColor
+                    homeColor: homeColor, awayColor: awayColor,
+                    onOpenProfile: { profilePlayer = $0 }
                 )
                 substitutesColumns
             } else {
@@ -258,6 +264,17 @@ struct SoccerMatchCentreView: View {
                 Divider()
                 teamLineup(match.home, accent: homeColor, fallbackName: game.strHomeTeam)
             }
+        }
+    }
+
+    /// A player row that opens their profile, when ESPN gave us their id.
+    @ViewBuilder
+    private func linkedToProfile<Content: View>(_ player: SoccerLineupPlayer, @ViewBuilder content: () -> Content) -> some View {
+        if let athleteID = player.athleteID {
+            let row = content()
+            SoccerPlayerLink(athleteID: athleteID, name: player.name) { row.contentShape(Rectangle()) }
+        } else {
+            content()
         }
     }
 
@@ -280,23 +297,25 @@ struct SoccerMatchCentreView: View {
             // Players who came on first, then the unused bench.
             let bench = team.substitutes.sorted { $0.subbedIn && !$1.subbedIn }
             ForEach(bench) { player in
-                HStack(spacing: 6) {
-                    Text(player.jersey ?? "–")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                        .frame(width: 18, alignment: .trailing)
-                    Text(player.name)
-                        .font(.caption)
-                        .foregroundStyle(player.subbedIn ? .primary : .secondary)
-                        .lineLimit(1)
-                    if player.subbedIn {
-                        Image(systemName: "arrow.up.circle.fill")
+                linkedToProfile(player) {
+                    HStack(spacing: 6) {
+                        Text(player.jersey ?? "–")
                             .font(.caption2)
-                            .foregroundStyle(.green.opacity(0.8))
-                    }
-                    ForEach(notableBadges(player.stats), id: \.self) { badge in
-                        Text(badge).font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                            .frame(width: 18, alignment: .trailing)
+                        Text(player.name)
+                            .font(.caption)
+                            .foregroundStyle(player.subbedIn ? .primary : .secondary)
+                            .lineLimit(1)
+                        if player.subbedIn {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.green.opacity(0.8))
+                        }
+                        ForEach(notableBadges(player.stats), id: \.self) { badge in
+                            Text(badge).font(.caption2)
+                        }
                     }
                 }
             }
@@ -322,7 +341,7 @@ struct SoccerMatchCentreView: View {
             }
 
             ForEach(team.starters) { player in
-                playerRow(player, accent: accent)
+                linkedToProfile(player) { playerRow(player, accent: accent) }
             }
 
             if !team.substitutes.isEmpty {
@@ -331,7 +350,7 @@ struct SoccerMatchCentreView: View {
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
                 ForEach(team.substitutes) { player in
-                    playerRow(player, accent: accent)
+                    linkedToProfile(player) { playerRow(player, accent: accent) }
                 }
             }
         }

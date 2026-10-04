@@ -279,6 +279,10 @@ struct BrowseSportView: View {
                 }
             }
 
+            if sport == .soccer {
+                soccerCompetitionsSection(browseVM)
+            }
+
             // DISABLED: Standings movement chart
 //            Section {
 //                StandingsChartView(sport: sport)
@@ -404,6 +408,44 @@ struct BrowseSportView: View {
                 isLive: gs.contains { $0.strStatus?.lowercased() == "in" },
                 tours: tours
             )
+        }
+    }
+
+    /// Soccer: a strip of the competitions in the feed, each opening its hub (table,
+    /// matches, top scorers). Busiest competitions first, in declaration order on ties.
+    @ViewBuilder
+    private func soccerCompetitionsSection(_ browseVM: SportBrowseViewModel) -> some View {
+        let games = browseVM.liveGames + browseVM.todayGames + browseVM.upcomingGames + browseVM.recentGames
+        let counts = Dictionary(grouping: games.compactMap { $0.game.idLeague.flatMap(Int.init) }, by: { $0 })
+            .mapValues(\.count)
+        let leagues = Leagues.allCases
+            .filter { counts[$0.rawValue] != nil && SportType(league: $0) == .soccer }
+            .sorted { (counts[$0.rawValue] ?? 0) > (counts[$1.rawValue] ?? 0) }
+        if !leagues.isEmpty {
+            Section("Competitions") {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(leagues, id: \.rawValue) { league in
+                            NavigationLink {
+                                SoccerCompetitionHubView(league: league)
+                                    .environment(viewModel)
+                                    .environment(favorites)
+                            } label: {
+                                Text(league.leagueName)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 7)
+                                    .background(Color.secondaryGroupedBackground, in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            }
         }
     }
 

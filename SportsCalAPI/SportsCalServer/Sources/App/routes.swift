@@ -1255,6 +1255,32 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return encodeResult(res: detail)
     }
 
+    // One soccer competition's table (with zones and form) plus its top scorers and
+    // assisters. 404 for a league that isn't soccer or has none of them.
+    routes.get("soccer", "competition", ":leagueID") { req async throws -> String in
+        guard let leagueID = req.parameters.get("leagueID").flatMap(Int.init),
+              let league = Leagues(rawValue: leagueID),
+              SportType(league: league) == .soccer else {
+            throw Abort(.badRequest)
+        }
+        guard let hub = try await SoccerCompetitionService.hub(req: req, league: league) else {
+            throw Abort(.notFound)
+        }
+        return encodeResult(res: hub)
+    }
+
+    // A soccer player's bio, season lines, last five matches and next fixture.
+    routes.get("soccer", "player", ":athleteID") { req async throws -> String in
+        guard let athleteID = req.parameters.get("athleteID"),
+              !athleteID.isEmpty, athleteID.count <= 12, athleteID.allSatisfy(\.isNumber) else {
+            throw Abort(.badRequest)
+        }
+        guard let profile = try await SoccerCompetitionService.player(req: req, athleteID: athleteID) else {
+            throw Abort(.notFound)
+        }
+        return encodeResult(res: profile)
+    }
+
     // The same detail under its original World Cup path, for app versions that predate
     // `/soccer/match`. The original keys are unchanged, so those versions decode it as before.
     routes.get("worldcup", "boxscore", ":eventID") { req async throws -> String in
