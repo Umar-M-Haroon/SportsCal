@@ -187,13 +187,18 @@ public extension GameSituation {
                 pitcherLine = situation.pitcher?.summary
             }
             if sport == .nfl {
-                down = situation.down
-                distance = situation.distance
+                // Between plays (after a score, before the kickoff or try) ESPN sends
+                // down -1, distance 0 and a leftover red-zone flag with no possession.
+                // There's no snap pending, so there's no down, distance or red zone.
+                if let snapDown = situation.down, snapDown >= 1 {
+                    down = snapDown
+                    distance = situation.distance
+                    downDistanceText = situation.downDistanceText
+                    shortDownDistanceText = situation.shortDownDistanceText
+                    isRedZone = situation.isRedZone
+                }
                 yardLine = situation.yardLine
-                downDistanceText = situation.downDistanceText
-                shortDownDistanceText = situation.shortDownDistanceText
                 possession = side(situation.possession)
-                isRedZone = situation.isRedZone
                 homeTimeouts = situation.homeTimeouts
                 awayTimeouts = situation.awayTimeouts
             }
