@@ -557,6 +557,15 @@ public struct LiveEvent: Codable, Equatable, Hashable {
         case events
     }
 
+    /// `events` is required, but decodes game by game: a malformed game is skipped and
+    /// recorded (see `ModelDecodeDiagnostics`) rather than failing every other game.
+    /// Encoding stays synthesized.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        var events = try container.nestedUnkeyedContainer(forKey: .events)
+        self.events = try events.decodeLossyElements(Game.self)
+    }
+
     /// Extracts a `Game N` number from free-form ESPN strings (event names, notes).
     /// Matches "Game 3", "Game 3:", "- Game 3", "game3", etc.
     static func parseGameNumber(from source: String?) -> Int? {
@@ -930,21 +939,25 @@ extension Game: Codable {
         strProgress = try container.decodeIfPresent(String.self, forKey: .strProgress)
         strTimestamp = try container.decodeIfPresent(String.self, forKey: .strTimestamp)
         lastPlay = try container.decodeIfPresent(String.self, forKey: .lastPlay)
-        homeLinescores = try container.decodeIfPresent([Double].self, forKey: .homeLinescores)
-        awayLinescores = try container.decodeIfPresent([Double].self, forKey: .awayLinescores)
-        homeLeaders = try container.decodeIfPresent([GameLeader].self, forKey: .homeLeaders)
-        awayLeaders = try container.decodeIfPresent([GameLeader].self, forKey: .awayLeaders)
+        // Lenient: linescores, leaders, leaderboards, sessions, injuries and the
+        // enrichment blobs below are extras — a malformed one reads as nil (and is
+        // recorded) instead of dropping the whole game. Identity, teams, scores, status
+        // and dates stay strict: a game without them is skipped by `LiveEvent`.
+        homeLinescores = container.decodeLenient([Double].self, forKey: .homeLinescores)
+        awayLinescores = container.decodeLenient([Double].self, forKey: .awayLinescores)
+        homeLeaders = container.decodeLenient([GameLeader].self, forKey: .homeLeaders)
+        awayLeaders = container.decodeLenient([GameLeader].self, forKey: .awayLeaders)
         isCompleted = try container.decodeIfPresent(Bool.self, forKey: .isCompleted)
         isoDate = try container.decodeIfPresent(Date.self, forKey: .isoDate)
-        leaderboardEntries = try container.decodeIfPresent([LeaderboardEntry].self, forKey: .leaderboardEntries)
-        sessions = try container.decodeIfPresent([EventSession].self, forKey: .sessions)
+        leaderboardEntries = container.decodeLenient([LeaderboardEntry].self, forKey: .leaderboardEntries)
+        sessions = container.decodeLenient([EventSession].self, forKey: .sessions)
         venueName = try container.decodeIfPresent(String.self, forKey: .venueName)
         homeTeamColor = try container.decodeIfPresent(String.self, forKey: .homeTeamColor)
         awayTeamColor = try container.decodeIfPresent(String.self, forKey: .awayTeamColor)
         homeRecord = try container.decodeIfPresent(String.self, forKey: .homeRecord)
         awayRecord = try container.decodeIfPresent(String.self, forKey: .awayRecord)
-        circuitInfo = try container.decodeIfPresent(F1CircuitInfo.self, forKey: .circuitInfo)
-        golfCourseInfo = try container.decodeIfPresent(GolfCourseInfo.self, forKey: .golfCourseInfo)
+        circuitInfo = container.decodeLenient(F1CircuitInfo.self, forKey: .circuitInfo)
+        golfCourseInfo = container.decodeLenient(GolfCourseInfo.self, forKey: .golfCourseInfo)
         endDate = try container.decodeIfPresent(String.self, forKey: .endDate)
         legDisplay = try container.decodeIfPresent(String.self, forKey: .legDisplay)
         aggregateScore = try container.decodeIfPresent(String.self, forKey: .aggregateScore)
@@ -957,10 +970,10 @@ extension Game: Codable {
         tournamentName = try container.decodeIfPresent(String.self, forKey: .tournamentName)
         round = try container.decodeIfPresent(String.self, forKey: .round)
         drawSlug = try container.decodeIfPresent(String.self, forKey: .drawSlug)
-        homeInjuries = try container.decodeIfPresent([InjuryReport].self, forKey: .homeInjuries)
-        awayInjuries = try container.decodeIfPresent([InjuryReport].self, forKey: .awayInjuries)
-        raceTiming = try container.decodeIfPresent(F1RaceTiming.self, forKey: .raceTiming)
-        playoff = try container.decodeIfPresent(PlayoffContext.self, forKey: .playoff)
+        homeInjuries = container.decodeLenient([InjuryReport].self, forKey: .homeInjuries)
+        awayInjuries = container.decodeLenient([InjuryReport].self, forKey: .awayInjuries)
+        raceTiming = container.decodeLenient(F1RaceTiming.self, forKey: .raceTiming)
+        playoff = container.decodeLenient(PlayoffContext.self, forKey: .playoff)
         season = try container.decodeIfPresent(String.self, forKey: .strSeason)
         // Lenient: an unknown phase from a newer server must not fail the whole game.
         seasonPhase = (try? container.decodeIfPresent(String.self, forKey: .seasonPhase))

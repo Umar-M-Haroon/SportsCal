@@ -92,7 +92,9 @@ enum LiveTicker {
             body: { try await runUnderLock(app, isDebug: isDebug) }
         )
         // nil = another replica holds the lock; back off to idle rather than spin.
-        return result ?? idleInterval
+        guard let result else { return idleInterval }
+        await JobHeartbeat.recordSuccess(.liveTicker, app: app, isDebug: isDebug)
+        return result
     }
 
     private static func runUnderLock(_ app: Application, isDebug: Bool) async throws -> TimeInterval {
@@ -106,10 +108,12 @@ enum LiveTicker {
         guard !leagues.isEmpty else { return idleInterval }
 
         // Route each league to its configured source (ESPN by default; FIFA/MLB/NHL/NBA via env).
+        // Fetch everything FIRST, then apply the overlays to a snapshot re-read just before
+        // the write: ESPNFetchJob may have published a full rebuild (new games, other
+        // sports' scores) while these fetches were in flight, and overlaying onto the
+        // pre-fetch copy would roll that back.
         let resolver = LiveSourceResolver.fromEnvironment()
-        var working = cached
-        var changed = Set<String>()
-        var situationChanged = Set<String>()
+        var overlays: [(sport: SportType, games: [Game], strategy: LiveMerge.MatchStrategy)] = []
 
         for group in resolver.groups(for: leagues) {
             if let espn = group.source as? ESPNLiveSource {
@@ -123,10 +127,7 @@ enum LiveTicker {
                 guard !boards.isEmpty else { continue }
                 let games = boards.compactMap { LiveEvent(events: $0.value, league: $0.key) }
                     .flatMap { $0.events }
-                let r = LiveMerge.overlay(cached: working, sport: .soccer, fresh: games, strategy: espn.matchStrategy)
-                working = r.liveScore
-                changed.formUnion(r.changedEventIDs)
-                situationChanged.formUnion(r.situationChangedEventIDs)
+                overlays.append((.soccer, games, espn.matchStrategy))
                 await refreshSoccerScoreboards(boards: boards, app: app, isDebug: isDebug)
             } else {
                 // Override source (FIFA / MLB / NHL / NBA / paid): overlay its sport's bucket.
@@ -135,11 +136,19 @@ enum LiveTicker {
                 let source = group.source
                 guard let games = try? await source.fetchLive(leagues: group.leagues, app: app),
                       !games.isEmpty else { continue }
-                let r = LiveMerge.overlay(cached: working, sport: source.sport, fresh: games, strategy: source.matchStrategy)
-                working = r.liveScore
-                changed.formUnion(r.changedEventIDs)
-                situationChanged.formUnion(r.situationChangedEventIDs)
+                overlays.append((source.sport, games, source.matchStrategy))
             }
+        }
+        guard !overlays.isEmpty else { return fastInterval }
+
+        var working = (try? await app.redis.get(liveKey, asJSON: LiveScore.self)) ?? cached
+        var changed = Set<String>()
+        var situationChanged = Set<String>()
+        for overlay in overlays {
+            let r = LiveMerge.overlay(cached: working, sport: overlay.sport, fresh: overlay.games, strategy: overlay.strategy)
+            working = r.liveScore
+            changed.formUnion(r.changedEventIDs)
+            situationChanged.formUnion(r.situationChangedEventIDs)
         }
 
         guard !changed.isEmpty || !situationChanged.isEmpty else { return fastInterval }

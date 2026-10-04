@@ -11,6 +11,52 @@ import SportsCalModel
 import ActivityKit
 #endif
 
+/// One VoiceOver sentence for a team-sport list row, so a row reads as a single element
+/// ("Live, Rockets 89, Lakers 119, 3rd Qtr" / "Rockets 89, Lakers 119, final" /
+/// "Rockets vs Lakers, 7:30 PM") instead of badge/score/status fragments. Mirrors the
+/// Modern `LiveGameRow.voiceOverLabel` shape (state, matchup, score, period). Away team
+/// first, matching the visual order of the rows.
+enum GameRowAccessibility {
+    static func label(
+        game: Game,
+        awayName: String,
+        homeName: String,
+        awayScore: Int?,
+        homeScore: Int?,
+        isLive: Bool,
+        now: Date = Date()
+    ) -> String {
+        let status = game.displayStatus
+        let matchup = "\(awayName) vs \(homeName)"
+        var score: String?
+        if let awayScore, let homeScore {
+            score = "\(awayName) \(awayScore), \(homeName) \(homeScore)"
+        }
+
+        if isLive {
+            return ["Live", score ?? matchup, status].compactMap { $0 }.joined(separator: ", ")
+        }
+        if game.isFinalStatus {
+            return "\(score ?? matchup), \(status?.lowercased() ?? "final")"
+        }
+        // Not started yet: the kickoff time is what matters.
+        if let date = game.standardDate, date > now {
+            return "\(matchup), \(when(date, now: now))"
+        }
+        // Postponed / delayed / unknown — say whatever status the row shows.
+        if let status { return "\(matchup), \(status)" }
+        if let date = game.standardDate { return "\(matchup), \(when(date, now: now))" }
+        return matchup
+    }
+
+    /// "7:30 PM" today, "Oct 5, 2026 at 7:30 PM" on other days.
+    static func when(_ date: Date, now: Date = Date()) -> String {
+        Calendar.current.isDate(date, inSameDayAs: now)
+            ? date.formatted(date: .omitted, time: .shortened)
+            : date.formatted(date: .abbreviated, time: .shortened)
+    }
+}
+
 struct GameScoreView: View {
     var homeTeam: Team
     var awayTeam: Team
@@ -19,11 +65,23 @@ struct GameScoreView: View {
     var game: Game
     @Environment(Favorites.self) private var favorites
     @Environment(GameViewModel.self) private var viewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var sheetType: SheetType?
     
     var isLive: Bool
     var navigationDisabled: Bool = false
+
+    private var accessibilityLabel: String {
+        GameRowAccessibility.label(
+            game: game,
+            awayName: awayTeam.strTeam ?? game.strAwayTeam,
+            homeName: homeTeam.strTeam ?? game.strHomeTeam,
+            awayScore: awayScore,
+            homeScore: homeScore,
+            isLive: isLive
+        )
+    }
 
     private struct InfoSnippet: Identifiable, Equatable {
         let id: String
@@ -81,25 +139,34 @@ struct GameScoreView: View {
     @ViewBuilder
     private var rotatingInfoLine: some View {
         let snippets = infoSnippets
-        if !snippets.isEmpty {
-            TimelineView(.periodic(from: .now, by: 4.0)) { context in
-                let tick = Int(context.date.timeIntervalSinceReferenceDate / 4.0)
-                let snippet = snippets[((tick % snippets.count) + snippets.count) % snippets.count]
-                HStack(spacing: 4) {
-                    if let icon = snippet.icon {
-                        Image(systemName: icon)
-                            .font(.caption2)
-                    }
-                    Text(snippet.text)
-                        .font(.caption2)
-                        .lineLimit(1)
-                        .contentTransition(.opacity)
+        if let primary = snippets.first {
+            if reduceMotion || snippets.count == 1 {
+                // Reduce Motion: no 4s rotation — just hold the primary line.
+                infoLine(primary)
+            } else {
+                TimelineView(.periodic(from: .now, by: 4.0)) { context in
+                    let tick = Int(context.date.timeIntervalSinceReferenceDate / 4.0)
+                    let snippet = snippets[((tick % snippets.count) + snippets.count) % snippets.count]
+                    infoLine(snippet)
+                        .animation(.easeInOut(duration: 0.35), value: snippet.id)
                 }
-                .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity)
-                .animation(.easeInOut(duration: 0.35), value: snippet.id)
             }
         }
+    }
+
+    private func infoLine(_ snippet: InfoSnippet) -> some View {
+        HStack(spacing: 4) {
+            if let icon = snippet.icon {
+                Image(systemName: icon)
+                    .font(.caption2)
+            }
+            Text(snippet.text)
+                .font(.caption2)
+                .lineLimit(1)
+                .contentTransition(.opacity)
+        }
+        .foregroundColor(.secondary)
+        .frame(maxWidth: .infinity)
     }
 
     var body: some View {
@@ -169,6 +236,8 @@ struct GameScoreView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text(accessibilityLabel))
             .contextMenu {
 #if canImport(ActivityKit) && os(iOS)
                 if isLive {

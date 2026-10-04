@@ -32,56 +32,85 @@ struct TennisMatchScoreView: View {
         return zip(hLs, aLs).filter { $0.1 > $0.0 }.count
     }
 
+    /// One VoiceOver sentence: "Live, Sinner vs Alcaraz, sets 1 to 0, 6-4, 3-2, 2nd Set".
+    /// Home player first, matching the visual row order.
+    private var accessibilityLabel: String {
+        let matchup = "\(game.strHomeTeam) vs \(game.strAwayTeam)"
+        var parts: [String] = []
+        if isLive { parts.append("Live") }
+        parts.append(matchup)
+        let home = game.homeLinescores ?? [], away = game.awayLinescores ?? []
+        if !home.isEmpty || !away.isEmpty {
+            parts.append("sets \(homeWinsSets) to \(awayWinsSets)")
+            let sets = (0..<max(home.count, away.count)).map { i in
+                "\(i < home.count ? formatScore(home[i]) : "-")-\(i < away.count ? formatScore(away[i]) : "-")"
+            }
+            parts.append(sets.joined(separator: ", "))
+        }
+        if let status = game.displayStatus {
+            parts.append(game.isFinalStatus ? status.lowercased() : status)
+        } else if !isLive, let date = game.standardDate, date > Date() {
+            parts.append(GameRowAccessibility.when(date))
+        }
+        return parts.joined(separator: ", ")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Header: sport icon + status + LIVE badge
-            HStack {
-                if let sport = sportType {
-                    Image(systemName: sport.systemImage)
-                        .foregroundColor(sport.color)
+            // Summary (header + players) reads as one VoiceOver element; the action
+            // menu below stays its own element so it remains operable.
+            VStack(alignment: .leading, spacing: 6) {
+                // Header: sport icon + status + LIVE badge
+                HStack {
+                    if let sport = sportType {
+                        Image(systemName: sport.systemImage)
+                            .foregroundColor(sport.color)
+                    }
+                    if let progress = game.displayStatus {
+                        Text(progress)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    if isLive {
+                        Text("LIVE")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.red)
+                            .clipShape(Capsule())
+                    }
                 }
-                if let progress = game.displayStatus {
-                    Text(progress)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                if isLive {
-                    Text("LIVE")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.red)
-                        .clipShape(Capsule())
-                }
+
+                // Player rows with set scores
+                let setCount = max(game.homeLinescores?.count ?? 0, game.awayLinescores?.count ?? 0)
+
+                // Home player
+                playerRow(
+                    name: game.strHomeTeam,
+                    setsWon: homeWinsSets,
+                    isWinning: homeWinsSets > awayWinsSets,
+                    linescores: game.homeLinescores,
+                    opponentLinescores: game.awayLinescores,
+                    setCount: setCount,
+                    headshot: game.strHomeTeamBadge
+                )
+
+                // Away player
+                playerRow(
+                    name: game.strAwayTeam,
+                    setsWon: awayWinsSets,
+                    isWinning: awayWinsSets > homeWinsSets,
+                    linescores: game.awayLinescores,
+                    opponentLinescores: game.homeLinescores,
+                    setCount: setCount,
+                    headshot: game.strAwayTeamBadge
+                )
             }
-
-            // Player rows with set scores
-            let setCount = max(game.homeLinescores?.count ?? 0, game.awayLinescores?.count ?? 0)
-
-            // Home player
-            playerRow(
-                name: game.strHomeTeam,
-                setsWon: homeWinsSets,
-                isWinning: homeWinsSets > awayWinsSets,
-                linescores: game.homeLinescores,
-                opponentLinescores: game.awayLinescores,
-                setCount: setCount,
-                headshot: game.strHomeTeamBadge
-            )
-
-            // Away player
-            playerRow(
-                name: game.strAwayTeam,
-                setsWon: awayWinsSets,
-                isWinning: awayWinsSets > homeWinsSets,
-                linescores: game.awayLinescores,
-                opponentLinescores: game.homeLinescores,
-                setCount: setCount,
-                headshot: game.strAwayTeamBadge
-            )
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text(accessibilityLabel))
 
             // Action menu
             HStack {
@@ -93,6 +122,7 @@ struct TennisMatchScoreView: View {
                     NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
                 } label: {
                     Image(systemName: "ellipsis")
+                        .accessibilityLabel("Actions")
                 }
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.capsule)

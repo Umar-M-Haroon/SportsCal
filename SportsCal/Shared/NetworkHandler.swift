@@ -543,26 +543,87 @@ struct NetworkHandler {
     /// reconnects when this stops matching `wantsCollegeFootball`.
     nonisolated(unsafe) static var socketIncludesCollege = false
 
+    /// The `/schedules` URL for the current environment and college-football variant.
+    /// The variant is part of the URL, so it is also what keys the stored ETag: a
+    /// validator for the `?cfb=1` payload must never be sent for the plain one.
+    static func scheduleURL() -> URL {
+        URL(string: "\(baseURL())/schedules\(collegeQuery)")!
+    }
+
+    /// Unconditional `/schedules` fetch. Used where there is no local snapshot to
+    /// revalidate (tests, diagnostics).
     static func handleCall() async throws -> LiveScore {
-        let urlString = "\(baseURL())/schedules\(collegeQuery)"
-        let url = URL(string: urlString)!
-        let (data, response) = try await performAuthorized(url: url)
-        if let httpResponse = response as? HTTPURLResponse {
+        switch try await fetchSchedule(url: scheduleURL(), ifNoneMatch: nil) {
+        case .fresh(let snapshot, _):
+            return snapshot
+        case .notModified:
+            // Unreachable without an If-None-Match; fetchSchedule throws instead.
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    /// Outcome of a conditional `/schedules` fetch.
+    enum ScheduleFetchResult {
+        /// `304 Not Modified`: the snapshot the sent ETag describes is still current.
+        case notModified
+        /// A full payload, with the validator the server attached to it (if any).
+        case fresh(LiveScore, etag: String?)
+    }
+
+    /// Conditional `/schedules` fetch.
+    ///
+    /// The payload is multi-MB, and on most foregrounds it hasn't changed, so the
+    /// client revalidates with `If-None-Match` and the server answers `304` with an
+    /// empty body — no download, no decode, no `setGames` pass.
+    ///
+    /// The cache policy is `.reloadIgnoringLocalCacheData` on purpose. With the default
+    /// policy URLSession keeps its own copy and may add its own validators; when the
+    /// server says 304 it then hands back *its* cached 200, which would hide the 304 and
+    /// make us decode the whole payload anyway. Ignoring the local cache means the
+    /// 304 we asked for is the 304 we see.
+    ///
+    /// - Parameters:
+    ///   - url: the schedule URL (see `scheduleURL()`); the caller keeps it so the
+    ///     returned ETag can be stored against exactly what was requested.
+    ///   - ifNoneMatch: the ETag of the snapshot the caller holds, or nil to force a
+    ///     full response. Only pass one when that snapshot is actually available locally.
+    /// - Returns: `.notModified` on 304, otherwise the decoded snapshot and its ETag.
+    /// - Throws: transport and decoding errors; `URLError(.badServerResponse)` for a
+    ///   304 the caller didn't ask for.
+    static func fetchSchedule(url: URL, ifNoneMatch: String?) async throws -> ScheduleFetchResult {
+        let (data, response) = try await performAuthorized(url: url) { request in
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            if let ifNoneMatch {
+                request.setValue(ifNoneMatch, forHTTPHeaderField: "If-None-Match")
+            }
+        }
+        let httpResponse = response as? HTTPURLResponse
+        if let httpResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
         }
-        let decoder = Self.sharedDecoder
-        return try decoder.decode(LiveScore.self, from: data)
+        if httpResponse?.statusCode == 304 {
+            guard ifNoneMatch != nil else { throw URLError(.badServerResponse) }
+            return .notModified
+        }
+        let snapshot = try Self.sharedDecoder.decode(LiveScore.self, from: data)
+        return .fresh(snapshot, etag: httpResponse?.value(forHTTPHeaderField: "ETag"))
     }
+
+    /// `yyyyMMdd` in the Gregorian calendar and POSIX locale — the server's day-key
+    /// format, shared with `GameViewModel`'s on-demand day bookkeeping.
+    static let dayKeyFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd"
+        return formatter
+    }()
 
     /// On-demand fetch of a single day's multi-sport schedule (YYYYMMDD), for
     /// browsing dates outside the cached /schedules window. Server fetches ESPN
     /// per-league for that day and returns a merged LiveScore.
     static func getSchedule(forDate date: Date) async throws -> LiveScore {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyyMMdd"
-        let dateStr = formatter.string(from: date)
+        let dateStr = Self.dayKeyFormatter.string(from: date)
         let urlString = "\(baseURL())/schedules/date/\(dateStr)\(collegeQuery)"
         let url = URL(string: urlString)!
         let (data, response) = try await performAuthorized(url: url)
@@ -1164,5 +1225,40 @@ struct NetworkHandler {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = encoded
         }
+    }
+}
+
+
+/// The ETag of the `/schedules` snapshot currently persisted in the on-disk games cache.
+///
+/// Stored as one `(url, etag)` record rather than one per URL: the disk cache holds a
+/// single snapshot, so only the validator for *that* snapshot may ever be sent. Keyed
+/// per URL, toggling college football off and back on would send the `?cfb=1` ETag
+/// while the cache held the plain payload, the server would answer 304, and the app
+/// would keep showing the wrong variant.
+///
+/// Invariant: a record exists only while the matching snapshot is on disk. Writers
+/// clear it before replacing the cache file and set it only after the atomic write
+/// succeeds; readers clear it whenever the cache is missing or unreadable. A 304
+/// therefore can never leave the app with nothing to show.
+enum ScheduleETagStore {
+    private static let defaultsKey = "schedules.etag.v1"
+    private static var defaults: UserDefaults { .standard }
+
+    /// The stored ETag, if it was issued for exactly `url`.
+    static func etag(for url: URL) -> String? {
+        guard let record = defaults.dictionary(forKey: defaultsKey) as? [String: String],
+              record["url"] == url.absoluteString else { return nil }
+        return record["etag"]
+    }
+
+    /// Records `etag` as the validator for the snapshot fetched from `url`; nil clears.
+    static func store(_ etag: String?, for url: URL) {
+        guard let etag, !etag.isEmpty else { clear(); return }
+        defaults.set(["url": url.absoluteString, "etag": etag], forKey: defaultsKey)
+    }
+
+    static func clear() {
+        defaults.removeObject(forKey: defaultsKey)
     }
 }

@@ -13,20 +13,50 @@ import RediStack
 /// blips into a slightly-stale success instead of a hard failure.
 actor LastKnownGoodCache {
     static let shared = LastKnownGoodCache()
+
+    /// The in-process schedule plus its content version (`PayloadVersion`), which is
+    /// the base of the `/schedules` ETag and the key of every slice derived from it.
+    struct ScheduleSnapshot: Sendable {
+        let value: String
+        let version: String
+        let age: TimeInterval
+    }
+
     private var teams: String?
     private var schedules: String?
+    private var schedulesVersion: String?
     private var schedulesStoredAt: Date?
     func storeTeams(_ value: String) { teams = value }
     var teamsValue: String? { teams }
-    func storeSchedules(_ value: String) {
-        schedules = value
+
+    /// Stores a schedule read from Redis and returns its content version. The version
+    /// is computed once per *new* schedule: re-storing identical bytes (the common case,
+    /// since the blob changes at most minutely) costs one `memcmp` and keeps the version.
+    @discardableResult
+    func storeSchedules(_ value: String) -> String {
         schedulesStoredAt = Date()
+        if let schedules, let schedulesVersion, PayloadVersion.bytesEqual(schedules, value) {
+            return schedulesVersion
+        }
+        let version = PayloadVersion.of(value)
+        schedules = value
+        schedulesVersion = version
+        return version
     }
+
     /// Snapshot plus its age, so callers can distinguish "fresh enough to serve
     /// without touching Redis" from "stale but better than a 500".
-    var schedulesSnapshot: (value: String, age: TimeInterval)? {
-        guard let schedules, let schedulesStoredAt else { return nil }
-        return (schedules, Date().timeIntervalSince(schedulesStoredAt))
+    var schedulesSnapshot: ScheduleSnapshot? {
+        guard let schedules, let schedulesVersion, let schedulesStoredAt else { return nil }
+        return ScheduleSnapshot(value: schedules, version: schedulesVersion, age: Date().timeIntervalSince(schedulesStoredAt))
+    }
+
+    /// Test hook: forget everything (the cache is process-global).
+    func reset() {
+        teams = nil
+        schedules = nil
+        schedulesVersion = nil
+        schedulesStoredAt = nil
     }
 }
 
@@ -39,9 +69,11 @@ actor LastKnownGoodCache {
 /// but the transform is deterministic, so it only has to happen once per generation of
 /// the source blob instead of once per request.
 ///
-/// Each variant holds one entry, stamped with the hash of the source it was built from.
-/// The ingest jobs rewrite each blob wholesale, so a stamp mismatch means "regenerate";
-/// nothing needs a TTL and the cache is bounded by the number of variants.
+/// Each variant holds one entry, stamped with the content version of the source it was
+/// built from (`LastKnownGoodCache` / `SourceVersionMemo` compute it once per new blob,
+/// so a lookup here is a short string compare rather than hashing megabytes inside the
+/// actor). A version mismatch means "regenerate"; nothing needs a TTL and the cache is
+/// bounded by the number of variants.
 ///
 /// Note that the stamp is per variant, not global. Variants are built from *different*
 /// source blobs — the per-sport slices come from `latestSchedule`, the pruned live
@@ -52,18 +84,45 @@ actor DerivedPayloadCache {
     static let shared = DerivedPayloadCache()
 
     private struct Entry {
-        let sourceHash: Int
+        let sourceVersion: String
         let value: String
     }
 
     private var entries: [String: Entry] = [:]
 
-    func value(variant: String, source: String, build: (String) -> String?) -> String? {
-        let sourceHash = source.hashValue
-        if let hit = entries[variant], hit.sourceHash == sourceHash { return hit.value }
+    func value(variant: String, version: String, source: String, build: (String) -> String?) -> String? {
+        if let hit = entries[variant], hit.sourceVersion == version { return hit.value }
         guard let built = build(source) else { return nil }
-        entries[variant] = Entry(sourceHash: sourceHash, value: built)
+        entries[variant] = Entry(sourceVersion: version, value: built)
         return built
+    }
+
+    func reset() { entries = [:] }
+}
+
+/// The current schedule blob and its content version: the in-process snapshot when it
+/// is under 30s old, otherwise a Redis read (falling back to the stale snapshot when
+/// Redis fails). Shared by `/schedules` and `/sport/:sport`, so neither drags the
+/// multi-MB blob through the Redis pool per request.
+func currentSchedule(_ req: Request) async throws -> (value: String, version: String) {
+    if let snap = await LastKnownGoodCache.shared.schedulesSnapshot, snap.age < 30 {
+        return (snap.value, snap.version)
+    }
+    let key = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue
+    do {
+        guard let raw = try await req.kv.getString(key), !raw.isEmpty else {
+            throw NetworkError.invalidData
+        }
+        let version = await LastKnownGoodCache.shared.storeSchedules(raw)
+        return (raw, version)
+    } catch {
+        // Redis blip (or missing key): a stale schedule beats a 500 — the app is
+        // unusable without this endpoint.
+        if let snap = await LastKnownGoodCache.shared.schedulesSnapshot {
+            req.logger.warning("schedules: Redis read failed, serving last-known-good (age \(Int(snap.age))s) — \(String(reflecting: error))")
+            return (snap.value, snap.version)
+        }
+        throw error
     }
 }
 
@@ -306,6 +365,13 @@ func routes(_ app: Application) throws {
     app.get("ping") { _ in "pong" }
     app.on(.HEAD, "ping") { _ in HTTPStatus.ok }
 
+    // MARK: - Public health probe
+    // Unauthenticated and outside rate limiting (like /ping), but answered from a 5s
+    // in-process cache so it can't be used to load Redis. 200 when Redis is reachable,
+    // the schedule is fresh and every background job is within its staleness budget;
+    // 503 otherwise, naming the failing checks. Exposes no secrets or key names.
+    try app.register(collection: HealthController())
+
     // MARK: - Development-only routes (log streaming)
     if app.environment == .development {
         // Log Streaming WebSocket
@@ -483,45 +549,35 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     // the cached string verbatim instead of decoding it into a LiveScore and
     // re-encoding it on every request — that round-trip burned ~5s of CPU per call
     // (the dominant TTFB cost) and is pure waste since the bytes are identical.
-    routes.get("schedules") { req async throws -> String in
-        // Serve from the in-process snapshot when fresh. Every client hits this at
-        // launch and the payload is ~12MB; dragging it through the Redis pool per
-        // request was the dominant pool load (a driver of the July 2026 pool-
-        // exhaustion outage). The blob only changes minutely, so a 30s-old copy is
-        // indistinguishable to clients — live scores come from /live and the WS.
-        if let snap = await LastKnownGoodCache.shared.schedulesSnapshot, snap.age < 30 {
-            return CollegePayload.serve(snap.value, for: req, variant: "schedules")
-        }
-        let key = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue
-        do {
-            guard let raw = try await req.kv.getString(key), !raw.isEmpty else {
-                throw NetworkError.invalidData
-            }
-            await LastKnownGoodCache.shared.storeSchedules(raw)
-            return CollegePayload.serve(raw, for: req, variant: "schedules")
-        } catch {
-            // Redis blip (or missing key): a stale schedule beats a 500 — the app is
-            // unusable without this endpoint.
-            if let snap = await LastKnownGoodCache.shared.schedulesSnapshot {
-                req.logger.warning("schedules: Redis read failed, serving last-known-good (age \(Int(snap.age))s) — \(String(reflecting: error))")
-                return CollegePayload.serve(snap.value, for: req, variant: "schedules")
-            }
-            throw error
+    //
+    // Served from the in-process snapshot when fresh (see `currentSchedule`): every
+    // client hits this at launch and the payload is ~12MB; dragging it through the
+    // Redis pool per request was the dominant pool load (a driver of the July 2026
+    // pool-exhaustion outage). The blob only changes minutely, so a 30s-old copy is
+    // indistinguishable to clients — live scores come from /live and the WS.
+    //
+    // Conditional GET: strong ETag from the schedule's content hash (computed once per
+    // new schedule) plus the `cfb` variant; `If-None-Match` → 304 with no body. See
+    // `HTTPCaching` for the contract.
+    routes.get("schedules") { req async throws -> Response in
+        let schedule = try await currentSchedule(req)
+        let variant = CollegePayload.wantsCollege(req) ? "schedules:cfb=1" : "schedules"
+        let etag = HTTPCaching.etag(version: schedule.version, variant: variant)
+        return HTTPCaching.respond(req, etag: etag) {
+            CollegePayload.serve(schedule.value, for: req, variant: "schedules")
         }
     }
 
     //MARK: - Sport
     // Slicing one sport out of the schedule used to decode the entire multi-MB
     // `LiveScore` per request and re-encode the slice. The slice is a pure function of
-    // the cached blob, so the decode and encode now happen once per ingest generation.
-    // The Redis read itself is still per request, as it is for `/schedules` — this
-    // removes the CPU, not the pool traffic.
-    routes.get("sport", ":sport") { req async throws -> String in
+    // the cached blob, so the decode and encode now happen once per schedule version,
+    // and the blob itself comes from the same in-process snapshot as `/schedules`.
+    routes.get("sport", ":sport") { req async throws -> Response in
         guard let sport = SportType(rawValue: req.parameters.get("sport")!) else {
             throw Abort(.badRequest)
         }
-        let key = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue
-        guard let raw = try await req.kv.getString(key), !raw.isEmpty else {
+        guard let schedule = try? await currentSchedule(req) else {
             throw Abort(.badRequest)
         }
         // The football slice is a bare `LiveEvent`, so the `LiveScore` wire split that
@@ -533,17 +589,23 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         let variant = sport == .nfl
             ? "sport:nfl:\(college.variantKey)"
             : "sport:\(sport.rawValue)"
-        let sliced = await DerivedPayloadCache.shared.value(variant: variant, source: raw) { source in
+        let etag = HTTPCaching.etag(version: schedule.version, variant: variant)
+        // A client can only hold this tag from an earlier 200 for the same schedule
+        // version and variant, so the slice existed; answer 304 before building it.
+        if HTTPCaching.notModified(req, etag: etag) {
+            return HTTPCaching.respond(req, etag: etag) { "" }
+        }
+        let sliced = await DerivedPayloadCache.shared.value(variant: variant, version: schedule.version, source: schedule.value) { source in
             guard let data = source.data(using: .utf8),
-                  let schedule = try? JSONDecoder().decode(LiveScore.self, from: data),
-                  var event = schedule.event(for: sport) else { return nil }
+                  let decoded = try? JSONDecoder().decode(LiveScore.self, from: data),
+                  var event = decoded.event(for: sport) else { return nil }
             if sport == .nfl {
                 event.events = event.events.filter { college.admits($0, favorites: []) }
             }
             return encodeResult(res: event)
         }
         guard let sliced else { throw Abort(.badRequest) }
-        return sliced
+        return HTTPCaching.respond(req, etag: etag) { sliced }
     }
 
     //MARK: - On-demand schedule for a specific day
@@ -590,22 +652,23 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 
     //MARK: - Teams
     // Same as /schedules: serve the cached JSON string directly rather than
-    // decoding to [Team] and re-encoding it per request.
-    routes.get("teams") { req async throws -> String in
+    // decoding to [Team] and re-encoding it per request. ETag'd like /schedules; the
+    // version is memoized per blob (one memcmp per request, a hash only on change).
+    routes.get("teams") { req async throws -> Response in
         let key = RedisEndpoint.teams.getValue(isDebug: req.application.environment == .development).rawValue
+        let value: String
         do {
-            let value = (try await req.kv.getString(key)) ?? "[]"
+            value = (try await req.kv.getString(key)) ?? "[]"
             // Only cache real payloads — never let an empty result poison the
             // fallback (that would re-create the "no teams" failure mode).
             if value != "[]" { await LastKnownGoodCache.shared.storeTeams(value) }
-            return value
         } catch {
-            if let cached = await LastKnownGoodCache.shared.teamsValue {
-                req.logger.warning("teams: Redis read failed, serving last-known-good — \(String(reflecting: error))")
-                return cached
-            }
-            throw error
+            guard let cached = await LastKnownGoodCache.shared.teamsValue else { throw error }
+            req.logger.warning("teams: Redis read failed, serving last-known-good — \(String(reflecting: error))")
+            value = cached
         }
+        let version = SourceVersionMemo.shared.version(slot: "teams", source: value)
+        return HTTPCaching.respond(req, etag: HTTPCaching.etag(version: version, variant: "teams")) { value }
     }
 
     //MARK: - Play-by-Play (per-event)
@@ -765,10 +828,19 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     //MARK: - all-live-games
     // No transform at all here — the decode and re-encode produced the same bytes that
     // came out of Redis. Serve them, as `/schedules` and `/teams` already do.
-    routes.get("all-live-games") { req async throws -> String in
+    // Kept (not removed with the other legacy routes): the admin dashboard's Live Games
+    // view and the parity checker read it. No app version has ever called it.
+    routes.get("all-live-games") { req async throws -> Response in
         let key = RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: req.application.environment == .development).rawValue
-        guard let raw = try await req.kv.getString(key) else { return "null" }
-        return CollegePayload.serve(raw, for: req, variant: "all-live-games")
+        guard let raw = try await req.kv.getString(key) else {
+            return HTTPCaching.respond(req, etag: HTTPCaching.etag(version: "none", variant: "all-live-games")) { "null" }
+        }
+        let wantsCollege = CollegePayload.wantsCollege(req)
+        let version = SourceVersionMemo.shared.version(slot: "all-live-games", source: raw)
+        let etag = HTTPCaching.etag(version: version, variant: wantsCollege ? "all-live-games:cfb=1" : "all-live-games")
+        return HTTPCaching.respond(req, etag: etag) {
+            CollegePayload.serve(raw, for: req, variant: "all-live-games")
+        }
     }
 
     //MARK: DEBUG
@@ -915,9 +987,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
             var allInstalls: [(install: PushToStartInstall, env: APNSEnvironment)] = []
             for spec in envSpecs {
                 let pattern = "\(spec.prefix)*"
-                let scanned = (try? await req.application.redis.send(command: "keys", with: [pattern.convertedToRESPValue()])
-                    .array?
-                    .compactMap({ $0.string })) ?? []
+                let scanned = (try? await req.kv.scanKeys(matching: pattern)) ?? []
                 trace.append("\(spec.env.rawValue) installs=\(scanned.count)")
                 for key in scanned {
                     if let install = try? await req.kv.getJSON(key, as: PushToStartInstall.self) {
@@ -1025,18 +1095,29 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 
     //MARK: - live
     // Pruning finished games is a deterministic function of the cached blob, so it's
-    // done once per ingest generation rather than once per request.
-    routes.get("live") { req async throws -> String in
+    // done once per ingest generation rather than once per request. The blob is still
+    // read per request (it changes every few seconds); its version costs one memcmp
+    // against the previous read, and a hash only when it changed.
+    routes.get("live") { req async throws -> Response in
         let key = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: req.application.environment == .development).rawValue
-        guard let raw = try await req.kv.getString(key), !raw.isEmpty else { return "null" }
-        let pruned = await DerivedPayloadCache.shared.value(variant: "live:starting", source: raw) { source in
+        guard let raw = try await req.kv.getString(key), !raw.isEmpty else {
+            return HTTPCaching.respond(req, etag: HTTPCaching.etag(version: "none", variant: "live")) { "null" }
+        }
+        let version = SourceVersionMemo.shared.version(slot: "live", source: raw)
+        let etag = HTTPCaching.etag(version: version, variant: CollegePayload.wantsCollege(req) ? "live:cfb=1" : "live")
+        if HTTPCaching.notModified(req, etag: etag) {
+            return HTTPCaching.respond(req, etag: etag) { "" }
+        }
+        let pruned = await DerivedPayloadCache.shared.value(variant: "live:starting", version: version, source: raw) { source in
             guard let data = source.data(using: .utf8),
                   var result = try? JSONDecoder().decode(LiveScore.self, from: data) else { return nil }
             result.removeNonStarting()
             return encodeResult(res: result)
         }
-        guard let pruned else { return "null" }
-        return CollegePayload.serve(pruned, for: req, variant: "live")
+        guard let pruned else { return Response(status: .ok, body: .init(string: "null")) }
+        return HTTPCaching.respond(req, etag: etag) {
+            CollegePayload.serve(pruned, for: req, variant: "live")
+        }
     }
 
     //MARK: - liveActivity
@@ -1053,6 +1134,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         // 12h matches the iOS Live Activity max lifetime; APNSJob slides this forward
         // on every successful update so an active activity never expires mid-game.
         try await req.kv.setJSON(key, value: registration, ttl: 60 * 60 * 12)
+        await APNSRegistrationIndex.add(key, kv: req.kv)
         return .ok
     }
 
@@ -1066,71 +1148,13 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         let environment = resolveAPNSEnvironment(from: req)
         let key = (environment == .sandbox ? "debug-APNS-" : "APNS-") + body.token
         _ = try await req.kv.delete([key])
+        await APNSRegistrationIndex.remove(key, kv: req.kv)
         return .ok
     }
 
-    //MARK: - livescore/sport
-    routes.webSocket("livescore",":sport") { req, ws async in
-        let sport = SportType(rawValue: req.parameters.get("sport")!)
-        do {
-            switch sport {
-            case .basketball:
-                let basketball: LiveEvent? = try await SportsDBNetworking.callLiveScore(req: req.client, DecodeType: LiveEvent.self, scoreType: .basketball)
-                let result = LiveScore(nba: basketball)
-                let stringData = encodeResult(res: result)
-                try await ws.send(stringData)
-            case .soccer:
-                let soccer: LiveEvent? = try await SportsDBNetworking.callLiveScore(req: req.client, DecodeType: LiveEvent.self, scoreType: .soccer)
-                let result = LiveScore(soccer: soccer)
-                let stringData = encodeResult(res: result)
-                try await ws.send(stringData)
-            case .hockey:
-                let hockey: LiveEvent? = try await SportsDBNetworking.callLiveScore(req: req.client, DecodeType: LiveEvent.self, scoreType: .hockey)
-                let result = LiveScore(nhl: hockey)
-                let stringData = encodeResult(res: result)
-                try await ws.send(stringData)
-            case .nfl:
-                let mlb: LiveEvent? = try await SportsDBNetworking.callLiveScore(req: req.client, DecodeType: LiveEvent.self, scoreType: .mlb)
-                let result = LiveScore(mlb: mlb)
-                let stringData = encodeResult(res: result)
-                try await ws.send(stringData)
-            case .mlb:
-                let nfl: LiveEvent? = try await SportsDBNetworking.callLiveScore(req: req.client, DecodeType: LiveEvent.self, scoreType: .nfl)
-                let result = LiveScore(nfl: nfl)
-                let stringData = encodeResult(res: result)
-                try await ws.send(stringData)
-            case .golf:
-                let golf: LiveEvent? = try await SportsDBNetworking.callLiveScore(req: req.client, DecodeType: LiveEvent.self, scoreType: .golf)
-                let result = LiveScore(golf: golf)
-                let stringData = encodeResult(res: result)
-                try await ws.send(stringData)
-            case .tennis:
-                let tennis: LiveEvent? = try await SportsDBNetworking.callLiveScore(req: req.client, DecodeType: LiveEvent.self, scoreType: .tennis)
-                let result = LiveScore(tennis: tennis)
-                let stringData = encodeResult(res: result)
-                try await ws.send(stringData)
-            case .racing:
-                let racing: LiveEvent? = try await SportsDBNetworking.callLiveScore(req: req.client, DecodeType: LiveEvent.self, scoreType: .motorsport)
-                let result = LiveScore(racing: racing)
-                let stringData = encodeResult(res: result)
-                try await ws.send(stringData)
-            case .none:
-                req.logger.warning("livescore WebSocket called with invalid sport")
-            }
-        } catch {
-            req.logger.error("livescore WebSocket failed", metadata: [
-                "sport": "\(sport?.rawValue ?? "nil")",
-                "error": "\(error)"
-            ])
-        }
-
-    }
-
-    //MARK: - test-call
-    routes.get("test-call") { req async in
-        req.logger.info("test-call endpoint hit")
-        return "Welcome to sportscal! BG task call"
-    }
+    // Removed legacy routes (2026-10): `/livescore/:sport` (TheSportsDB pass-through
+    // WebSocket with NFL and MLB swapped), `/test-call` and `/teams-by-league`. No app,
+    // widget, watch or admin build in the repo's history (back to 2021) called them.
 
     //MARK: - World Cup
     // Knockout bracket (built by WorldCupEnrichmentJob, cached in Redis).
@@ -1252,94 +1276,109 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     }
 
     //MARK: - Standings
+    // ESPN is called at most once per league per 10 minutes (cached in Redis, debug-
+    // aware key); when ESPN fails the last good copy (kept 24h) is served instead.
     routes.get("standings", ":leagueID") { req async throws -> String in
         guard let leagueIDString = req.parameters.get("leagueID"),
               let leagueID = Int(leagueIDString),
               let league = Leagues(rawValue: leagueID) else {
             throw Abort(.badRequest)
         }
-        let standingsResponse = try await ESPNNetworking.getStandings(req: req.client, DecodeType: StandingsResponse.self, league: league)
-        let standing = Standing(id: league, standings: standingsResponse)
-        return encodeResult(res: standing)
+        let isDebug = req.application.environment == .development
+        return try await UpstreamCache.value(
+            kv: req.kv,
+            key: (isDebug ? "debug-" : "") + "Standings Cache-\(leagueID)",
+            freshFor: 10 * 60,
+            keepFor: 24 * 3600,
+            logger: req.logger
+        ) {
+            let standingsResponse = try await ESPNNetworking.getStandings(req: req.client, DecodeType: StandingsResponse.self, league: league)
+            return encodeResult(res: Standing(id: league, standings: standingsResponse))
+        }
     }
 
     //MARK: - Standings History
+    // The iOS standings view still calls this, but `StandingsSnapshotJob` is disabled in
+    // configure.swift, so nothing writes snapshots and the answer is normally `[]`. Kept
+    // correct and cheap: one MGET for the whole window instead of up to 90 sequential GETs.
     routes.get("standings", ":leagueID", "history") { req async throws -> String in
         guard let leagueIDString = req.parameters.get("leagueID"),
               let leagueID = Int(leagueIDString),
               let _ = Leagues(rawValue: leagueID) else {
             throw Abort(.badRequest)
         }
-        let days = (try? req.query.get(Int.self, at: "days")) ?? 30
+        let days = min(max((try? req.query.get(Int.self, at: "days")) ?? 30, 1), 90)
         let isDebug = req.application.environment == .development
 
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = TimeZone(identifier: "UTC")
-
-        var snapshots: [StandingsSnapshot] = []
         let today = Date()
-
-        for dayOffset in 0..<min(days, 90) {
-            guard let date = Calendar.current.date(byAdding: .day, value: -dayOffset, to: today) else { continue }
-            let dateStr = formatter.string(from: date)
-            let key: RedisKey = isDebug
-                ? "debug-Standings-\(leagueID)-\(dateStr)"
-                : "Standings-\(leagueID)-\(dateStr)"
-
-            if let json = try await req.application.redis.get(key, as: String.self).get(),
-               let data = json.data(using: .utf8),
-               let snapshot = try? JSONDecoder().decode(StandingsSnapshot.self, from: data) {
-                snapshots.append(snapshot)
-            }
+        let keys: [String] = (0..<days).compactMap { offset in
+            guard let date = Calendar.current.date(byAdding: .day, value: -offset, to: today) else { return nil }
+            return (isDebug ? "debug-" : "") + "Standings-\(leagueID)-\(formatter.string(from: date))"
         }
 
+        let raws = (try? await req.kv.mget(keys)) ?? []
+        var snapshots: [StandingsSnapshot] = raws.compactMap { raw in
+            guard let data = raw?.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(StandingsSnapshot.self, from: data)
+        }
+        guard !snapshots.isEmpty else { return "[]" }
         snapshots.sort { $0.date < $1.date }
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(snapshots)
-        return String(data: data, encoding: .utf8) ?? "[]"
+        return encodeResult(res: snapshots)
     }
 
     //MARK: - Team Stats
+    // Same ESPN standings call as /standings, reshaped; cached the same way.
     routes.get("stats", ":leagueID", "teams") { req async throws -> String in
         guard let leagueIDString = req.parameters.get("leagueID"),
               let leagueID = Int(leagueIDString),
               let league = Leagues(rawValue: leagueID) else {
             throw Abort(.badRequest)
         }
-        let standingsResponse = try await ESPNNetworking.getStandings(
-            req: req.client,
-            DecodeType: StandingsResponse.self,
-            league: league
-        )
+        let isDebug = req.application.environment == .development
+        return try await UpstreamCache.value(
+            kv: req.kv,
+            key: (isDebug ? "debug-" : "") + "Team Stats Cache-\(leagueID)",
+            freshFor: 10 * 60,
+            keepFor: 24 * 3600,
+            logger: req.logger
+        ) {
+            let standingsResponse = try await ESPNNetworking.getStandings(
+                req: req.client,
+                DecodeType: StandingsResponse.self,
+                league: league
+            )
 
-        // Reshape standings entries into team stat objects
-        var teamStats: [[String: Any]] = []
-        if let children = standingsResponse.children {
-            for child in children {
-                guard let entries = child.standings?.entries else { continue }
-                for entry in entries {
-                    var statDict: [String: String] = [:]
-                    for stat in entry.stats ?? [] {
-                        if let name = stat.name, let value = stat.displayValue {
-                            statDict[name] = value
+            // Reshape standings entries into team stat objects
+            var teamStats: [[String: Any]] = []
+            if let children = standingsResponse.children {
+                for child in children {
+                    guard let entries = child.standings?.entries else { continue }
+                    for entry in entries {
+                        var statDict: [String: String] = [:]
+                        for stat in entry.stats ?? [] {
+                            if let name = stat.name, let value = stat.displayValue {
+                                statDict[name] = value
+                            }
                         }
+                        let teamObj: [String: Any] = [
+                            "teamName": entry.team?.displayName ?? "Unknown",
+                            "teamAbbreviation": entry.team?.abbreviation ?? "",
+                            "teamColor": entry.team?.color ?? "",
+                            "teamLogo": entry.team?.logos?.first?.href ?? "",
+                            "division": child.name ?? "",
+                            "stats": statDict
+                        ]
+                        teamStats.append(teamObj)
                     }
-                    let teamObj: [String: Any] = [
-                        "teamName": entry.team?.displayName ?? "Unknown",
-                        "teamAbbreviation": entry.team?.abbreviation ?? "",
-                        "teamColor": entry.team?.color ?? "",
-                        "teamLogo": entry.team?.logos?.first?.href ?? "",
-                        "division": child.name ?? "",
-                        "stats": statDict
-                    ]
-                    teamStats.append(teamObj)
                 }
             }
-        }
 
-        let data = try JSONSerialization.data(withJSONObject: teamStats)
-        return String(data: data, encoding: .utf8) ?? "[]"
+            let data = try JSONSerialization.data(withJSONObject: teamStats)
+            return String(data: data, encoding: .utf8) ?? "[]"
+        }
     }
 
     //MARK: - Player Stats (Stat Leaders)
@@ -1351,7 +1390,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         }
 
         let isDebug = req.application.environment == .development
-        let cacheKey = "PlayerStats-\(leagueID)"
+        let cacheKey = (isDebug ? "debug-" : "") + "PlayerStats-\(leagueID)"
 
         // Check Redis cache first (24h TTL)
         if let cached = try? await req.application.redis.get(RedisKey(cacheKey), as: String.self).get() {
@@ -1511,12 +1550,6 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         let deleted = (try? await req.kv.delete(keysToDelete)) ?? 0
         req.logger.info("Deregistered push-to-start install \(installID.prefix(8))... [\(environment.rawValue)] — removed \(deleted) keys (\(sentKeys.count) sent-markers)")
         return .ok
-    }
-
-    //MARK: - teams-by-league
-    routes.get("teams-by-league") { req async throws -> String in
-        let result = try await req.application.redis.get(RedisEndpoint.ESPN.teams.getValue(isDebug: req.application.environment == .development), asJSON: [Leagues: TeamResponse].self)
-        return encodeResult(res: result)
     }
 
     //MARK: - Widget Schedule (lightweight combined endpoint)

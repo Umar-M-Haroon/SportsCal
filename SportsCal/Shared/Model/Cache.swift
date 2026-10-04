@@ -28,6 +28,27 @@ final class Cache<Key: Hashable, Value> {
     func value(for key: Key) -> Value? {
         entry(forKey: key)?.value
     }
+
+    /// Reads an entry even when it has outlived `entryLifetime`.
+    ///
+    /// `value(for:)` treats an expired entry as missing (and evicts it), which is right
+    /// for "is this fresh enough to skip a fetch?" but wrong for "is there anything to
+    /// show on launch?": an expired schedule snapshot from yesterday is still far closer
+    /// to the truth than the weeks-old bundled baseline the caller would otherwise fall
+    /// back to. This never evicts, so the caller can show the stale value and let the
+    /// next fetch overwrite it.
+    ///
+    /// - Parameter key: the entry's key.
+    /// - Returns: the value, when it was written (`expirationDate - entryLifetime` at
+    ///   write time), and whether it has expired; nil when there is no entry at all.
+    func staleValue(for key: Key) -> (value: Value, storedAt: Date, isExpired: Bool)? {
+        guard let entry = wrapped.object(forKey: WrappedKey(key)) else { return nil }
+        return (
+            entry.value,
+            entry.expirationDate.addingTimeInterval(-entryLifetime),
+            dateProvider() >= entry.expirationDate
+        )
+    }
     
     func removeValue(for key: Key) {
         wrapped.removeObject(forKey: WrappedKey(key))
@@ -109,7 +130,10 @@ extension Cache where Key: Codable, Value: Codable {
         guard let folder = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
         let fileURL = folder.appendingPathComponent(name + ".cache")
         let data = try JSONEncoder().encode(self)
-        try data.write(to: fileURL)
+        // Atomic: write to a temp file and rename, so a crash or kill mid-write (this
+        // can be a multi-MB snapshot) never leaves a truncated cache that fails to
+        // decode on the next launch.
+        try data.write(to: fileURL, options: .atomic)
     }
 }
 
@@ -125,12 +149,16 @@ extension Cache where Key: Codable & Sendable, Value: Codable & Sendable {
     ///
     /// Fire-and-forget: a failed cache write is recoverable (the next fetch rewrites
     /// it), so errors are logged rather than propagated.
-    static func writeToDiskDetached(value: Value, for key: Key, name: String, entryLifetime: TimeInterval = 12 * 60 * 60) {
+    ///
+    /// - Parameter onSuccess: runs on the detached task after the file has been written,
+    ///   for bookkeeping that must only exist alongside the data (the schedule ETag).
+    static func writeToDiskDetached(value: Value, for key: Key, name: String, entryLifetime: TimeInterval = 12 * 60 * 60, onSuccess: (@Sendable () -> Void)? = nil) {
         Task.detached(priority: .utility) {
             do {
                 let cache = Cache<Key, Value>(entryLifetime: entryLifetime)
                 cache.insert(value, for: key)
                 try cache.saveToDisk(with: name)
+                onSuccess?()
             } catch {
                 AppLogger.viewModel.error("Detached cache write failed for \(name): \(error.localizedDescription)")
             }

@@ -124,21 +124,18 @@ export interface RedisHealth {
 export interface JobStatus {
   name: string
   schedule: string
+  /** ISO-8601 time of the job's last recorded success (JobHeartbeat). */
   lastRun?: string
+  /** 'ok' | 'stale' | 'unknown' (no heartbeat yet) | 'untracked' (job records none) */
   status: string
+  /** Staleness budget in seconds; absent for untracked jobs. */
+  maxAgeSeconds?: number
 }
 
 export interface HealthResponse {
   status: string
   redis: RedisHealth
   jobs: JobStatus[]
-  timestamp: string
-}
-
-export interface MetricsResponse {
-  totalRequests: number
-  averageResponseTime: number
-  errorRate: number
   timestamp: string
 }
 

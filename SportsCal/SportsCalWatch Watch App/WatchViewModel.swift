@@ -18,7 +18,10 @@ final class WatchViewModel {
     var liveGames: [Game] = []
     var teams: [Team] = []
     var isLoading = false
+    /// When the data on screen was last fetched successfully (possibly in a previous launch).
     var lastUpdated: Date?
+    /// The most recent schedule or live fetch failed; the last good data is still shown.
+    var lastFetchFailed = false
 
     // Preferences synced from iPhone via WatchConnectivity
     var enabledSports: Set<SportType> = Set(SportType.allCases)
@@ -26,10 +29,26 @@ final class WatchViewModel {
     var hiddenCompetitions: Set<String> = []
 
     // Polling
-    let pollTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     private var previousScores: [String: (home: String, away: String)] = [:]
+    private var consecutiveFailures = 0
+    private var didInitialLoad = false
+    private var scheduleTask: Task<Void, Never>?
+    private var liveTask: Task<Void, Never>?
+    private var lastScheduleAttempt: Date?
+    private var lastLiveAttempt: Date?
 
     var hasLiveGames: Bool { !liveGames.isEmpty }
+
+    /// The data on screen is older than `WatchGameLogic.staleAfter`.
+    var isStale: Bool {
+        guard let lastUpdated else { return false }
+        return Date().timeIntervalSince(lastUpdated) > WatchGameLogic.staleAfter
+    }
+
+    /// Seconds until the next foreground poll (see `WatchGameLogic.pollInterval`).
+    var pollInterval: TimeInterval {
+        WatchGameLogic.pollInterval(hasLiveGames: hasLiveGames, consecutiveFailures: consecutiveFailures)
+    }
 
     // MARK: - Filtered Views
 
@@ -80,17 +99,29 @@ final class WatchViewModel {
     }
 
     func isLiveGame(_ game: Game) -> Bool {
-        guard let status = game.strStatus?.lowercased() else { return false }
-        return !status.isEmpty &&
-               status != "ft" &&
-               status != "aet" &&
-               status != "not started" &&
-               status != "ns" &&
-               game.intHomeScore != nil &&
-               game.intAwayScore != nil
+        WatchGameLogic.isLive(game)
+    }
+
+    /// Sport toggles, hidden competitions, then per-sport favorites-only / coverage.
+    func filterForDisplay(_ games: [Game]) -> [Game] {
+        let visible = WatchGameLogic.visibleGames(
+            games, enabledSports: enabledSports, hiddenCompetitions: hiddenCompetitions
+        )
+        return applyPerSportFavoritesFilter(visible)
     }
 
     // MARK: - Data Loading
+
+    /// Called each time the scene becomes active. The first call loads preferences and the
+    /// cache before fetching; later calls refresh (throttled), so launch fetches once.
+    func becameActive() async {
+        if !didInitialLoad {
+            didInitialLoad = true
+            await initialLoad()
+        } else {
+            await refreshOnWake()
+        }
+    }
 
     func initialLoad() async {
         loadPreferencesFromLocal()
@@ -100,8 +131,10 @@ final class WatchViewModel {
 
     func refreshOnWake() async {
         if hasLiveGames {
+            if let last = lastLiveAttempt, Date().timeIntervalSince(last) < 10 { return }
             await fetchLiveScores()
         } else {
+            if let last = lastScheduleAttempt, Date().timeIntervalSince(last) < 30 { return }
             await fetchSchedule()
         }
     }
@@ -116,54 +149,98 @@ final class WatchViewModel {
 
     private func shouldRefreshSchedule() -> Bool {
         guard let last = lastUpdated else { return true }
-        return Date().timeIntervalSince(last) > 300 // 5 minutes
+        // Retry sooner after a failure (the poll interval already backs off).
+        return lastFetchFailed || Date().timeIntervalSince(last) > 300 // 5 minutes
     }
 
-    func fetchSchedule() async {
+    /// Fetches the schedule. A call made while a fetch is in flight joins it rather than
+    /// starting another; `force` (preferences changed) cancels it and starts over.
+    func fetchSchedule(force: Bool = false) async {
+        if let running = scheduleTask {
+            if force {
+                running.cancel()
+            } else {
+                await running.value
+                return
+            }
+        }
+        let task = Task { await performScheduleFetch() }
+        scheduleTask = task
+        await task.value
+        if scheduleTask == task { scheduleTask = nil }
+    }
+
+    private func performScheduleFetch() async {
+        let sportTypes = Array(enabledSports)
+        guard !sportTypes.isEmpty else { return }
+        lastScheduleAttempt = Date()
         isLoading = true
         defer { isLoading = false }
 
         do {
-            let sportTypes = Array(enabledSports)
-            guard !sportTypes.isEmpty else { return }
-
             let (fetchedGames, fetchedTeams) = try await NetworkHandler.getWidgetScheduleFor(
                 sports: sportTypes,
                 limit: 30,
                 favorites: Array(favoriteTeams)
             )
+            try Task.checkCancellation()
 
-            let filteredGames = applyPerSportFavoritesFilter(fetchedGames)
-            await MainActor.run {
-                self.games = filteredGames
-                self.teams = fetchedTeams
-                self.liveGames = filteredGames.filter { self.isLiveGame($0) }
-                self.lastUpdated = Date()
-            }
+            let filteredGames = filterForDisplay(fetchedGames)
+            games = filteredGames
+            teams = fetchedTeams
+            liveGames = filteredGames.filter { isLiveGame($0) }
+            lastUpdated = Date()
+            recordSuccess()
             cacheData(games: filteredGames, teams: fetchedTeams)
         } catch {
-            // Silently fail — cached data remains visible
+            recordFailure(error)
         }
     }
 
     func fetchLiveScores() async {
+        if let running = liveTask {
+            await running.value
+            return
+        }
+        let task = Task { await performLiveFetch() }
+        liveTask = task
+        await task.value
+        liveTask = nil
+    }
+
+    /// `/live` has no sport filter or delta form over HTTP (`frames=v2` is WebSocket-only),
+    /// so this is still the full pruned snapshot; the savings come from polling it only
+    /// while the app is active and a visible game is live, and backing off on failure.
+    private func performLiveFetch() async {
+        lastLiveAttempt = Date()
         do {
             let liveScore = try await NetworkHandler.getLiveSnapshot()
             let allLive = collectAllGames(from: liveScore)
 
-            await MainActor.run {
-                // Detect score changes for haptics
-                for game in allLive {
-                    checkForScoreChange(game)
-                }
-
-                // Merge live data into existing games
-                self.liveGames = self.applyPerSportFavoritesFilter(allLive.filter { self.isLiveGame($0) })
-                mergeLiveIntoSchedule(allLive)
+            // Detect score changes for haptics
+            for game in allLive {
+                checkForScoreChange(game)
             }
+
+            liveGames = filterForDisplay(allLive.filter { isLiveGame($0) })
+            games = WatchGameLogic.mergeLive(allLive, into: games)
+            lastUpdated = Date()
+            recordSuccess()
         } catch {
-            // Silently fail — keep existing data
+            recordFailure(error)
         }
+    }
+
+    private func recordSuccess() {
+        lastFetchFailed = false
+        consecutiveFailures = 0
+    }
+
+    private func recordFailure(_ error: Error) {
+        // A superseded (cancelled) fetch isn't a failure.
+        if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
+        lastFetchFailed = true
+        consecutiveFailures += 1
     }
 
     private func collectAllGames(from liveScore: LiveScore) -> [Game] {
@@ -201,16 +278,6 @@ final class WatchViewModel {
         previousScores[key] = (home: homeScore, away: awayScore)
     }
 
-    private func mergeLiveIntoSchedule(_ liveGames: [Game]) {
-        var updated = games
-        for live in liveGames {
-            if let idx = updated.firstIndex(where: { $0.idEvent == live.idEvent }) {
-                updated[idx] = live
-            }
-        }
-        games = updated
-    }
-
     // MARK: - Local Caching
 
     private static var cacheURL: URL? {
@@ -231,13 +298,13 @@ final class WatchViewModel {
               let data = try? Data(contentsOf: url),
               let snapshot = try? JSONDecoder().decode(WatchCacheSnapshot.self, from: data) else { return }
 
-        // Use cache if less than 2 hours old
-        let age = Date().timeIntervalSince(snapshot.updatedAt)
-        guard age < 7200 else { return }
-
-        games = snapshot.games
+        // Always show the cache rather than a blank screen; `isStale` marks it as old.
+        // Stale "live" games are surely over, so they don't drive the live tab or polling.
+        let isFresh = Date().timeIntervalSince(snapshot.updatedAt) < WatchGameLogic.staleAfter
+        let visible = filterForDisplay(snapshot.games)
+        games = visible
         teams = snapshot.teams
-        liveGames = snapshot.games.filter { isLiveGame($0) }
+        liveGames = isFresh ? visible.filter { isLiveGame($0) } : []
         lastUpdated = snapshot.updatedAt
     }
 
@@ -279,7 +346,7 @@ final class WatchViewModel {
             enabledSports.remove(sport)
         }
         saveSportPrefs()
-        Task { await fetchSchedule() }
+        Task { await fetchSchedule(force: true) }
     }
 
     func removeFavorite(_ team: String) {

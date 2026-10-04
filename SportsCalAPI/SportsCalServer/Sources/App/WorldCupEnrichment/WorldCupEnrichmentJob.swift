@@ -41,6 +41,7 @@ struct WorldCupEnrichmentJob: AsyncScheduledJob {
                 Self.logger.info("World Cup enrichment still fresh, skipping", metadata: [
                     "minutesSinceUpdate": "\(String(format: "%.1f", secondsSince / 60))"
                 ])
+                await JobHeartbeat.recordSuccess(.worldCupEnrichment, app: context.application, isDebug: isDebug)
                 return
             }
         }
@@ -94,20 +95,27 @@ struct WorldCupEnrichmentJob: AsyncScheduledJob {
         if !enrichment.isEmpty {
             try await redis.set(enrichmentKey, toJSON: enrichment)
         }
-        // Only stamp lastUpdate when something real was written, so a degraded run retries
-        // next tick instead of being silenced for the staleness window.
-        if wrotePrimary {
-            try await redis.set(lastUpdateKey, toJSON: Date())
-        }
-
         // Attach to the main schedule so the client picks it up via LiveScore.worldCup.
+        // Re-read → apply → write under the shared schedule lock.
+        var outcome = ScheduleStore.Outcome.unchanged
         if !enrichment.isEmpty {
-            let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
-            if var schedule = try? await redis.get(scheduleKey, asJSON: LiveScore.self) {
+            outcome = try await ScheduleStore.update(
+                app: context.application, isDebug: isDebug, logger: Self.logger, writer: "WorldCupEnrichmentJob"
+            ) { schedule in
+                guard var schedule else { return nil }
                 schedule.worldCup = enrichment
-                try await redis.set(scheduleKey, toJSON: schedule)
+                return schedule
+            }
+            if outcome == .written {
                 Self.logger.info("World Cup enrichment applied to schedule")
             }
+        }
+
+        // Only stamp lastUpdate when something real was written, so a degraded run retries
+        // next tick instead of being silenced for the staleness window (likewise when the
+        // schedule write lock was busy).
+        if wrotePrimary, outcome != .lockTimeout {
+            try await redis.set(lastUpdateKey, toJSON: Date())
         }
 
         Self.logger.info("World Cup enrichment complete", metadata: [
@@ -116,6 +124,7 @@ struct WorldCupEnrichmentJob: AsyncScheduledJob {
             "thirdPlace": "\(bracket.thirdPlacePlayoff != nil)",
             "scorers": "\(scorers.count)"
         ])
+        await JobHeartbeat.recordSuccess(.worldCupEnrichment, app: context.application, isDebug: isDebug)
     }
 
     // MARK: - Bracket building

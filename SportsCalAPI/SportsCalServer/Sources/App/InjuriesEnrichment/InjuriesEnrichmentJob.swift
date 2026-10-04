@@ -36,6 +36,7 @@ struct InjuriesEnrichmentJob: AsyncScheduledJob {
                 Self.logger.info("Injuries still fresh, skipping", metadata: [
                     "hoursSinceUpdate": "\(String(format: "%.1f", hoursSince))"
                 ])
+                await JobHeartbeat.recordSuccess(.injuries, app: context.application, isDebug: isDebug)
                 return
             }
         }
@@ -60,19 +61,29 @@ struct InjuriesEnrichmentJob: AsyncScheduledJob {
 
         let injuriesKey = RedisEndpoint.ESPN.injuries.getValue(isDebug: isDebug)
         try await redis.set(injuriesKey, toJSON: injuriesByTeamName)
-        try await redis.set(lastUpdateKey, toJSON: Date())
 
-        let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
-        if var schedule = try? await redis.get(scheduleKey, asJSON: LiveScore.self) {
+        // Re-read → apply → write under the shared schedule lock, so a concurrent
+        // ESPN merge or rebuild isn't overwritten with the copy this job would have read.
+        let outcome = try await ScheduleStore.update(
+            app: context.application, isDebug: isDebug, logger: Self.logger, writer: "InjuriesEnrichmentJob"
+        ) { schedule in
+            guard var schedule else { return nil }
             Self.applyInjuries(to: &schedule, lookup: injuriesByTeamName)
-            try await redis.set(scheduleKey, toJSON: schedule)
+            return schedule
+        }
+        if outcome == .written {
             Self.logger.info("Injuries applied to schedule")
         }
+        // Not stamped when the write lock was busy, so the next hourly run retries.
+        // (The injuries cache above is still re-applied by every schedule rebuild.)
+        guard outcome != .lockTimeout else { return }
+        try await redis.set(lastUpdateKey, toJSON: Date())
 
         Self.logger.info("Injuries enrichment complete", metadata: [
             "teams": "\(injuriesByTeamName.count)",
             "reports": "\(injuriesByTeamName.values.reduce(0) { $0 + $1.count })"
         ])
+        await JobHeartbeat.recordSuccess(.injuries, app: context.application, isDebug: isDebug)
     }
 
     /// Attaches cached injuries to the team sports in a LiveScore. Callers can use

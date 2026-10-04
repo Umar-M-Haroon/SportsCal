@@ -23,6 +23,9 @@ enum PlayResolver {
         sport: String?,
         league: String?
     ) async throws -> CachedPlays? {
+        // The ID ends up in a Redis key and (tier 3) an ESPN URL. Event IDs are short
+        // alphanumerics on both TheSportsDB and ESPN; reject anything else outright.
+        guard isValidEventID(eventID) else { return nil }
         let isDebug = req.application.environment == .development
         let key = RedisEndpoint.ESPN.playByPlay(eventID).getValue(isDebug: isDebug)
 
@@ -43,21 +46,23 @@ enum PlayResolver {
             return archived
         }
 
-        // Tier 3: on-demand ESPN fetch. Resolve TSDB → ESPN via the enrichment map,
-        // else fall back to a caller-supplied sport/league (eventID must already be ESPN).
-        let mapKey = RedisEndpoint.ESPN.espnEventMap.getValue(isDebug: isDebug)
-        let eventMap: [String: ESPNEventMapping] = (try? await req.kv.getJSON(
-            mapKey.rawValue, as: [String: ESPNEventMapping].self
-        )) ?? [:]
+        // Tier 3: on-demand ESPN fetch. A recent miss (pre-game event with no summary yet,
+        // or ESPN failing) is remembered briefly so every request for it doesn't refetch.
+        let missKey = RedisEndpoint.ESPN.playByPlayMiss(eventID).getValue(isDebug: isDebug).rawValue
+        if (try? await req.kv.exists(missKey)) == true {
+            return hot
+        }
 
+        // Resolve TSDB → ESPN via the enrichment map, else fall back to a caller-supplied
+        // sport/league (eventID must already be ESPN) — accepted only for known ESPN paths.
         let resolvedESPNID: String
         let resolvedSport: String
         let resolvedLeague: String
-        if let mapping = eventMap[eventID] {
+        if let mapping = await ESPNEventMapStore.lookup(eventID: eventID, kv: req.kv, isDebug: isDebug) {
             resolvedESPNID = mapping.espnEventID
             resolvedSport = mapping.sport
             resolvedLeague = mapping.league
-        } else if let sport, let league, !sport.isEmpty, !league.isEmpty {
+        } else if let sport, let league, isKnownESPNPath(sport: sport, league: league) {
             resolvedESPNID = eventID
             resolvedSport = sport
             resolvedLeague = league
@@ -76,8 +81,44 @@ enum PlayResolver {
                 espnID: resolvedESPNID, sport: resolvedSport, league: resolvedLeague
             )
         }
+        if fetched == nil {
+            try? await req.kv.setString(missKey, value: "1", ttl: missTTL)
+        }
         // A stale copy beats a 404 while ESPN is unreachable or has nothing yet.
         return fetched ?? hot
+    }
+
+    /// How long an on-demand miss is remembered before ESPN is asked again.
+    static let missTTL: TimeInterval = 3 * 60
+
+    /// Short alphanumeric IDs only (`-`/`_` allowed), so a request can't smuggle path or
+    /// query syntax into the ESPN URL or arbitrary text into a Redis key.
+    static func isValidEventID(_ eventID: String) -> Bool {
+        guard (1...64).contains(eventID.count) else { return false }
+        return eventID.unicodeScalars.allSatisfy { scalar in
+            (scalar.isASCII && CharacterSet.alphanumerics.contains(scalar)) || scalar == "-" || scalar == "_"
+        }
+    }
+
+    /// Whether a caller-supplied `sport`/`league` pair is one ESPN path we serve: the
+    /// league must be a known ESPN slug and the sport must be that league's ESPN sport.
+    static func isKnownESPNPath(sport: String, league: String) -> Bool {
+        guard let known = Leagues.allCases.first(where: { $0.espnSlug == league }) else { return false }
+        return espnSportPath(for: SportType(league: known)) == sport
+    }
+
+    /// The sport segment of ESPN's `/sports/{sport}/{league}` URLs.
+    static func espnSportPath(for sport: SportType) -> String {
+        switch sport {
+        case .basketball: return "basketball"
+        case .nfl: return "football"
+        case .hockey: return "hockey"
+        case .mlb: return "baseball"
+        case .soccer: return "soccer"
+        case .golf: return "golf"
+        case .tennis: return "tennis"
+        case .racing: return "racing"
+        }
     }
 
     /// Fetches a summary from ESPN and writes it under the client-facing key. Nil when
@@ -108,8 +149,10 @@ enum PlayResolver {
                 winProbability: extras.winProbability,
                 teamStats: extras.teamStats
             )
-            // Write under the client-facing key so subsequent requests hit cache.
-            try? await app.redis.set(key, toJSON: payload)
+            // Write under the client-facing key so subsequent requests hit cache. TTL'd:
+            // nothing else ever deletes an on-demand key (the archive path only clears
+            // keys for games the job itself tracked).
+            try? await app.redis.setex(key, toJSON: payload, expirationInSeconds: CachedPlays.liveTTLSeconds)
             app.logger.info("PBP on-demand fetch succeeded for \(eventID) → ESPN \(espnID) (\(plays.count) plays)")
             return payload
         } catch {
@@ -133,4 +176,11 @@ actor OnDemandPlayFetches {
         inFlight[eventID] = nil
         return result
     }
+}
+
+extension CachedPlays {
+    /// TTL for non-final play-by-play keys in Redis. Live keys are rewritten every tick
+    /// while a game is on the board; this only reaps games that never reach the
+    /// final → archive path (postponed, dropped from the board, on-demand fetches).
+    static let liveTTLSeconds = 48 * 60 * 60
 }

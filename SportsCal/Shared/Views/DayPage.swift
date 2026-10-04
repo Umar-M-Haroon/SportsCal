@@ -530,13 +530,14 @@ struct DayPage: View {
     /// Soonest live-or-upcoming (or most-recent) game involving a team — used to
     /// land on a useful day when a team is picked in the sidebar.
     private func nextGame(forTeamID id: String) -> Game? {
-        let cutoff = calendar.date(byAdding: .hour, value: -4, to: Date()) ?? Date()
-        let games = (viewModel.totalGames ?? []).filter { $0.idHomeTeam == id || $0.idAwayTeam == id }
-        let upcoming = games
-            .filter { ($0.standardDate ?? .distantPast) >= cutoff }
-            .min { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
+        // The view model memoizes the same "soonest game that kicked off no more than
+        // 4h ago" lookup for every team in one pass.
+        if let upcoming = viewModel.nextGame(forTeamID: id) { return upcoming }
         // Fall back to the most recent past game if the team has nothing upcoming.
-        return upcoming ?? games.max { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
+        return (viewModel.totalGames ?? [])
+            .lazy
+            .filter { $0.idHomeTeam == id || $0.idAwayTeam == id }
+            .max { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
     }
 
     #if os(macOS)
@@ -1369,9 +1370,7 @@ struct DayPage: View {
     }
 
     private var formattedSelectedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d"
-        return formatter.string(from: selectedDate)
+        DateFormatters.formatter(for: "EEEE, MMM d").string(from: selectedDate)
     }
 
     private func nextGameHint(sport: SportType, date: Date) -> some View {

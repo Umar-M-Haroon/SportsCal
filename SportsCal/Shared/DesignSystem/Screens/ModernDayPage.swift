@@ -193,7 +193,11 @@ private struct ModernDayContent: View {
     /// `filteredGames`) so past games of today still appear as Finals.
     /// `filteredGames` would silently drop them via `hidePastEvents`.
     /// Sport / hidden-competition prefs are applied inline.
-    private var dayGames: [Game] {
+    ///
+    /// This scans all of `totalGames` (~45k), and it re-runs on every live tick for
+    /// each page of the paged TabView, so `body` calls it exactly once into a
+    /// `DaySnapshot` and everything downstream reads that.
+    private func computeDayGames() -> [Game] {
         // Touch the tracked preferenceVersion so this view re-evaluates when
         // hiddenCompetitions / favoritesOnlyCompetitions change — those AppStorage
         // properties are @ObservationIgnored and don't drive Observation on their own.
@@ -277,13 +281,15 @@ private struct ModernDayContent: View {
     ///      flag lag should not surface as "SOON" hours after kickoff)
     private enum GameState { case live, final, pre }
 
-    private func gameState(_ game: Game) -> GameState {
+    /// `liveIDs` lets callers that classify many games (sorts, snapshot building)
+    /// build the live-ID set once instead of once per game.
+    private func gameState(_ game: Game, liveIDs: Set<String>? = nil) -> GameState {
         let s = (game.strStatus ?? "").lowercased()
         let p = (game.strProgress ?? "").lowercased()
         if s == "pre" || s == "ns" || s == "not started" || p == "pre" {
             return .pre
         }
-        let liveIDs = Set(viewModel.liveEvents.map(\.id))
+        let liveIDs = liveIDs ?? currentLiveIDs
         if liveIDs.contains(game.id) { return .live }
         if game.hasDoneStatus { return .final }
         guard let d = game.standardDate else { return .pre }
@@ -294,54 +300,52 @@ private struct ModernDayContent: View {
         return .final
     }
 
-    /// Live games on the selected date. Today only — past/future days
-    /// don't have live state.
-    private var liveGames: [Game] {
-        guard isToday else { return [] }
-        return dayGames.filter { gameState($0) == .live }
+    private var currentLiveIDs: Set<String> { Set(viewModel.liveEvents.map(\.id)) }
+
+    /// Everything one body pass derives from the day's games, computed once.
+    private struct DaySnapshot {
+        /// All visible games on the selected date (sorted by start).
+        let games: [Game]
+        let liveIDs: Set<String>
+        /// Live games on the selected date. Today only — past/future days
+        /// don't have live state.
+        let live: [Game]
+        let hasUpcoming: Bool
     }
 
-    private var upcomingGames: [Game] {
-        dayGames
-            .filter { gameState($0) == .pre }
-            .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
-    }
-
-    private var finalGames: [Game] {
-        dayGames
-            .filter { gameState($0) == .final }
-            .sorted { ($0.standardDate ?? .distantPast) > ($1.standardDate ?? .distantPast) }
-    }
-
-    private var favoriteGames: [Game] {
-        dayGames.filter { favorites.contains($0) }
+    private func makeSnapshot() -> DaySnapshot {
+        let games = computeDayGames()
+        let liveIDs = currentLiveIDs
+        let live = isToday ? games.filter { gameState($0, liveIDs: liveIDs) == .live } : []
+        let hasUpcoming = games.contains { gameState($0, liveIDs: liveIDs) == .pre }
+        return DaySnapshot(games: games, liveIDs: liveIDs, live: live, hasUpcoming: hasUpcoming)
     }
 
     // MARK: - Headlines
 
-    private var eyebrowText: String {
+    private func eyebrowText(_ day: DaySnapshot) -> String {
         let datePart = Self.eyebrowFormatter.string(from: selectedDate).uppercased()
         if isToday {
-            if liveGames.count >= 8 { return "\(datePart) · BUSY DAY" }
+            if day.live.count >= 8 { return "\(datePart) · BUSY DAY" }
             return "\(datePart) · TODAY"
         }
         let dir = calendar.compare(selectedDate, to: Date(), toGranularity: .day)
         return "\(datePart) · \(dir == .orderedAscending ? "PAST" : "UPCOMING")"
     }
 
-    private var headlineText: String {
+    private func headlineText(_ day: DaySnapshot) -> String {
         if isToday {
-            switch liveGames.count {
+            switch day.live.count {
             case 0:
-                if dayGames.isEmpty { return "nothing on today" }
-                return upcomingGames.isEmpty ? "all wrapped up" : "quiet night"
+                if day.games.isEmpty { return "nothing on today" }
+                return day.hasUpcoming ? "quiet night" : "all wrapped up"
             case 1: return "1 live"
             case let n where n < 4: return "\(n) live"
             case let n where n < 8: return "\(n) live, busy"
-            default: return "\(liveGames.count) live, all yours"
+            default: return "\(day.live.count) live, all yours"
             }
         }
-        let count = dayGames.count
+        let count = day.games.count
         if count == 0 { return "nothing scheduled" }
         let dir = calendar.compare(selectedDate, to: Date(), toGranularity: .day)
         if dir == .orderedAscending {
@@ -355,25 +359,26 @@ private struct ModernDayContent: View {
     var body: some View {
         // No background fill here — the parent `ModernDayPage` owns the
         // background so swipes between days don't flash through to white.
+        let day = makeSnapshot()
         VStack(spacing: 0) {
-            header
+            header(day)
                 .padding(.horizontal, .appSpace4)
                 .padding(.top, .appSpace2)
                 .padding(.bottom, .appSpace3)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: .appSpace4) {
-                    switch dayState {
+                    switch dayState(day) {
                     case .loading:       loadingBody
                     case .failed:        failedBody
                     case .allSportsOff:  allSportsOffBody
                     case .empty:
                         // Quiet day, but the tournament hero still leads —
                         // it carries the next kickoff and the group tables.
-                        worldCupHeroSection
+                        worldCupHeroSection(showWorldCupHero(day))
                         emptyBody
                     case .hasGames:
-                        structuredBody
+                        structuredBody(day)
                     }
                 }
                 .padding(.bottom, .appSpace6)
@@ -388,17 +393,17 @@ private struct ModernDayContent: View {
         #endif
     }
 
-    private var header: some View {
+    private func header(_ day: DaySnapshot) -> some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(eyebrowText).appEyebrow()
-                Text(headlineText)
+                Text(eyebrowText(day)).appEyebrow()
+                Text(headlineText(day))
                     .font(.appDisplay)
                     .lineLimit(2)
             }
             Spacer()
-            if !liveGames.isEmpty {
-                LiveCountPill(count: liveGames.count)
+            if !day.live.isEmpty {
+                LiveCountPill(count: day.live.count)
             }
         }
     }
@@ -415,10 +420,11 @@ private struct ModernDayContent: View {
     // games never duplicate.
 
     @ViewBuilder
-    private var structuredBody: some View {
-        let data = sectionData
+    private func structuredBody(_ day: DaySnapshot) -> some View {
+        let showHero = showWorldCupHero(day)
+        let data = sectionData(day, showWorldCupHero: showHero)
         let adPlan = makeFeedAdPlan(for: data)
-        worldCupHeroSection
+        worldCupHeroSection(showHero)
         liveSection(games: data.live, adPlan: adPlan)
         yourTeamsSection(games: data.yourTeams, adPlan: adPlan)
         forYouSection(games: data.forYou, adPlan: adPlan)
@@ -474,35 +480,37 @@ private struct ModernDayContent: View {
 
     /// Whether the World Cup hero owns today's WC matches. The hero renders
     /// them itself (marquee + ticker), so the regular sections skip them.
-    private var showWorldCupHero: Bool {
+    private func showWorldCupHero(_ day: DaySnapshot) -> Bool {
         guard WorldCupSeason.isActive, storage.shouldShowWorldCup || storage.shouldShowSoccer else { return false }
         // Lead every matchday with the hero. On today, also show it during the
         // tournament era for the next-kickoff countdown even on rest days.
-        if dayGames.contains(where: { $0.idLeague == Self.worldCupLeagueID }) { return true }
+        if day.games.contains(where: { $0.idLeague == Self.worldCupLeagueID }) { return true }
         return isToday && WorldCupHeroCard.isActive(viewModel: viewModel)
     }
 
     private static let worldCupLeagueID = String(Leagues.FIFA_World_Cup.rawValue)
 
-    private var todayWorldCupIDs: Set<String> {
-        Set(dayGames.filter { $0.idLeague == Self.worldCupLeagueID }.map(\.id))
+    private func todayWorldCupIDs(_ day: DaySnapshot) -> Set<String> {
+        Set(day.games.filter { $0.idLeague == Self.worldCupLeagueID }.map(\.id))
     }
 
     @ViewBuilder
-    private var worldCupHeroSection: some View {
-        if showWorldCupHero {
+    private func worldCupHeroSection(_ show: Bool) -> some View {
+        if show {
             WorldCupHeroCard(date: selectedDate)
                 .padding(.horizontal, .appSpace4)
         }
     }
 
-    private var sectionData: SectionData {
+    private func sectionData(_ day: DaySnapshot, showWorldCupHero: Bool) -> SectionData {
+        let dayGames = day.games
+        let liveIDs = day.liveIDs
         // World Cup matches surface inside the hero on matchday — claim them
         // first so they don't duplicate in Live / Your Teams / per-sport.
-        var seen: Set<String> = showWorldCupHero ? todayWorldCupIDs : []
+        var seen: Set<String> = showWorldCupHero ? todayWorldCupIDs(day) : []
 
         // Live — favorites first within, then by start time.
-        let live = liveGames.filter { !seen.contains($0.id) }.sorted { a, b in
+        let live = day.live.filter { !seen.contains($0.id) }.sorted { a, b in
             let af = favorites.contains(a)
             let bf = favorites.contains(b)
             if af != bf { return af }
@@ -515,8 +523,8 @@ private struct ModernDayContent: View {
         let yourTeams = dayGames
             .filter { favorites.contains($0) && !seen.contains($0.id) }
             .sorted { a, b in
-                let oa = stateRank(a)
-                let ob = stateRank(b)
+                let oa = stateRank(a, liveIDs: liveIDs)
+                let ob = stateRank(b, liveIDs: liveIDs)
                 if oa != ob { return oa < ob }
                 return (a.standardDate ?? .distantPast) < (b.standardDate ?? .distantPast)
             }
@@ -547,8 +555,8 @@ private struct ModernDayContent: View {
             guard let games = grouped[sport], !games.isEmpty else { return nil }
             // Sort: live > upcoming > final, then by start time.
             let sorted = games.sorted { a, b in
-                let oa = stateRank(a)
-                let ob = stateRank(b)
+                let oa = stateRank(a, liveIDs: liveIDs)
+                let ob = stateRank(b, liveIDs: liveIDs)
                 if oa != ob { return oa < ob }
                 return (a.standardDate ?? .distantPast) < (b.standardDate ?? .distantPast)
             }
@@ -564,8 +572,8 @@ private struct ModernDayContent: View {
     }
 
     /// `live` ranks before `pre` ranks before `final` for sort stability.
-    private func stateRank(_ game: Game) -> Int {
-        switch gameState(game) {
+    private func stateRank(_ game: Game, liveIDs: Set<String>) -> Int {
+        switch gameState(game, liveIDs: liveIDs) {
         case .live:  return 0
         case .pre:   return 1
         case .final: return 2
@@ -1014,7 +1022,7 @@ private struct ModernDayContent: View {
 
     private enum DayState { case loading, failed, allSportsOff, empty, hasGames }
 
-    private var dayState: DayState {
+    private func dayState(_ day: DaySnapshot) -> DayState {
         let total = viewModel.totalGames ?? []
         if viewModel.networkState == .loading && total.isEmpty { return .loading }
         if viewModel.networkState == .failed && total.isEmpty { return .failed }
@@ -1026,7 +1034,7 @@ private struct ModernDayContent: View {
             storage.shouldShowRacing
         if !anySportOn { return .allSportsOff }
 
-        if dayGames.isEmpty { return .empty }
+        if day.games.isEmpty { return .empty }
         return .hasGames
     }
 
@@ -1088,9 +1096,8 @@ private struct ModernDayContent: View {
 
     private func kickoffLabel(for game: Game) -> String {
         guard let d = game.standardDate else { return "TBD" }
-        let f = DateFormatter()
-        f.dateFormat = "h:mm a"
-        return f.string(from: d)
+        // Called per row on every render — use the shared formatter cache.
+        return DateFormatters.formatter(for: "h:mm a").string(from: d)
     }
 
     private func countdownFor(_ game: Game) -> String? {
