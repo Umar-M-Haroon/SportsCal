@@ -116,6 +116,21 @@ final class LiveSituationTests: XCTestCase {
         XCTAssertNil(s.balls)
     }
 
+    func testFootballBetweenPlaysHasNoDownOrRedZone() throws {
+        // Captured live from ESPN (Rams @ Eagles, 2026-10-04, after a score).
+        let espn = try decode(Situation.self, """
+        {"down": -1, "distance": 0, "yardLine": 35, "isRedZone": true, "homeTimeouts": 3, "awayTimeouts": 3,
+         "lastPlay": {"id": "1", "type": {"id": "1", "text": "x"}, "text": "x", "scoreValue": 0, "team": {"id": "21"},
+                      "probability": {"homeWinPercentage": 0.453}}}
+        """)
+        let s = try XCTUnwrap(GameSituation(espn: espn, status: status(period: 2, clock: 656), sport: .nfl, homeTeamID: "21", awayTeamID: "14"))
+        XCTAssertNil(s.down)
+        XCTAssertNil(s.isRedZone, "no snap pending, so no red-zone tag")
+        XCTAssertFalse(s.hasFootballState)
+        XCTAssertEqual(s.homeWinProbability, 0.453, "win probability still shows")
+        XCTAssertNil(LiveActivitySituation(s)?.redZone)
+    }
+
     func testNoSituationUnlessInProgress() throws {
         let espn = try decode(Situation.self, nflSituationJSON)
         XCTAssertNil(GameSituation(espn: espn, status: status(state: "post", period: 4), sport: .nfl, homeTeamID: "7", awayTeamID: "12"))
