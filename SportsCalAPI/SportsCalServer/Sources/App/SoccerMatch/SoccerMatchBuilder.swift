@@ -212,6 +212,9 @@ struct SoccerSeriesCompetitor: Codable {
 extension SoccerSummaryResponse {
     /// ESPN's match state: "pre", "in" or "post". Nil when the header is missing.
     var matchState: String? { header?.competitions?.first?.status?.type?.state }
+    /// False for a "post" match that was postponed or abandoned rather than finished.
+    var matchCompleted: Bool? { header?.competitions?.first?.status?.type?.completed }
+    var isFinished: Bool { matchState == "post" && matchCompleted != false }
 }
 
 // MARK: - Builder
@@ -262,7 +265,7 @@ enum SoccerMatchBuilder {
             teamStats: makeTeamStats(home: homeBox, away: awayBox),
             events: makeEvents(summary.keyEvents ?? [], sides: sides),
             shots: makeShots(commentary, sides: sides),
-            momentum: makeMomentum(commentary, sides: sides, isFinished: summary.matchState == "post"),
+            momentum: makeMomentum(commentary, sides: sides, isFinished: summary.isFinished),
             commentary: makeCommentary(commentary, sides: sides),
             headToHead: makeHeadToHead(summary, homeTeamID: homeTeamRef?.id),
             status: makeStatus(summary)
@@ -278,7 +281,7 @@ enum SoccerMatchBuilder {
         }
         return SoccerMatchStatus(
             state: state, name: type.name, detail: type.shortDetail,
-            homeScore: score("home"), awayScore: score("away")
+            homeScore: score("home"), awayScore: score("away"), completed: type.completed
         )
     }
 
@@ -391,7 +394,12 @@ enum SoccerMatchBuilder {
             let typeText = event.type?.text ?? ""
             guard let mapped = mapEventType(text: typeText, espnType: event.type?.type) else { return nil }
             return SoccerMatchEvent(
-                id: event.id ?? UUID().uuidString,
+                // Alerts key off this id, so a fallback must be the same on every
+                // rebuild — a random one would announce the event again each minute.
+                id: event.id ?? [
+                    typeText, event.clock?.displayValue ?? "", "\(event.period?.number ?? 0)",
+                    (event.participants ?? []).compactMap { $0.athlete?.displayName }.joined(separator: "+"),
+                ].joined(separator: "|"),
                 type: mapped,
                 typeText: typeText,
                 clock: event.clock?.displayValue?.isEmpty == false ? event.clock?.displayValue : nil,
@@ -423,7 +431,9 @@ enum SoccerMatchBuilder {
 
     private static func makeShots(_ commentary: [SoccerCommentary], sides: SideResolver) -> [SoccerShot] {
         commentary.compactMap { entry -> SoccerShot? in
-            guard let play = entry.play,
+            // Period 5 is a penalty shootout: its kicks aren't shots in the match,
+            // and at 0.76 xG each they'd swamp the estimate.
+            guard let play = entry.play, (play.period?.number ?? 1) < 5,
                   let typeKey = play.type?.type,
                   let x = play.fieldPositionX, let y = play.fieldPositionY,
                   let side = sides.side(of: play.team) else { return nil }

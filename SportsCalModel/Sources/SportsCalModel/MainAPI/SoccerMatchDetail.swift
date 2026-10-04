@@ -103,17 +103,24 @@ public struct SoccerMatchStatus: Codable, Equatable, Hashable {
     public var detail: String?
     public var homeScore: Int?
     public var awayScore: Int?
+    /// ESPN's `completed`: false for a "post" match that was postponed, abandoned or
+    /// cancelled rather than played out.
+    public var completed: Bool?
 
-    public init(state: String, name: String? = nil, detail: String? = nil, homeScore: Int? = nil, awayScore: Int? = nil) {
+    public init(state: String, name: String? = nil, detail: String? = nil,
+                homeScore: Int? = nil, awayScore: Int? = nil, completed: Bool? = nil) {
         self.state = state
         self.name = name
         self.detail = detail
         self.homeScore = homeScore
         self.awayScore = awayScore
+        self.completed = completed
     }
 
     public var isHalfTime: Bool { name == "STATUS_HALFTIME" }
-    public var isFinished: Bool { state == "post" }
+    /// Played to the end. ESPN puts postponed and abandoned matches in "post" too,
+    /// so `completed` decides when it's known.
+    public var isFinished: Bool { state == "post" && completed != false }
 }
 
 // MARK: - Per-team lineup

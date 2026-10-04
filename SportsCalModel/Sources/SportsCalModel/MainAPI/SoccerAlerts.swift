@@ -126,6 +126,9 @@ public enum SoccerAlertDetector {
 
         for event in match.events where !state.seenIDs.contains(event.id) {
             state.seenIDs.insert(event.id)
+            // Shootout kicks (period 5) aren't goals or missed penalties in the match;
+            // the full-time alert carries the result.
+            if (event.period ?? 1) >= 5 { continue }
             if let alert = eventAlert(event, match: match) { alerts.append(alert) }
         }
 

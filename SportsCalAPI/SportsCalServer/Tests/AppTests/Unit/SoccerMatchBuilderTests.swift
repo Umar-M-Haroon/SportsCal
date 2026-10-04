@@ -137,6 +137,51 @@ final class SoccerMatchBuilderTests: XCTestCase {
     func testCacheLifetimeFollowsMatchState() {
         XCTAssertEqual(SoccerMatchService.cacheSeconds(state: "in"), 30)
         XCTAssertEqual(SoccerMatchService.cacheSeconds(state: "pre"), 120)
-        XCTAssertEqual(SoccerMatchService.cacheSeconds(state: "post"), 86_400)
+        XCTAssertEqual(SoccerMatchService.cacheSeconds(state: "post", completed: true), 86_400)
+        XCTAssertEqual(SoccerMatchService.cacheSeconds(state: "post", completed: false), 600, "postponed may be rescheduled")
+    }
+
+    func testIDShapedMatchMustAgreeOnTeams() throws {
+        let match = try XCTUnwrap(SoccerMatchBuilder.build(from: try loadSummary("epl_summary_sample.json"), eventID: "401879276"))
+        let asked = { (home: String, away: String) in
+            SoccerMatchService.Lookup(leagueSlug: "eng.1", day: 20260920, homeName: home, awayName: away)
+        }
+        XCTAssertTrue(SoccerMatchService.teamsMatch(match, asked("Bournemouth", "Liverpool")), "TheSportsDB drops the AFC")
+        XCTAssertFalse(SoccerMatchService.teamsMatch(match, asked("Arsenal", "Chelsea")))
+        XCTAssertTrue(SoccerMatchService.teamsMatch(match, SoccerMatchService.Lookup(leagueSlug: "fifa.world")),
+                      "no names to check against (the World Cup route)")
+    }
+
+    // MARK: Edge cases ESPN can send
+
+    private func summary(_ json: String) throws -> SoccerSummaryResponse {
+        try JSONDecoder().decode(SoccerSummaryResponse.self, from: Data(json.utf8))
+    }
+
+    private let teams = """
+    "header":{"competitions":[{"competitors":[
+      {"homeAway":"home","score":"1","team":{"id":"1","displayName":"Home FC"}},
+      {"homeAway":"away","score":"1","team":{"id":"2","displayName":"Away FC"}}],
+      "status":{"type":{"state":"post","completed":true,"name":"STATUS_FINAL_PEN"}}}]}
+    """
+
+    func testKeyEventWithoutAnIDGetsTheSameIDEveryBuild() throws {
+        let json = "{\(teams),\"keyEvents\":[{\"type\":{\"type\":\"goal\",\"text\":\"Goal\"},\"clock\":{\"displayValue\":\"12'\"},\"period\":{\"number\":1},\"team\":{\"id\":\"1\"},\"participants\":[{\"athlete\":{\"displayName\":\"Scorer\"}}]}]}"
+        let first = try XCTUnwrap(SoccerMatchBuilder.build(from: try summary(json), eventID: "1"))
+        let second = try XCTUnwrap(SoccerMatchBuilder.build(from: try summary(json), eventID: "1"))
+        XCTAssertEqual(first.events.map(\.id), second.events.map(\.id), "a random id re-announces the goal every minute")
+    }
+
+    func testShootoutKicksAreNotShots() throws {
+        let json = """
+        {\(teams),"commentary":[
+          {"sequence":1,"time":{"value":600,"displayValue":"10'"},"text":"Attempt saved. Home Player right footed shot.",
+           "play":{"id":"p1","type":{"type":"shot-on-target"},"period":{"number":1},"team":{"displayName":"Home FC"},"fieldPositionX":88,"fieldPositionY":50}},
+          {"sequence":2,"time":{"value":7300,"displayValue":"120'"},"text":"Goal! Home Player converts the penalty.",
+           "play":{"id":"p2","type":{"type":"penalty---scored"},"period":{"number":5},"team":{"displayName":"Home FC"},"fieldPositionX":88.5,"fieldPositionY":50}}]}
+        """
+        let match = try XCTUnwrap(SoccerMatchBuilder.build(from: try summary(json), eventID: "1"))
+        XCTAssertEqual(match.shots.map(\.id), ["p1"])
+        XCTAssertEqual(match.status?.isFinished, true)
     }
 }

@@ -24,10 +24,12 @@ enum SoccerAlertRegistrar {
     private static let suiteName = "group.Komodo.SportsCal"
     private static let tokenKey = "apnsDeviceToken"
     private static let lastSentKey = "soccerAlertLastRegistration"
+    private static let lastSentDateKey = "soccerAlertLastRegistrationDate"
+    private static let refreshInterval: TimeInterval = 7 * 24 * 60 * 60
 
     /// Soccer team names, as `games` carry them, for the teams with alerts on.
     static func teamNames(games: [Game], teamIDs: Set<String>, isPro: Bool) -> [String] {
-        let allowed = isPro ? teamIDs : Set(teamIDs.sorted().prefix(NotificationGate.freeTeamAlertLimit))
+        let allowed = NotificationGate.activeTeamAlertIDs(teamIDs, isPro: isPro)
         guard !allowed.isEmpty else { return [] }
         func isAllowed(id: String?, name: String) -> Bool {
             if let id, allowed.contains(id) { return true }
@@ -55,12 +57,17 @@ enum SoccerAlertRegistrar {
         )
         // Keyed by server, so switching environments registers with the new one.
         let fingerprint = NetworkHandler.baseURL() + "|" + String(decoding: (try? JSONEncoder().encode(registration)) ?? Data(), as: UTF8.self)
-        guard defaults.string(forKey: lastSentKey) != fingerprint else { return }
+        // The server forgets a registration after 30 days, so an unchanged one is
+        // still re-sent once it's a week old.
+        let lastSentAt = defaults.object(forKey: lastSentDateKey) as? Date ?? .distantPast
+        let isFresh = Date().timeIntervalSince(lastSentAt) < refreshInterval
+        guard defaults.string(forKey: lastSentKey) != fingerprint || !isFresh else { return }
         // Nothing to unregister if this server never had a registration.
         if registration.teams.isEmpty, defaults.string(forKey: lastSentKey) == nil { return }
         do {
             try await NetworkHandler.registerSoccerAlerts(registration)
             defaults.set(fingerprint, forKey: lastSentKey)
+            defaults.set(Date(), forKey: lastSentDateKey)
             AppLogger.notifications.info("Soccer alerts registered: \(registration.teams.count) teams, \(registration.kinds.count) kinds")
         } catch {
             AppLogger.notifications.error("Soccer alert registration failed: \(error.localizedDescription)")

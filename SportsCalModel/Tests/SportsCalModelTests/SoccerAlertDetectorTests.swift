@@ -111,6 +111,26 @@ final class SoccerAlertDetectorTests: XCTestCase {
         XCTAssertTrue(SoccerAlertDetector.detect(match(state: "post", name: "STATUS_FULL_TIME", home: 1, away: 2), previous: s3).alerts.isEmpty)
     }
 
+    func testPostponedMatchIsNotFullTime() {
+        let (_, watching) = SoccerAlertDetector.detect(match(state: "pre", name: "STATUS_SCHEDULED", lineups: false), previous: nil)
+        var postponed = match(state: "post", name: "STATUS_POSTPONED", home: nil, away: nil, lineups: false)
+        postponed.status?.completed = false
+        let (alerts, state) = SoccerAlertDetector.detect(postponed, previous: watching)
+        XCTAssertTrue(alerts.isEmpty, "ESPN puts postponed matches in \"post\" too")
+        XCTAssertFalse(state.fullTimeAnnounced)
+    }
+
+    func testShootoutKicksAreNotAnnounced() {
+        let (_, extraTime) = SoccerAlertDetector.detect(match(home: 1, away: 1), previous: nil)
+        let kicks = [
+            SoccerMatchEvent(id: "k1", type: .penaltyGoal, typeText: "Penalty - Scored", period: 5, side: .home, playerNames: ["A"]),
+            SoccerMatchEvent(id: "k2", type: .penaltyMissed, typeText: "Penalty - Saved", period: 5, side: .away, playerNames: ["B"]),
+        ]
+        let (alerts, state) = SoccerAlertDetector.detect(match(home: 1, away: 1, events: kicks), previous: extraTime)
+        XCTAssertTrue(alerts.isEmpty)
+        XCTAssertTrue(state.seenIDs.isSuperset(of: ["k1", "k2"]))
+    }
+
     func testFullTimeWithoutAHalfTimeLookStillAnnouncesOnlyFullTime() {
         let (_, kickoff) = SoccerAlertDetector.detect(match(), previous: nil)
         let alerts = SoccerAlertDetector.detect(match(state: "post", name: "STATUS_FULL_TIME", home: 2, away: 2), previous: kickoff).alerts

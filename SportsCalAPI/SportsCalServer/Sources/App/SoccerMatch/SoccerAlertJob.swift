@@ -99,15 +99,16 @@ struct SoccerAlertJob: AsyncScheduledJob {
         logger: Logger,
         match: (Game) async -> SoccerMatchDetail?
     ) async throws {
+        // Most minutes of the week no soccer is on: check that before touching devices.
+        let liveKey = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug).rawValue
+        let liveScore = try? await kv.getJSON(liveKey, as: LiveScore.self)
+        let watchable = (liveScore?.soccer?.events ?? []).filter { isWatchable($0, now: now) }
+        guard !watchable.isEmpty else { return }
+
         let devices = await loadDevices(kv: kv)
         guard !devices.isEmpty else { return }
         let followed = Set(devices.flatMap { $0.device.teams })
-
-        let liveKey = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug).rawValue
-        let liveScore = try? await kv.getJSON(liveKey, as: LiveScore.self)
-        let games = (liveScore?.soccer?.events ?? []).filter { game in
-            (followed.contains(game.strHomeTeam) || followed.contains(game.strAwayTeam)) && isWatchable(game, now: now)
-        }
+        let games = watchable.filter { followed.contains($0.strHomeTeam) || followed.contains($0.strAwayTeam) }
 
         for game in games {
             guard let eventID = game.idEvent else { continue }
@@ -128,8 +129,17 @@ struct SoccerAlertJob: AsyncScheduledJob {
                     entry.device.kinds.contains(alert.kind)
                         && (entry.device.teams.contains(game.strHomeTeam) || entry.device.teams.contains(game.strAwayTeam))
                 }
-                for entry in recipients {
-                    await deliver(alert, eventID: eventID, to: entry, kv: kv, apns: apns, logger: logger)
+                // A goal for a big club can fan out wide; bound it like APNSJob does.
+                await withTaskGroup(of: Void.self) { group in
+                    var inFlight = 0
+                    for entry in recipients {
+                        if inFlight == sendConcurrency {
+                            await group.next()
+                            inFlight -= 1
+                        }
+                        group.addTask { await deliver(alert, eventID: eventID, to: entry, kv: kv, apns: apns, logger: logger) }
+                        inFlight += 1
+                    }
                 }
                 logger.info("Soccer alert \(alert.kind.rawValue) for \(game.strHomeTeam) v \(game.strAwayTeam) → \(recipients.count) devices")
             }
@@ -157,25 +167,35 @@ struct SoccerAlertJob: AsyncScheduledJob {
 
     // MARK: Devices
 
-    struct Entry {
+    static let sendConcurrency = 8
+
+    struct Entry: Sendable {
         let key: String
         let device: SoccerAlertDevice
         let environment: APNSEnvironment
     }
 
     /// Both keyspaces, whatever this server's own environment: sandbox tokens
-    /// (Xcode builds) and production tokens go to their own APNS gateways.
+    /// (Xcode builds) and production tokens go to their own APNS gateways. Read in
+    /// MGET chunks rather than a GET per device.
     static func loadDevices(kv: KeyValueStore) async -> [Entry] {
         var entries: [Entry] = []
+        let decoder = JSONDecoder()
         for environment in [APNSEnvironment.production, .sandbox] {
             let sandbox = environment == .sandbox
+            let keys = await SoccerAlertDeviceIndex.members(sandbox: sandbox, kv: kv)
             var expired: [String] = []
-            for key in await SoccerAlertDeviceIndex.members(sandbox: sandbox, kv: kv) {
-                guard let device = try? await kv.getJSON(key, as: SoccerAlertDevice.self) else {
-                    expired.append(key)
-                    continue
+            for start in stride(from: 0, to: keys.count, by: 500) {
+                let chunk = Array(keys[start..<min(start + 500, keys.count)])
+                let values = (try? await kv.mget(chunk)) ?? Array(repeating: nil, count: chunk.count)
+                for (key, value) in zip(chunk, values) {
+                    guard let data = value?.data(using: .utf8),
+                          let device = try? decoder.decode(SoccerAlertDevice.self, from: data) else {
+                        expired.append(key)
+                        continue
+                    }
+                    entries.append(Entry(key: key, device: device, environment: environment))
                 }
-                entries.append(Entry(key: key, device: device, environment: environment))
             }
             await SoccerAlertDeviceIndex.remove(expired, sandbox: sandbox, kv: kv)
         }
@@ -195,19 +215,29 @@ struct SoccerAlertJob: AsyncScheduledJob {
         let claim = (sandbox ? "debug-" : "") + "SoccerAlertSent-\(device.installID)-\(alert.id)"
         guard (try? await kv.setIfAbsent(claim, value: "1", ttl: 24 * 60 * 60)) == true else { return }
 
-        do {
+        let send = {
             _ = try await sendWithEnvironmentFallback(primary: entry.environment) { environment in
                 try await apns.sendAlert(
                     deviceToken: device.token, appID: appID, title: alert.title, body: alert.body,
                     eventID: eventID, type: "soccer_\(alert.kind.rawValue)", environment: environment
                 )
             }
-        } catch let error as APNSSendError where error.isStaleToken {
-            logger.info("Soccer alerts: dropping stale token for install \(device.installID.prefix(8))...")
-            _ = try? await kv.delete([entry.key])
-            await SoccerAlertDeviceIndex.remove([entry.key], sandbox: sandbox, kv: kv)
-        } catch {
-            logger.warning("Soccer alert send failed for install \(device.installID.prefix(8))...: \(error)")
+        }
+        // The detector has already moved past this alert, so a failed send isn't
+        // retried next minute; give a transient failure one more go now.
+        for attempt in 1...2 {
+            do {
+                try await send()
+                return
+            } catch let error as APNSSendError where error.isStaleToken {
+                logger.info("Soccer alerts: dropping stale token for install \(device.installID.prefix(8))...")
+                _ = try? await kv.delete([entry.key])
+                await SoccerAlertDeviceIndex.remove([entry.key], sandbox: sandbox, kv: kv)
+                return
+            } catch {
+                logger.warning("Soccer alert send failed for install \(device.installID.prefix(8))... (attempt \(attempt)): \(error)")
+                if attempt == 1 { try? await Task.sleep(nanoseconds: 2_000_000_000) }
+            }
         }
     }
 }

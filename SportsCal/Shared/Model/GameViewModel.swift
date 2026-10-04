@@ -2945,17 +2945,6 @@ public class GameViewModel: NSObject {
         return makeGameWithTeams(game)
     }
 
-    /// One league's games with their teams resolved, earliest first — a competition
-    /// hub's fixture list. Unlike `worldCupGamesWithTeams` it isn't cached: it runs
-    /// once per hub load, not on every render.
-    func gamesWithTeams(inLeague league: Leagues) -> [GameWithTeams] {
-        let leagueID = String(league.rawValue)
-        return (totalGames ?? [])
-            .filter { $0.idLeague == leagueID }
-            .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
-            .compactMap { makeGameWithTeams($0) }
-    }
-
     func getTeams(for game: Game) -> (home: Team, away: Team)? {
         let strHomeTeam = game.strHomeTeam
         let strAwayTeam = game.strAwayTeam

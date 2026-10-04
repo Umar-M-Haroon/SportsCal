@@ -24,6 +24,7 @@ struct SoccerCompetitionHubView: View {
     @State private var showsResults = false
     @State private var leaderKind: LeaderKind = .goals
     @State private var games: [GameWithTeams] = []
+    @State private var liveEventIDs: Set<String> = []
     @State private var sheetType: SheetType?
     @State private var shouldShowProAlert = false
 
@@ -108,11 +109,27 @@ struct SoccerCompetitionHubView: View {
         }
     }
 
+    /// Fixtures as Browse gets them: the soccer schedule already loaded when soccer
+    /// is on (fetched otherwise), with the live feed's copies laid over it — schedule
+    /// copies keep TheSportsDB's statuses, so only the live feed says what's in play.
     private func load() async {
         isLoading = true
         defer { isLoading = false }
-        games = viewModel.gamesWithTeams(inLeague: league)
-        if let fresh = try? await NetworkHandler.getSoccerCompetition(league: league) {
+        async let fetchedHub = try? NetworkHandler.getSoccerCompetition(league: league)
+
+        let leagueID = String(league.rawValue)
+        var schedule = viewModel.gamesDict[.soccer] ?? []
+        if schedule.isEmpty, let fetched = try? await NetworkHandler.getScheduleFor(sport: .soccer) {
+            schedule = fetched.events
+        }
+        let live = viewModel.liveEventsForSport(.soccer).filter { $0.idLeague == leagueID }
+        let liveIDs = Set(live.compactMap(\.idEvent))
+        games = (live + schedule.filter { $0.idLeague == leagueID && !liveIDs.contains($0.idEvent ?? "") })
+            .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
+            .compactMap { viewModel.resolveGameWithTeams($0) }
+        liveEventIDs = liveIDs
+
+        if let fresh = await fetchedHub {
             hub = fresh
         }
     }
@@ -121,10 +138,11 @@ struct SoccerCompetitionHubView: View {
 
     private var matches: some View {
         let now = Date()
-        let live = games.filter { $0.game.strStatus == "in" }
-        let results = games.filter { isGameCompleted($0.game) }.reversed()
+        let isLive = { (gwt: GameWithTeams) in liveEventIDs.contains(gwt.game.idEvent ?? "") }
+        let live = games.filter(isLive)
+        let results = games.filter { !isLive($0) && isGameCompleted($0.game) }.reversed()
         let upcoming = games.filter {
-            $0.game.strStatus != "in" && !isGameCompleted($0.game) && ($0.game.standardDate ?? .distantFuture) >= now
+            !isLive($0) && !isGameCompleted($0.game) && ($0.game.standardDate ?? .distantFuture) >= now
         }
         let shown = showsResults ? Array(results) : upcoming
         return VStack(alignment: .leading, spacing: .appSpace4) {
