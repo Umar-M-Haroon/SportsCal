@@ -35,7 +35,6 @@ ENDPOINTS=(
     "/v2025/standings/4387"      # NBA
     "/v2025/standings/4391"      # NFL
     "/v2025/widget/schedule?sports=basketball,soccer,mlb&limit=6"
-    "/v2025/teams-by-league"
     "/v2025/all-live-games"
 )
 

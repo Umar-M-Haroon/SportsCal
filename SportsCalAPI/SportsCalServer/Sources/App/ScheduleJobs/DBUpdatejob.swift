@@ -7,7 +7,7 @@
 
 import Foundation
 import Queues
-import RediStack
+@preconcurrency import RediStack
 import SportsCalModel
 import Logging
 import Vapor
@@ -219,52 +219,53 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
             "lastUpdateKey": "\(lastUpdateKey)"
         ])
 
-        let existingSchedule = try await context.application.redis.get(scheduleKey, asJSON: LiveScore.self)
-        let existingTeams = try await context.application.redis.get(teamsKey, asJSON: [Team].self)
-        let lastUpdateTime = try await context.application.redis.get(lastUpdateKey, asJSON: Date.self)
-
-        Self.logger.info("Cache status", metadata: [
-            "scheduleExists": "\(existingSchedule != nil)",
-            "teamsCount": "\(existingTeams?.count ?? 0)",
-            "lastUpdate": "\(lastUpdateTime?.description ?? "never")"
-        ])
+        // Cheap presence checks only. This runs every minute and skips 59 times an hour;
+        // decoding the ~12MB schedule (and the teams list) just to learn "it exists" cost
+        // a full JSON parse per tick. The schedule is decoded once, under the write lock,
+        // only when a rebuild actually happens.
+        let redis = context.application.redis
+        let scheduleExists = (try await redis.exists(scheduleKey).get()) > 0
+        let teamsPresent = try await Self.hasNonEmptyTeams(redis: redis, key: teamsKey)
+        let lastUpdateTime = try await redis.get(lastUpdateKey, asJSON: Date.self)
 
         // Refresh schedules if missing or if it's been more than 1 hour
         let shouldRefreshSchedules = Self.shouldRefreshSchedules(
-            hasSchedule: existingSchedule != nil,
-            teamsCount: existingTeams?.count ?? 0,
+            hasSchedule: scheduleExists,
+            teamsCount: teamsPresent ? 1 : 0,
             lastUpdate: lastUpdateTime,
             now: Date()
         )
-        if shouldRefreshSchedules {
-            Self.logger.info("Refreshing schedules from API", metadata: [
-                "scheduleExists": "\(existingSchedule != nil)",
-                "teamsCount": "\(existingTeams?.count ?? 0)",
+        guard shouldRefreshSchedules else {
+            Self.logger.debug("Skipping schedule fetch — using cached data", metadata: [
                 "lastUpdate": "\(lastUpdateTime?.description ?? "never")"
             ])
-        } else {
-            Self.logger.info("Using cached schedules", metadata: [
-                "lastUpdate": "\(lastUpdateTime?.description ?? "never")"
-            ])
-        }
-
-        if !shouldRefreshSchedules {
-            Self.logger.info("Skipping schedule fetch — using cached data")
+            await JobHeartbeat.recordSuccess(.scheduleUpdate, app: context.application, isDebug: isDebug)
             return
         }
+        Self.logger.info("Refreshing schedules from API", metadata: [
+            "scheduleExists": "\(scheduleExists)",
+            "teamsPresent": "\(teamsPresent)",
+            "lastUpdate": "\(lastUpdateTime?.description ?? "never")"
+        ])
 
         Self.logger.info("Fetching schedules from API")
         var schedule: LiveScore = LiveScore(nba: nil, mlb: nil, soccer: nil, nfl: nil, nhl: nil, golf: nil, tennis: nil, racing: nil)
         var apiTeams: [Team] = []
         var allGames: [Game] = []
+        // Leagues whose previous games are carried over when this rebuild ends up with
+        // none of them (fetch threw, or came back empty). See `applyingLeagueFallbacks`.
+        var fallbackLeagues = Set<Leagues>()
 
         for league in Leagues.allCases {
+            // Skip ESPN-only leagues here — handled separately via ESPN below.
+            // The secondary golf tours have no TheSportsDB entry at all, and the
+            // switch below would drop their response into the soccer bucket.
+            if league == .ncaaMBBTournament || league == .wnba || league == .ncaaf { continue }
+            if Integrator.secondaryGolfTours.contains(league) { continue }
+            // Season-scoped fetches (previous/current/next): an empty result means the
+            // fetch failed (`getSchedule` swallows per-season errors), never "no games".
+            fallbackLeagues.insert(league)
             do {
-                // Skip ESPN-only leagues here — handled separately via ESPN below.
-                // The secondary golf tours have no TheSportsDB entry at all, and the
-                // switch below would drop their response into the soccer bucket.
-                if league == .ncaaMBBTournament || league == .wnba || league == .ncaaf { continue }
-                if Integrator.secondaryGolfTours.contains(league) { continue }
 
                 if let response = try await SportsDBNetworking.getTeamInfoForLeague(app: context.application, DecodeType: Teams.self, league: league.rawValue) {
                     apiTeams.append(contentsOf: response.teams)
@@ -326,29 +327,42 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                         tennisEvent = cached
                     } else {
                         let currentYear = Calendar.current.component(.year, from: Date())
-                        var tennisGames: [Game] = []
+                        var freshTennis: [Game] = []
+                        var attempted = 0
+                        var succeeded = 0
                         for tour in [Leagues.atp, Leagues.wta] {
                             for year in [currentYear - 1, currentYear] {
-                                if let scoreboard = try? await Integrator.getESPNScoreboard(for: tour, context.application.client, dates: year),
-                                   let parsed = LiveEvent(events: scoreboard, league: tour) {
-                                    tennisGames.append(contentsOf: parsed.events)
+                                attempted += 1
+                                do {
+                                    let scoreboard = try await Integrator.getESPNScoreboard(for: tour, context.application.client, dates: year)
+                                    succeeded += 1
+                                    if let parsed = LiveEvent(events: scoreboard, league: tour) {
+                                        freshTennis.append(contentsOf: parsed.events)
+                                    }
+                                } catch {
+                                    Self.logger.warning("Tennis season fetch failed", metadata: [
+                                        "tour": "\(tour)", "year": "\(year)", "error": "\(error)"
+                                    ])
                                 }
                             }
                         }
-                        // Combined events (e.g. United Cup) appear in both the ATP and WTA
-                        // feeds with identical competition IDs — dedupe by event id.
-                        var seenTennisIDs = Set<String>()
-                        tennisGames = tennisGames.filter { game in
-                            guard let id = game.idEvent else { return true }
-                            return seenTennisIDs.insert(id).inserted
-                        }
-                        tennisGames = Self.disambiguateTennisSeasons(tennisGames)
+                        // A partial failure (one tour/season missing) must not replace the
+                        // cache with a partial schedule: merge with the last cached build so
+                        // the missing feed's tournaments survive until a full fetch lands.
+                        let allSucceeded = succeeded == attempted
+                        let cachedTennis = allSucceeded ? nil
+                            : (try? await context.application.redis.get(tennisKey, asJSON: LiveEvent.self))?.events
+                        let tennisGames = Self.mergeTennisFetch(fresh: freshTennis, cached: cachedTennis, allSucceeded: allSucceeded)
                         if !tennisGames.isEmpty {
                             let built = LiveEvent(events: tennisGames)
                             tennisEvent = built
                             try? await context.application.redis.set(tennisKey, toJSON: built)
-                            try? await context.application.redis.set(tennisLastUpdateKey, toJSON: Date())
                         }
+                        // Only a complete fetch is stamped fresh. A partial or failed one is
+                        // stamped as already 15 minutes old, so it retries in ~5 minutes
+                        // rather than every minute (each attempt is ~12MB per league-year).
+                        let stamp = allSucceeded ? Date() : Date().addingTimeInterval(-15 * 60)
+                        try? await context.application.redis.set(tennisLastUpdateKey, toJSON: stamp)
                     }
                     // If the heavy ESPN fetch failed and the 20-min cache was stale, reuse the
                     // last good structured cache regardless of age before dropping to TheSportsDB.
@@ -514,6 +528,9 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 }
             }
         } catch {
+            // The default board is a today window, so "empty" is legitimate — only a
+            // failed fetch keeps the previous games.
+            fallbackLeagues.insert(.ncaaMBBTournament)
             Self.logger.warning("NCAA Tournament schedule fetch failed: \(error)")
         }
 
@@ -531,6 +548,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 }
             }
         } catch {
+            fallbackLeagues.insert(.wnba)
             Self.logger.warning("WNBA schedule fetch failed: \(error)")
         }
 
@@ -539,6 +557,8 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         // the CFP and the title game are played in January. Rides in the football bucket
         // — `LiveScore`'s Codable splits it back out on the wire.
         let collegeGames = await Self.fetchCollegeFootballSeason(client: context.application.client)
+        // A whole calendar year: empty only when the fetch failed.
+        fallbackLeagues.insert(.ncaaf)
         if !collegeGames.isEmpty {
             if schedule.nfl == nil {
                 schedule.nfl = LiveEvent(events: collegeGames)
@@ -555,6 +575,8 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         // `usesSingleYearSeason` makes each of these one request for the whole season, and
         // every event carries its own league, so they ride in the same `golf` bucket.
         for tour in Integrator.secondaryGolfTours {
+            // Single-year season boards: empty means failed.
+            fallbackLeagues.insert(tour)
             do {
                 if let scoreboard = try await Integrator.getESPNScoreboard(for: tour, context.application.client) as Scoreboard?,
                    let liveEvent = LiveEvent(events: scoreboard, league: tour) {
@@ -577,17 +599,9 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         Self.logger.info("Enriching schedule with ESPN scoreboard data")
         schedule = await enrichScheduleWithESPN(schedule: schedule, client: context.application.client)
 
-        // Re-attach cached injuries (InjuriesEnrichmentJob persists the lookup dict
-        // but the schedule is rebuilt from scratch here, which would drop per-Game fields)
-        let injuriesKey = RedisEndpoint.ESPN.injuries.getValue(isDebug: isDebug)
-        if let cachedInjuries = try? await context.application.redis.get(injuriesKey, asJSON: [String: [InjuryReport]].self),
-           !cachedInjuries.isEmpty {
-            InjuriesEnrichmentJob.applyInjuries(to: &schedule, lookup: cachedInjuries)
-        }
-
         // Extract teams from all games (multi-season coverage)
         let gameTeams = extractTeamsFromGames(allGames)
-        let mergedTeams = mergeTeams(apiTeams: apiTeams, gameTeams: gameTeams)
+        var mergedTeams = mergeTeams(apiTeams: apiTeams, gameTeams: gameTeams)
         Self.logger.info("Teams extracted and merged", metadata: [
             "fromGames": "\(gameTeams.count)",
             "fromAPI": "\(apiTeams.count)",
@@ -595,40 +609,83 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
             "totalGames": "\(allGames.count)"
         ])
 
-        // Re-attach the World Cup ridealong from its enrichment cache — the rebuild
-        // constructs a fresh LiveScore, and without this every hourly rebuild wiped
-        // `worldCup` until WorldCupEnrichmentJob's next :50 run re-attached it
-        // (client Bracket CTA flickered out). Mirrors the f1Standings re-attach.
-        if schedule.worldCup == nil {
-            let wcKey = RedisEndpoint.ESPN.worldCupEnrichment.getValue(isDebug: isDebug)
-            if let cachedWC = try? await context.application.redis.get(wcKey, asJSON: WorldCupEnrichment.self),
-               !cachedWC.isEmpty {
-                schedule.worldCup = cachedWC
-            } else {
-                schedule.worldCup = existingSchedule?.worldCup
+        // Everything above was network. The rest runs under the shared schedule write
+        // lock against the LATEST cached schedule (re-read there), so a concurrent
+        // enrichment or ESPN merge that landed during this rebuild is the baseline for
+        // the carry-overs below rather than being compared against a stale copy.
+        let rebuilt = schedule
+        let injuriesKey = RedisEndpoint.ESPN.injuries.getValue(isDebug: isDebug)
+        let wcKey = RedisEndpoint.ESPN.worldCupEnrichment.getValue(isDebug: isDebug)
+        let cachedInjuries = try? await redis.get(injuriesKey, asJSON: [String: [InjuryReport]].self)
+        let cachedWC = try? await redis.get(wcKey, asJSON: WorldCupEnrichment.self)
+        var carried: [Leagues: Int] = [:]
+        var oldGameCount = 0
+        var newGameCount = countGames(in: rebuilt)
+
+        let outcome = try await ScheduleStore.update(
+            app: context.application, isDebug: isDebug, logger: Self.logger, writer: "ScheduleUpdateJob"
+        ) { existingSchedule in
+            oldGameCount = existingSchedule.map { countGames(in: $0) } ?? 0
+
+            // A league whose fetch failed (or came back empty) keeps its previous games
+            // instead of vanishing from the calendar for an hour.
+            let fallback = Self.applyingLeagueFallbacks(rebuilt: rebuilt, existing: existingSchedule, leagues: fallbackLeagues)
+            var schedule = fallback.schedule
+            carried = fallback.carried
+
+            // Re-attach cached injuries (InjuriesEnrichmentJob persists the lookup dict
+            // but the schedule is rebuilt from scratch here, which would drop per-Game fields)
+            if let cachedInjuries, !cachedInjuries.isEmpty {
+                InjuriesEnrichmentJob.applyInjuries(to: &schedule, lookup: cachedInjuries)
+            }
+
+            // Re-attach the World Cup ridealong from its enrichment cache — the rebuild
+            // constructs a fresh LiveScore, and without this every hourly rebuild wiped
+            // `worldCup` until WorldCupEnrichmentJob's next :50 run re-attached it
+            // (client Bracket CTA flickered out). Mirrors the f1Standings re-attach.
+            if schedule.worldCup == nil {
+                if let cachedWC, !cachedWC.isEmpty {
+                    schedule.worldCup = cachedWC
+                } else {
+                    schedule.worldCup = existingSchedule?.worldCup
+                }
+            }
+
+            // Excitement is scored once, when a game goes final, and ESPN drops the game off
+            // its board a day later. The rebuild above starts from TheSportsDB, which never
+            // has it, so carry it over from the schedule being replaced.
+            if let existingSchedule {
+                schedule = Self.carryingExcitement(from: existingSchedule, into: schedule)
+            }
+            newGameCount = countGames(in: schedule)
+            return schedule
+        }
+
+        if !carried.isEmpty {
+            Self.logger.warning("Kept previous schedule for leagues whose fetch failed or came back empty", metadata: [
+                "leagues": "\(carried.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: ","))"
+            ])
+            // Their teams would be missing from this run's team list too.
+            if let existingTeams = try? await redis.get(teamsKey, asJSON: [Team].self) {
+                mergedTeams = mergeTeams(apiTeams: mergedTeams, gameTeams: existingTeams)
             }
         }
 
-        // Excitement is scored once, when a game goes final, and ESPN drops the game off
-        // its board a day later. The rebuild above starts from TheSportsDB, which never
-        // has it, so carry it over from the schedule being replaced.
-        if let existingSchedule {
-            schedule = Self.carryingExcitement(from: existingSchedule, into: schedule)
-        }
-
-        // Compare with existing cache — only write to Redis if data actually changed
-        let scheduleChanged = (existingSchedule != schedule)
-        let newGameCount = countGames(in: schedule)
-        let oldGameCount = existingSchedule.map { countGames(in: $0) } ?? 0
-
-        if scheduleChanged {
-            try await context.application.redis.set(scheduleKey, toJSON: schedule)
-            try await context.application.redis.set(RedisEndpoint.SportsDB.teams.getValue(isDebug: isDebug), toJSON: mergedTeams)
+        let scheduleChanged: Bool
+        switch outcome {
+        case .lockTimeout:
+            // Nothing written. Leave `lastUpdate` alone so the next minute retries.
+            Self.logger.warning("Schedule rebuild not written — schedule write lock busy; retrying next tick")
+            return
+        case .written:
+            scheduleChanged = true
+            try await redis.set(RedisEndpoint.SportsDB.teams.getValue(isDebug: isDebug), toJSON: mergedTeams)
             Self.logger.info("Schedules updated — new data detected", metadata: [
                 "oldGameCount": "\(oldGameCount)",
                 "newGameCount": "\(newGameCount)"
             ])
-        } else {
+        case .unchanged:
+            scheduleChanged = false
             Self.logger.info("Schedules unchanged — no new data from API", metadata: [
                 "gameCount": "\(newGameCount)"
             ])
@@ -645,6 +702,72 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         // Always update the timestamp so we know when we last checked
         try await context.application.redis.set(lastUpdateKey, toJSON: Date())
         Self.logger.info("Schedule check complete", metadata: ["dataChanged": "\(scheduleChanged)"])
+        await JobHeartbeat.recordSuccess(.scheduleUpdate, app: context.application, isDebug: isDebug)
+    }
+
+    /// Whether the teams key holds a non-empty JSON array, without decoding it.
+    /// `[]` is two bytes; anything longer has at least one team.
+    static func hasNonEmptyTeams(redis: any RedisClient, key: RedisKey) async throws -> Bool {
+        let response = try await redis.send(command: "STRLEN", with: [key.rawValue.convertedToRESPValue()]).get()
+        return (response.int ?? 0) > 2
+    }
+
+    /// Carries the existing schedule's games for any league in `leagues` that the rebuild
+    /// ended up with none of — its fetch threw, or came back empty (TheSportsDB's
+    /// `getSchedule` swallows per-season errors and returns nothing). Without this a
+    /// single upstream hiccup emptied that league's calendar until the next hourly
+    /// rebuild. Games go into the league's sport bucket, skipping any event ID already
+    /// there. Also keeps `f1Standings` when the rebuild lost it. Pure, for tests.
+    static func applyingLeagueFallbacks(
+        rebuilt: LiveScore,
+        existing: LiveScore?,
+        leagues: Set<Leagues>
+    ) -> (schedule: LiveScore, carried: [Leagues: Int]) {
+        guard let existing else { return (rebuilt, [:]) }
+        var result = rebuilt
+        var carried: [Leagues: Int] = [:]
+        let rebuiltLeagueIDs = Set(rebuilt.allGamesBySport.flatMap { $0.games.compactMap(\.idLeague) })
+
+        for league in leagues.sorted(by: { $0.rawValue < $1.rawValue }) {
+            let leagueID = String(league.rawValue)
+            guard !rebuiltLeagueIDs.contains(leagueID) else { continue }
+            let sport = SportType(league: league)
+            guard let keyPath = LiveScore.sportKeyPaths.first(where: { $0.0 == sport })?.1 else { continue }
+            let previous = existing[keyPath: keyPath]?.events.filter { $0.idLeague == leagueID } ?? []
+            guard !previous.isEmpty else { continue }
+            let present = Set(result[keyPath: keyPath]?.events.compactMap(\.idEvent) ?? [])
+            let toAdd = previous.filter { game in
+                guard let id = game.idEvent else { return true }
+                return !present.contains(id)
+            }
+            guard !toAdd.isEmpty else { continue }
+            result[keyPath: keyPath] = LiveEvent.merging(result[keyPath: keyPath], LiveEvent(events: toAdd))
+            carried[league] = toAdd.count
+        }
+        if result.f1Standings == nil, let standings = existing.f1Standings {
+            result.f1Standings = standings
+        }
+        return (result, carried)
+    }
+
+    /// Combines this run's tennis fetches with the previously cached build. When every
+    /// fetch succeeded the fresh games are the whole truth; otherwise cached games the
+    /// fresh set lacks are kept, so a failed tour/season doesn't drop its tournaments.
+    /// Deduped by event ID (combined events like the United Cup appear on both the ATP
+    /// and WTA boards) and season-disambiguated. Pure, for tests.
+    static func mergeTennisFetch(fresh: [Game], cached: [Game]?, allSucceeded: Bool, now: Date = Date()) -> [Game] {
+        var seen = Set<String>()
+        var games = fresh.filter { game in
+            guard let id = game.idEvent else { return true }
+            return seen.insert(id).inserted
+        }
+        if !allSucceeded, let cached {
+            games += cached.filter { game in
+                guard let id = game.idEvent else { return false }
+                return seen.insert(id).inserted
+            }
+        }
+        return disambiguateTennisSeasons(games, now: now)
     }
     /// Every FBS game of the current calendar year, plus next January's from November on,
     /// deduped by event ID (a game can sit on both years' boards across midnight UTC).

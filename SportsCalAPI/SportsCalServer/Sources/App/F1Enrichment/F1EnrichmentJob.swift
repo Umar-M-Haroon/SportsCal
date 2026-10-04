@@ -61,6 +61,7 @@ struct F1EnrichmentJob: AsyncScheduledJob {
                 Self.logger.info("F1 enrichment still fresh, skipping", metadata: [
                     "hoursSinceUpdate": "\(String(format: "%.1f", hoursSince))"
                 ])
+                await JobHeartbeat.recordSuccess(.f1Enrichment, app: context.application, isDebug: isDebug)
                 return
             }
         }
@@ -144,15 +145,12 @@ struct F1EnrichmentJob: AsyncScheduledJob {
         if let recentRaceTiming {
             try await redis.set(raceTimingKey, toJSON: recentRaceTiming)
         }
-        // Only stamp lastUpdate when core data was actually refreshed, so a degraded run
-        // (a source down → empty) retries next tick instead of being silenced for 6h.
-        if wrotePrimary {
-            try await redis.set(lastUpdateKey, toJSON: Date())
-        }
-
-        // Also update the main schedule to attach circuit info + standings
-        let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
-        if var schedule = try? await redis.get(scheduleKey, asJSON: LiveScore.self) {
+        // Also update the main schedule to attach circuit info + standings. Re-read →
+        // apply → write under the shared schedule lock so concurrent writers aren't lost.
+        let outcome = try await ScheduleStore.update(
+            app: context.application, isDebug: isDebug, logger: Self.logger, writer: "F1EnrichmentJob"
+        ) { schedule in
+            guard var schedule else { return nil }
             if Self.shouldPersistStandings(standings) {
                 schedule.f1Standings = standings
             }
@@ -173,8 +171,17 @@ struct F1EnrichmentJob: AsyncScheduledJob {
                 }
                 schedule.racing = LiveEvent(events: racingEvents)
             }
-            try await redis.set(scheduleKey, toJSON: schedule)
+            return schedule
+        }
+        if outcome == .written {
             Self.logger.info("F1 enrichment applied to schedule")
+        }
+
+        // Only stamp lastUpdate when core data was actually refreshed, so a degraded run
+        // (a source down → empty) retries next tick instead of being silenced for 6h —
+        // and not when the schedule write lock was busy, so the attach is retried.
+        if wrotePrimary, outcome != .lockTimeout {
+            try await redis.set(lastUpdateKey, toJSON: Date())
         }
 
         Self.logger.info("F1 enrichment complete", metadata: [
@@ -184,6 +191,7 @@ struct F1EnrichmentJob: AsyncScheduledJob {
             "constructorStandings": "\(constructorStandings.count)",
             "raceTimingDrivers": "\(recentRaceTiming?.drivers.count ?? 0)"
         ])
+        await JobHeartbeat.recordSuccess(.f1Enrichment, app: context.application, isDebug: isDebug)
     }
 
     /// Matches a telemetry session to a schedule Game by comparing session country/location

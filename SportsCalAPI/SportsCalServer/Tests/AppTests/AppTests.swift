@@ -28,14 +28,8 @@ final class AppTests: XCTestCase {
         let app = Application(.testing)
         defer { Task { try? await app.asyncShutdown() } }
         try await configure(app)
-        //897 teams
+        // (The `/teams-by-league` half of this test went with the route, removed 2026-10.)
         let decoder = JSONDecoder()
-        try app.test(.GET, "teams-by-league", afterResponse: { res in
-            XCTAssertEqual(res.status, .ok)
-            let espnTeams = try res.content.decode([Leagues: TeamResponse].self, using: decoder)
-            XCTAssertEqual(897, espnTeams.reduce(into: 0, {$0 += ($1.value.teams?.count ?? 0)}))
-        })
-
 
         try app.test(.GET, "schedules", afterResponse: { res in
             XCTAssertEqual(res.status, .ok)

@@ -22,6 +22,13 @@ enum RedisEndpoint {
     case jobLock(String) // "JobLock-{name}"
     case clutchAlert(String) // "ClutchAlert-{eventID}-{token}-{momentKey}"
     case clutchAlertCount(String) // "ClutchAlertCount-{eventID}-{token}"
+    /// SET of live-activity registration keys (`APNS-{token}`), so APNSJob iterates an
+    /// index instead of SCANning the keyspace every minute. The debug variant indexes the
+    /// sandbox keyspace (`debug-APNS-{token}`). Deliberately not `APNS-…`-prefixed so the
+    /// `APNS-*` SCAN fallback never matches the index itself.
+    case apnsRegistrationIndex
+    /// Marker (with TTL) pacing the SCAN reconcile that backfills `apnsRegistrationIndex`.
+    case apnsRegistrationIndexReconciled
     enum SportsDB {
         case latestLiveInfo
         case latestFullLiveInfo
@@ -84,7 +91,11 @@ enum RedisEndpoint {
         case tennisSchedule               // structured ESPN tennis season (tournament + round), parsed LiveEvent
         case tennisScheduleLastUpdate     // staleness marker for the heavy tennis season fetch
         case playByPlay(String) // "PBP-{eventID}" — per-game ESPN play-by-play cache
-        case espnEventMap       // "ESPN-Event-Map" — TSDB eventID → ESPN eventID + sport/league
+        case espnEventMap       // "ESPN-Event-Map" — LEGACY JSON blob; migrated into `espnEventMapHash`
+        case espnEventMapHash   // "ESPN-Event-Map-Hash" — Redis hash: TSDB eventID → ESPNEventMapping JSON
+        case playByPlayMiss(String) // "PBPMiss-{eventID}" — short negative cache for on-demand /plays misses
+        case espnIDMap          // "ESPN-ID-Map" — ESPN team ID → TheSportsDB team ID
+        case scheduleVersion    // "Schedule Version" — bumped on every `latestSchedule` write (see ScheduleStore)
         public var value: RedisKey {
             switch self {
             case .latestLiveInfo:
@@ -149,6 +160,14 @@ enum RedisEndpoint {
                 return RedisKey("PBP-\(eventID)")
             case .espnEventMap:
                 return "ESPN-Event-Map"
+            case .espnEventMapHash:
+                return "ESPN-Event-Map-Hash"
+            case .playByPlayMiss(let eventID):
+                return RedisKey("PBPMiss-\(eventID)")
+            case .espnIDMap:
+                return "ESPN-ID-Map"
+            case .scheduleVersion:
+                return "Schedule Version"
             }
         }
         public var debugValue: RedisKey {
@@ -215,6 +234,14 @@ enum RedisEndpoint {
                 return RedisKey("debug-PBP-\(eventID)")
             case .espnEventMap:
                 return "debug-ESPN-Event-Map"
+            case .espnEventMapHash:
+                return "debug-ESPN-Event-Map-Hash"
+            case .playByPlayMiss(let eventID):
+                return RedisKey("debug-PBPMiss-\(eventID)")
+            case .espnIDMap:
+                return "debug-ESPN-ID-Map"
+            case .scheduleVersion:
+                return "debug-Schedule Version"
             }
         }
         public func getValue(isDebug: Bool = false) -> RedisKey {
@@ -252,6 +279,10 @@ enum RedisEndpoint {
             return "ClutchAlert-\(key)"
         case .clutchAlertCount(let key):
             return "ClutchAlertCount-\(key)"
+        case .apnsRegistrationIndex:
+            return "APNSRegistrationIndex"
+        case .apnsRegistrationIndexReconciled:
+            return "APNSRegistrationIndexReconciled"
         }
     }
     public var debugValue: RedisKey {
@@ -282,6 +313,10 @@ enum RedisEndpoint {
             return "debug-ClutchAlert-\(key)"
         case .clutchAlertCount(let key):
             return "debug-ClutchAlertCount-\(key)"
+        case .apnsRegistrationIndex:
+            return "debug-APNSRegistrationIndex"
+        case .apnsRegistrationIndexReconciled:
+            return "debug-APNSRegistrationIndexReconciled"
         }
     }
     public func getValue(isDebug: Bool = false) -> RedisKey {

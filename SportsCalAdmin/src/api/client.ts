@@ -1,6 +1,5 @@
 import type {
   HealthResponse,
-  MetricsResponse,
   RedisKeysResponse,
   RedisKeyContentResponse,
   DataGapsResponse,
@@ -40,10 +39,6 @@ class ApiClient {
   // Read endpoints
   async getHealth(): Promise<HealthResponse> {
     return this.fetch<HealthResponse>('/api/admin/health')
-  }
-
-  async getMetrics(): Promise<MetricsResponse> {
-    return this.fetch<MetricsResponse>('/api/admin/metrics')
   }
 
   // Per-day telemetry counters (legacy + per-channel), dimension breakouts,

@@ -30,16 +30,19 @@ struct ESPNSoccerJob: AsyncScheduledJob {
         let leaguesToFetch = await soccerLeaguesToFetch(redis: context.application.redis, isDebug: isDebug)
         guard !leaguesToFetch.isEmpty else {
             // Nothing active right now. Refresh the TTL so the cache key doesn't expire,
-            // keeping the full prior snapshot around for /schedules consumers.
-            if !priorBoards.isEmpty {
+            // keeping the full prior snapshot around for /schedules consumers. EXPIRE
+            // rather than rewriting the prior read: a rewrite could clobber boards the
+            // LiveTicker wrote since. Only a missing TTL key is re-seeded from `latest`.
+            let refreshed = (try? await context.application.redis.expire(ttlKey, after: .minutes(15)).get()) ?? false
+            if !refreshed, !priorBoards.isEmpty {
                 try await context.application.redis.setex(ttlKey, toJSON: priorBoards, expirationInSeconds: 60 * 15)
-                try await context.application.redis.set(latestKey, toJSON: priorBoards)
             }
+            await JobHeartbeat.recordSuccess(.espnSoccer, app: context.application, isDebug: isDebug)
             return
         }
 
         Self.logger.info("Fetching soccer leagues", metadata: ["leagues": "\(leaguesToFetch)"])
-        var espnInfo = await withTaskGroup(of: (Leagues, Scoreboard?).self) { group in
+        let fetched = await withTaskGroup(of: (Leagues, Scoreboard?).self) { group in
             var results: [Leagues: Scoreboard] = [:]
             for league in leaguesToFetch {
                 group.addTask {
@@ -77,11 +80,57 @@ struct ESPNSoccerJob: AsyncScheduledJob {
             }
             return results
         }
-        // Fill in leagues we didn't refetch with their prior cache (don't drop them).
-        espnInfo.merge(priorBoards) { new, _ in new }
+        // The fetch took seconds; the LiveTicker may have written fresher boards since the
+        // prior read. Re-read just before writing and merge against THAT, so leagues we
+        // didn't refetch keep the ticker's copy and no event's score goes backwards.
+        let current = (try? await context.application.redis.get(latestKey, asJSON: [Leagues: Scoreboard].self)) ?? priorBoards
+        let espnInfo = Self.mergeFetchedBoards(fetched: fetched, current: current)
 
         try await context.application.redis.setex(ttlKey, toJSON: espnInfo, expirationInSeconds: 60 * 15)
         try await context.application.redis.set(latestKey, toJSON: espnInfo)
+        await JobHeartbeat.recordSuccess(.espnSoccer, app: context.application, isDebug: isDebug)
+    }
+
+    /// Merges this tick's fetched boards over the boards currently cached (re-read just
+    /// before the write). Leagues not fetched keep the cached board. For fetched leagues,
+    /// an event whose cached copy is further along — a later state, or a higher total
+    /// score — keeps the cached copy: the LiveTicker polls faster and may have written
+    /// it after this job's fetch. Pure, for tests.
+    static func mergeFetchedBoards(fetched: [Leagues: Scoreboard], current: [Leagues: Scoreboard]) -> [Leagues: Scoreboard] {
+        var merged = current
+        for (league, board) in fetched {
+            guard let cached = current[league] else {
+                merged[league] = board
+                continue
+            }
+            let cachedByID = Dictionary(cached.events.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+            var result = board
+            result.events = board.events.map { event in
+                guard let prior = cachedByID[event.id], isFurtherAlong(prior, than: event) else { return event }
+                return prior
+            }
+            merged[league] = result
+        }
+        return merged
+    }
+
+    /// Strictly further along: a later state (pre < in < post), or the same state with a
+    /// higher total score. Ties go to the fresh fetch.
+    static func isFurtherAlong(_ a: Event, than b: Event) -> Bool {
+        func stateRank(_ event: Event) -> Int {
+            let state = event.status?.type.state ?? event.competitions?.first?.status?.type.state
+            switch state {
+            case "post": return 2
+            case "in": return 1
+            default: return 0
+            }
+        }
+        func total(_ event: Event) -> Int {
+            (event.competitions?.first?.competitors ?? []).reduce(0) { $0 + (Int($1.score ?? "") ?? 0) }
+        }
+        let (ra, rb) = (stateRank(a), stateRank(b))
+        if ra != rb { return ra > rb }
+        return total(a) > total(b)
     }
 
     /// Merges the World Cup season-query events with the fresher "today" events,

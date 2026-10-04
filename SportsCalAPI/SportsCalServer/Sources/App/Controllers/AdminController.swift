@@ -16,7 +16,6 @@ struct AdminController: RouteCollection {
 
         // Read endpoints
         admin.get("health", use: health)
-        admin.get("metrics", use: metrics)
         admin.get("redis", "keys", use: redisKeys)
         admin.get("redis", "key", ":key", use: redisKey)
         admin.get("data-gaps", use: dataGaps)
@@ -56,8 +55,11 @@ struct AdminController: RouteCollection {
     struct JobStatus: Content {
         let name: String
         let schedule: String
+        /// ISO-8601 time of the job's last recorded success (`JobHeartbeat`), nil if none.
         let lastRun: String?
+        /// "ok" (within `maxAgeSeconds`), "stale", or "unknown" (no heartbeat recorded).
         let status: String
+        let maxAgeSeconds: Int?
     }
 
     func health(req: Request) async throws -> HealthResponse {
@@ -69,9 +71,10 @@ struct AdminController: RouteCollection {
         var memory: String?
 
         do {
-            let keys = try await req.redis.send(command: "KEYS", with: [.init(from: "*")]).get()
-            if case .array(let keyArray) = keys {
-                keyCount = keyArray.count
+            // DBSIZE is O(1); `KEYS *` blocked Redis for the whole keyspace walk.
+            let size = try await req.redis.send(command: "DBSIZE").get()
+            if case .integer(let count) = size {
+                keyCount = count
             }
 
             let info = try await req.redis.send(command: "INFO", with: [.init(from: "memory")]).get()
@@ -89,20 +92,37 @@ struct AdminController: RouteCollection {
             req.logger.error("Redis health check failed: \(error)")
         }
 
-        // Get last update times from Redis
-        let scheduleLastUpdate = try? await req.redis.get(
-            RedisEndpoint.ESPN.scheduleLastUpdate.getValue(isDebug: isDebug),
-            as: String.self
-        ).get()
-
-        let jobs = [
-            JobStatus(name: "ScheduleUpdateJob", schedule: "Every second", lastRun: scheduleLastUpdate, status: "active"),
-            JobStatus(name: "APNSJob", schedule: "Every second", lastRun: nil, status: "active"),
-            JobStatus(name: "ESPNFetchJob", schedule: "Minutely at :15", lastRun: nil, status: "active"),
-            JobStatus(name: "ESPNSoccerJob", schedule: "Minutely at :02", lastRun: nil, status: "active"),
-            JobStatus(name: "ESPNTennisJob", schedule: "Minutely at :02", lastRun: nil, status: "active"),
-            JobStatus(name: "ESPNTeamFetchJob", schedule: "Hourly at :38", lastRun: nil, status: "active")
+        // Real last-success times from the jobs' heartbeats, judged against each job's
+        // staleness budget. Jobs without a heartbeat (team fetch, tennis, F1 session
+        // detail, App Attest maintenance) are listed by their schedule only.
+        let iso = ISO8601DateFormatter()
+        let now = Date()
+        var jobs: [JobStatus] = []
+        for job in JobHeartbeat.Job.allCases {
+            let last = await JobHeartbeat.lastSuccess(job, app: req.application, isDebug: isDebug)
+            let status: String
+            if let last {
+                status = now.timeIntervalSince(last) <= job.maxAge ? "ok" : "stale"
+            } else {
+                status = "unknown"
+            }
+            jobs.append(JobStatus(
+                name: job.displayName,
+                schedule: job.scheduleDescription,
+                lastRun: last.map { iso.string(from: $0) },
+                status: status,
+                maxAgeSeconds: Int(job.maxAge)
+            ))
+        }
+        let untracked: [(String, String)] = [
+            ("ESPNTennisJob", "Every minute at :02s"),
+            ("ESPNTeamFetchJob", "Hourly at :38"),
+            ("F1SessionDetailJob", "Hourly at :40"),
+            ("AppAttestMaintenanceJob", "Hourly at :55"),
         ]
+        for (name, schedule) in untracked {
+            jobs.append(JobStatus(name: name, schedule: schedule, lastRun: nil, status: "untracked", maxAgeSeconds: nil))
+        }
 
         let dateFormatter = ISO8601DateFormatter()
         dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -111,28 +131,6 @@ struct AdminController: RouteCollection {
             status: isConnected ? "healthy" : "degraded",
             redis: RedisHealth(connected: isConnected, keyCount: keyCount, memory: memory),
             jobs: jobs,
-            timestamp: dateFormatter.string(from: Date())
-        )
-    }
-
-    // MARK: - Metrics Endpoint
-
-    struct MetricsResponse: Content {
-        let totalRequests: Int
-        let averageResponseTime: Double
-        let errorRate: Double
-        let timestamp: String
-    }
-
-    func metrics(req: Request) async throws -> MetricsResponse {
-        // Placeholder for now - in production, you'd integrate with actual metrics collection
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-        return MetricsResponse(
-            totalRequests: 0,
-            averageResponseTime: 0.0,
-            errorRate: 0.0,
             timestamp: dateFormatter.string(from: Date())
         )
     }
@@ -152,41 +150,37 @@ struct AdminController: RouteCollection {
     }
 
     func redisKeys(req: Request) async throws -> RedisKeysResponse {
-        let keysResponse = try await req.redis.send(command: "KEYS", with: [.init(from: "*")]).get()
+        // Cursor SCAN, not `KEYS *`: KEYS is O(N) in one blocking call and stalls every
+        // other Redis client (the live pipeline included) while it runs.
+        let allKeys = try await req.kv.scanKeys(matching: "*").sorted()
 
         var keyInfos: [RedisKeyInfo] = []
 
-        if case .array(let keyArray) = keysResponse {
-            for keyData in keyArray {
-                if case .bulkString(let buffer) = keyData,
-                   let keyString = buffer.map({ String(buffer: $0) }) {
+        for keyString in allKeys {
+            // Get key type
+            let typeResponse = try await req.redis.send(command: "TYPE", with: [.init(from: keyString)]).get()
+            var typeString = "unknown"
+            if case .simpleString(let buffer) = typeResponse {
+                typeString = String(buffer: buffer)
+            }
 
-                    // Get key type
-                    let typeResponse = try await req.redis.send(command: "TYPE", with: [.init(from: keyString)]).get()
-                    var typeString = "unknown"
-                    if case .simpleString(let buffer) = typeResponse {
-                        typeString = String(buffer: buffer)
-                    }
+            // Get TTL
+            let ttlResponse = try await req.redis.send(command: "TTL", with: [.init(from: keyString)]).get()
+            var ttl: Int?
+            if case .integer(let ttlValue) = ttlResponse, ttlValue >= 0 {
+                ttl = ttlValue
+            }
 
-                    // Get TTL
-                    let ttlResponse = try await req.redis.send(command: "TTL", with: [.init(from: keyString)]).get()
-                    var ttl: Int?
-                    if case .integer(let ttlValue) = ttlResponse, ttlValue >= 0 {
-                        ttl = ttlValue
-                    }
-
-                    // Get size (approximate)
-                    var size: Int?
-                    if typeString == "string" {
-                        let strlenResponse = try await req.redis.send(command: "STRLEN", with: [.init(from: keyString)]).get()
-                        if case .integer(let length) = strlenResponse {
-                            size = length
-                        }
-                    }
-
-                    keyInfos.append(RedisKeyInfo(key: keyString, type: typeString, size: size, ttl: ttl))
+            // Get size (approximate)
+            var size: Int?
+            if typeString == "string" {
+                let strlenResponse = try await req.redis.send(command: "STRLEN", with: [.init(from: keyString)]).get()
+                if case .integer(let length) = strlenResponse {
+                    size = length
                 }
             }
+
+            keyInfos.append(RedisKeyInfo(key: keyString, type: typeString, size: size, ttl: ttl))
         }
 
         return RedisKeysResponse(keys: keyInfos, total: keyInfos.count)
@@ -498,9 +492,7 @@ struct AdminController: RouteCollection {
         let isDebug = req.application.environment == .development
         let keyPattern = isDebug ? "debug-PushToStartByInstall-*" : "PushToStartByInstall-*"
 
-        guard let installKeys = try? await req.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
-            .array?
-            .compactMap({ $0.string }) else {
+        guard let installKeys = try? await req.kv.scanKeys(matching: keyPattern) else {
             return PushToStartRegistrationsResponse(registrations: [], totalTokens: 0)
         }
 
@@ -556,9 +548,7 @@ struct AdminController: RouteCollection {
 
         // Count installs (= devices)
         let keyPattern = isDebug ? "debug-PushToStartByInstall-*" : "PushToStartByInstall-*"
-        let installKeys: [String] = (try? await req.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
-            .array?
-            .compactMap({ $0.string })) ?? []
+        let installKeys: [String] = (try? await req.kv.scanKeys(matching: keyPattern)) ?? []
 
         let systemChecks = [
             SystemCheck(name: "Redis Connected", ok: redisConnected, detail: redisConnected ? "PONG" : "Connection failed"),
@@ -584,9 +574,7 @@ struct AdminController: RouteCollection {
             steps.append(PipelineStep(name: "APNS Configured", status: apnsConfigured ? "green" : "red", detail: apnsConfigured ? "Ready" : "Not configured"))
 
             let sentPattern = "\(sentKeyPrefix)\(install.token)-*"
-            let sentKeys = (try? await req.application.redis.send(command: "keys", with: [sentPattern.convertedToRESPValue()])
-                .array?
-                .compactMap({ $0.string })) ?? []
+            let sentKeys = (try? await req.kv.scanKeys(matching: sentPattern)) ?? []
             if !sentKeys.isEmpty {
                 steps.append(PipelineStep(name: "Notification Sent", status: "green", detail: "\(sentKeys.count) sent"))
             } else {
@@ -632,9 +620,7 @@ struct AdminController: RouteCollection {
         // Per-activity update-token registrations — independent of the push-to-start
         // install, so collect them regardless of whether the install below matches.
         let apnsKeyPattern = isDebug ? "debug-APNS-*" : "APNS-*"
-        let apnsKeys = (try? await req.application.redis.send(command: "keys", with: [apnsKeyPattern.convertedToRESPValue()])
-            .array?
-            .compactMap({ $0.string })) ?? []
+        let apnsKeys = (try? await req.kv.scanKeys(matching: apnsKeyPattern)) ?? []
         var activityUpdateEventIDs: [String] = []
         for key in apnsKeys {
             if let reg = try? await req.kv.getJSON(key, as: APNSRegistration.self) {
@@ -642,9 +628,7 @@ struct AdminController: RouteCollection {
             }
         }
 
-        let allInstallKeys = (try? await req.application.redis.send(command: "keys", with: [keyPattern.convertedToRESPValue()])
-            .array?
-            .compactMap({ $0.string })) ?? []
+        let allInstallKeys = (try? await req.kv.scanKeys(matching: keyPattern)) ?? []
 
         // Find the install whose token starts with the supplied prefix.
         var matched: PushToStartInstall? = nil
@@ -661,10 +645,8 @@ struct AdminController: RouteCollection {
         }
 
         let sentPattern = "\(sentKeyPrefix)\(install.token)-*"
-        let sentKeys = (try? await req.application.redis.send(command: "keys", with: [sentPattern.convertedToRESPValue()])
-            .array?
-            .compactMap({ $0.string })
-            .map({ String($0.dropFirst("\(sentKeyPrefix)\(install.token)-".count)) })) ?? []
+        let sentKeys = ((try? await req.kv.scanKeys(matching: sentPattern)) ?? [])
+            .map({ String($0.dropFirst("\(sentKeyPrefix)\(install.token)-".count)) })
 
         return DeviceStatusResponse(registered: true, favorites: install.favorites, eventIDs: install.eventIDs, sentNotifications: sentKeys, apnsConfigured: apnsConfigured, activityUpdateEventIDs: activityUpdateEventIDs)
     }
@@ -963,18 +945,13 @@ struct AdminController: RouteCollection {
     }
 
     func clearAllCache(req: Request) async throws -> InvalidateResponse {
-        // Get all keys and delete them
-        let keysResponse = try await req.redis.send(command: "KEYS", with: [.init(from: "*")]).get()
+        // Cursor SCAN (not a blocking `KEYS *`), then delete in batches of 500.
+        let allKeys = try await req.kv.scanKeys(matching: "*")
 
         var deletedCount = 0
-        if case .array(let keyArray) = keysResponse {
-            for keyData in keyArray {
-                if case .bulkString(let buffer) = keyData,
-                   let keyString = buffer.map({ String(buffer: $0) }) {
-                    let deleted = try await req.redis.delete([RedisKey(keyString)]).get()
-                    deletedCount += deleted
-                }
-            }
+        for start in stride(from: 0, to: allKeys.count, by: 500) {
+            let batch = Array(allKeys[start..<min(start + 500, allKeys.count)])
+            deletedCount += try await req.kv.delete(batch)
         }
 
         return InvalidateResponse(

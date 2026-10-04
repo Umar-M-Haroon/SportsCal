@@ -113,6 +113,88 @@ enum LiveMerge {
         return (merged, changed)
     }
 
+    // MARK: - Concurrent-writer reconciliation
+
+    /// Reconciles a slow full rebuild (`ours`, ESPNFetchJob) with writes another job
+    /// (LiveTicker) made to the same snapshot while the rebuild was running.
+    ///
+    /// `baseline` is the snapshot the rebuild started from; `current` is the snapshot
+    /// re-read just before writing. Any game whose copy in `current` differs from
+    /// `baseline` was updated concurrently; its live fields are overlaid onto `ours`
+    /// unless ours is further along (a later status, or a higher total score) — so a
+    /// score the ticker already published never goes backwards when the slower job
+    /// writes. Games are matched by `idEvent`; nothing is added or removed.
+    ///
+    /// Returns the reconciled snapshot and the event IDs that took the concurrent copy.
+    static func preservingConcurrentUpdates(
+        ours: LiveScore,
+        baseline: LiveScore?,
+        current: LiveScore?
+    ) -> (liveScore: LiveScore, preserved: Set<String>) {
+        guard let current else { return (ours, []) }
+        var baselineByID: [String: Game] = [:]
+        for (_, games) in baseline?.allGamesBySport ?? [] {
+            for game in games { if let id = game.idEvent { baselineByID[id] = game } }
+        }
+        var concurrent: [String: Game] = [:]
+        for (_, games) in current.allGamesBySport {
+            for game in games {
+                guard let id = game.idEvent, baselineByID[id] != game else { continue }
+                concurrent[id] = game
+            }
+        }
+        guard !concurrent.isEmpty else { return (ours, []) }
+
+        var result = ours
+        var preserved = Set<String>()
+        for (_, keyPath) in LiveScore.sportKeyPaths {
+            guard let events = result[keyPath: keyPath]?.events else { continue }
+            var touched = false
+            let merged = events.map { game -> Game in
+                guard let id = game.idEvent, let theirs = concurrent[id],
+                      isAtLeastAsFarAlong(theirs, as: game) else { return game }
+                touched = true
+                preserved.insert(id)
+                var updated = game.updated(
+                    intHomeScore: theirs.intHomeScore,
+                    intAwayScore: theirs.intAwayScore,
+                    strStatus: theirs.strStatus,
+                    strProgress: theirs.strProgress,
+                    lastPlay: theirs.lastPlay,
+                    homeLinescores: theirs.homeLinescores,
+                    awayLinescores: theirs.awayLinescores,
+                    homeLeaders: theirs.homeLeaders,
+                    awayLeaders: theirs.awayLeaders,
+                    isCompleted: theirs.isCompleted,
+                    aggregateScore: theirs.aggregateScore
+                )
+                updated.situation = theirs.situation
+                return updated
+            }
+            if touched { result[keyPath: keyPath] = LiveEvent(events: merged) }
+        }
+        return (result, preserved)
+    }
+
+    /// Whether `a` is at least as far along as `b`: a later status wins outright
+    /// (pre < in < post); at equal status the higher total score wins; a tie goes to `a`
+    /// (the concurrent write, which is at least as recent as the rebuild's cached copy).
+    static func isAtLeastAsFarAlong(_ a: Game, as b: Game) -> Bool {
+        func statusRank(_ game: Game) -> Int {
+            switch game.strStatus {
+            case "post": return 2
+            case "in": return 1
+            default: return game.isCompleted == true ? 2 : 0
+            }
+        }
+        func total(_ game: Game) -> Int {
+            (game.intHomeScore.flatMap { Int($0) } ?? 0) + (game.intAwayScore.flatMap { Int($0) } ?? 0)
+        }
+        let (ra, rb) = (statusRank(a), statusRank(b))
+        if ra != rb { return ra > rb }
+        return total(a) >= total(b)
+    }
+
     // MARK: - Bucket access by sport
 
     private static func events(in s: LiveScore, sport: SportType) -> [Game]? {
