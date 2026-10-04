@@ -178,6 +178,10 @@ struct ModernGameDetailView: View {
         .toolbar { reelModeToolbarButton }
         .refreshable { await refresh() }
         .task { await initialLoad() }
+        // Keep the soccer match centre (events, commentary) moving with the live score.
+        .onChange(of: game.lastPlay) { _, _ in
+            Task { await reloadSoccerMatch() }
+        }
     }
 
     /// Toolbar toggle between auto-rotating Rotator and the static segmented
@@ -244,6 +248,12 @@ struct ModernGameDetailView: View {
                 league: pbpLeagueSlug
             )
         }
+        await reloadSoccerMatch()
+    }
+
+    private func reloadSoccerMatch() async {
+        guard sportType == .soccer, game.idEvent != nil else { return }
+        await sectionsModel.loadSoccerMatch(game: game, leagueSlug: league?.espnSlug)
     }
 
     private func refresh() async {

@@ -185,6 +185,9 @@ struct ContentView: View {
             // foreground (below) — a reschedule doesn't change the game count, and games
             // drift into the scheduling window day by day.
             .task(id: viewModel.totalGames?.count ?? 0) { reconcileTeamAlerts() }
+            .onReceive(NotificationCenter.default.publisher(for: .apnsDeviceTokenDidUpdate)) { _ in
+                reconcileTeamAlerts()
+            }
             .alert("Scoreline Pro", isPresented: $shouldShowSportsCalProAlert) {
                 Button("Subscribe") { sheetType = .paywall }
                 Button("Cancel", role: .cancel) { }
@@ -682,7 +685,13 @@ struct ContentView: View {
 
     private func reconcileTeamAlerts() {
         let teamIDs = storage.teamAlertTeamIDs
-        guard !teamIDs.isEmpty, let games = viewModel.totalGames, !games.isEmpty else { return }
+        guard let games = viewModel.totalGames, !games.isEmpty else { return }
+        #if os(iOS)
+        // Server-pushed soccer match alerts follow the same team list. Runs even with
+        // no teams left, so turning the last one off unregisters.
+        Task { await SoccerAlertRegistrar.sync(games: games, storage: storage, isPro: SubscriptionManager.shared.isPro) }
+        #endif
+        guard !teamIDs.isEmpty else { return }
         TeamAlertScheduler.reconcile(games: games, teamIDs: teamIDs,
                                      isPro: SubscriptionManager.shared.isPro)
     }

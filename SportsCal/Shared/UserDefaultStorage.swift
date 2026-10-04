@@ -170,6 +170,24 @@ class UserDefaultStorage {
         }
     }
 
+    // MARK: - Soccer Alerts
+
+    private static let soccerAlertKindsKey = "soccerAlertKinds"
+
+    /// Which match alerts (lineups, goals, cards, HT/FT…) the server pushes for soccer
+    /// teams with alerts on. Every kind until the user turns some off.
+    var soccerAlertKinds: Set<SoccerAlertKind> {
+        get {
+            guard let raw = UserDefaults(suiteName: Self.suiteName)?.stringArray(forKey: Self.soccerAlertKindsKey) else {
+                return Set(SoccerAlertKind.allCases)
+            }
+            return Set(raw.compactMap(SoccerAlertKind.init(rawValue:)))
+        }
+        set {
+            UserDefaults(suiteName: Self.suiteName)?.set(newValue.map(\.rawValue).sorted(), forKey: Self.soccerAlertKindsKey)
+        }
+    }
+
     /// Event IDs of upcoming/in-progress World Cup matches that should be auto-followed
     /// while `followWorldCup` is on. If `followWorldCupTeam` is set, only that team's
     /// matches are returned. Past games are excluded so cleanup doesn't fight us.

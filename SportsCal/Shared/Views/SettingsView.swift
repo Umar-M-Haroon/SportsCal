@@ -120,6 +120,40 @@ struct DeveloperSettingsSection: View {
     }
 }
 
+/// Which soccer match alerts to get for teams with alerts on (lineups, goals,
+/// cards, VAR, half/full time). Pushed by the server, so changes re-register.
+struct SoccerAlertSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+    @Environment(GameViewModel.self) private var viewModel
+    @Environment(SubscriptionManager.self) private var subscriptionManager
+    /// `soccerAlertKinds` reads straight from UserDefaults, which SwiftUI can't
+    /// observe; mirror it here so the toggles redraw.
+    @State private var kinds: Set<SoccerAlertKind> = []
+
+    var body: some View {
+        Section {
+            ForEach(SoccerAlertKind.allCases, id: \.self) { kind in
+                Toggle(kind.title, isOn: Binding(
+                    get: { kinds.contains(kind) },
+                    set: { isOn in
+                        if isOn { kinds.insert(kind) } else { kinds.remove(kind) }
+                        appStorage.soccerAlertKinds = kinds
+                        Task {
+                            await SoccerAlertRegistrar.sync(games: viewModel.totalGames ?? [], storage: appStorage,
+                                                            isPro: subscriptionManager.isPro)
+                        }
+                    }
+                ))
+            }
+        } header: {
+            Text("Soccer Match Alerts")
+        } footer: {
+            Text("For soccer teams you've turned alerts on for. Turn them on from a team's page.")
+        }
+        .onAppear { kinds = appStorage.soccerAlertKinds }
+    }
+}
+
 struct ProOptionsSettingsSection: View {
     @Environment(UserDefaultStorage.self) private var appStorage
     @Environment(SubscriptionManager.self) private var subscriptionManager
@@ -474,6 +508,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                SoccerAlertSettingsSection()
                 #endif
                 Section(header: Text("Personalization")) {
                     @Bindable var bindableAppStorage = appStorage

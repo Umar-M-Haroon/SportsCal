@@ -142,8 +142,7 @@ enum TeamAlertScheduler {
     private static let horizon: TimeInterval = 21 * 24 * 60 * 60
 
     static func reconcile(games: [Game], teamIDs: Set<String>, isPro: Bool, now: Date = Date()) {
-        // A lapsed subscription keeps the free allowance, chosen stably.
-        let allowed = isPro ? teamIDs : Set(teamIDs.sorted().prefix(NotificationGate.freeTeamAlertLimit))
+        let allowed = NotificationGate.activeTeamAlertIDs(teamIDs, isPro: isPro)
 
         var seen = Set<String>()
         let wanted: [(identifier: String, game: Game, date: Date)] = games

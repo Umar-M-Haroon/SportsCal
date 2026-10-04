@@ -1135,6 +1135,51 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         // on every successful update so an active activity never expires mid-game.
         try await req.kv.setJSON(key, value: registration, ttl: 60 * 60 * 12)
         await APNSRegistrationIndex.add(key, kv: req.kv)
+        // Soccer goal alerts stand aside for a running Live Activity, which already
+        // announces the goal. Only installs that say who they are can be matched.
+        if let installID = req.headers.first(name: "X-Install-ID"), !installID.isEmpty {
+            let marker = LiveActivityInstallMarker.key(installID: installID, eventID: body.eventID,
+                                                       sandbox: environment == .sandbox)
+            try? await req.kv.setString(marker, value: "1", ttl: 60 * 60 * 12)
+        }
+        return .ok
+    }
+
+    //MARK: - Soccer alerts
+    // The teams (by name, as the app's games carry them) and alert kinds an install
+    // wants; SoccerAlertJob pushes to it. Empty teams or kinds unregisters.
+    writeRoutes.post("notifications", "soccer") { req async throws -> HTTPStatus in
+        let registration = try req.content.decode(SoccerAlertRegistration.self)
+        guard !registration.token.isEmpty, registration.token.count <= 200,
+              registration.teams.count <= 100 else {
+            throw Abort(.badRequest)
+        }
+        let environment = resolveAPNSEnvironment(from: req)
+        let installID = resolveInstallID(from: req, fallbackToken: registration.token)
+        let sandbox = environment == .sandbox
+        let key = SoccerAlertDevice.key(installID: installID, sandbox: sandbox)
+        let teams = registration.teams.map { String($0.prefix(80)) }
+        if teams.isEmpty || registration.kinds.isEmpty {
+            _ = try? await req.kv.delete([key])
+            await SoccerAlertDeviceIndex.remove([key], sandbox: sandbox, kv: req.kv)
+            return .ok
+        }
+        let device = SoccerAlertDevice(installID: installID, token: registration.token,
+                                       teams: teams, kinds: registration.kinds)
+        try await req.kv.setJSON(key, value: device, ttl: SoccerAlertDevice.ttl)
+        await SoccerAlertDeviceIndex.add(key, sandbox: sandbox, kv: req.kv)
+        req.logger.info("Registered soccer alerts for install \(installID.prefix(8))... [\(environment.rawValue)] teams=\(teams.count) kinds=\(registration.kinds.count)")
+        return .ok
+    }
+
+    writeRoutes.delete("notifications", "soccer") { req async throws -> HTTPStatus in
+        let body = try req.content.decode(DeregisterRequest.self)
+        let environment = resolveAPNSEnvironment(from: req)
+        let installID = resolveInstallID(from: req, fallbackToken: body.token)
+        let sandbox = environment == .sandbox
+        let key = SoccerAlertDevice.key(installID: installID, sandbox: sandbox)
+        _ = try? await req.kv.delete([key])
+        await SoccerAlertDeviceIndex.remove([key], sandbox: sandbox, kv: req.kv)
         return .ok
     }
 
@@ -1253,26 +1298,69 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         }
     }
 
-    // Per-match box score (team stats, lineups, goal/card/sub timeline) — fetched
-    // lazily from ESPN's per-event summary and cached briefly so a live match stays
-    // fresh while finals aren't re-fetched on every detail open. Returns 404 when ESPN
-    // has no box score yet (pre-match), which the client treats as "not available".
-    routes.get("worldcup", "boxscore", ":eventID") { req async throws -> String in
-        guard let eventID = req.parameters.get("eventID"), !eventID.isEmpty else {
+    // Per-match soccer detail (lineups, events, shots, momentum, commentary, form,
+    // head-to-head) — fetched lazily from ESPN's per-event summary and cached for as
+    // long as the match state allows (see SoccerMatchService). 404 when ESPN has
+    // nothing for the match, which the client treats as "not available".
+    //
+    // `league` (ESPN slug), `date` (yyyyMMdd UTC), `home` and `away` let the server
+    // find a TheSportsDB-id game on ESPN's scoreboard when the event map doesn't know it.
+    routes.get("soccer", "match", ":eventID") { req async throws -> String in
+        guard let eventID = req.parameters.get("eventID"), !eventID.isEmpty, eventID.count <= 20 else {
             throw Abort(.badRequest)
         }
-        let isDebug = req.application.environment == .development
-        let cacheKey: RedisKey = isDebug ? "debug-World Cup BoxScore-\(eventID)" : "World Cup BoxScore-\(eventID)"
-        if let cached = try? await req.application.redis.get(cacheKey, asJSON: WorldCupBoxScore.self) {
-            return encodeResult(res: cached)
+        let slug = (try? req.query.get(String.self, at: "league")).flatMap { slug in
+            slug.count <= 40 && slug.allSatisfy { $0.isLetter || $0.isNumber || $0 == "." || $0 == "_" } ? slug : nil
         }
-        let summary = try await ESPNNetworking.getSoccerSummary(req: req.client, league: .FIFA_World_Cup, eventId: eventID)
-        guard let box = WorldCupBoxScoreBuilder.build(from: summary, eventID: eventID) else {
+        let lookup = SoccerMatchService.Lookup(
+            leagueSlug: slug,
+            day: try? req.query.get(Int.self, at: "date"),
+            homeName: (try? req.query.get(String.self, at: "home")).map { String($0.prefix(80)) },
+            awayName: (try? req.query.get(String.self, at: "away")).map { String($0.prefix(80)) }
+        )
+        guard let detail = try await SoccerMatchService.detail(req: req, eventID: eventID, lookup: lookup) else {
             throw Abort(.notFound)
         }
-        // 90s TTL: short enough to track a live match, long enough to absorb repeat opens.
-        try? await req.application.redis.setex(cacheKey, toJSON: box, expirationInSeconds: 90).get()
-        return encodeResult(res: box)
+        return encodeResult(res: detail)
+    }
+
+    // One soccer competition's table (with zones and form) plus its top scorers and
+    // assisters. 404 for a league that isn't soccer or has none of them.
+    routes.get("soccer", "competition", ":leagueID") { req async throws -> String in
+        guard let leagueID = req.parameters.get("leagueID").flatMap(Int.init),
+              let league = Leagues(rawValue: leagueID),
+              SportType(league: league) == .soccer else {
+            throw Abort(.badRequest)
+        }
+        guard let hub = try await SoccerCompetitionService.hub(req: req, league: league) else {
+            throw Abort(.notFound)
+        }
+        return encodeResult(res: hub)
+    }
+
+    // A soccer player's bio, season lines, last five matches and next fixture.
+    routes.get("soccer", "player", ":athleteID") { req async throws -> String in
+        guard let athleteID = req.parameters.get("athleteID"),
+              !athleteID.isEmpty, athleteID.count <= 12, athleteID.allSatisfy(\.isNumber) else {
+            throw Abort(.badRequest)
+        }
+        guard let profile = try await SoccerCompetitionService.player(req: req, athleteID: athleteID) else {
+            throw Abort(.notFound)
+        }
+        return encodeResult(res: profile)
+    }
+
+    // The same detail under its original World Cup path, for app versions that predate
+    // `/soccer/match`. The original keys are unchanged, so those versions decode it as before.
+    routes.get("worldcup", "boxscore", ":eventID") { req async throws -> String in
+        guard let eventID = req.parameters.get("eventID"), !eventID.isEmpty, eventID.count <= 20 else {
+            throw Abort(.badRequest)
+        }
+        let lookup = SoccerMatchService.Lookup(leagueSlug: Leagues.FIFA_World_Cup.espnSlug)
+        guard let detail = try await SoccerMatchService.detail(req: req, eventID: eventID, lookup: lookup) else {
+            throw Abort(.notFound)
+        }
+        return encodeResult(res: detail)
     }
 
     //MARK: - Standings

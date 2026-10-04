@@ -36,13 +36,17 @@ struct ModernGameDetailSections: View {
             liveSituationSection
             playoffSeriesSection
             boxScoreSection
+            soccerMatchSection
             winProbabilitySection
             momentumChartSection
             teamStatsSection
             keyPlayersSection
             playByPlaySection
             injuriesSection
-            headToHeadSection
+            // The soccer match centre carries ESPN's fuller meeting history.
+            if model.soccerMatch?.headToHead == nil {
+                headToHeadSection
+            }
             #if os(iOS)
             if !subscriptionManager.isPro && AdConfiguration.isEnabled,
                let ad = adManager.adForSlot(0) {
@@ -245,9 +249,11 @@ struct ModernGameDetailSections: View {
 
     @ViewBuilder
     private var momentumChartSection: some View {
+        // Soccer's match centre draws real attack momentum instead of the score line.
         if let homeLs = game.homeLinescores, let awayLs = game.awayLinescores,
            !homeLs.isEmpty, !awayLs.isEmpty,
-           game.intHomeScore != nil {
+           game.intHomeScore != nil,
+           model.soccerMatch?.momentum.isEmpty ?? true {
             VStack(alignment: .leading, spacing: .appSpace2) {
                 Text("MOMENTUM").appEyebrow().foregroundStyle(accent)
                 MomentumChartView(
@@ -307,8 +313,16 @@ struct ModernGameDetailSections: View {
     }
 
     @ViewBuilder
+    private var soccerMatchSection: some View {
+        if sportType == .soccer, let match = model.soccerMatch, !match.isEmpty {
+            SoccerMatchCentreView(match: match, game: game, style: .modern)
+        }
+    }
+
+    @ViewBuilder
     private var teamStatsSection: some View {
-        if league != .FIFA_World_Cup, let stats = model.teamStats {
+        // Soccer matches with a match centre show their own, richer team stats above.
+        if model.soccerMatch?.teamStats.isEmpty ?? true, let stats = model.teamStats {
             VStack(alignment: .leading, spacing: .appSpace3) {
                 Text("TEAM STATS").appEyebrow().foregroundStyle(accent)
                 TeamStatComparisonView(
@@ -739,7 +753,18 @@ struct ModernGameDetailSections: View {
     private var standingsSection: some View {
         if !game.isIndividualSport {
             VStack(alignment: .leading, spacing: .appSpace3) {
-                Text("STANDINGS").appEyebrow().foregroundStyle(accent)
+                HStack {
+                    Text("STANDINGS").appEyebrow().foregroundStyle(accent)
+                    Spacer()
+                    if sportType == .soccer, let league {
+                        // The competition hub: full table with form, matches, top scorers.
+                        NavigationLink("Full table") {
+                            SoccerCompetitionHubView(league: league)
+                        }
+                        .font(.appCaption)
+                        .tint(accent)
+                    }
+                }
 
                 if model.standingsLoading {
                     HStack { Spacer(); ProgressView(); Spacer() }

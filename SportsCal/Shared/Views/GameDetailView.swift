@@ -34,8 +34,8 @@ final class GameDetailSectionsModel {
     var winProbability: WinProbabilitySeries?
     var teamStats: TeamStatComparison?
 
-    var worldCupBoxScore: WorldCupBoxScore?
-    var boxScoreLoading = false
+    var soccerMatch: SoccerMatchDetail?
+    var soccerMatchLoading = false
 
     func loadStandings(leagueID: String?, isIndividualSport: Bool) async {
         guard !isIndividualSport else {
@@ -89,15 +89,15 @@ final class GameDetailSectionsModel {
         }
     }
 
-    func loadWorldCupBoxScore(eventID: String) async {
-        boxScoreLoading = true
-        defer { boxScoreLoading = false }
+    func loadSoccerMatch(game: Game, leagueSlug: String?) async {
+        soccerMatchLoading = true
+        defer { soccerMatchLoading = false }
         do {
-            worldCupBoxScore = try await NetworkHandler.getWorldCupBoxScore(eventID: eventID)
-        } catch is NetworkHandler.BoxScoreNotAvailable {
-            worldCupBoxScore = nil
+            soccerMatch = try await NetworkHandler.getSoccerMatch(for: game, leagueSlug: leagueSlug)
+        } catch is NetworkHandler.SoccerMatchNotAvailable {
+            // Keep what we have: a 404 mid-match shouldn't blank the match centre.
         } catch {
-            // Silent failure — keep any box score we already have.
+            // Silent failure — keep any match detail we already have.
         }
     }
 }
@@ -530,7 +530,7 @@ struct GameDetailSections: View {
             liveSituationSection
             playoffSeriesSection
             boxScoreSection
-            worldCupBoxScoreSection
+            soccerMatchSection
             winProbabilitySection
             momentumChartSection
             teamStatsSection
@@ -550,11 +550,11 @@ struct GameDetailSections: View {
         // section itself, so data still loads even when the section is hidden.
         .task(id: game.idEvent) {
             await reloadPlays()
-            await reloadBoxScore()
+            await reloadSoccerMatch()
         }
         .onChange(of: game.lastPlay) { _, _ in
             Task { await reloadPlays() }
-            Task { await reloadBoxScore() }
+            Task { await reloadSoccerMatch() }
         }
         .onChange(of: model.plays) { _, newPlays in
             let newAvailable = Set(newPlays.compactMap { $0.period?.number })
@@ -757,9 +757,11 @@ struct GameDetailSections: View {
 
     @ViewBuilder
     private var momentumChartSection: some View {
+        // Soccer's match centre draws real attack momentum instead of the score line.
         if let homeLs = game.homeLinescores, let awayLs = game.awayLinescores,
            !homeLs.isEmpty, !awayLs.isEmpty,
-           game.intHomeScore != nil {
+           game.intHomeScore != nil,
+           model.soccerMatch?.momentum.isEmpty ?? true {
             MomentumChartView(
                 game: game,
                 homeTeamName: homeTeam.strTeamShort ?? homeTeam.strTeam ?? game.strHomeTeam,
@@ -820,8 +822,8 @@ struct GameDetailSections: View {
 
     @ViewBuilder
     private var teamStatsSection: some View {
-        // The World Cup has its own richer box score above.
-        if league != .FIFA_World_Cup, let stats = model.teamStats {
+        // Soccer matches with a match centre show their own, richer team stats above.
+        if model.soccerMatch?.teamStats.isEmpty ?? true, let stats = model.teamStats {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Team Stats").font(.headline)
                 TeamStatComparisonView(
@@ -1009,8 +1011,9 @@ struct GameDetailSections: View {
     private var headToHeadSection: some View {
         let seasons = headToHeadSeasons
         // Hide the section entirely when there are no prior meetings (e.g. World Cup
-        // group-stage games) rather than showing an empty placeholder card.
-        if !seasons.isEmpty {
+        // group-stage games) rather than showing an empty placeholder card, and when
+        // the soccer match centre already shows ESPN's fuller meeting history.
+        if !seasons.isEmpty, model.soccerMatch?.headToHead == nil {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Head-to-Head")
                     .font(.headline)
@@ -1169,8 +1172,18 @@ struct GameDetailSections: View {
     private var standingsSection: some View {
         if !game.isIndividualSport {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Standings")
-                    .font(.headline)
+                HStack {
+                    Text("Standings")
+                        .font(.headline)
+                    Spacer()
+                    if sportType == .soccer, let league {
+                        // The competition hub: full table with form, matches, top scorers.
+                        NavigationLink("Full table") {
+                            SoccerCompetitionHubView(league: league)
+                        }
+                        .font(.subheadline)
+                    }
+                }
 
                 if model.standingsLoading {
                     HStack {
@@ -1304,19 +1317,19 @@ struct GameDetailSections: View {
         )
     }
 
-    // MARK: World Cup box score
+    // MARK: Soccer match centre
 
-    private var isWorldCup: Bool { league == .FIFA_World_Cup }
+    private var isSoccer: Bool { sportType == .soccer }
 
-    private func reloadBoxScore() async {
-        guard isWorldCup, let eventID = game.idEvent else { return }
-        await model.loadWorldCupBoxScore(eventID: eventID)
+    private func reloadSoccerMatch() async {
+        guard isSoccer, game.idEvent != nil else { return }
+        await model.loadSoccerMatch(game: game, leagueSlug: league?.espnSlug)
     }
 
     @ViewBuilder
-    private var worldCupBoxScoreSection: some View {
-        if isWorldCup, let box = model.worldCupBoxScore, !box.isEmpty {
-            WorldCupBoxScoreView(boxScore: box, game: game)
+    private var soccerMatchSection: some View {
+        if isSoccer, let match = model.soccerMatch, !match.isEmpty {
+            SoccerMatchCentreView(match: match, game: game)
         }
     }
 

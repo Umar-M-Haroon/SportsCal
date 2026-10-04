@@ -559,6 +559,11 @@ struct TeamDetailView: View {
             teamIDs: ids,
             isPro: subscriptionManager.isPro
         )
+        #if os(iOS)
+        let games = viewModel.totalGames ?? []
+        let isPro = subscriptionManager.isPro
+        Task { await SoccerAlertRegistrar.sync(games: games, storage: storage, isPro: isPro) }
+        #endif
     }
 
     // MARK: - Roster & info

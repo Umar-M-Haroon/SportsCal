@@ -163,4 +163,11 @@ public enum NotificationGate {
         if enabledTeamCount < freeTeamAlertLimit { return .allowed }
         return .requiresPro(.unlimitedReminders)
     }
+
+    /// The team alerts that actually fire. A lapsed subscription keeps the free
+    /// allowance, chosen stably. Shared by the local game-start alerts and the
+    /// server's soccer match alerts so both cover the same teams.
+    public static func activeTeamAlertIDs(_ teamIDs: Set<String>, isPro: Bool) -> Set<String> {
+        isPro ? teamIDs : Set(teamIDs.sorted().prefix(freeTeamAlertLimit))
+    }
 }

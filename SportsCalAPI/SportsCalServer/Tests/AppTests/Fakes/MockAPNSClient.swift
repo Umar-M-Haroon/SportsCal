@@ -6,7 +6,7 @@ import Foundation
 /// to simulate APNS failure modes (unregistered, rate-limited, etc).
 final class MockAPNSClient: APNSSending, @unchecked Sendable {
     struct RecordedSend: Sendable, Equatable {
-        enum Kind: String, Sendable, Equatable { case update, end, start }
+        enum Kind: String, Sendable, Equatable { case update, end, start, alert }
         let kind: Kind
         let deviceToken: String
         let appID: String
@@ -128,6 +128,30 @@ final class MockAPNSClient: APNSSending, @unchecked Sendable {
             timestamp: timestamp,
             topic: nil
         )
+    }
+
+    func sendAlert(
+        deviceToken: String,
+        appID: String,
+        title: String,
+        body: String,
+        eventID: String,
+        type: String,
+        environment: APNSEnvironment
+    ) async throws -> APNSSendResult {
+        try consumeErrorIfAny(for: deviceToken)
+        append(RecordedSend(
+            kind: .alert,
+            deviceToken: deviceToken,
+            appID: appID,
+            contentState: nil,
+            attributes: nil,
+            alertTitle: title,
+            alertBody: body,
+            timestamp: 0,
+            environment: environment
+        ))
+        return APNSSendResult(kind: .alert, deviceToken: deviceToken, appID: appID, timestamp: 0, topic: appID)
     }
 
     // MARK: - Internals
