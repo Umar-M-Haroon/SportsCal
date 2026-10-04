@@ -91,6 +91,6 @@ struct WatchOnboardingView: View {
         defaults.set(true, forKey: "watchOnboardingComplete")
 
         isPresented = false
-        Task { await viewModel.fetchSchedule() }
+        Task { await viewModel.fetchSchedule(force: true) }
     }
 }

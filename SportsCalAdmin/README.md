@@ -68,7 +68,6 @@ http://localhost:8080/admin/
 ### Read Endpoints
 
 - `GET /admin/health` - System health and job status
-- `GET /admin/metrics` - API performance metrics
 - `GET /admin/redis/keys` - List all Redis keys
 - `GET /admin/redis/key/:key` - Get specific key content
 - `GET /admin/data-gaps` - Data completeness analysis

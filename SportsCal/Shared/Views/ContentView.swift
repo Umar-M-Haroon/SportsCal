@@ -175,9 +175,11 @@ struct ContentView: View {
                 }
             }
             .animation(.default, value: showOfflinePlaceholder)
-            .refreshable(action: {
-                viewModel.getInfo()
-            })
+            .refreshable {
+                // Await the fetch so the pull-to-refresh spinner stays up until the
+                // data has actually arrived (getInfo() returns immediately).
+                await viewModel.refresh()
+            }
             // Keep team-page "alert me for every game" notifications in step with the
             // schedule: new fixtures get scheduled, moved ones retimed. Also on every
             // foreground (below) — a reschedule doesn't change the game count, and games
@@ -235,7 +237,10 @@ struct ContentView: View {
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
                 if newPhase == .active {
-                    viewModel.getInfo()
+                    // Throttled (skips if the last fetch was < 2 min ago) and runs as a
+                    // background refresh, so a quick app-switch doesn't flash the
+                    // loading state or re-download the whole schedule.
+                    viewModel.refreshOnForegroundIfNeeded()
                     viewModel.ensureWebSocketConnected()
                     reconcileTeamAlerts()
                 }
@@ -303,7 +308,7 @@ struct ContentView: View {
     private var mainNavigation: some View {
         #if os(macOS)
         Group {
-            switch storage.appTheme {
+            switch storage.effectiveAppTheme {
             case .efRemix:
                 ModernMacWindow()
                     .environment(viewModel)
@@ -321,7 +326,7 @@ struct ContentView: View {
         TabView(selection: $selectedTab) {
             NavigationStack {
                 Group {
-                    switch storage.appTheme {
+                    switch storage.effectiveAppTheme {
                     case .ambient:
                         AmbientDayPage()
                             .environment(viewModel)
@@ -399,7 +404,7 @@ struct ContentView: View {
 
             NavigationStack(path: $browseTeamPath) {
                 Group {
-                    switch storage.appTheme {
+                    switch storage.effectiveAppTheme {
                     case .ambient:
                         AmbientBrowsePage()
                             .environment(viewModel)

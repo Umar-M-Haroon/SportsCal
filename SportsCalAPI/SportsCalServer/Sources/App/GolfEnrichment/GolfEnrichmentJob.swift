@@ -28,15 +28,17 @@ struct GolfEnrichmentJob: AsyncScheduledJob {
                 Self.logger.info("Golf enrichment still fresh, skipping", metadata: [
                     "minutesSinceUpdate": "\(String(format: "%.0f", minutesSince))"
                 ])
+                await JobHeartbeat.recordSuccess(.golfEnrichment, app: context.application, isDebug: isDebug)
                 return
             }
         }
 
         // Get current schedule to find active golf events
         let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
-        guard var schedule = try? await redis.get(scheduleKey, asJSON: LiveScore.self),
+        guard let schedule = try? await redis.get(scheduleKey, asJSON: LiveScore.self),
               let golfEvents = schedule.golf?.events, !golfEvents.isEmpty else {
             Self.logger.info("No golf events in schedule, skipping enrichment")
+            await JobHeartbeat.recordSuccess(.golfEnrichment, app: context.application, isDebug: isDebug)
             return
         }
 
@@ -51,13 +53,15 @@ struct GolfEnrichmentJob: AsyncScheduledJob {
         guard !activeEvents.isEmpty else {
             Self.logger.info("No active golf events to enrich")
             try? await redis.set(lastUpdateKey, toJSON: Date())
+            await JobHeartbeat.recordSuccess(.golfEnrichment, app: context.application, isDebug: isDebug)
             return
         }
 
         Self.logger.info("Enriching golf events", metadata: ["count": "\(activeEvents.count)"])
 
-        var enrichedGames = golfEvents
-        var enrichmentCount = 0
+        // Enrichment per event ID. Applied to the schedule as it is at write time (re-read
+        // under the lock), not to the copy read above, which is minutes old by then.
+        var enrichmentByEvent: [String: (courseInfo: GolfCourseInfo?, playerRoundDetails: [String: [GolfRoundDetail]])] = [:]
 
         for game in activeEvents {
             guard let eventId = game.idEvent else { continue }
@@ -72,15 +76,7 @@ struct GolfEnrichmentJob: AsyncScheduledJob {
                 // Extract per-player round details
                 let playerRoundDetails = extractPlayerRoundDetails(from: summary, courseInfo: courseInfo)
 
-                // Merge enrichment into game
-                if let idx = enrichedGames.firstIndex(where: { $0.idEvent == eventId }) {
-                    enrichedGames[idx] = gameWithEnrichment(
-                        enrichedGames[idx],
-                        courseInfo: courseInfo,
-                        playerRoundDetails: playerRoundDetails
-                    )
-                    enrichmentCount += 1
-                }
+                enrichmentByEvent[eventId] = (courseInfo, playerRoundDetails)
             } catch {
                 Self.logger.warning("Failed to enrich golf event", metadata: [
                     "eventId": "\(eventId)",
@@ -89,10 +85,27 @@ struct GolfEnrichmentJob: AsyncScheduledJob {
             }
         }
 
-        // Write enriched schedule back
-        if enrichmentCount > 0 {
-            schedule.golf = LiveEvent(events: enrichedGames)
-            try await redis.set(scheduleKey, toJSON: schedule)
+        // Write enriched schedule back: re-read → apply → write under the shared lock.
+        var enrichmentCount = 0
+        if !enrichmentByEvent.isEmpty {
+            let outcome = try await ScheduleStore.update(
+                app: context.application, isDebug: isDebug, logger: Self.logger, writer: "GolfEnrichmentJob"
+            ) { current in
+                guard var current, let events = current.golf?.events else { return nil }
+                enrichmentCount = 0
+                current.golf = LiveEvent(events: events.map { game in
+                    guard let id = game.idEvent, let enrichment = enrichmentByEvent[id] else { return game }
+                    enrichmentCount += 1
+                    return gameWithEnrichment(
+                        game,
+                        courseInfo: enrichment.courseInfo,
+                        playerRoundDetails: enrichment.playerRoundDetails
+                    )
+                })
+                return current
+            }
+            // Retry next run rather than marking fresh when the lock was busy.
+            guard outcome != .lockTimeout else { return }
         }
 
         try await redis.set(lastUpdateKey, toJSON: Date())
@@ -101,6 +114,7 @@ struct GolfEnrichmentJob: AsyncScheduledJob {
             "enriched": "\(enrichmentCount)",
             "total": "\(activeEvents.count)"
         ])
+        await JobHeartbeat.recordSuccess(.golfEnrichment, app: context.application, isDebug: isDebug)
     }
 
     // MARK: - Extraction Helpers

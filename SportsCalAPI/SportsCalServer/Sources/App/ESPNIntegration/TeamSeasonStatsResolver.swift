@@ -70,7 +70,7 @@ enum TeamSeasonStatsResolver {
         // College teams have no TheSportsDB ID: their games, and so the team page, carry
         // ESPN's, namespaced ("ncaaf-57").
         if league == .ncaaf { return Leagues.collegeESPNTeamID(teamID) ?? teamID }
-        let mappingKey: RedisKey = isDebug ? "debug-ESPN-ID-Map" : "ESPN-ID-Map"
+        let mappingKey = RedisEndpoint.ESPN.espnIDMap.getValue(isDebug: isDebug)
         guard let map = try? await app.redis.get(mappingKey, asJSON: [String: String].self) else { return nil }
         return espnTeamID(for: teamID, bucket: league.sportBucket, in: map)
     }

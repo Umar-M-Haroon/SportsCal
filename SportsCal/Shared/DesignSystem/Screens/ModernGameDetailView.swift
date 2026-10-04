@@ -666,14 +666,18 @@ struct ModernGameDetailView: View {
         let cutoff = game.standardDate ?? Date()
         let h = game.strHomeTeam
         let a = game.strAwayTeam
+        // One lazy pass (no intermediate arrays) — this scans all of `totalGames`
+        // on every render.
+        let gameID = game.id
         let prev = allGames
-            .filter { $0.id != game.id }
-            .filter { ($0.standardDate ?? .distantPast) < cutoff }
+            .lazy
             .filter { g in
-                (g.strHomeTeam == h && g.strAwayTeam == a) ||
-                (g.strHomeTeam == a && g.strAwayTeam == h)
+                g.id != gameID &&
+                (g.standardDate ?? .distantPast) < cutoff &&
+                ((g.strHomeTeam == h && g.strAwayTeam == a) ||
+                 (g.strHomeTeam == a && g.strAwayTeam == h)) &&
+                g.intHomeScore != nil && g.intAwayScore != nil
             }
-            .filter { $0.intHomeScore != nil && $0.intAwayScore != nil }
             .max { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
 
         guard let prev,

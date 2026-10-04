@@ -166,6 +166,8 @@ enum SpotlightIndexer {
         dateFormatter.dateFormat = "EEEE, MMM d"
         let idFormatter = DateFormatter()
         idFormatter.dateFormat = "yyyy-MM-dd"
+        // Hoisted out of the per-day loop: building a DateFormatter is expensive.
+        let weekdaySymbols = dateFormatter.weekdaySymbols ?? DateFormatter().weekdaySymbols ?? []
 
         return gamesByDate.compactMap { (date, dayGames) -> CSSearchableItem? in
             guard !dayGames.isEmpty else { return nil }
@@ -191,7 +193,7 @@ enum SpotlightIndexer {
             attributes.contentDescription = breakdown
 
             // Keywords
-            let dayName = DateFormatter().weekdaySymbols[calendar.component(.weekday, from: date) - 1]
+            let dayName = weekdaySymbols[calendar.component(.weekday, from: date) - 1]
             attributes.keywords = [dayName, formattedDate, "games", "schedule"]
 
             let dateID = idFormatter.string(from: date)

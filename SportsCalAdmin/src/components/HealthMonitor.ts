@@ -138,7 +138,7 @@ export class HealthMonitor {
                 <td>${job.name}</td>
                 <td>${job.schedule}</td>
                 <td>${formatTimeAgo(job.lastRun)}</td>
-                <td><span class="badge ${job.status === 'active' ? 'success' : 'warning'}">${job.status}</span></td>
+                <td><span class="badge ${job.status === 'ok' ? 'success' : job.status === 'stale' ? 'danger' : 'warning'}">${job.status}</span></td>
                 <td>${triggerable
                   ? `<button class="btn btn-primary trigger-job-btn" data-job="${job.name}" style="padding: 0.25rem 0.75rem; font-size: 0.8rem;">Run Now</button>`
                   : ''}</td>

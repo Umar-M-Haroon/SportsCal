@@ -40,25 +40,35 @@ struct ESPNFetchJob: AsyncScheduledJob {
     }
 
     private func runUnderLock(context: Queues.QueueContext, isDebug: Bool) async throws {
+        let redis = context.application.redis
+        let liveKey = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug)
+
+        // Each shared blob is decoded once per tick and passed down: the live snapshot
+        // (also the push-to-start baseline), the ESPN→TSDB team-ID map, and the schedule.
+        //
         // Prune any cached "in-progress" games whose scheduled start is >8h in the past.
         // Runs every tick — including ticks where we skip the ESPN fetch — so a game that
         // ended during an idle window doesn't stay pinned as live forever.
-        await pruneStaleCachedLiveGames(context: context, isDebug: isDebug)
+        let latestLiveResult = await pruneStaleCachedLiveGames(context: context, isDebug: isDebug)
 
         // Compute the active-league set once. nil = cold start (both schedule sources
         // empty) — treat as "fetch everything" so we populate cache for the next tick.
-        let active = await Integrator.activeLeaguesCached(redis: context.application.redis, isDebug: isDebug)
+        let active = await Integrator.activeLeaguesCached(redis: redis, isDebug: isDebug)
         if let active, active.isEmpty {
             // Nothing is live, so skip the live-score work — but still refresh the forward
             // schedule window. It is the schedule backfill, and a quiet period is exactly
             // when the calendar is emptiest and it matters most; returning here would leave
             // it dead through every offseason. It is internally gated to once an hour.
             Self.logger.info("No live or upcoming games — skipping ESPN live score fetch")
-            await refreshForwardWindowIntoSchedule(context: context, isDebug: isDebug, liveResult: nil)
+            let espnToTSDB = await Self.loadESPNIDMap(redis: redis, isDebug: isDebug)
+            await refreshForwardWindowIntoSchedule(
+                context: context, isDebug: isDebug, liveResult: nil, espnToTSDB: espnToTSDB, basis: nil
+            )
+            await JobHeartbeat.recordSuccess(.espnFetch, app: context.application, isDebug: isDebug)
             return
         }
 
-        let soccerScoreboards = try await context.application.redis.get( RedisEndpoint.ESPN.latestSoccerScoreboards.getValue(isDebug: isDebug), asJSON: [Leagues: Scoreboard].self)
+        let soccerScoreboards = try await redis.get( RedisEndpoint.ESPN.latestSoccerScoreboards.getValue(isDebug: isDebug), asJSON: [Leagues: Scoreboard].self)
 
         let soccerEvents = soccerScoreboards?.compactMap({ (league, scoreboard) in
             LiveEvent(events: scoreboard, league: league)
@@ -66,7 +76,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             partialResult.events += next.events
         }
 
-        let tennisScoreboards = try await context.application.redis.get( RedisEndpoint.ESPN.latestTennisScoreboards.getValue(isDebug: isDebug), asJSON: [Leagues: Scoreboard].self)
+        let tennisScoreboards = try await redis.get( RedisEndpoint.ESPN.latestTennisScoreboards.getValue(isDebug: isDebug), asJSON: [Leagues: Scoreboard].self)
 
         // Deduped, and in a fixed league order.
         //
@@ -90,16 +100,13 @@ struct ESPNFetchJob: AsyncScheduledJob {
         ])
         let espnResult = await Integrator.getESPNLiveScore(context.application.client, activeLeagues: active)
 
-        let latestLiveResult = try await context.application.redis.get(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug), asJSON: LiveScore.self)
-
         // Load ESPN-ID → TheSportsDB-ID mapping for team ID translation
-        let mappingKey: RedisKey = isDebug ? "debug-ESPN-ID-Map" : "ESPN-ID-Map"
-        let espnToTSDB = try await context.application.redis.get(mappingKey, asJSON: [String: String].self) ?? [:]
+        let espnToTSDB = await Self.loadESPNIDMap(redis: redis, isDebug: isDebug)
 
         // Build alias resolver from the cached teams payload (populated by ESPNTeamFetchJob).
         // Used by mergeSportEvents to collapse duplicates whose team names differ across
         // ESPN/TSDB but resolve to the same TSDB team via strAlternate or curated aliases.
-        let cachedTeams = try await context.application.redis.get(
+        let cachedTeams = try await redis.get(
             RedisEndpoint.teams.getValue(isDebug: isDebug),
             asJSON: [Team].self
         ) ?? []
@@ -132,12 +139,19 @@ struct ESPNFetchJob: AsyncScheduledJob {
             newResult = result
         }
 
+        // The schedule bridges ESPN event IDs to TheSportsDB ones for play-by-play keys,
+        // and is the base the forward-window merge writes onto. Decoded once here; the
+        // final write reuses it unless another job wrote the schedule in between.
+        let scheduleSnapshot = try? await ScheduleStore.read(app: context.application, isDebug: isDebug)
+
         // Per-event play-by-play enrichment runs against `newResult` (which has soccer/tennis
         // merged in) BEFORE team ID translation strips `lastPlayScoreboardID` off rebuilt games.
         // Writes to SQLite / Redis under PBP-{id}, and hands back the excitement score of each
         // finished game so the schedule can carry it.
         if let current = newResult {
-            let excitement = await enrichWithPlays(from: current, context: context, isDebug: isDebug)
+            let excitement = await enrichWithPlays(
+                from: current, schedule: scheduleSnapshot?.schedule, context: context, isDebug: isDebug
+            )
             if !excitement.isEmpty {
                 newResult = Self.applyingExcitement(excitement, to: current)
             }
@@ -150,43 +164,27 @@ struct ESPNFetchJob: AsyncScheduledJob {
             newResult = newResult.map { translateTeamIDs(in: $0, using: espnToTSDB) }
         }
 
-        // Merge NCAA Tournament into basketball AFTER ID translation to avoid
-        // NCAA ESPN IDs being incorrectly mapped to NBA TheSportsDB IDs
-        let shouldFetchNCAA = active?.contains(.ncaaMBBTournament) ?? true
-        if shouldFetchNCAA,
-           let ncaaScoreboard = try? await Integrator.getESPNScoreboard(for: .ncaaMBBTournament, context.application.client),
-           let ncaaLiveEvent = LiveEvent(events: ncaaScoreboard, league: .ncaaMBBTournament) {
-            if let existing = newResult?.nba {
-                newResult = newResult.map { result in
-                    LiveScore(nba: LiveEvent(events: existing.events + ncaaLiveEvent.events), mlb: result.mlb, soccer: result.soccer, nfl: result.nfl, nhl: result.nhl, golf: result.golf, tennis: result.tennis, racing: result.racing)
-                }
-            } else {
-                newResult = newResult.map { result in
-                    LiveScore(nba: ncaaLiveEvent, mlb: result.mlb, soccer: result.soccer, nfl: result.nfl, nhl: result.nhl, golf: result.golf, tennis: result.tennis, racing: result.racing)
-                }
-                if newResult == nil {
-                    newResult = LiveScore(nba: ncaaLiveEvent)
-                }
-            }
+        // Merge the ESPN-only basketball leagues (NCAA Tournament, WNBA) into the
+        // basketball bucket AFTER ID translation to avoid their ESPN IDs being
+        // incorrectly mapped to NBA TheSportsDB IDs.
+        for league in [Leagues.ncaaMBBTournament, .wnba] where active?.contains(league) ?? true {
+            guard let scoreboard = try? await Integrator.getESPNScoreboard(for: league, context.application.client),
+                  let liveEvent = LiveEvent(events: scoreboard, league: league) else { continue }
+            var result = newResult ?? LiveScore()
+            result.nba = LiveEvent.merging(result.nba, liveEvent)
+            newResult = result
         }
 
-        // Same pattern for WNBA — ESPN-only league sharing the basketball bucket
-        let shouldFetchWNBA = active?.contains(.wnba) ?? true
-        if shouldFetchWNBA,
-           let wnbaScoreboard = try? await Integrator.getESPNScoreboard(for: .wnba, context.application.client),
-           let wnbaLiveEvent = LiveEvent(events: wnbaScoreboard, league: .wnba) {
-            if let existing = newResult?.nba {
-                newResult = newResult.map { result in
-                    LiveScore(nba: LiveEvent(events: existing.events + wnbaLiveEvent.events), mlb: result.mlb, soccer: result.soccer, nfl: result.nfl, nhl: result.nhl, golf: result.golf, tennis: result.tennis, racing: result.racing)
-                }
-            } else {
-                newResult = newResult.map { result in
-                    LiveScore(nba: wnbaLiveEvent, mlb: result.mlb, soccer: result.soccer, nfl: result.nfl, nhl: result.nhl, golf: result.golf, tennis: result.tennis, racing: result.racing)
-                }
-                if newResult == nil {
-                    newResult = LiveScore(nba: wnbaLiveEvent)
-                }
+        // Everything above took seconds; the LiveTicker may have published fresher scores
+        // to `latestLiveInfo` in the meantime. Re-read it and keep any concurrently
+        // updated game that is further along than ours, so scores never go backwards.
+        if let built = newResult {
+            let current = try? await redis.get(liveKey, asJSON: LiveScore.self)
+            let reconciled = LiveMerge.preservingConcurrentUpdates(ours: built, baseline: latestLiveResult, current: current)
+            if !reconciled.preserved.isEmpty {
+                Self.logger.info("Kept \(reconciled.preserved.count) concurrently-updated live game(s)")
             }
+            newResult = reconciled.liveScore
         }
 
         // Detect newly started games and send push-to-start notifications
@@ -199,27 +197,43 @@ struct ESPNFetchJob: AsyncScheduledJob {
             )
         }
 
-        try await context.application.redis.setex(RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: isDebug), toJSON: newResult, expirationInSeconds: 60 * 30)
-        try await context.application.redis.set(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug), toJSON: newResult)
+        try await redis.setex(RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: isDebug), toJSON: newResult, expirationInSeconds: 60 * 30)
+        try await redis.set(liveKey, toJSON: newResult)
 
         // Merge ESPN data into cached schedule so /schedules reflects live scores, and pull
         // forward the upcoming-days window so the calendar is populated months ahead.
         await refreshForwardWindowIntoSchedule(
-            context: context, isDebug: isDebug, liveResult: newResult, resolver: aliasResolver
+            context: context, isDebug: isDebug, liveResult: newResult,
+            espnToTSDB: espnToTSDB, basis: scheduleSnapshot, resolver: aliasResolver
         )
+        await JobHeartbeat.recordSuccess(.espnFetch, app: context.application, isDebug: isDebug)
+    }
+
+    /// The ESPN team ID → TheSportsDB team ID map maintained by ESPNTeamFetchJob.
+    static func loadESPNIDMap(redis: any RedisClient, isDebug: Bool) async -> [String: String] {
+        let key = RedisEndpoint.ESPN.espnIDMap.getValue(isDebug: isDebug)
+        return (try? await redis.get(key, asJSON: [String: String].self)) ?? [:]
     }
 
     /// Merges the forward schedule window — and the live result when there is one — into the
     /// cached schedule. Split out of `runUnderLock` so the quiet-period path can still run the
     /// backfill without doing the live-score work.
+    ///
+    /// The window fetch (up to ~480 ESPN requests) happens first, outside any lock; only the
+    /// final re-read → merge → write runs under the shared schedule write lock, so a
+    /// concurrent enrichment job's write is merged onto rather than overwritten.
     private func refreshForwardWindowIntoSchedule(
         context: Queues.QueueContext,
         isDebug: Bool,
         liveResult: LiveScore?,
+        espnToTSDB: [String: String],
+        basis: ScheduleStore.Snapshot?,
         resolver: TeamAliasResolver? = nil
     ) async {
-        let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
-        guard let schedule = try? await context.application.redis.get(scheduleKey, asJSON: LiveScore.self) else { return }
+        let redis = context.application.redis
+        // Cheap existence check: nothing to merge into until ScheduleUpdateJob seeds it.
+        guard let exists = try? await redis.exists(ScheduleStore.scheduleKey(isDebug: isDebug)).get(),
+              exists > 0 else { return }
 
         // ~4 months: far enough that the calendar and browse are populated for the
         // whole upcoming NBA/NHL season even while TheSportsDB is still catching up.
@@ -229,9 +243,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // keyed by TheSportsDB ids (the live result was translated before it got here), and
         // anything appended from the window is what the client sees for months of upcoming
         // fixtures — untranslated, team-id lookups like TeamDetailView silently miss them.
-        let mappingKey: RedisKey = isDebug ? "debug-ESPN-ID-Map" : "ESPN-ID-Map"
-        if let espnToTSDB = try? await context.application.redis.get(mappingKey, asJSON: [String: String].self),
-           !espnToTSDB.isEmpty {
+        if !espnToTSDB.isEmpty {
             window = translateTeamIDs(in: window, using: espnToTSDB)
         }
 
@@ -243,29 +255,43 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
         // Reuse the caller's resolver when there is one; otherwise load the cached teams so
         // the quiet path gets the same alias-collapsing the live path does.
-        var aliasResolver = resolver
-        if aliasResolver == nil {
-            let teams = (try? await context.application.redis.get(
+        let aliasResolver: TeamAliasResolver
+        if let resolver {
+            aliasResolver = resolver
+        } else {
+            let teams = (try? await redis.get(
                 RedisEndpoint.teams.getValue(isDebug: isDebug), asJSON: [Team].self
             )) ?? []
             aliasResolver = TeamAliasResolver(teams: teams, logger: Self.logger)
         }
-        let updated = mergeESPNIntoSchedule(schedule: schedule, espn: enriched, resolver: aliasResolver!)
-        if updated != schedule {
-            try? await context.application.redis.set(scheduleKey, toJSON: updated)
-            Self.logger.info("Schedule updated with ESPN live data")
+        do {
+            let outcome = try await ScheduleStore.update(
+                app: context.application, isDebug: isDebug, logger: Self.logger,
+                writer: "ESPNFetchJob", basis: basis
+            ) { schedule in
+                guard let schedule else { return nil }
+                return mergeESPNIntoSchedule(schedule: schedule, espn: enriched, resolver: aliasResolver)
+            }
+            if outcome == .written {
+                Self.logger.info("Schedule updated with ESPN live data")
+            }
+        } catch {
+            Self.logger.warning("Schedule merge write failed: \(error)")
         }
     }
 
     // MARK: - Stale Cache Prune
 
-    private func pruneStaleCachedLiveGames(context: Queues.QueueContext, isDebug: Bool) async {
+    /// Prunes stale in-progress games from the live cache and returns the (possibly
+    /// pruned) snapshot, which the caller reuses as this tick's baseline instead of
+    /// decoding the blob a second time.
+    private func pruneStaleCachedLiveGames(context: Queues.QueueContext, isDebug: Bool) async -> LiveScore? {
         let liveKey = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug)
         let fullKey = RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: isDebug)
 
-        guard var cached = try? await context.application.redis.get(liveKey, asJSON: LiveScore.self) else { return }
+        guard var cached = try? await context.application.redis.get(liveKey, asJSON: LiveScore.self) else { return nil }
         let removed = cached.removeStaleLiveGames()
-        guard removed > 0 else { return }
+        guard removed > 0 else { return cached }
 
         Self.logger.info("Pruned \(removed) stale in-progress game(s) from live cache")
         try? await context.application.redis.set(liveKey, toJSON: cached)
@@ -274,6 +300,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
         if let exists = try? await context.application.redis.exists(fullKey), exists > 0 {
             try? await context.application.redis.set(fullKey, toJSON: cached)
         }
+        return cached
     }
 
     // MARK: - Play-by-Play Enrichment (NBA / NFL / NHL / MLB)
@@ -296,13 +323,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
     @discardableResult
     private func enrichWithPlays(
         from liveScore: LiveScore,
+        schedule: LiveScore?,
         context: Queues.QueueContext,
         isDebug: Bool
     ) async -> [String: Int] {
         // The iOS client carries TheSportsDB event IDs after the schedule merge, while
-        // espnResult carries ESPN IDs. Load the schedule to bridge them.
-        let scheduleKey = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug)
-        let schedule: LiveScore? = try? await context.application.redis.get(scheduleKey, asJSON: LiveScore.self)
+        // espnResult carries ESPN IDs. The caller's schedule bridges them.
 
         var candidates: [PBPCandidate] = []
         for game in liveScore.nba?.events ?? [] where shouldEnrichPBP(game) {
@@ -503,12 +529,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             )
         }
         guard !additions.isEmpty else { return }
-        let mapKey = RedisEndpoint.ESPN.espnEventMap.getValue(isDebug: isDebug)
-        var existing: [String: ESPNEventMapping] = (try? await context.application.redis.get(
-            mapKey, asJSON: [String: ESPNEventMapping].self
-        )) ?? [:]
-        for (k, v) in additions { existing[k] = v }
-        try? await context.application.redis.set(mapKey, toJSON: existing)
+        await ESPNEventMapStore.record(additions, kv: context.application.kv, isDebug: isDebug, logger: Self.logger)
     }
 
     /// The skip result for each college candidate that needs no ESPN fetch this tick,
@@ -664,10 +685,16 @@ struct ESPNFetchJob: AsyncScheduledJob {
                     }
                 }
             } else {
-                // Live: no TTL, overwritten next tick when `lastPlay.id` changes.
-                try await context.application.redis.set(primaryKey, toJSON: payload)
+                // Live: overwritten next tick when `lastPlay.id` changes. The TTL only
+                // catches games that never reach the final/archive path (postponed,
+                // dropped off the board) so their keys don't live forever.
+                try await context.application.redis.setex(
+                    primaryKey, toJSON: payload, expirationInSeconds: CachedPlays.liveTTLSeconds
+                )
                 if let secondaryKey {
-                    try? await context.application.redis.set(secondaryKey, toJSON: payload)
+                    try? await context.application.redis.setex(
+                        secondaryKey, toJSON: payload, expirationInSeconds: CachedPlays.liveTTLSeconds
+                    )
                 }
             }
             return .fetched(scored(extras.excitement))

@@ -5,11 +5,11 @@ import SportsCalModel
 
 final class SoccerAlertJobTests: XCTestCase {
     private let logger = Logger(label: "test.soccer-alerts")
-    private var kv: InMemoryKeyValueStore!
+    private var kv: RedisCapableKV!
     private var apns: MockAPNSClient!
 
     override func setUp() {
-        kv = InMemoryKeyValueStore()
+        kv = RedisCapableKV()
         apns = MockAPNSClient()
     }
 
@@ -37,7 +37,18 @@ final class SoccerAlertJobTests: XCTestCase {
     private func register(_ install: String, token: String, teams: [String],
                           kinds: [SoccerAlertKind] = SoccerAlertKind.allCases, sandbox: Bool = false) async throws {
         let device = SoccerAlertDevice(installID: install, token: token, teams: teams, kinds: kinds)
-        try await kv.setJSON(SoccerAlertDevice.key(installID: install, sandbox: sandbox), value: device, ttl: nil)
+        let key = SoccerAlertDevice.key(installID: install, sandbox: sandbox)
+        try await kv.setJSON(key, value: device, ttl: nil)
+        await SoccerAlertDeviceIndex.add(key, sandbox: sandbox, kv: kv)
+    }
+
+    func testExpiredRegistrationLeavesTheIndex() async throws {
+        try await register("liv-fan", token: "tokA", teams: ["Liverpool"])
+        _ = try await kv.delete([SoccerAlertDevice.key(installID: "liv-fan", sandbox: false)])   // TTL ran out
+        let devices = await SoccerAlertJob.loadDevices(kv: kv)
+        XCTAssertTrue(devices.isEmpty)
+        let members = await SoccerAlertDeviceIndex.members(sandbox: false, kv: kv)
+        XCTAssertTrue(members.isEmpty)
     }
 
     private func run(_ match: SoccerMatchDetail) async throws {

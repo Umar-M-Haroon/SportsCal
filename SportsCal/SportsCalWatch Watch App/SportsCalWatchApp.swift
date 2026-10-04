@@ -17,12 +17,12 @@ struct SportsCalWatchApp: App {
         WatchSyncService.shared.activate()
         WatchSyncService.shared.onPreferencesUpdated = { [viewModel] in
             viewModel.loadPreferencesFromLocal()
-            Task { await viewModel.fetchSchedule() }
+            Task { await viewModel.fetchSchedule(force: true) }
         }
         CloudSyncManager.shared.startSync()
         CloudSyncManager.shared.onRemoteUpdate = { [viewModel] in
             viewModel.loadPreferencesFromLocal()
-            Task { await viewModel.fetchSchedule() }
+            Task { await viewModel.fetchSchedule(force: true) }
         }
     }
 

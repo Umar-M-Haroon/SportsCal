@@ -610,21 +610,29 @@ extension LiveScore: Codable {
         case nba, mlb, soccer, nfl, ncaaf, nhl, golf, tennis, racing, f1Standings, worldCup
     }
 
+    /// Lenient per sport: a bucket that fails outright (not an object, no `events`)
+    /// reads as nil without touching the other sports; within a bucket, malformed games
+    /// are skipped (`LiveEvent`); a malformed `f1Standings`/`worldCup` reads as nil.
+    /// Every recovery is batched into one `ModelDecodeDiagnostics` report per decode.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        nba = try container.decodeIfPresent(LiveEvent.self, forKey: .nba)
-        mlb = try container.decodeIfPresent(LiveEvent.self, forKey: .mlb)
-        soccer = try container.decodeIfPresent(LiveEvent.self, forKey: .soccer)
-        nfl = LiveEvent.merging(
-            try container.decodeIfPresent(LiveEvent.self, forKey: .nfl),
-            try container.decodeIfPresent(LiveEvent.self, forKey: .ncaaf)
-        )
-        nhl = try container.decodeIfPresent(LiveEvent.self, forKey: .nhl)
-        golf = try container.decodeIfPresent(LiveEvent.self, forKey: .golf)
-        tennis = try container.decodeIfPresent(LiveEvent.self, forKey: .tennis)
-        racing = try container.decodeIfPresent(LiveEvent.self, forKey: .racing)
-        f1Standings = try container.decodeIfPresent(F1Standings.self, forKey: .f1Standings)
-        worldCup = try container.decodeIfPresent(WorldCupEnrichment.self, forKey: .worldCup)
+        (nba, mlb, soccer, nfl, nhl, golf, tennis, racing, f1Standings, worldCup) = ModelDecodeDiagnostics.batching("LiveScore") {
+            (
+                container.decodeLenient(LiveEvent.self, forKey: .nba),
+                container.decodeLenient(LiveEvent.self, forKey: .mlb),
+                container.decodeLenient(LiveEvent.self, forKey: .soccer),
+                LiveEvent.merging(
+                    container.decodeLenient(LiveEvent.self, forKey: .nfl),
+                    container.decodeLenient(LiveEvent.self, forKey: .ncaaf)
+                ),
+                container.decodeLenient(LiveEvent.self, forKey: .nhl),
+                container.decodeLenient(LiveEvent.self, forKey: .golf),
+                container.decodeLenient(LiveEvent.self, forKey: .tennis),
+                container.decodeLenient(LiveEvent.self, forKey: .racing),
+                container.decodeLenient(F1Standings.self, forKey: .f1Standings),
+                container.decodeLenient(WorldCupEnrichment.self, forKey: .worldCup)
+            )
+        }
     }
 
     public func encode(to encoder: Encoder) throws {

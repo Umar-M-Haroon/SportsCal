@@ -135,6 +135,8 @@ struct DayPage: View {
         let suggestedHash: Int
         let orderedSportsHash: Int
         let worldCupHeroActive: Bool
+        /// Live merges patch scores in place without changing count or IDs.
+        let contentRevision: Int
     }
 
     private var calendar: Calendar { Calendar.current }
@@ -222,7 +224,8 @@ struct DayPage: View {
             favoritesHash: favorites.teams.hashValue,
             suggestedHash: suggested.hashValue,
             orderedSportsHash: storage.orderedSports.hashValue,
-            worldCupHeroActive: showWorldCupHero
+            worldCupHeroActive: showWorldCupHero,
+            contentRevision: viewModel.dayContentRevision
         )
     }
 
@@ -295,12 +298,32 @@ struct DayPage: View {
         }
     }
 
+    /// IDs shown in the Live section. The sections below skip them so a live game
+    /// appears once, and always as the live copy. Applied outside the `dayData` cache
+    /// because the live set changes on every WebSocket push.
+    private var liveSectionIDs: Set<String> {
+        Set(filteredLiveEvents.map(\.id))
+    }
+
     private var filteredFavorites: [GameWithTeams] {
-        dayData.filteredFavorites
+        let liveIDs = liveSectionIDs
+        guard !liveIDs.isEmpty else { return dayData.filteredFavorites }
+        return dayData.filteredFavorites.filter { !liveIDs.contains($0.id) }
+    }
+
+    private var filteredSuggested: [GameWithTeams] {
+        let liveIDs = liveSectionIDs
+        guard !liveIDs.isEmpty else { return dayData.suggestedGames }
+        return dayData.suggestedGames.filter { !liveIDs.contains($0.id) }
     }
 
     private var filteredOtherBySport: [(sport: SportType, games: [GameWithTeams])] {
-        dayData.filteredOtherBySport
+        let liveIDs = liveSectionIDs
+        guard !liveIDs.isEmpty else { return dayData.filteredOtherBySport }
+        return dayData.filteredOtherBySport.compactMap { section in
+            let games = section.games.filter { !liveIDs.contains($0.id) }
+            return games.isEmpty ? nil : (sport: section.sport, games: games)
+        }
     }
 
     private var allDayGamesWithTeams: [GameWithTeams] {
@@ -530,13 +553,14 @@ struct DayPage: View {
     /// Soonest live-or-upcoming (or most-recent) game involving a team — used to
     /// land on a useful day when a team is picked in the sidebar.
     private func nextGame(forTeamID id: String) -> Game? {
-        let cutoff = calendar.date(byAdding: .hour, value: -4, to: Date()) ?? Date()
-        let games = (viewModel.totalGames ?? []).filter { $0.idHomeTeam == id || $0.idAwayTeam == id }
-        let upcoming = games
-            .filter { ($0.standardDate ?? .distantPast) >= cutoff }
-            .min { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
+        // The view model memoizes the same "soonest game that kicked off no more than
+        // 4h ago" lookup for every team in one pass.
+        if let upcoming = viewModel.nextGame(forTeamID: id) { return upcoming }
         // Fall back to the most recent past game if the team has nothing upcoming.
-        return upcoming ?? games.max { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
+        return (viewModel.totalGames ?? [])
+            .lazy
+            .filter { $0.idHomeTeam == id || $0.idAwayTeam == id }
+            .max { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
     }
 
     #if os(macOS)
@@ -823,7 +847,7 @@ struct DayPage: View {
         }
 
         // Suggested for you
-        if storage.showSuggestedForYou, !dayData.suggestedGames.isEmpty {
+        if storage.showSuggestedForYou, !filteredSuggested.isEmpty {
             Section {
                 TipView(FavoriteTeamSuggestionTip())
                     .tipBackground(Color.secondaryGroupedBackground)
@@ -839,7 +863,7 @@ struct DayPage: View {
                             FavoriteTeamSuggestionTip().invalidate(reason: .actionPerformed)
                         }
                     }
-                ForEach(dayData.suggestedGames) { gameWithTeams in
+                ForEach(filteredSuggested) { gameWithTeams in
                     gameRow(for: gameWithTeams, isLive: false)
                 }
             } header: {
@@ -1369,9 +1393,7 @@ struct DayPage: View {
     }
 
     private var formattedSelectedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d"
-        return formatter.string(from: selectedDate)
+        DateFormatters.formatter(for: "EEEE, MMM d").string(from: selectedDate)
     }
 
     private func nextGameHint(sport: SportType, date: Date) -> some View {

@@ -140,3 +140,335 @@ final class SportsCalTests: XCTestCase {
     }
 
 }
+
+// MARK: - Live → schedule merge
+
+@MainActor
+enum CoreFixTestSupport {
+    /// Every sport on, so fixture games survive the preference filter.
+    static func storage() -> UserDefaultStorage {
+        let storage = UserDefaultStorage()
+        storage.shouldShowNBA = true
+        storage.shouldShowNFL = true
+        storage.shouldShowNHL = true
+        storage.shouldShowSoccer = true
+        storage.shouldShowMLB = true
+        storage.shouldShowGolf = true
+        storage.shouldShowTennis = true
+        storage.shouldShowRacing = true
+        return storage
+    }
+}
+
+/// Pins `GameViewModel.mergeLiveIntoSchedule` / `patchDerivedCollections` against the
+/// regressions their comments describe: same-matchup games on different days colliding,
+/// a merge renaming a synthesized id, and the live overlay carrying scores into every
+/// derived collection.
+@MainActor
+final class LiveScheduleMergeTests: XCTestCase {
+
+    override func setUp() async throws {
+        GameViewModel.isSnapshotTesting = true
+    }
+
+    private let nhl = "\(Leagues.nhl.rawValue)"
+
+    private func iso(_ offset: TimeInterval) -> String {
+        ISO8601DateFormatter().string(from: Date().addingTimeInterval(offset))
+    }
+
+    private func viewModel(with games: [Game]) -> GameViewModel {
+        let vm = GameViewModel(appStorage: CoreFixTestSupport.storage(), favorites: Favorites())
+        vm.applySnapshotFixtures(games: games)
+        return vm
+    }
+
+    private func liveScore(nhl games: [Game]) -> LiveScore {
+        LiveScore(nhl: LiveEvent(events: games))
+    }
+
+    func testEventIDMatchDoesNotLeakIntoSameMatchupOnAnotherDay() throws {
+        let today = Game(idEvent: "today", idLeague: nhl, strHomeTeam: "Avalanche", strAwayTeam: "Wild",
+                         strTimestamp: iso(-3600), isoDate: nil)
+        let tuesday = Game(idEvent: "tuesday", idLeague: nhl, strHomeTeam: "Avalanche", strAwayTeam: "Wild",
+                           strTimestamp: iso(2 * 86400), isoDate: nil)
+        let vm = viewModel(with: [today, tuesday])
+
+        let live = Game(idEvent: "today", idLeague: nhl, strHomeTeam: "Avalanche", strAwayTeam: "Wild",
+                        intHomeScore: "4", intAwayScore: "1", strStatus: "post",
+                        strTimestamp: iso(-3600), isCompleted: true, isoDate: nil)
+        vm.mergeLiveIntoSchedule(liveScore(nhl: [live]))
+
+        let merged = try XCTUnwrap(vm.totalGames?.first { $0.idEvent == "today" })
+        XCTAssertEqual(merged.intHomeScore, "4")
+        XCTAssertEqual(merged.intAwayScore, "1")
+        let untouched = try XCTUnwrap(vm.totalGames?.first { $0.idEvent == "tuesday" })
+        XCTAssertNil(untouched.intHomeScore, "Tuesday's fixture must not pick up today's score")
+        XCTAssertNotEqual(untouched.strStatus, "post")
+    }
+
+    func testScheduledGameWithEventIDNeverFallsBackToTeamNames() throws {
+        let scheduled = Game(idEvent: "tuesday", idLeague: nhl, strHomeTeam: "Avalanche", strAwayTeam: "Wild",
+                             strTimestamp: iso(2 * 86400), isoDate: nil)
+        let vm = viewModel(with: [scheduled])
+
+        // Same matchup, different id: a team-name fallback would wrongly match it.
+        let live = Game(idEvent: "other", idLeague: nhl, strHomeTeam: "Avalanche", strAwayTeam: "Wild",
+                        intHomeScore: "2", intAwayScore: "2", strStatus: "in",
+                        strTimestamp: iso(-600), isoDate: nil)
+        vm.mergeLiveIntoSchedule(liveScore(nhl: [live]))
+
+        XCTAssertNil(vm.totalGames?.first?.intHomeScore)
+    }
+
+    func testTeamNameFallbackRequiresSameCalendarDay() {
+        let tomorrow = Game(idEvent: nil, idLeague: nhl, strHomeTeam: "Avalanche", strAwayTeam: "Wild",
+                            strTimestamp: iso(2 * 86400), isoDate: nil)
+        let vm = viewModel(with: [tomorrow])
+
+        let live = Game(idEvent: nil, idLeague: nhl, strHomeTeam: "Avalanche", strAwayTeam: "Wild",
+                        intHomeScore: "3", intAwayScore: "0", strStatus: "in",
+                        strTimestamp: iso(-600), isoDate: nil)
+        vm.mergeLiveIntoSchedule(liveScore(nhl: [live]))
+
+        XCTAssertNil(vm.totalGames?.first?.intHomeScore)
+    }
+
+    func testLiveOverlayReplacesScoresInDerivedCollections() throws {
+        let scheduled = Game(idEvent: "g1", idLeague: nhl, strHomeTeam: "Bruins", strAwayTeam: "Leafs",
+                             strTimestamp: iso(600), isoDate: nil)
+        let vm = viewModel(with: [scheduled])
+        XCTAssertTrue(vm.filteredGames?.contains { $0.id == "g1" } ?? false, "fixture must be displayed")
+
+        let live = Game(idEvent: "g1", idLeague: nhl, strHomeTeam: "Bruins", strAwayTeam: "Leafs",
+                        intHomeScore: "2", intAwayScore: "1", strStatus: "in", strProgress: "2nd 10:00",
+                        strTimestamp: iso(600), isoDate: nil)
+        vm.mergeLiveIntoSchedule(liveScore(nhl: [live]))
+
+        XCTAssertEqual(vm.totalGames?.first?.intHomeScore, "2")
+        let filtered = try XCTUnwrap(vm.filteredGames?.first { $0.id == "g1" })
+        XCTAssertEqual(filtered.intHomeScore, "2")
+        XCTAssertEqual(filtered.strProgress, "2nd 10:00")
+        let sectionGame = vm.sortedGamesWithTeams.flatMap(\.games).first { $0.id == "g1" }
+        if let sectionGame {
+            XCTAssertEqual(sectionGame.game.intHomeScore, "2")
+        }
+        // Scheduled timestamp is preserved, so the game doesn't move between days.
+        XCTAssertEqual(filtered.strTimestamp, scheduled.strTimestamp)
+    }
+
+    func testPregameLiveDataIsIgnored() {
+        let scheduled = Game(idEvent: "g1", idLeague: nhl, strHomeTeam: "Bruins", strAwayTeam: "Leafs",
+                             strTimestamp: iso(3600), isoDate: nil)
+        let vm = viewModel(with: [scheduled])
+        let live = Game(idEvent: "g1", idLeague: nhl, strHomeTeam: "Bruins", strAwayTeam: "Leafs",
+                        intHomeScore: "0", intAwayScore: "0", strStatus: "pre",
+                        strTimestamp: iso(3600), isoDate: nil)
+        vm.mergeLiveIntoSchedule(liveScore(nhl: [live]))
+        XCTAssertNil(vm.totalGames?.first?.intHomeScore)
+    }
+
+    func testMergeThatRenamesSynthesizedIDStillPatchesDerivedCollections() throws {
+        // No idEvent → `Game.id` is synthesized from fields including strAwayTeam. The
+        // team-name lookup is case-insensitive, so a live copy with different casing
+        // matches, and the merge takes its strAwayTeam — renaming the id.
+        let scheduled = Game(idEvent: nil, idLeague: nhl, strHomeTeam: "Bruins", strAwayTeam: "Leafs",
+                             strTimestamp: iso(600), isoDate: nil)
+        let vm = viewModel(with: [scheduled])
+        let oldID = scheduled.id
+        XCTAssertTrue(vm.filteredGames?.contains { $0.id == oldID } ?? false)
+
+        let live = Game(idEvent: nil, idLeague: nhl, strHomeTeam: "Bruins", strAwayTeam: "LEAFS",
+                        intHomeScore: "5", intAwayScore: "3", strStatus: "in",
+                        strTimestamp: iso(600), isoDate: nil)
+        vm.mergeLiveIntoSchedule(liveScore(nhl: [live]))
+
+        let merged = try XCTUnwrap(vm.totalGames?.first)
+        XCTAssertNotEqual(merged.id, oldID, "precondition: the merge renamed the id")
+        XCTAssertFalse(vm.filteredGames?.contains { $0.id == oldID } ?? true,
+                       "the stale row must be replaced, not left behind")
+        let patched = try XCTUnwrap(vm.filteredGames?.first { $0.id == merged.id })
+        XCTAssertEqual(patched.intHomeScore, "5")
+    }
+
+    func testPatchDerivedCollectionsRewritesByPreviousID() throws {
+        let scheduled = Game(idEvent: "g1", idLeague: nhl, strHomeTeam: "Bruins", strAwayTeam: "Leafs",
+                             strTimestamp: iso(600), isoDate: nil)
+        let vm = viewModel(with: [scheduled])
+        let replacement = Game(idEvent: "g1", idLeague: nhl, strHomeTeam: "Bruins", strAwayTeam: "Leafs",
+                               intHomeScore: "7", intAwayScore: "0", strStatus: "post",
+                               strTimestamp: iso(600), isoDate: nil)
+        vm.patchDerivedCollections(changedByID: ["g1": replacement])
+
+        XCTAssertEqual(vm.filteredGames?.first { $0.id == "g1" }?.intHomeScore, "7")
+    }
+}
+
+// MARK: - Cache
+
+final class CacheStalenessTests: XCTestCase {
+
+    func testValueExpiresButStaleReadSurvives() throws {
+        var now = Date(timeIntervalSince1970: 1_000_000)
+        let cache = Cache<String, String>(dateProvider: { now }, entryLifetime: 60)
+        cache.insert("schedule", for: "games")
+
+        let fresh = try XCTUnwrap(cache.staleValue(for: "games"))
+        XCTAssertEqual(fresh.value, "schedule")
+        XCTAssertFalse(fresh.isExpired)
+        XCTAssertEqual(fresh.storedAt, now)
+
+        now = now.addingTimeInterval(61)
+        let stale = try XCTUnwrap(cache.staleValue(for: "games"), "stale read must not evict")
+        XCTAssertTrue(stale.isExpired)
+        XCTAssertEqual(stale.value, "schedule")
+        XCTAssertEqual(stale.storedAt, Date(timeIntervalSince1970: 1_000_000))
+
+        XCTAssertNil(cache.value(for: "games"), "the strict read still treats it as expired")
+    }
+
+    func testCodableRoundTripPreservesValuesAndAge() throws {
+        let written = Date().addingTimeInterval(-3 * 60 * 60)
+        let cache = Cache<String, [String]>(dateProvider: { written })
+        cache.insert(["a", "b"], for: "teams")
+
+        let data = try JSONEncoder().encode(cache)
+        let decoded = try JSONDecoder().decode(Cache<String, [String]>.self, from: data)
+
+        XCTAssertEqual(decoded.value(for: "teams"), ["a", "b"])
+        let entry = try XCTUnwrap(decoded.staleValue(for: "teams"))
+        XCTAssertEqual(entry.storedAt.timeIntervalSince1970, written.timeIntervalSince1970, accuracy: 1)
+        XCTAssertFalse(entry.isExpired)
+    }
+
+    func testRoundTripOfExpiredEntryIsReadableAsStale() throws {
+        let written = Date().addingTimeInterval(-13 * 60 * 60) // past the 12h default
+        let cache = Cache<String, String>(dateProvider: { written })
+        cache.insert("old", for: "games")
+        let decoded = try JSONDecoder().decode(Cache<String, String>.self, from: JSONEncoder().encode(cache))
+
+        let entry = try XCTUnwrap(decoded.staleValue(for: "games"))
+        XCTAssertTrue(entry.isExpired)
+        XCTAssertEqual(entry.value, "old")
+    }
+}
+
+// MARK: - Launch cache, ETag store, live socket
+
+@MainActor
+final class GameViewModelCoreFixTests: XCTestCase {
+
+    private var vm: GameViewModel!
+
+    override func setUp() async throws {
+        GameViewModel.isSnapshotTesting = true
+        vm = GameViewModel(appStorage: CoreFixTestSupport.storage(), favorites: Favorites())
+    }
+
+    override func tearDown() async throws {
+        vm.restartTimer?.invalidate()
+        vm.restartTimer = nil
+        vm.webSocketTask?.cancel()
+        vm.webSocketTask = nil
+        vm = nil
+        ScheduleETagStore.clear()
+    }
+
+    private func snapshot() -> LiveScore {
+        let game = Game(idEvent: "g1", idLeague: "\(Leagues.nhl.rawValue)", strHomeTeam: "Bruins", strAwayTeam: "Leafs",
+                        strTimestamp: ISO8601DateFormatter().string(from: Date()), isoDate: nil)
+        return LiveScore(nhl: LiveEvent(events: [game]))
+    }
+
+    func testExpiredLaunchCacheIsShownAndFlaggedStale() {
+        let storedAt = Date().addingTimeInterval(-2 * 86400)
+        vm.networkState = .loading
+        var loaded = GameViewModel.LaunchCaches()
+        loaded.games = snapshot()
+        loaded.gamesStoredAt = storedAt
+        loaded.gamesExpired = true
+        vm.applyLaunchCaches(loaded)
+
+        XCTAssertEqual(vm.totalGames?.count, 1)
+        XCTAssertEqual(vm.networkState, .loaded)
+        XCTAssertTrue(vm.isShowingStaleCache)
+        XCTAssertEqual(vm.lastSuccessfulFetch, storedAt)
+        XCTAssertTrue(vm.showsStaleBanner, "no refresh in flight → the stale banner explains the old data")
+    }
+
+    func testLaunchCacheNeverOverwritesFetchedGames() {
+        vm.applySnapshotFixtures(games: [Game(idEvent: "fresh", idLeague: "\(Leagues.nhl.rawValue)",
+                                              strHomeTeam: "A", strAwayTeam: "B",
+                                              strTimestamp: ISO8601DateFormatter().string(from: Date()), isoDate: nil)])
+        var loaded = GameViewModel.LaunchCaches()
+        loaded.games = snapshot()
+        vm.applyLaunchCaches(loaded)
+        XCTAssertEqual(vm.totalGames?.map(\.id), ["fresh"])
+    }
+
+    func testForegroundRefreshIsThrottled() {
+        vm.lastSuccessfulFetch = Date().addingTimeInterval(-30)
+        vm.networkState = .loaded
+        XCTAssertFalse(vm.refreshOnForegroundIfNeeded())
+        XCTAssertFalse(vm.isFetching)
+    }
+
+    func testETagStoreIsScopedToTheExactURL() {
+        let plain = URL(string: "https://example.com/schedules")!
+        let college = URL(string: "https://example.com/schedules?cfb=1")!
+        ScheduleETagStore.store("\"abc\"", for: plain)
+        XCTAssertEqual(ScheduleETagStore.etag(for: plain), "\"abc\"")
+        XCTAssertNil(ScheduleETagStore.etag(for: college), "a validator for one variant must never be sent for another")
+
+        ScheduleETagStore.store("\"def\"", for: college)
+        XCTAssertNil(ScheduleETagStore.etag(for: plain), "only the snapshot on disk has a validator")
+        ScheduleETagStore.clear()
+        XCTAssertNil(ScheduleETagStore.etag(for: college))
+    }
+
+    func testStaleSocketFailureDoesNotTouchReplacement() {
+        let url = URL(string: "wss://example.invalid/ws")!
+        let stale = URLSession.shared.webSocketTask(with: url)
+        let current = URLSession.shared.webSocketTask(with: url)
+        vm.webSocketTask = current
+        vm.hasNetworkPath = true
+
+        vm.handleLiveSocketFailure(of: stale, error: URLError(.networkConnectionLost), context: "test")
+
+        XCTAssertTrue(vm.webSocketTask === current, "a replaced socket's loop must not orphan the new one")
+        XCTAssertEqual(vm.wsReconnectAttempts, 0, "and must not schedule a second reconnect")
+        XCTAssertNil(vm.restartTimer)
+    }
+
+    func testCurrentSocketFailureReconnects() {
+        let url = URL(string: "wss://example.invalid/ws")!
+        let current = URLSession.shared.webSocketTask(with: url)
+        vm.webSocketTask = current
+        vm.hasNetworkPath = true
+
+        vm.handleLiveSocketFailure(of: current, error: URLError(.networkConnectionLost), context: "test")
+
+        XCTAssertNil(vm.webSocketTask)
+        XCTAssertEqual(vm.wsReconnectAttempts, 1)
+        XCTAssertNotNil(vm.restartTimer)
+    }
+
+    func testCloseOfReplacedSocketIsIgnored() {
+        let url = URL(string: "wss://example.invalid/ws")!
+        let stale = URLSession.shared.webSocketTask(with: url)
+        let current = URLSession.shared.webSocketTask(with: url)
+        vm.webSocketTask = current
+        vm.hasNetworkPath = true
+
+        vm.urlSession(URLSession.shared, webSocketTask: stale, didCloseWith: .goingAway, reason: nil)
+
+        XCTAssertTrue(vm.webSocketTask === current)
+        XCTAssertNil(vm.restartTimer)
+    }
+
+    func testBareLiveScoreFrameDecodesAsFull() throws {
+        let frame = try GameViewModel.decodeLiveFrame(Data("{}".utf8))
+        XCTAssertEqual(frame.kind, .full)
+        XCTAssertEqual(frame.seq, 0)
+    }
+}

@@ -32,6 +32,34 @@ struct SoccerAlertDevice: Codable, Equatable, Sendable {
     }
 }
 
+/// A Redis set of the `SoccerAlertDevice` keys in one environment, so the minutely
+/// job reads its devices without a SCAN (the pattern `APNSRegistrationIndex` moved
+/// the Live Activity job off). The register routes are the only writers; members
+/// whose registration expired are dropped when the job finds them gone.
+enum SoccerAlertDeviceIndex {
+    static func key(sandbox: Bool) -> String {
+        (sandbox ? "debug-" : "") + "SoccerAlertDeviceIndex"
+    }
+
+    static func add(_ deviceKey: String, sandbox: Bool, kv: KeyValueStore) async {
+        guard let sets = kv as? RedisSetStore else { return }
+        try? await sets.setAdd(key(sandbox: sandbox), members: [deviceKey])
+    }
+
+    static func remove(_ deviceKeys: [String], sandbox: Bool, kv: KeyValueStore) async {
+        guard !deviceKeys.isEmpty, let sets = kv as? RedisSetStore else { return }
+        try? await sets.setRemove(key(sandbox: sandbox), members: deviceKeys)
+    }
+
+    /// Falls back to a SCAN on a store without sets (some test fakes).
+    static func members(sandbox: Bool, kv: KeyValueStore) async -> [String] {
+        guard let sets = kv as? RedisSetStore else {
+            return (try? await kv.scanKeys(matching: SoccerAlertDevice.key(installID: "*", sandbox: sandbox))) ?? []
+        }
+        return (try? await sets.setMembers(key(sandbox: sandbox))) ?? []
+    }
+}
+
 /// Set by `POST /liveActivity` when the app says which install it is: this install
 /// has a Live Activity running for this game, which announces goals itself.
 enum LiveActivityInstallMarker {
@@ -139,12 +167,17 @@ struct SoccerAlertJob: AsyncScheduledJob {
     /// (Xcode builds) and production tokens go to their own APNS gateways.
     static func loadDevices(kv: KeyValueStore) async -> [Entry] {
         var entries: [Entry] = []
-        for (prefix, environment) in [("SoccerAlertDevice-", APNSEnvironment.production), ("debug-SoccerAlertDevice-", .sandbox)] {
-            let keys = (try? await kv.scanKeys(matching: "\(prefix)*")) ?? []
-            for key in keys {
-                guard let device = try? await kv.getJSON(key, as: SoccerAlertDevice.self) else { continue }
+        for environment in [APNSEnvironment.production, .sandbox] {
+            let sandbox = environment == .sandbox
+            var expired: [String] = []
+            for key in await SoccerAlertDeviceIndex.members(sandbox: sandbox, kv: kv) {
+                guard let device = try? await kv.getJSON(key, as: SoccerAlertDevice.self) else {
+                    expired.append(key)
+                    continue
+                }
                 entries.append(Entry(key: key, device: device, environment: environment))
             }
+            await SoccerAlertDeviceIndex.remove(expired, sandbox: sandbox, kv: kv)
         }
         return entries
     }
@@ -172,6 +205,7 @@ struct SoccerAlertJob: AsyncScheduledJob {
         } catch let error as APNSSendError where error.isStaleToken {
             logger.info("Soccer alerts: dropping stale token for install \(device.installID.prefix(8))...")
             _ = try? await kv.delete([entry.key])
+            await SoccerAlertDeviceIndex.remove([entry.key], sandbox: sandbox, kv: kv)
         } catch {
             logger.warning("Soccer alert send failed for install \(device.installID.prefix(8))...: \(error)")
         }

@@ -45,6 +45,15 @@ struct CompactGameRowView: View {
             }
             .padding(.vertical, 2)
             .contentShape(Rectangle())
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text(GameRowAccessibility.label(
+                game: game,
+                awayName: awayTeam.strTeam ?? game.strAwayTeam,
+                homeName: homeTeam.strTeam ?? game.strHomeTeam,
+                awayScore: awayScore,
+                homeScore: homeScore,
+                isLive: isLive
+            )))
         }
         .buttonStyle(.plain)
         .contextMenu {

@@ -31,6 +31,7 @@ struct ESPNScheduleWindowJob: AsyncScheduledJob {
 
         if let lastUpdate = try? await context.application.redis.get(updateKey, asJSON: Date.self),
            Date().timeIntervalSince(lastUpdate) < Self.refreshInterval {
+            await JobHeartbeat.recordSuccess(.espnScheduleWindow, app: context.application, isDebug: isDebug)
             return
         }
 
@@ -98,6 +99,7 @@ struct ESPNScheduleWindowJob: AsyncScheduledJob {
             "failed":       "\(failed)",
             "totalEvents":  "\(totalEvents)"
         ])
+        await JobHeartbeat.recordSuccess(.espnScheduleWindow, app: context.application, isDebug: isDebug)
     }
 
     /// Fetches today's and tomorrow's scoreboards for a league and merges them, de-duping

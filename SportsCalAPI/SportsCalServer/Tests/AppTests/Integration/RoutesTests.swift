@@ -33,6 +33,8 @@ final class RoutesTests: XCTestCase {
             .map { String(format: "%02x", $0) }
             .joined()
         setenv("API_KEY_HASH", hash, 1)
+        // The schedule snapshot is process-global; don't inherit another test's.
+        await LastKnownGoodCache.shared.reset()
         try routes(app)
     }
 

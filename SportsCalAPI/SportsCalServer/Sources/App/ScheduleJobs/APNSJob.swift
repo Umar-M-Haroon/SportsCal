@@ -36,6 +36,7 @@ struct APNSJob: AsyncScheduledJob {
                     metrics: app.pushMetrics,
                     telemetry: app.telemetry
                 )
+                await JobHeartbeat.recordSuccess(.apns, app: app, isDebug: isDebug)
             }
         )
     }
@@ -59,8 +60,11 @@ struct APNSJob: AsyncScheduledJob {
         // dev devices) and production tokens (TestFlight / App Store) to their
         // respective APNS gateways. The prefix is the load-bearing signal for
         // which gateway to use.
-        let prodKeys = try await kv.scanKeys(matching: "APNS-*")
-        let sandboxKeys = try await kv.scanKeys(matching: "debug-APNS-*")
+        //
+        // Keys come from the registration SET index (SCAN fallback / periodic reconcile
+        // inside `APNSRegistrationIndex`), not a full-keyspace SCAN every minute.
+        let prodKeys = try await APNSRegistrationIndex.registrationKeys(environment: .production, kv: kv, logger: logger)
+        let sandboxKeys = try await APNSRegistrationIndex.registrationKeys(environment: .sandbox, kv: kv, logger: logger)
         await metrics?.recordScanSize(prod: prodKeys.count, sandbox: sandboxKeys.count)
         // Heartbeat on EVERY tick, even idle ones: an empty run used to return
         // here silently, indistinguishable from a dead scheduler or crashed
@@ -137,12 +141,19 @@ struct APNSJob: AsyncScheduledJob {
         // Bound the MGET argument count (a single 10k-arg MGET is a latency spike)
         // by chunking, collecting the present registrations.
         var pending: [(key: String, raw: String)] = []
+        var expired: [String] = []
         for chunk in keys.chunked(into: 500) {
             let values = try await kv.mget(chunk)
             for (offset, key) in chunk.enumerated() {
-                if let raw = values[offset] { pending.append((key: key, raw: raw)) }
+                if let raw = values[offset] {
+                    pending.append((key: key, raw: raw))
+                } else {
+                    expired.append(key)
+                }
             }
         }
+        // Registrations expire by TTL (12h), which Redis can't reflect in the index.
+        await APNSRegistrationIndex.remove(expired, environment: environment, kv: kv)
 
         // Process with bounded concurrency (~8 simultaneous APNS sends) instead of
         // fully serially. The atomic per-(token, event, state) claim inside
@@ -290,6 +301,7 @@ struct APNSJob: AsyncScheduledJob {
                 await metrics?.recordError(sendError.reason)
                 if sendError.isStaleToken {
                     _ = try? await kv.delete([key])
+                    await APNSRegistrationIndex.remove([key], environment: environment, kv: kv)
                     await metrics?.recordCleanup(reason: sendError.reason.rawValue)
                 } else {
                     // Release the claims so the next tick can retry — otherwise a
@@ -336,6 +348,7 @@ struct APNSJob: AsyncScheduledJob {
                 await metrics?.recordError(.other)
             }
             _ = try? await kv.delete([key, stateKey])
+            await APNSRegistrationIndex.remove([key], environment: environment, kv: kv)
         }
     }
 
@@ -441,5 +454,83 @@ struct APNSJob: AsyncScheduledJob {
             return String(key.dropFirst(prefix.count))
         }
         return key
+    }
+}
+
+/// SET index of Live Activity registration keys (`APNS-{token}` / `debug-APNS-{token}`),
+/// one per APNS environment, so APNSJob reads its registrations from the index instead
+/// of SCANning the whole keyspace twice a minute.
+///
+/// Writers keep it current: the register route calls `add`, the deregister route and
+/// APNSJob's own deletes call `remove`, and APNSJob drops members whose key has expired.
+/// A SCAN reconcile runs when the index is first used (backfilling registrations made
+/// before the index existed) and then at most every `reconcileInterval`, as a safety net
+/// for any writer that doesn't maintain it (e.g. an older replica mid-deploy).
+///
+/// Stores without SET support (the in-memory test fake) fall back to SCAN every time.
+enum APNSRegistrationIndex {
+    static let reconcileInterval: TimeInterval = 10 * 60
+
+    static func keyPrefix(_ environment: APNSEnvironment) -> String {
+        environment == .sandbox ? "debug-APNS-" : "APNS-"
+    }
+
+    static func environment(forRegistrationKey key: String) -> APNSEnvironment? {
+        if key.hasPrefix("debug-APNS-") { return .sandbox }
+        if key.hasPrefix("APNS-") { return .production }
+        return nil
+    }
+
+    static func indexKey(_ environment: APNSEnvironment) -> String {
+        RedisEndpoint.apnsRegistrationIndex.getValue(isDebug: environment == .sandbox).rawValue
+    }
+
+    static func reconcileMarkerKey(_ environment: APNSEnvironment) -> String {
+        RedisEndpoint.apnsRegistrationIndexReconciled.getValue(isDebug: environment == .sandbox).rawValue
+    }
+
+    /// Adds a registration key (call right after writing it). Best-effort: the periodic
+    /// reconcile picks up anything a failed add missed.
+    static func add(_ registrationKey: String, kv: KeyValueStore) async {
+        guard let sets = kv as? RedisSetStore,
+              let environment = environment(forRegistrationKey: registrationKey) else { return }
+        try? await sets.setAdd(indexKey(environment), members: [registrationKey])
+    }
+
+    /// Removes a registration key (call right after deleting it). Best-effort: APNSJob
+    /// also drops members whose key no longer exists.
+    static func remove(_ registrationKey: String, kv: KeyValueStore) async {
+        guard let environment = environment(forRegistrationKey: registrationKey) else { return }
+        await remove([registrationKey], environment: environment, kv: kv)
+    }
+
+    static func remove(_ registrationKeys: [String], environment: APNSEnvironment, kv: KeyValueStore) async {
+        guard !registrationKeys.isEmpty, let sets = kv as? RedisSetStore else { return }
+        try? await sets.setRemove(indexKey(environment), members: registrationKeys)
+    }
+
+    /// Every registration key in one environment's keyspace.
+    static func registrationKeys(environment: APNSEnvironment, kv: KeyValueStore, logger: Logger) async throws -> [String] {
+        let pattern = "\(keyPrefix(environment))*"
+        guard let sets = kv as? RedisSetStore else {
+            return try await kv.scanKeys(matching: pattern)
+        }
+        let indexKey = indexKey(environment)
+        var members = Set(try await sets.setMembers(indexKey))
+
+        // The marker claim paces the reconcile across replicas: one SCAN per interval.
+        let due = (try? await kv.setIfAbsent(reconcileMarkerKey(environment), value: "1", ttl: reconcileInterval)) ?? false
+        if due {
+            let scanned = try await kv.scanKeys(matching: pattern)
+            let missing = Set(scanned).subtracting(members)
+            if !missing.isEmpty {
+                try await sets.setAdd(indexKey, members: Array(missing))
+                members.formUnion(missing)
+                logger.info("APNS registration index reconciled", metadata: [
+                    "environment": "\(environment.rawValue)", "added": "\(missing.count)", "total": "\(members.count)"
+                ])
+            }
+        }
+        return members.sorted()
     }
 }

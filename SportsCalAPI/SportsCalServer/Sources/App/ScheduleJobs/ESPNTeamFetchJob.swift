@@ -46,7 +46,7 @@ struct ESPNTeamFetchJob: AsyncScheduledJob {
         let (finalTeams, espnToTSDBMapping) = returnUpdatedTeams(teams: currentTeams, espnTeamsByLeague: espnTeamsDict)
 
         // Store ESPN-ID → TheSportsDB-ID mapping for live game ID translation
-        let mappingKey: RedisKey = context.application.environment == .development ? "debug-ESPN-ID-Map" : "ESPN-ID-Map"
+        let mappingKey = RedisEndpoint.ESPN.espnIDMap.getValue(isDebug: context.application.environment == .development)
         try await context.application.redis.set(mappingKey, toJSON: espnToTSDBMapping)
         let teamsWithLogos = finalTeams.filter({ $0.strTeamBadge != nil }).count
         let previousLogos = currentTeams.filter({ $0.strTeamBadge != nil }).count
