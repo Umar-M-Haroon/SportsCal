@@ -42,98 +42,125 @@ struct RaceScoreView: View {
         }
     }
 
+    /// One VoiceOver sentence: "Monaco Grand Prix, live, Monte Carlo, Monaco,
+    /// 1 Verstappen, leader, 2 Norris, +1.2s, 3 …".
+    private var accessibilityLabel: String {
+        var parts = [game.strHomeTeam]
+        if isLive { parts.append("live") }
+        if let circuit = game.circuitInfo { parts.append("\(circuit.locality), \(circuit.country)") }
+        if let status = raceStatusText { parts.append(status) }
+        let entries = game.resolvedLeaderboard.prefix(3)
+        if !entries.isEmpty {
+            for (index, entry) in entries.enumerated() {
+                let gap = index == 0 ? "leader" : (entry.gap ?? entry.score)
+                parts.append("\(entry.position) \(entry.name), \(gap)")
+            }
+        } else if game.strAwayTeam != "TBD" {
+            parts.append([game.strAwayTeam, game.intAwayScore].compactMap { $0 }.joined(separator: " "))
+        } else if let date = game.standardDate {
+            parts.append(GameRowAccessibility.when(date))
+        }
+        return parts.joined(separator: ", ")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Race header
-            HStack {
-                if viewModel.appStorage.debugMode, game.idEvent?.hasPrefix(DebugGameFactory.isFakeEventPrefix) == true {
-                    Text("DEBUG")
-                        .font(.caption2.bold())
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .background(.orange, in: RoundedRectangle(cornerRadius: 4))
+            // Summary reads as one VoiceOver element; the session strip and the action
+            // menu stay separate so they remain navigable/operable.
+            VStack(alignment: .leading, spacing: 8) {
+                // Race header
+                HStack {
+                    if viewModel.appStorage.debugMode, game.idEvent?.hasPrefix(DebugGameFactory.isFakeEventPrefix) == true {
+                        Text("DEBUG")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .background(.orange, in: RoundedRectangle(cornerRadius: 4))
+                    }
+                    Image(systemName: "flag.checkered.2.crossed")
+                        .foregroundColor(.red)
+                    Text(game.strHomeTeam)
+                        .font(.headline)
+                    Spacer()
+                    if isLive {
+                        Text("LIVE")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.red)
+                            .clipShape(Capsule())
+                    }
                 }
-                Image(systemName: "flag.checkered.2.crossed")
-                    .foregroundColor(.red)
-                Text(game.strHomeTeam)
-                    .font(.headline)
-                Spacer()
-                if isLive {
-                    Text("LIVE")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.red)
-                        .clipShape(Capsule())
-                }
-            }
 
-            // Circuit location + race status
-            HStack(spacing: 4) {
-                if let circuit = game.circuitInfo {
-                    Text("\(circuit.locality), \(circuit.country)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                // Circuit location + race status
+                HStack(spacing: 4) {
+                    if let circuit = game.circuitInfo {
+                        Text("\(circuit.locality), \(circuit.country)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    if game.circuitInfo != nil && raceStatusText != nil {
+                        Text("·")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    if let progress = raceStatusText {
+                        Text(progress)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                 }
-                if game.circuitInfo != nil && raceStatusText != nil {
-                    Text("·")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                if let progress = raceStatusText {
-                    Text(progress)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-            }
 
-            // Mini leaderboard (top 3 drivers)
-            let entries = Array(game.resolvedLeaderboard.prefix(3))
-            if !entries.isEmpty {
-                VStack(spacing: 4) {
-                    ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
-                        HStack(spacing: 6) {
-                            Text("\(entry.position)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .frame(width: 18, alignment: .trailing)
-                            HeadshotView(url: entry.headshot, size: 24)
-                            Text(entry.name)
-                                .font(.subheadline)
-                                .fontWeight(index == 0 ? .semibold : .regular)
-                                .lineLimit(1)
-                            if let constructor = entry.constructor {
-                                Text(constructor)
-                                    .font(.caption2)
+                // Mini leaderboard (top 3 drivers)
+                let entries = Array(game.resolvedLeaderboard.prefix(3))
+                if !entries.isEmpty {
+                    VStack(spacing: 4) {
+                        ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
+                            HStack(spacing: 6) {
+                                Text("\(entry.position)")
+                                    .font(.caption)
                                     .foregroundColor(.secondary)
+                                    .frame(width: 18, alignment: .trailing)
+                                HeadshotView(url: entry.headshot, size: 24)
+                                Text(entry.name)
+                                    .font(.subheadline)
+                                    .fontWeight(index == 0 ? .semibold : .regular)
                                     .lineLimit(1)
+                                if let constructor = entry.constructor {
+                                    Text(constructor)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                Text(index == 0 ? "Leader" : (entry.gap ?? entry.score))
+                                    .font(.subheadline)
+                                    .fontWeight(index == 0 ? .semibold : .regular)
+                                    .foregroundColor(index == 0 ? .primary : .secondary)
                             }
-                            Spacer()
-                            Text(index == 0 ? "Leader" : (entry.gap ?? entry.score))
-                                .font(.subheadline)
-                                .fontWeight(index == 0 ? .semibold : .regular)
-                                .foregroundColor(index == 0 ? .primary : .secondary)
                         }
                     }
-                }
-            } else if game.strAwayTeam != "TBD" {
-                HStack {
-                    Text(game.strAwayTeam)
-                        .font(.subheadline)
-                    Spacer()
-                    if let score = game.intAwayScore {
-                        Text(score)
+                } else if game.strAwayTeam != "TBD" {
+                    HStack {
+                        Text(game.strAwayTeam)
                             .font(.subheadline)
-                            .fontWeight(.semibold)
+                        Spacer()
+                        if let score = game.intAwayScore {
+                            Text(score)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                        }
                     }
+                } else if let date = game.standardDate {
+                    GameTimeLabel(date: date, includeDate: true)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
-            } else if let date = game.standardDate {
-                GameTimeLabel(date: date, includeDate: true)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text(accessibilityLabel))
 
             // Session indicator strip
             if let sessions = game.sessions, !sessions.isEmpty {
@@ -158,6 +185,7 @@ struct RaceScoreView: View {
                     NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
                 } label: {
                     Image(systemName: "ellipsis")
+                        .accessibilityLabel("Actions")
                 }
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.capsule)
@@ -176,6 +204,8 @@ struct SessionIndicatorStrip: View {
     let sessions: [EventSession]
     /// The session to emphasise: the live one if any, otherwise the next upcoming.
     var focusedSessionType: String?
+    /// Done-checkmark glyph size; 8pt at the default Dynamic Type size.
+    @ScaledMetric(relativeTo: .caption2) private var checkmarkSize: CGFloat = 8
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -236,7 +266,7 @@ struct SessionIndicatorStrip: View {
         switch session.status {
         case "post":
             Image(systemName: "checkmark")
-                .font(.system(size: 8, weight: .bold))
+                .font(.system(size: checkmarkSize, weight: .bold))
                 .foregroundStyle(.green)
         case "in":
             Circle().fill(.red).frame(width: 6, height: 6)

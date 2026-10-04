@@ -37,12 +37,6 @@ extension Date{
         return Calendar(identifier: .gregorian).date(byAdding: .second, value: seconds, to: self) ?? self
     }
 
-    func toGMT() -> Date {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
-        formatter.timeZone = TimeZone(abbreviation: "GMT")
-        return formatter.date(from: formatter.string(from: Date())) ?? self
-    }
     func formatToTime() -> String {
         DateFormatters.shortTime.string(from: self)
     }

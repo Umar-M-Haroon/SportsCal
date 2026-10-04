@@ -292,7 +292,9 @@ class Provider: AppIntentTimelineProvider {
         #else
         let refreshInterval: TimeInterval = hasLiveGames ? 600 : 1800
         #endif
-        let entryDate = currentDate.addingTimeInterval(refreshInterval)
+        // The entry is dated now so WidgetKit shows it immediately (a future-dated entry
+        // stays hidden until its date). The refresh cadence lives in the policy instead.
+        let refreshDate = currentDate.addingTimeInterval(refreshInterval)
 
         // Fetch images only for team sports (individual sports don't have team badges),
         // and only for the first few games to stay under the memory limit.
@@ -318,7 +320,7 @@ class Provider: AppIntentTimelineProvider {
         AppLogger.widget.info("[timeline] DONE \(games.count) games, \(allImages.count) images (\(totalImageBytes) bytes), mem=\(widgetMemoryMB())")
 
         let entry = SimpleEntry(
-            date: entryDate,
+            date: currentDate,
             configuration: configuration,
             game: games,
             images: allImages.isEmpty ? nil : allImages,
@@ -326,7 +328,7 @@ class Provider: AppIntentTimelineProvider {
             relevance: relevance
         )
 
-        return Timeline(entries: [entry], policy: .after(entryDate))
+        return Timeline(entries: [entry], policy: .after(refreshDate))
     }
 
     /// Returns the set of league names that should be hidden based on widget config or app defaults.

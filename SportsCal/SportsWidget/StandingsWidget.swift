@@ -170,14 +170,16 @@ struct StandingsProvider: AppIntentTimelineProvider {
             rows = parseStandings(standing, maxTeams: maxTeams, usesPoints: league.usesPoints)
         }
 
+        // Date the entry now so it displays immediately; refresh hourly via the policy.
+        let now = Date()
         let entry = StandingsEntry(
-            date: Date().addingTimeInterval(3600),
+            date: now,
             leagueName: league.leagueName,
             teams: rows,
             usesPoints: league.usesPoints
         )
 
-        return Timeline(entries: [entry], policy: .after(entry.date))
+        return Timeline(entries: [entry], policy: .after(now.addingTimeInterval(3600)))
     }
 
     private func parseStandings(_ standing: Standing, maxTeams: Int, usesPoints: Bool) -> [StandingsTeamRow] {

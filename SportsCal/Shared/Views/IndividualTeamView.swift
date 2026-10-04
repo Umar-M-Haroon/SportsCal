@@ -26,6 +26,9 @@ struct IndividualTeamView: View {
     var record: String? = nil
     var seed: Int? = nil
     var data: Data? = nil
+    /// Score / fallback-code sizes track Dynamic Type; 24pt / 14pt at the default size.
+    @ScaledMetric(relativeTo: .title2) private var scoreSize: CGFloat = 24
+    @ScaledMetric(relativeTo: .subheadline) private var codeSize: CGFloat = 14
     // Fallback logo view when URL is missing
     private var fallbackLogo: some View {
         ZStack {
@@ -34,11 +37,11 @@ struct IndividualTeamView: View {
                 .frame(width: 40, height: 40)
             if let shortName {
                 Text(Team.shortCode(strTeamShort: nil, name: shortName))
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: codeSize, weight: .bold))
                     .foregroundColor(.secondary)
             } else if let longName {
                 Text(Team.shortCode(strTeamShort: nil, name: longName))
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: codeSize, weight: .bold))
                     .foregroundColor(.secondary)
             }
         }
@@ -50,11 +53,11 @@ struct IndividualTeamView: View {
                 if !isAway {
                     if let score = score, isWinning {
                         Text("\(score)")
-                            .font(.system(size: 24))
+                            .font(.system(size: scoreSize))
                             .fontWeight(.heavy)
                     } else if let score = score, !isWinning  {
                         Text("\(score)")
-                            .font(.system(size: 24))
+                            .font(.system(size: scoreSize))
                             .foregroundColor(.secondary)
                     }
                     if let teamURL {
@@ -126,11 +129,11 @@ struct IndividualTeamView: View {
                     }
                     if let score = score, isWinning {
                         Text("\(score)")
-                            .font(.system(size: 24))
+                            .font(.system(size: scoreSize))
                             .fontWeight(.heavy)
                     } else if let score = score, !isWinning  {
                         Text("\(score)")
-                            .font(.system(size: 24))
+                            .font(.system(size: scoreSize))
                             .foregroundColor(.secondary)
                     }
                 }

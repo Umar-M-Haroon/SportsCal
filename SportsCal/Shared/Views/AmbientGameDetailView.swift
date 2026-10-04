@@ -221,8 +221,8 @@ struct AmbientGameDetailView: View {
             parts.append(status.uppercased())
         }
         if parts.isEmpty, let date = game.standardDate {
-            let f = DateFormatter(); f.dateFormat = "EEE MMM d · HH:mm"
-            parts.append(f.string(from: date).uppercased())
+            // Render path — reuse the shared (static) formatter cache.
+            parts.append(DateFormatters.formatter(for: "EEE MMM d · HH:mm").string(from: date).uppercased())
         }
         return parts.joined(separator: " · ")
     }
@@ -375,7 +375,7 @@ struct AmbientGameDetailView: View {
 
         // Next game in the series / season — nearest upcoming involving either team.
         if let next = nextGame() {
-            let f = DateFormatter(); f.dateFormat = "EEE"
+            let f = DateFormatters.formatter(for: "EEE")
             tiles.append(TileModel(
                 label: "NEXT GAME",
                 value: "\(AmbientFormat.abbreviation(team: nil, fallback: next.strAwayTeam)) @ \(AmbientFormat.abbreviation(team: nil, fallback: next.strHomeTeam))",
@@ -433,15 +433,18 @@ struct AmbientGameDetailView: View {
         let homeName = game.strHomeTeam
         let awayName = game.strAwayTeam
         let after = game.standardDate ?? Date()
+        // One lazy pass + `min` instead of filter → sort → first: this runs over all
+        // of `totalGames` on every render. `min(by:)` keeps the first of equal dates,
+        // matching the stable sort's `.first`.
         return (viewModel.totalGames ?? [])
+            .lazy
             .filter { g in
                 guard g.idEvent != game.idEvent else { return false }
                 guard let d = g.standardDate, d > after else { return false }
                 return g.strHomeTeam == homeName || g.strAwayTeam == homeName ||
                        g.strHomeTeam == awayName || g.strAwayTeam == awayName
             }
-            .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
-            .first
+            .min { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
     }
 
     // MARK: - Load
