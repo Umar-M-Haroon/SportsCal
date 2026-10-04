@@ -41,6 +41,7 @@ final class PhoneWatchSyncService: NSObject, WCSessionDelegate {
             "shouldShowNHL": defaults?.bool(forKey: "shouldShowNHL") ?? false,
             "shouldShowMLB": defaults?.bool(forKey: "shouldShowMLB") ?? false,
             "shouldShowNFL": defaults?.bool(forKey: "shouldShowNFL") ?? false,
+            "shouldShowCFB": defaults?.bool(forKey: "shouldShowCFB") ?? false,
             "shouldShowGolf": defaults?.bool(forKey: "shouldShowGolf") ?? false,
             "shouldShowTennis": defaults?.bool(forKey: "shouldShowTennis") ?? false,
             "shouldShowRacing": defaults?.bool(forKey: "shouldShowRacing") ?? false,
@@ -54,6 +55,7 @@ final class PhoneWatchSyncService: NSObject, WCSessionDelegate {
             "favoritesOnlyRacing": defaults?.bool(forKey: "favoritesOnlyRacing") ?? false,
             "coverageTennis": EventCoverage.stored(for: .tennis, in: defaults).rawValue,
             "coverageGolf": EventCoverage.stored(for: .golf, in: defaults).rawValue,
+            "cfbSelection": CollegeFootballSelection.stored(in: defaults).rawValue,
             "favorites": favorites,
             "hiddenCompetitions": hidden,
         ]

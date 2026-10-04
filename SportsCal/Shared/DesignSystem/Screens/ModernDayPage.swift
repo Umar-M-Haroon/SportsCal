@@ -226,7 +226,8 @@ private struct ModernDayContent: View {
                 if storage.favoritesOnly(for: sport), !favorites.matches(game) {
                     return false
                 }
-                // Tennis/golf coverage (Grand Slams / big events / everything).
+                // Tennis/golf coverage (Grand Slams / big events / everything), and the
+                // NFL / college switches with college's Top 25 / conference coverage.
                 if !storage.admitsCoverage(game, sport: sport, isFavorite: { favorites.matches(game) }) {
                     return false
                 }
@@ -250,7 +251,7 @@ private struct ModernDayContent: View {
         case .soccer:     return storage.shouldShowSoccer
         case .hockey:     return storage.shouldShowNHL
         case .mlb:        return storage.shouldShowMLB
-        case .nfl:        return storage.shouldShowNFL
+        case .nfl:        return storage.shouldShowNFL || storage.shouldShowCFB
         case .golf:       return storage.shouldShowGolf
         case .tennis:     return storage.shouldShowTennis
         case .racing:     return storage.shouldShowRacing
@@ -676,29 +677,61 @@ private struct ModernDayContent: View {
             .buttonStyle(.plain)
 
             if !isCollapsed {
-                // Tennis/golf: majors lead, then premier events. Stable, so time order holds within a tier.
-                let rows = EventCoverage.sports.contains(sport)
-                    ? games.enumerated().sorted { lhs, rhs in
-                        let l = lhs.element.eventTier ?? .tour, r = rhs.element.eventTier ?? .tour
-                        return l != r ? l > r : lhs.offset < rhs.offset
-                    }.map(\.element)
-                    : games
-                if rows.count >= 5 {
-                    LazyVGrid(columns: [
-                        GridItem(.flexible(), spacing: .appSpace2),
-                        GridItem(.flexible(), spacing: .appSpace2),
-                    ], spacing: .appSpace2) {
-                        ForEach(rows, id: \.id) { game in
-                            tileLink(game)
-                        }
-                    }
-                    .padding(.horizontal, .appSpace4)
+                if sport == .nfl {
+                    footballGroups(games)
                 } else {
-                    LazyVStack(spacing: .appSpace2) {
-                        ForEach(rows, id: \.id) { game in
-                            rowLink(game)
-                        }
+                    // Tennis/golf: majors lead, then premier events. Stable, so time order holds within a tier.
+                    let rows = EventCoverage.sports.contains(sport)
+                        ? games.enumerated().sorted { lhs, rhs in
+                            let l = lhs.element.eventTier ?? .tour, r = rhs.element.eventTier ?? .tour
+                            return l != r ? l > r : lhs.offset < rhs.offset
+                        }.map(\.element)
+                        : games
+                    gameGrid(rows)
+                }
+            }
+        }
+    }
+
+    /// Football splits into NFL, the Playoff, Top 25 and each picked conference once more
+    /// than one of them has games; a single group renders like any other sport.
+    @ViewBuilder
+    private func footballGroups(_ games: [Game]) -> some View {
+        let groups = storage.footballPreference.sections(games) { favorites.contains($0) }
+        if groups.count <= 1 {
+            gameGrid(groups.first?.games ?? games)
+        } else {
+            VStack(alignment: .leading, spacing: .appSpace3) {
+                ForEach(groups, id: \.section) { group in
+                    VStack(alignment: .leading, spacing: .appSpace2) {
+                        Text("\(group.section.title.uppercased()) · \(group.games.count)")
+                            .appEyebrow()
+                            .foregroundStyle(Color.appInkFaint)
+                            .padding(.horizontal, .appSpace4)
+                        gameGrid(group.games)
                     }
+                }
+            }
+        }
+    }
+
+    /// Two-column tiles from five games up, rows below that.
+    @ViewBuilder
+    private func gameGrid(_ rows: [Game]) -> some View {
+        if rows.count >= 5 {
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: .appSpace2),
+                GridItem(.flexible(), spacing: .appSpace2),
+            ], spacing: .appSpace2) {
+                ForEach(rows, id: \.id) { game in
+                    tileLink(game)
+                }
+            }
+            .padding(.horizontal, .appSpace4)
+        } else {
+            LazyVStack(spacing: .appSpace2) {
+                ForEach(rows, id: \.id) { game in
+                    rowLink(game)
                 }
             }
         }
@@ -987,7 +1020,7 @@ private struct ModernDayContent: View {
         if viewModel.networkState == .failed && total.isEmpty { return .failed }
 
         let anySportOn = storage.shouldShowNBA || storage.shouldShowWNBA ||
-            storage.shouldShowNFL || storage.shouldShowNHL ||
+            storage.shouldShowNFL || storage.shouldShowCFB || storage.shouldShowNHL ||
             storage.shouldShowSoccer || storage.shouldShowMLB ||
             storage.shouldShowGolf || storage.shouldShowTennis ||
             storage.shouldShowRacing

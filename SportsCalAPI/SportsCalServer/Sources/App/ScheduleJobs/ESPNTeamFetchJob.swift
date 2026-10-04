@@ -28,7 +28,8 @@ struct ESPNTeamFetchJob: AsyncScheduledJob {
                 // Skip NCAA — college team names collide with pro teams
                 // (e.g. "Islanders" matching "New York Islanders") and would
                 // overwrite logos/abbreviations with wrong data
-                if league == .ncaaMBBTournament { continue }
+                // College football teams aren't in the teams payload at all (see DBUpdateJob).
+                if league == .ncaaMBBTournament || league == .ncaaf { continue }
                 group.addTask {
                     [league : try await Integrator.getTeam(league: league, client: context.application.client)]
                 }

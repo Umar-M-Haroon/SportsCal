@@ -174,7 +174,10 @@ struct SportsCalApp: App {
                     }
                     #endif
                 }
-                .onChange(of: appStorage.enabledSports) { _, _ in
+                // `preferenceVersion` bumps on every preference change the watch mirrors —
+                // including college picks and the NFL/college split, which leave
+                // `enabledSports` unchanged while football stays on.
+                .onChange(of: appStorage.preferenceVersion) { _, _ in
                     #if os(iOS)
                     PhoneWatchSyncService.shared.syncAllPreferences()
                     #endif

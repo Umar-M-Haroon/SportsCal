@@ -212,6 +212,12 @@ class ESPNNetworking {
             do {
                 var uri = URI(string: fullString)
                 uri.query = "limit=500"
+                // College football's board defaults to ESPN's featured games (~16 on a
+                // Saturday); group 80 is all of FBS. Keep `limit` at 500 — anything higher
+                // and ESPN silently falls back to 25 events.
+                if league == .ncaaf {
+                    uri.query! += "&groups=80"
+                }
                 if let dates {
                     uri.query! += "&dates=\(dates)"
                 } else if league.usesSingleYearSeason {

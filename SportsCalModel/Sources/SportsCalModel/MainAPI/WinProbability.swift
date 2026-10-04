@@ -86,7 +86,7 @@ public struct ESPNWinProbabilityEntry: Codable, Equatable {
 ///
 /// Anchors were measured in October 2026 from 117 completed games pulled from ESPN:
 /// 40 NFL (2026 weeks 1–4), 37 NBA (2025–26 season) and 40 MLB (September 2026).
-/// WNBA and the NCAA tournament borrow the NBA's.
+/// WNBA and the NCAA tournament borrow the NBA's; college football borrows the NFL's.
 public enum ExcitementIndex {
     /// Total swing with late swings double-counted.
     public static func raw(_ series: [Double]) -> Double {
@@ -106,7 +106,7 @@ public enum ExcitementIndex {
 
     static func anchors(for league: Leagues) -> Anchors? {
         switch league {
-        case .nfl: return Anchors(p10: 1.81, p50: 5.06, p90: 8.91)
+        case .nfl, .ncaaf: return Anchors(p10: 1.81, p50: 5.06, p90: 8.91)
         case .nba, .wnba, .ncaaMBBTournament: return Anchors(p10: 2.51, p50: 8.91, p90: 19.71)
         case .mlb: return Anchors(p10: 1.44, p50: 2.65, p90: 5.33)
         default: return nil

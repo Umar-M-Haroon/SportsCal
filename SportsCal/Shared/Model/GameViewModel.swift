@@ -391,7 +391,8 @@ public class GameViewModel: NSObject {
             }
             if !filtered.isEmpty { sports.append(.basketball) }
         }
-        if appStorage.shouldShowNFL, let events = currentLiveInfo?.nfl?.events, !events.isEmpty {
+        if context.football.isOn, let events = currentLiveInfo?.nfl?.events,
+           !footballGames(events, context: context).isEmpty {
             sports.append(.nfl)
         }
         if appStorage.shouldShowNHL, let events = currentLiveInfo?.nhl?.events, !events.isEmpty {
@@ -451,12 +452,7 @@ public class GameViewModel: NSObject {
         }
 
         if let nflEvents = currentLiveInfo?.nfl?.events {
-            let filteredNFL = nflEvents.filter { game in
-                guard let leagueString = game.idLeague,
-                      let intLeague = Int(leagueString),
-                      let _ = Leagues(rawValue: intLeague) else { return false }
-                return true
-            }
+            let filteredNFL = footballGames(nflEvents, context: context)
             if !filteredNFL.isEmpty {
                 counts[.nfl] = filteredNFL.count
             }
@@ -612,14 +608,8 @@ public class GameViewModel: NSObject {
                 games.append(contentsOf: applyFavoritesFilter(basketballGames, favoritesOnly: appStorage.favoritesOnlyNBA, context: context))
             }
         }
-        if appStorage.shouldShowNFL {
-            var nflGames = currentLiveInfo?.nfl?.events
-            nflGames?.removeAll(where: { game in
-                guard let leagueString = game.idLeague,
-                      let intLeague = Int(leagueString),
-                      let _ = Leagues(rawValue: intLeague) else { return true }
-                return false
-            })
+        if context.football.isOn {
+            let nflGames = currentLiveInfo?.nfl.map { footballGames($0.events, context: context) }
             if let nflGames {
                 games.append(contentsOf: applyFavoritesFilter(nflGames, favoritesOnly: appStorage.favoritesOnlyNFL, context: context))
             }
@@ -1115,7 +1105,7 @@ public class GameViewModel: NSObject {
         guard let idLeague = game.idLeague, let leagueInt = Int(idLeague),
               let league = Leagues(rawValue: leagueInt) else { return nil }
         if league.isBasketball { return ("basketball", league.espnSlug ?? "nba") }
-        if league == .nfl { return ("football", "nfl") }
+        if league.isFootball, let slug = league.espnSlug { return ("football", slug) }
         if league == .nhl { return ("hockey", "nhl") }
         if league == .mlb { return ("baseball", "mlb") }
         if league.isSoccer, let slug = league.espnSlug { return ("soccer", slug) }
@@ -1261,7 +1251,7 @@ public class GameViewModel: NSObject {
         case .mlb:
             return appStorage.shouldShowMLB
         case .nfl:
-            return appStorage.shouldShowNFL
+            return appStorage.shouldShowNFL || appStorage.shouldShowCFB
         case .golf:
             return appStorage.shouldShowGolf
         case .tennis:
@@ -1819,6 +1809,7 @@ public class GameViewModel: NSObject {
         totalGames = [result.nhl?.events, result.nfl?.events, result.soccer?.events, result.mlb?.events, result.nba?.events, result.golf?.events, result.tennis?.events, result.racing?.events]
             .compactMap({$0})
             .flatMap({$0})
+        TeamsManager.shared.updateCollegeTeams(from: result.nfl?.events ?? [])
         if let standings = result.f1Standings {
             f1Standings = standings
         }
@@ -1943,12 +1934,14 @@ public class GameViewModel: NSObject {
         let favoritesOnlyCompetitions: Set<String>
         let showSoccer: Bool
         let showWorldCup: Bool
+        let football: FootballPreference
 
         init(appStorage: UserDefaultStorage) {
             hiddenCompetitions = Set(appStorage.hiddenCompetitions)
             favoritesOnlyCompetitions = Set(appStorage.favoritesOnlyCompetitions)
             showSoccer = appStorage.shouldShowSoccer
             showWorldCup = appStorage.shouldShowWorldCup
+            football = appStorage.footballPreference
         }
 
         /// Whether a soccer game's league passes the sport-enable gate. Soccer is
@@ -1992,8 +1985,8 @@ public class GameViewModel: NSObject {
                 allGames.append(contentsOf: applyFavoritesFilter(filtered, favoritesOnly: appStorage.favoritesOnlyNBA, context: context))
             }
         }
-        if appStorage.shouldShowNFL {
-            let games = gamesDict[.nfl] ?? []
+        if context.football.isOn {
+            let games = footballGames(gamesDict[.nfl] ?? [], context: context)
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyNFL, context: context))
         }
         if appStorage.shouldShowNHL {
@@ -2013,6 +2006,17 @@ public class GameViewModel: NSObject {
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyRacing, context: context))
         }
         return allGames
+    }
+
+    /// Games from the football bucket the user wants: NFL and college are switched on
+    /// separately, and college is cut down to its coverage (followed teams always pass).
+    func footballGames(_ games: [Game], context: GameFilterContext) -> [Game] {
+        games.filter { game in
+            guard let league = game.idLeague.flatMap({ Int($0) }).flatMap(Leagues.init(rawValue:)),
+                  league.isFootball,
+                  !context.hiddenCompetitions.contains(league.leagueName) else { return false }
+            return context.football.admits(game) { favorites.matches(game) }
+        }
     }
 
     /// Drops games whose league the user hid in "Visible golf competitions" and the like.
@@ -2142,6 +2146,8 @@ public class GameViewModel: NSObject {
         hasher.combine(appStorage.shouldShowNBA)
         hasher.combine(appStorage.shouldShowWNBA)
         hasher.combine(appStorage.shouldShowNFL)
+        hasher.combine(appStorage.shouldShowCFB)
+        hasher.combine(appStorage.cfbSelection)
         hasher.combine(appStorage.shouldShowNHL)
         hasher.combine(appStorage.shouldShowGolf)
         hasher.combine(appStorage.shouldShowTennis)
@@ -2818,6 +2824,11 @@ public class GameViewModel: NSObject {
         // A developer replay owns the socket; don't tear it down or reconnect to live.
         guard !isReplaying else { return }
         if shouldWebSocketBeActive() {
+            // The socket's URL says whether it carries college games; reopen it when the
+            // user has switched college football on or off since it was opened.
+            if webSocketTask != nil, NetworkHandler.socketIncludesCollege != NetworkHandler.wantsCollegeFootball {
+                disconnectWebSocket()
+            }
             guard webSocketTask == nil else { return }
             wsReconnectAttempts = 0
             handleLiveWebsocket()
@@ -3257,11 +3268,14 @@ extension GameViewModel {
             }
         }
 
-        // Re-register when favorites change
-        NotificationCenter.default.addObserver(forName: .favoritesDidChange, object: nil, queue: .main) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in
-                self.sendPushToStartRegistration()
+        // Re-register when favorites change, or college football is switched on or off
+        // (the registration says whether this install wants college Live Activities).
+        for name in [Notification.Name.favoritesDidChange, .collegeFootballSwitchDidChange] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                Task { @MainActor in
+                    self.sendPushToStartRegistration()
+                }
             }
         }
     }

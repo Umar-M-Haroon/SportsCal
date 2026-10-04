@@ -15,7 +15,7 @@ final class ScheduleFilterTests: XCTestCase {
     private let sportKeys = [
         "shouldShowNBA", "shouldShowNFL", "shouldShowNHL",
         "shouldShowSoccer", "shouldShowMLB", "shouldShowGolf",
-        "shouldShowTennis", "shouldShowRacing", "hiddenCompetitions", "seededHiddenCompetitions",
+        "shouldShowTennis", "shouldShowRacing", "shouldShowCFB", "cfbSelection", "hiddenCompetitions", "seededHiddenCompetitions",
         "favoritesOnlyNBA", "favoritesOnlyNFL", "favoritesOnlyNHL",
         "favoritesOnlySoccer", "favoritesOnlyMLB", "favoritesOnlyGolf",
         "favoritesOnlyTennis", "favoritesOnlyRacing",
@@ -300,5 +300,85 @@ final class ScheduleFilterTests: XCTestCase {
         XCTAssertTrue(filtered.allSatisfy {
             $0.idLeague == "\(Leagues.English_Premier_League.rawValue)"
         })
+    }
+
+    // MARK: - College Football
+
+    /// Adds three college games to the football bucket: a ranked matchup, an unranked
+    /// SEC game, and an unranked Sun Belt game.
+    private func addCollegeGames() -> [Game] {
+        let future = ISO8601DateFormatter().string(from: Date().addingTimeInterval(86_400))
+        let league = "\(Leagues.ncaaf.rawValue)"
+        let college = [
+            Game(idEvent: "cfb-ranked", idLeague: league, strHomeTeam: "Missouri Tigers", strAwayTeam: "Florida Gators",
+                 strTimestamp: future, isoDate: nil, homeSeed: 25, awaySeed: 8, homeConference: "sec", awayConference: "sec"),
+            Game(idEvent: "cfb-sec", idLeague: league, strHomeTeam: "Kentucky Wildcats", strAwayTeam: "Arkansas Razorbacks",
+                 strTimestamp: future, isoDate: nil, homeConference: "sec", awayConference: "sec"),
+            Game(idEvent: "cfb-belt", idLeague: league, strHomeTeam: "Troy Trojans", strAwayTeam: "Texas State Bobcats",
+                 strTimestamp: future, isoDate: nil, homeConference: "sunBelt", awayConference: "sunBelt"),
+        ]
+        viewModel.gamesDict[.nfl, default: []] += college
+        return college
+    }
+
+    private func collegeIDs(_ games: [Game]) -> Set<String> {
+        Set(games.filter(\.isCollegeFootball).compactMap(\.idEvent))
+    }
+
+    func testNFLOnlyHidesCollege() {
+        _ = addCollegeGames()
+        appStorage.shouldShowNFL = true
+        let filtered = viewModel.getGamesFromUserPreferences()
+        XCTAssertTrue(collegeIDs(filtered).isEmpty)
+        XCTAssertFalse(filtered.isEmpty, "NFL games still show")
+    }
+
+    func testCollegeOnlyHidesNFLAndDefaultsToTop25() {
+        _ = addCollegeGames()
+        appStorage.shouldShowCFB = true
+        let filtered = viewModel.getGamesFromUserPreferences()
+        XCTAssertTrue(filtered.allSatisfy(\.isCollegeFootball))
+        XCTAssertEqual(collegeIDs(filtered), ["cfb-ranked"])
+    }
+
+    func testCollegeSelectionCombinesPicks() {
+        _ = addCollegeGames()
+        appStorage.shouldShowCFB = true
+        appStorage.cfbSelection = CollegeFootballSelection(conferences: [.sunBelt])
+        XCTAssertEqual(collegeIDs(viewModel.getGamesFromUserPreferences()), ["cfb-belt"])
+        appStorage.cfbSelection = CollegeFootballSelection(top25: true, conferences: [.sunBelt])
+        XCTAssertEqual(collegeIDs(viewModel.getGamesFromUserPreferences()), ["cfb-ranked", "cfb-belt"])
+        appStorage.cfbSelection = .powerFour
+        XCTAssertEqual(collegeIDs(viewModel.getGamesFromUserPreferences()), ["cfb-ranked", "cfb-sec"])
+        appStorage.cfbSelection = .allFBS
+        XCTAssertEqual(collegeIDs(viewModel.getGamesFromUserPreferences()), ["cfb-ranked", "cfb-sec", "cfb-belt"])
+        appStorage.cfbSelection = .followedOnly
+        XCTAssertTrue(collegeIDs(viewModel.getGamesFromUserPreferences()).isEmpty)
+    }
+
+    func testFollowedCollegeTeamShowsUnderAnySelection() {
+        _ = addCollegeGames()
+        appStorage.shouldShowCFB = true
+        appStorage.cfbSelection = .followedOnly
+        favorites.add("Troy Trojans")
+        XCTAssertEqual(collegeIDs(viewModel.getGamesFromUserPreferences()), ["cfb-belt"])
+    }
+
+    func testFootballSectionsFollowThePicks() {
+        let college = addCollegeGames()
+        appStorage.shouldShowNFL = true
+        appStorage.shouldShowCFB = true
+        appStorage.cfbSelection = CollegeFootballSelection(top25: true, conferences: [.sec, .sunBelt])
+        let nfl = viewModel.gamesDict[.nfl]?.filter { !$0.isCollegeFootball } ?? []
+        let sections = appStorage.footballPreference.sections(nfl + college) { _ in false }
+        XCTAssertEqual(sections.map(\.section), [.nfl, .top25, .conference(.sec), .conference(.sunBelt)])
+        XCTAssertEqual(sections[1].games.compactMap(\.idEvent), ["cfb-ranked"], "a ranked SEC game appears once, under Top 25")
+    }
+
+    func testFootballCountsAsOnForCollegeOnlyFans() {
+        appStorage.shouldShowCFB = true
+        XCTAssertTrue(appStorage.userShouldShow(.nfl))
+        appStorage.toggleSport(.nfl, enabled: false)
+        XCTAssertFalse(appStorage.shouldShowCFB, "Turning football off turns college off too")
     }
 }

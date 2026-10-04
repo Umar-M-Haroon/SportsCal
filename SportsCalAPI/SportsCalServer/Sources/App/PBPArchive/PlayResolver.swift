@@ -10,6 +10,7 @@
 //
 
 import Vapor
+import Redis
 import SportsCalModel
 
 enum PlayResolver {
@@ -25,13 +26,19 @@ enum PlayResolver {
         let isDebug = req.application.environment == .development
         let key = RedisEndpoint.ESPN.playByPlay(eventID).getValue(isDebug: isDebug)
 
-        // Tier 1: Redis hot cache.
-        if let cached = try await req.kv.getJSON(key.rawValue, as: CachedPlays.self) {
-            return cached
+        // Tier 1: Redis hot cache. A college game the job doesn't keep fresh (it budgets
+        // to featured games) is served for 90s, then refetched on the next request — one
+        // ESPN fetch per game per 90s however many people are watching it.
+        let collegeSlug = Leagues.ncaaf.espnSlug ?? "college-football"
+        let hot = try await req.kv.getJSON(key.rawValue, as: CachedPlays.self)
+        if let hot, !CollegePBPPolicy.isStale(hot, isCollege: league == collegeSlug) {
+            return hot
         }
 
-        // Tier 2: SQLite archive (finalized games).
-        if let archive = req.application.pbpArchive,
+        // Tier 2: SQLite archive (finalized games). A stale college hit skips it: the game
+        // isn't final, so it can't be in the archive.
+        if hot == nil,
+           let archive = req.application.pbpArchive,
            let archived = try? await archive.lookup(eventID: eventID) {
             return archived
         }
@@ -58,15 +65,39 @@ enum PlayResolver {
             return nil
         }
 
+        // Single-flight: everyone asking for the same event while a fetch is in flight
+        // shares it, so a popular game going stale costs one ESPN request, not one per
+        // viewer. Runs against the application (not this request), since the shared task
+        // can outlive the request that started it.
+        let app = req.application
+        let fetched = await OnDemandPlayFetches.shared.run(eventID: eventID) {
+            await fetchOnDemand(
+                app: app, key: key, eventID: eventID,
+                espnID: resolvedESPNID, sport: resolvedSport, league: resolvedLeague
+            )
+        }
+        // A stale copy beats a 404 while ESPN is unreachable or has nothing yet.
+        return fetched ?? hot
+    }
+
+    /// Fetches a summary from ESPN and writes it under the client-facing key. Nil when
+    /// ESPN fails or has neither plays nor extras.
+    private static func fetchOnDemand(
+        app: Application,
+        key: RedisKey,
+        eventID: String,
+        espnID: String,
+        sport: String,
+        league: String
+    ) async -> CachedPlays? {
         do {
             let summary = try await ESPNNetworking.getPlayByPlaySummary(
-                req: req.client, sport: resolvedSport, league: resolvedLeague, eventId: resolvedESPNID
+                req: app.client, sport: sport, league: league, eventId: espnID
             )
             let plays = summary.allPlays
             // Some summaries have no plays yet but do have win probability and a box
             // score, so an empty play list alone isn't a miss.
-            let league = Leagues(slug: resolvedLeague)
-            let extras = summary.extras(league: league, isFinal: false)
+            let extras = summary.extras(league: Leagues(slug: league), isFinal: false)
             guard !plays.isEmpty || !extras.isEmpty else { return nil }
             let payload = CachedPlays(
                 eventID: eventID,
@@ -78,12 +109,28 @@ enum PlayResolver {
                 teamStats: extras.teamStats
             )
             // Write under the client-facing key so subsequent requests hit cache.
-            try? await req.application.redis.set(key, toJSON: payload)
-            req.logger.info("PBP on-demand fetch succeeded for \(eventID) → ESPN \(resolvedESPNID) (\(plays.count) plays)")
+            try? await app.redis.set(key, toJSON: payload)
+            app.logger.info("PBP on-demand fetch succeeded for \(eventID) → ESPN \(espnID) (\(plays.count) plays)")
             return payload
         } catch {
-            req.logger.warning("PBP on-demand fetch failed for \(eventID): \(error)")
+            app.logger.warning("PBP on-demand fetch failed for \(eventID): \(error)")
             return nil
         }
+    }
+}
+
+/// In-flight on-demand play-by-play fetches, by event ID. Concurrent requests for one
+/// event join the fetch already running instead of starting their own.
+actor OnDemandPlayFetches {
+    static let shared = OnDemandPlayFetches()
+    private var inFlight: [String: Task<CachedPlays?, Never>] = [:]
+
+    func run(eventID: String, fetch: @escaping @Sendable () async -> CachedPlays?) async -> CachedPlays? {
+        if let running = inFlight[eventID] { return await running.value }
+        let task = Task { await fetch() }
+        inFlight[eventID] = task
+        let result = await task.value
+        inFlight[eventID] = nil
+        return result
     }
 }

@@ -81,6 +81,18 @@ public extension TeamSeasonStats {
                 Spec("miscellaneous.turnOverDifferential", "Turnover Diff"),
                 Spec("defensive.sacks", "Sacks"),
             ]
+        // ESPN's college ranks are broken for 3rd down % (every team "1st"), red zone %
+        // (reads 0.00) and turnover differential (ranks don't follow the values), so
+        // those are left out. The rest were checked across five teams, October 2026.
+        case .ncaaf:
+            return [
+                Spec("scoring.totalPointsPerGame", "Points / Game"),
+                Spec("passing.yardsPerGame", "Yards / Game"),
+                Spec("passing.passingYardsPerGame", "Passing / Game"),
+                Spec("rushing.rushingYardsPerGame", "Rushing / Game"),
+                Spec("defensive.sacks", "Sacks"),
+                Spec("defensiveInterceptions.interceptions", "Interceptions"),
+            ]
         case .nba, .wnba:
             return [
                 Spec("offensive.points", "Points / Game", perGame: true),

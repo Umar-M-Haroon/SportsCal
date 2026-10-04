@@ -48,7 +48,10 @@ struct ESPNScheduleWindowJob: AsyncScheduledJob {
             windowKey, asJSON: [Leagues: Scoreboard].self
         )) ?? [:]
 
-        let targets = Leagues.allCases.filter { $0.espnSlug != nil }
+        // College football is left out: its whole season is already in the schedule (one
+        // request a year), and a raw FBS board is ~1 MB a day — this blob is read on every
+        // active-league check.
+        let targets = Leagues.allCases.filter { $0.espnSlug != nil && $0 != .ncaaf }
         Self.logger.info("Fetching ESPN schedule window", metadata: [
             "leagues":  "\(targets.count)",
             "today":    "\(todayInt)",

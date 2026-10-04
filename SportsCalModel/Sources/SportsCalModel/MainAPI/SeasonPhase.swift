@@ -118,7 +118,7 @@ public extension Leagues {
     /// Leagues with a preseason → regular season → playoffs structure.
     var hasSeasonPhases: Bool {
         switch self {
-        case .nba, .nhl, .mlb, .nfl, .wnba, .MLS: return true
+        case .nba, .nhl, .mlb, .nfl, .ncaaf, .wnba, .MLS: return true
         default: return false
         }
     }
@@ -134,8 +134,9 @@ public extension Leagues {
         // WNBA and MLS run inside one calendar year too, but are fetched from ESPN,
         // so `sportsDBSingleYearSeason` (which drives the TheSportsDB fetch) leaves
         // them out. Both ESPN's `season.year` and TheSportsDB label them "2025".
-        if sportsDBSingleYearSeason || self == .wnba || self == .MLS {
-            if self == .nfl, month < 3 { return "\(year - 1)" }
+        if sportsDBSingleYearSeason || self == .wnba || self == .MLS || self == .ncaaf {
+            // Football seasons end in January (the Super Bowl, the CFP title game).
+            if isFootball, month < 3 { return "\(year - 1)" }
             return "\(year)"
         }
         return month >= 7 ? "\(year)-\(year + 1)" : "\(year - 1)-\(year)"
@@ -146,7 +147,7 @@ public extension Leagues {
     /// isn't known to match — those fall back to ``seasonLabel(for:calendar:)``.
     func seasonLabel(espnYear year: Int) -> String? {
         switch self {
-        case .mlb, .nfl, .wnba, .MLS: return "\(year)"
+        case .mlb, .nfl, .ncaaf, .wnba, .MLS: return "\(year)"
         case .nba, .nhl:             return "\(year - 1)-\(year)"
         default:                     return nil
         }

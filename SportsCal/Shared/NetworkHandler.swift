@@ -523,8 +523,28 @@ struct NetworkHandler {
 
     // MARK: - API calls
 
+    /// Whether the user has college football on. The server leaves college games out of
+    /// its schedule and live payloads unless a request asks (`cfb=1`): they're ~1.4 MB of
+    /// schedule and a large share of every live frame on a Saturday, and app versions that
+    /// predate them would only download and drop them.
+    static var wantsCollegeFootball: Bool {
+        #if os(watchOS)
+        let defaults: UserDefaults? = .standard
+        #else
+        let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
+        #endif
+        return FootballPreference(defaults: defaults).showCollege
+    }
+
+    /// `?cfb=1` when the user wants college football, else nothing.
+    private static var collegeQuery: String { wantsCollegeFootball ? "?cfb=1" : "" }
+
+    /// Whether the live socket currently open was asked for college games. The view model
+    /// reconnects when this stops matching `wantsCollegeFootball`.
+    nonisolated(unsafe) static var socketIncludesCollege = false
+
     static func handleCall() async throws -> LiveScore {
-        let urlString = "\(baseURL())/schedules"
+        let urlString = "\(baseURL())/schedules\(collegeQuery)"
         let url = URL(string: urlString)!
         let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
@@ -543,7 +563,7 @@ struct NetworkHandler {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd"
         let dateStr = formatter.string(from: date)
-        let urlString = "\(baseURL())/schedules/date/\(dateStr)"
+        let urlString = "\(baseURL())/schedules/date/\(dateStr)\(collegeQuery)"
         let url = URL(string: urlString)!
         let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
@@ -553,8 +573,16 @@ struct NetworkHandler {
     }
 
     static func getScheduleFor(sport: SportType) async throws -> LiveEvent {
-        let urlString = "\(baseURL())/sport/\(sport.rawValue)"
-        let url = URL(string: urlString)!
+        var components = URLComponents(string: "\(baseURL())/sport/\(sport.rawValue)")!
+        // Browse is for exploring, so it asks for all of FBS regardless of the user's
+        // college coverage (the server leaves college out unless asked).
+        if sport == .nfl {
+            components.queryItems = [
+                URLQueryItem(name: "cfb", value: "1"),
+                URLQueryItem(name: "cfbSel", value: CollegeFootballSelection.allFBS.rawValue),
+            ]
+        }
+        let url = components.url!
         let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
@@ -574,6 +602,7 @@ struct NetworkHandler {
         if !favorites.isEmpty {
             components.queryItems?.append(URLQueryItem(name: "favorites", value: favorites.joined(separator: ",")))
         }
+        components.queryItems?.append(contentsOf: collegeFootballQueryItems(sports: sports))
         let url = components.url!
         let config = URLSessionConfiguration.ephemeral
         config.urlCache = nil
@@ -588,6 +617,33 @@ struct NetworkHandler {
         let decoded = try Self.sharedDecoder.decode(WidgetResponse.self, from: data)
         AppLogger.widget.info("[widgetFetch] decoded \(decoded.games.count) games, \(decoded.teams.count) teams")
         return (decoded.games, decoded.teams)
+    }
+
+    /// College football opt-in for flat game lists. The server leaves college games out of
+    /// them unless asked — app versions that predate college football can't handle them —
+    /// and applies the user's college picks before its `limit`, so a 60-game Saturday
+    /// can't crowd the NFL out of a short list.
+    ///
+    /// No sports means "games for these favorites", which only ever returns followed teams'
+    /// games, so college is always in.
+    private static func collegeFootballQueryItems(sports: [SportType]) -> [URLQueryItem] {
+        guard sports.isEmpty || sports.contains(.nfl) else { return [] }
+        #if os(watchOS)
+        let defaults: UserDefaults? = .standard
+        #else
+        let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
+        #endif
+        let football = FootballPreference(defaults: defaults)
+        if sports.isEmpty { return [URLQueryItem(name: "cfb", value: "1")] }
+        var items: [URLQueryItem] = []
+        if football.showCollege {
+            items.append(URLQueryItem(name: "cfb", value: "1"))
+            items.append(URLQueryItem(name: "cfbSel", value: football.college.rawValue))
+        }
+        if !football.showNFL {
+            items.append(URLQueryItem(name: "nfl", value: "0"))
+        }
+        return items
     }
 
     /// Convenience wrapper for single-sport widget fetch.
@@ -706,7 +762,7 @@ struct NetworkHandler {
         let isMockLive = ProcessInfo.processInfo.environment["mock-live"] != nil
 
         // Fetch real live data
-        let urlString = "\(baseURL())/live"
+        let urlString = "\(baseURL())/live\(collegeQuery)"
         let url = URL(string: urlString)!
         var realLiveScore: LiveScore?
         do {
@@ -765,7 +821,10 @@ struct NetworkHandler {
                 // every change. Safe to request unconditionally — a server that doesn't
                 // know the parameter ignores it and keeps sending bare snapshots, which
                 // the receive path still accepts.
-                urlString = "\(wsBase)/v2025/ws?frames=v2"
+                // College games only when the user has them on (see `wantsCollegeFootball`).
+                let college = wantsCollegeFootball
+                socketIncludesCollege = college
+                urlString = "\(wsBase)/v2025/ws?frames=v2" + (college ? "&cfb=1" : "")
             }
         }
         let url = URL(string: urlString)!
@@ -998,6 +1057,12 @@ struct NetworkHandler {
         request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
         request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
         var body: [String: Any] = ["token": token, "favorites": favorites]
+        // Favorites are matched by name, and college shares names with other sports
+        // (Duke, UConn). The server only starts college Live Activities for installs that
+        // say they have college football on — older builds never send this.
+        if wantsCollegeFootball {
+            body["college"] = true
+        }
         if !eventIDs.isEmpty {
             body["eventIDs"] = eventIDs
         }

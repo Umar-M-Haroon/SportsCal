@@ -17,8 +17,10 @@ public struct CompetitorTeam: Codable {
     public var isActive: Bool
     public var links: [TeamLink]
     public var logo: String?
+    /// College only: ESPN's conference group ID ("8" = SEC). See `CollegeConference`.
+    public var conferenceId: String?
 
-    public init(id: String, uid: String, location: String?, name: String?, abbreviation: String?, displayName: String, shortDisplayName: String, color: String?, alternateColor: String?, isActive: Bool, links: [TeamLink], logo: String?) {
+    public init(id: String, uid: String, location: String?, name: String?, abbreviation: String?, displayName: String, shortDisplayName: String, color: String?, alternateColor: String?, isActive: Bool, links: [TeamLink], logo: String?, conferenceId: String? = nil) {
         self.id = id
         self.uid = uid
         self.location = location
@@ -31,5 +33,6 @@ public struct CompetitorTeam: Codable {
         self.isActive = isActive
         self.links = links
         self.logo = logo
+        self.conferenceId = conferenceId
     }
 }

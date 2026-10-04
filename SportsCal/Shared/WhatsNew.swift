@@ -41,6 +41,8 @@ enum WhatsNewAction: Hashable {
     case showCompetition(Leagues, sport: SportType)
     /// Turn a whole sport on.
     case enableSport(SportType)
+    /// Turn college football on, leaving the NFL switch as it is.
+    case enableCollegeFootball
     /// Open Manage Sports (sport toggles, per-sport leagues, tennis/golf coverage),
     /// with a button title that fits the feature.
     case manageSports(title: String)
@@ -50,6 +52,7 @@ enum WhatsNewAction: Hashable {
         switch self {
         case .showCompetition(let league, _): return "Turn On \(league.leagueName)"
         case .enableSport(let sport): return "Turn On \(sport.displayName)"
+        case .enableCollegeFootball: return "Turn On College Football"
         case .manageSports(let title): return title
         }
     }
@@ -59,6 +62,7 @@ enum WhatsNewAction: Hashable {
         switch self {
         case .showCompetition(let league, _): return "\(league.leagueName) On"
         case .enableSport(let sport): return "\(sport.displayName) On"
+        case .enableCollegeFootball: return "College Football On"
         case .manageSports: return title
         }
     }
@@ -68,6 +72,7 @@ enum WhatsNewAction: Hashable {
         switch self {
         case .showCompetition(let league, _): return "competition:\(league.leagueName)"
         case .enableSport(let sport): return "sport:\(sport.rawValue)"
+        case .enableCollegeFootball: return "league:ncaaf"
         case .manageSports: return "manage_sports"
         }
     }
@@ -76,6 +81,16 @@ enum WhatsNewAction: Hashable {
 extension WhatsNewRelease {
     /// Newest first.
     static let all: [WhatsNewRelease] = [
+        WhatsNewRelease(version: "3.4", features: [
+            WhatsNewFeature(
+                id: "college-football",
+                title: "College Football",
+                subtitle: "Every FBS game with AP rankings, bowls and the Playoff. Pick the Top 25 and any conferences, each with its own section — teams you follow always show.",
+                systemImage: "football.fill",
+                tint: Color.app(.nfl),
+                action: .enableCollegeFootball
+            ),
+        ]),
         WhatsNewRelease(version: "3.3", features: [
             WhatsNewFeature(
                 id: "a-league",
@@ -201,6 +216,8 @@ extension WhatsNewAction {
             return storage.userShouldShow(sport) && !storage.hiddenCompetitions.contains(league.leagueName)
         case .enableSport(let sport):
             return storage.userShouldShow(sport)
+        case .enableCollegeFootball:
+            return storage.shouldShowCFB && !storage.hiddenCompetitions.contains(Leagues.ncaaf.leagueName)
         case .manageSports:
             return false
         }
@@ -220,6 +237,12 @@ extension WhatsNewAction {
             return true
         case .enableSport(let sport):
             storage.toggleSport(sport, enabled: true)
+            return true
+        case .enableCollegeFootball:
+            storage.hiddenCompetitions.removeAll { $0 == Leagues.ncaaf.leagueName }
+            storage.syncHiddenCompetitions()
+            storage.shouldShowCFB = true
+            storage.recomputeEnabledSports()
             return true
         case .manageSports:
             return false

@@ -18,7 +18,7 @@ struct TeamsListView: View {
     @State private var teams: [Team] = TeamsListView.sortedTeams()
 
     private static func sortedTeams() -> [Team] {
-        TeamsManager.shared.teams
+        (TeamsManager.shared.teams + TeamsManager.shared.collegeTeams)
             .filter { ($0.idTeam?.isEmpty == false) && ($0.strTeam?.isEmpty == false) }
             .sorted { ($0.strTeam ?? "") < ($1.strTeam ?? "") }
     }

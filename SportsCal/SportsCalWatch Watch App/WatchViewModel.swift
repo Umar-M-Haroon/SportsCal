@@ -68,10 +68,13 @@ final class WatchViewModel {
 
     /// Per-sport favorites-only plus tennis/golf event coverage (followed players always pass).
     func applyPerSportFavoritesFilter(_ games: [Game]) -> [Game] {
-        games.filter { game in
+        let football = FootballPreference(defaults: .standard)
+        return games.filter { game in
             guard let sport = game.sportType else { return true }
             let favorite = isFavorite(game)
             if isFavoritesOnly(sport) && !favorite { return false }
+            // NFL / college switches, and college's Top 25 / conference coverage.
+            if sport == .nfl { return football.admits(game) { favorite } }
             return game.passesCoverage(EventCoverage.stored(for: sport, in: .standard), isFavorite: favorite)
         }
     }
@@ -249,7 +252,7 @@ final class WatchViewModel {
         if defaults.bool(forKey: "shouldShowSoccer") { sports.insert(.soccer) }
         if defaults.bool(forKey: "shouldShowNHL") { sports.insert(.hockey) }
         if defaults.bool(forKey: "shouldShowMLB") { sports.insert(.mlb) }
-        if defaults.bool(forKey: "shouldShowNFL") { sports.insert(.nfl) }
+        if FootballPreference(defaults: defaults).isOn { sports.insert(.nfl) }
         if defaults.bool(forKey: "shouldShowGolf") { sports.insert(.golf) }
         if defaults.bool(forKey: "shouldShowTennis") { sports.insert(.tennis) }
         if defaults.bool(forKey: "shouldShowRacing") { sports.insert(.racing) }
@@ -294,7 +297,14 @@ final class WatchViewModel {
         defaults.set(enabledSports.contains(.soccer), forKey: "shouldShowSoccer")
         defaults.set(enabledSports.contains(.hockey), forKey: "shouldShowNHL")
         defaults.set(enabledSports.contains(.mlb), forKey: "shouldShowMLB")
-        defaults.set(enabledSports.contains(.nfl), forKey: "shouldShowNFL")
+        // Football on the watch is one switch over two leagues: off clears both, on keeps
+        // whichever the phone chose (a college-only fan stays college-only).
+        if !enabledSports.contains(.nfl) {
+            defaults.set(false, forKey: "shouldShowNFL")
+            defaults.set(false, forKey: "shouldShowCFB")
+        } else if !FootballPreference(defaults: defaults).isOn {
+            defaults.set(true, forKey: "shouldShowNFL")
+        }
         defaults.set(enabledSports.contains(.golf), forKey: "shouldShowGolf")
         defaults.set(enabledSports.contains(.tennis), forKey: "shouldShowTennis")
         defaults.set(enabledSports.contains(.racing), forKey: "shouldShowRacing")

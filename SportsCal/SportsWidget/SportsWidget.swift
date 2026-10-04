@@ -213,7 +213,7 @@ struct WidgetSportTabBar: View {
         if defaults?.bool(forKey: "shouldShowSoccer") ?? false { sports.append(.soccer) }
         if defaults?.bool(forKey: "shouldShowNHL") ?? false { sports.append(.hockey) }
         if defaults?.bool(forKey: "shouldShowMLB") ?? false { sports.append(.mlb) }
-        if defaults?.bool(forKey: "shouldShowNFL") ?? false { sports.append(.nfl) }
+        if FootballPreference(defaults: defaults).isOn { sports.append(.nfl) }
         if defaults?.bool(forKey: "shouldShowGolf") ?? false { sports.append(.golf) }
         if defaults?.bool(forKey: "shouldShowTennis") ?? false { sports.append(.tennis) }
         if defaults?.bool(forKey: "shouldShowRacing") ?? false { sports.append(.racing) }
