@@ -135,6 +135,8 @@ struct DayPage: View {
         let suggestedHash: Int
         let orderedSportsHash: Int
         let worldCupHeroActive: Bool
+        /// Live merges patch scores in place without changing count or IDs.
+        let contentRevision: Int
     }
 
     private var calendar: Calendar { Calendar.current }
@@ -222,7 +224,8 @@ struct DayPage: View {
             favoritesHash: favorites.teams.hashValue,
             suggestedHash: suggested.hashValue,
             orderedSportsHash: storage.orderedSports.hashValue,
-            worldCupHeroActive: showWorldCupHero
+            worldCupHeroActive: showWorldCupHero,
+            contentRevision: viewModel.dayContentRevision
         )
     }
 
@@ -295,12 +298,32 @@ struct DayPage: View {
         }
     }
 
+    /// IDs shown in the Live section. The sections below skip them so a live game
+    /// appears once, and always as the live copy. Applied outside the `dayData` cache
+    /// because the live set changes on every WebSocket push.
+    private var liveSectionIDs: Set<String> {
+        Set(filteredLiveEvents.map(\.id))
+    }
+
     private var filteredFavorites: [GameWithTeams] {
-        dayData.filteredFavorites
+        let liveIDs = liveSectionIDs
+        guard !liveIDs.isEmpty else { return dayData.filteredFavorites }
+        return dayData.filteredFavorites.filter { !liveIDs.contains($0.id) }
+    }
+
+    private var filteredSuggested: [GameWithTeams] {
+        let liveIDs = liveSectionIDs
+        guard !liveIDs.isEmpty else { return dayData.suggestedGames }
+        return dayData.suggestedGames.filter { !liveIDs.contains($0.id) }
     }
 
     private var filteredOtherBySport: [(sport: SportType, games: [GameWithTeams])] {
-        dayData.filteredOtherBySport
+        let liveIDs = liveSectionIDs
+        guard !liveIDs.isEmpty else { return dayData.filteredOtherBySport }
+        return dayData.filteredOtherBySport.compactMap { section in
+            let games = section.games.filter { !liveIDs.contains($0.id) }
+            return games.isEmpty ? nil : (sport: section.sport, games: games)
+        }
     }
 
     private var allDayGamesWithTeams: [GameWithTeams] {
@@ -824,7 +847,7 @@ struct DayPage: View {
         }
 
         // Suggested for you
-        if storage.showSuggestedForYou, !dayData.suggestedGames.isEmpty {
+        if storage.showSuggestedForYou, !filteredSuggested.isEmpty {
             Section {
                 TipView(FavoriteTeamSuggestionTip())
                     .tipBackground(Color.secondaryGroupedBackground)
@@ -840,7 +863,7 @@ struct DayPage: View {
                             FavoriteTeamSuggestionTip().invalidate(reason: .actionPerformed)
                         }
                     }
-                ForEach(dayData.suggestedGames) { gameWithTeams in
+                ForEach(filteredSuggested) { gameWithTeams in
                     gameRow(for: gameWithTeams, isLive: false)
                 }
             } header: {
