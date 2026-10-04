@@ -29,12 +29,12 @@ struct CalendarViewRepresentable: UIViewRepresentable {
         calendarView.wantsDateDecorations = true
         calendarView.visibleDateComponents = Calendar.current.dateComponents([.day, .month, .year], from: .now)
         calendarView.fontDesign = .rounded
-        calendarView.overrideUserInterfaceStyle = storage.appTheme == .ambient ? .dark : .unspecified
+        calendarView.overrideUserInterfaceStyle = storage.effectiveAppTheme == .ambient ? .dark : .unspecified
         return calendarView
     }
 
     func updateUIView(_ uiView: UICalendarView, context: Context) {
-        uiView.overrideUserInterfaceStyle = storage.appTheme == .ambient ? .dark : .unspecified
+        uiView.overrideUserInterfaceStyle = storage.effectiveAppTheme == .ambient ? .dark : .unspecified
         var gamesToUse = viewModel.calendarGames ?? []
         if showFavoritesOnly {
             gamesToUse = gamesToUse.filter { favorites.contains($0) }

@@ -305,7 +305,7 @@ struct ContentView: View {
     private var mainNavigation: some View {
         #if os(macOS)
         Group {
-            switch storage.appTheme {
+            switch storage.effectiveAppTheme {
             case .efRemix:
                 ModernMacWindow()
                     .environment(viewModel)
@@ -323,7 +323,7 @@ struct ContentView: View {
         TabView(selection: $selectedTab) {
             NavigationStack {
                 Group {
-                    switch storage.appTheme {
+                    switch storage.effectiveAppTheme {
                     case .ambient:
                         AmbientDayPage()
                             .environment(viewModel)
@@ -401,7 +401,7 @@ struct ContentView: View {
 
             NavigationStack(path: $browseTeamPath) {
                 Group {
-                    switch storage.appTheme {
+                    switch storage.effectiveAppTheme {
                     case .ambient:
                         AmbientBrowsePage()
                             .environment(viewModel)

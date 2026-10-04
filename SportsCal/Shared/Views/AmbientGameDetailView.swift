@@ -42,7 +42,7 @@ struct AdaptiveGameDetail: View {
     }
 
     var body: some View {
-        switch storage.appTheme {
+        switch storage.effectiveAppTheme {
         case .ambient:
             AmbientGameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
         case .efRemix:

@@ -308,6 +308,11 @@ public class GameViewModel: NSObject {
     }
     /// Cache for gamesWithTeams(for:) results, keyed by (day, filterHash).
     private var gamesWithTeamsDateCache: [DateCacheKey: [GameWithTeams]] = [:]
+    /// Bumped whenever the per-day `[GameWithTeams]` contents change in place — a live
+    /// merge patching scores, or a full rebuild. Views that memoize a day's partition
+    /// key on this; count + first/last ID alone can't see a score change, which froze
+    /// schedule rows at their pre-game state while the Live section kept ticking.
+    private(set) var dayContentRevision = 0
     /// Snapshot of the current filter state's hash. Recomputed at each filterSports()
     /// call; reads/writes against the date cache use this to scope entries.
     private var currentFilterStateHash: Int = 0
@@ -1951,6 +1956,7 @@ public class GameViewModel: NSObject {
             patch(&dayGames)
             gamesWithTeamsDateCache[key] = dayGames
         }
+        dayContentRevision &+= 1
         for (previousID, replacement) in changedByID {
             guard let cached = gameWithTeamsCache[previousID] else { continue }
             let entry = GameWithTeams(
@@ -2622,6 +2628,7 @@ public class GameViewModel: NSObject {
         for (day, games) in dateCache {
             gamesWithTeamsDateCache[DateCacheKey(date: day, filterHash: hash)] = games
         }
+        dayContentRevision &+= 1
 
         withAnimation {
             sortedGames = limitedSorted
