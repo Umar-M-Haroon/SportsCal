@@ -73,7 +73,10 @@ actor DerivedPayloadCache {
 /// refresh is in flight — get the previous frame immediately (stale-while-
 /// revalidate; actor reentrancy during the awaited fetch is what lets them in).
 actor LiveFrameCache {
+    /// Frames without college football — every client that didn't send `cfb=1`.
     static let shared = LiveFrameCache()
+    /// Frames with college football, for clients that opted in.
+    static let withCollege = LiveFrameCache()
 
     /// How long a fetched frame is served before another fetch is attempted. Injectable
     /// so tests can drive the sequence machinery without sleeping between frames.
@@ -487,7 +490,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         // exhaustion outage). The blob only changes minutely, so a 30s-old copy is
         // indistinguishable to clients — live scores come from /live and the WS.
         if let snap = await LastKnownGoodCache.shared.schedulesSnapshot, snap.age < 30 {
-            return snap.value
+            return CollegePayload.serve(snap.value, for: req, variant: "schedules")
         }
         let key = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue
         do {
@@ -495,13 +498,13 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 throw NetworkError.invalidData
             }
             await LastKnownGoodCache.shared.storeSchedules(raw)
-            return raw
+            return CollegePayload.serve(raw, for: req, variant: "schedules")
         } catch {
             // Redis blip (or missing key): a stale schedule beats a 500 — the app is
             // unusable without this endpoint.
             if let snap = await LastKnownGoodCache.shared.schedulesSnapshot {
                 req.logger.warning("schedules: Redis read failed, serving last-known-good (age \(Int(snap.age))s) — \(String(reflecting: error))")
-                return snap.value
+                return CollegePayload.serve(snap.value, for: req, variant: "schedules")
             }
             throw error
         }
@@ -521,10 +524,22 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         guard let raw = try await req.kv.getString(key), !raw.isEmpty else {
             throw Abort(.badRequest)
         }
-        let sliced = await DerivedPayloadCache.shared.value(variant: "sport:\(sport.rawValue)", source: raw) { source in
+        // The football slice is a bare `LiveEvent`, so the `LiveScore` wire split that
+        // hides college football from older clients doesn't apply: filter it here, on the
+        // same `cfb` / `nfl` opt-ins as /widget/schedule. `cfbSel` is deliberately ignored —
+        // Browse wants all of FBS, and honouring a client-chosen selection would let the
+        // cache hold one multi-MB slice per conference combination (~32k of them).
+        let college = WidgetCollegeFilter(query: req.query).browsingAllFBS()
+        let variant = sport == .nfl
+            ? "sport:nfl:\(college.variantKey)"
+            : "sport:\(sport.rawValue)"
+        let sliced = await DerivedPayloadCache.shared.value(variant: variant, source: raw) { source in
             guard let data = source.data(using: .utf8),
                   let schedule = try? JSONDecoder().decode(LiveScore.self, from: data),
-                  let event = schedule.event(for: sport) else { return nil }
+                  var event = schedule.event(for: sport) else { return nil }
+            if sport == .nfl {
+                event.events = event.events.filter { college.admits($0, favorites: []) }
+            }
             return encodeResult(res: event)
         }
         guard let sliced else { throw Abort(.badRequest) }
@@ -544,8 +559,9 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         }
         let isDebug = req.application.environment == .development
         let cacheKey = "ESPN Schedule Date \(dateInt)\(isDebug ? " DEBUG" : "")"
+        let wantsCollege = CollegePayload.wantsCollege(req)
         if let cached = try? await req.kv.getString(cacheKey), !cached.isEmpty {
-            return cached
+            return wantsCollege ? cached : CollegePayload.withoutCollege(day: cached, date: dateInt)
         }
         let (liveScore, failures) = await buildESPNScheduleForDate(dateInt: dateInt, client: req.client)
         let json = encodeResult(res: liveScore)
@@ -569,7 +585,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
             req.logger.warning("schedules/date: \(failures) league fetch(es) failed", metadata: ["date": "\(dateInt)"])
             try? await req.kv.setString(cacheKey, value: json, ttl: 60)
         }
-        return json
+        return wantsCollege ? json : CollegePayload.withoutCollege(day: json, date: dateInt)
     }
 
     //MARK: - Teams
@@ -634,11 +650,20 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         // the bare-`LiveScore` behaviour below, unchanged.
         let wantsDeltas = (try? req.query.get(String.self, at: "frames")) == "v2"
         var lastSentSeq: Int? = nil
+        // College football is opt-in (`cfb=1`). Each variant has its own frame cache, so
+        // clients on the same variant still share one fetch, one diff and one encoding.
+        let wantsCollege = CollegePayload.wantsCollege(req)
+        let frames = wantsCollege ? LiveFrameCache.withCollege : LiveFrameCache.shared
+        let liveKey = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug).rawValue
+        let fetchFrame: () async -> String? = {
+            guard let raw = try? await req.kv.getString(liveKey) else { return nil }
+            return wantsCollege ? raw : CollegePayload.withoutCollege(raw, variant: "ws")
+        }
 
         // The frame cache only pays for the diff while someone can consume one.
-        if wantsDeltas { await LiveFrameCache.shared.subscribeToDeltas() }
+        if wantsDeltas { await frames.subscribeToDeltas() }
         defer {
-            if wantsDeltas { Task { await LiveFrameCache.shared.unsubscribeFromDeltas() } }
+            if wantsDeltas { Task { await frames.unsubscribeFromDeltas() } }
         }
 
         while !ws.isClosed {
@@ -650,10 +675,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 )
 
                 if hasGames, wantsDeltas {
-                    let key = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug).rawValue
-                    let pending = await LiveFrameCache.shared.next(after: lastSentSeq) {
-                        try? await req.kv.getString(key)
-                    }
+                    let pending = await frames.next(after: lastSentSeq, fetch: fetchFrame)
 
                     if let pending {
                         let bytes = pending.payload.utf8.count
@@ -676,10 +698,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                     // previously every client independently pulled the multi-MB blob
                     // from Redis every 2s, which multiplied pool load by client count
                     // during exactly the busy evenings that wedged the pool.
-                    let key = RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug).rawValue
-                    let (stringResult, currentHash) = await LiveFrameCache.shared.current {
-                        try? await req.kv.getString(key)
-                    }
+                    let (stringResult, currentHash) = await frames.current(fetch: fetchFrame)
 
                     // Only send if data actually changed (avoids redundant multi-MB pushes)
                     if currentHash != lastSentHash {
@@ -748,7 +767,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     // came out of Redis. Serve them, as `/schedules` and `/teams` already do.
     routes.get("all-live-games") { req async throws -> String in
         let key = RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: req.application.environment == .development).rawValue
-        return (try await req.kv.getString(key)) ?? "null"
+        guard let raw = try await req.kv.getString(key) else { return "null" }
+        return CollegePayload.serve(raw, for: req, variant: "all-live-games")
     }
 
     //MARK: DEBUG
@@ -1015,7 +1035,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
             result.removeNonStarting()
             return encodeResult(res: result)
         }
-        return pruned ?? "null"
+        guard let pruned else { return "null" }
+        return CollegePayload.serve(pruned, for: req, variant: "live")
     }
 
     //MARK: - liveActivity
@@ -1158,6 +1179,9 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         guard let teamID = req.parameters.get("teamID"), !teamID.isEmpty else {
             throw Abort(.badRequest)
         }
+        // College teams live only on ESPN; TheSportsDB has no profile for them, and the
+        // bare number behind "ncaaf-57" is some other team's TheSportsDB ID.
+        if Leagues.collegeESPNTeamID(teamID) != nil { throw Abort(.notFound) }
         let isDebug = req.application.environment == .development
         let cacheKey: RedisKey = isDebug ? "debug-Team Detail-\(teamID)" : "Team Detail-\(teamID)"
         if let cached = try? await req.application.redis.get(cacheKey, asJSON: TeamDetail.self) {
@@ -1397,7 +1421,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
             token: registration.token,
             favorites: registration.favorites,
             eventIDs: registration.eventIDs ?? [],
-            environment: environment
+            environment: environment,
+            college: registration.college
         )
 
         // If this install previously held a different token, drop the reverse
@@ -1530,6 +1555,10 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 allGames.append(contentsOf: events)
             }
         }
+        // College football rides in the football bucket, so `sports=nfl` would hand it to
+        // widgets and watches that predate it. It's opt-in — see `WidgetCollegeFilter`.
+        let college = WidgetCollegeFilter(query: req.query)
+        allGames = allGames.filter { college.admits($0, favorites: favoriteTeams) }
 
         // Filter to upcoming games only
         let now = Calendar.current.startOfDay(for: Date())
@@ -1598,6 +1627,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 aggregateScore: game.aggregateScore,
                 homeSeed: game.homeSeed,
                 awaySeed: game.awaySeed,
+                homeConference: game.homeConference,
+                awayConference: game.awayConference,
                 playoff: game.playoff,
                 season: game.season, seasonPhase: game.seasonPhase,
                 situation: game.situation, excitement: game.excitement
@@ -1614,6 +1645,60 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 
         let response = WidgetScheduleResponse(games: strippedGames, teams: relevantTeams)
         return encodeResult(res: response)
+    }
+}
+
+/// College football on a flat `[Game]` endpoint. Clients that predate it get none:
+/// they read the football bucket with no league filter, and some force-unwrap the league.
+///
+/// - `cfb=1` — include college games, filtered by `cfbSel`: a `CollegeFootballSelection`
+///   raw value such as `top25,sec,big12`. Missing, or naming nothing we recognise, means
+///   the default (Top 25); present but empty (`cfbSel=`) means followed teams only.
+///   A game whose home or away team name is in `favorites` always passes.
+/// - `nfl=0` — drop NFL games (college on, NFL off: the client still asks for `sports=nfl`).
+struct WidgetCollegeFilter {
+    var includeCollege = false
+    var selection: CollegeFootballSelection = .default
+    var includeNFL = true
+
+    init(includeCollege: Bool = false, selection: CollegeFootballSelection = .default, includeNFL: Bool = true) {
+        self.includeCollege = includeCollege
+        self.selection = selection
+        self.includeNFL = includeNFL
+    }
+
+    init(query: URLQueryContainer) {
+        includeCollege = (try? query.get(String.self, at: "cfb")) == "1"
+        selection = Self.selection(from: try? query.get(String.self, at: "cfbSel"))
+        includeNFL = (try? query.get(String.self, at: "nfl")) != "0"
+    }
+
+    static func selection(from raw: String?) -> CollegeFootballSelection {
+        guard let raw else { return .default }
+        if raw.isEmpty { return .followedOnly }
+        let parsed = CollegeFootballSelection(rawValue: raw) ?? .default
+        return parsed.isFollowedOnly ? .default : parsed
+    }
+
+    /// The same opt-ins with every FBS game — for responses cached per variant, which
+    /// must not multiply by the user's selection.
+    func browsingAllFBS() -> WidgetCollegeFilter {
+        WidgetCollegeFilter(includeCollege: includeCollege, selection: .allFBS, includeNFL: includeNFL)
+    }
+
+    /// Stable cache-key fragment for the response variant this filter produces.
+    var variantKey: String {
+        "cfb=\(includeCollege):\(selection.rawValue):nfl=\(includeNFL)"
+    }
+
+    func admits(_ game: Game, favorites: Set<String>) -> Bool {
+        if game.isCollegeFootball {
+            guard includeCollege else { return false }
+            let isFavorite = favorites.contains(game.strHomeTeam) || favorites.contains(game.strAwayTeam)
+            return selection.admits(game, isFavorite: isFavorite)
+        }
+        if !includeNFL, game.idLeague == "\(Leagues.nfl.rawValue)" { return false }
+        return true
     }
 }
 

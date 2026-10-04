@@ -33,6 +33,8 @@ export interface LiveScore {
   mlb?: LiveEvent
   soccer?: LiveEvent
   nfl?: LiveEvent
+  /** College football (idLeague 102) — split out of `nfl` on the wire. */
+  ncaaf?: LiveEvent
   nhl?: LiveEvent
   golf?: LiveEvent
   tennis?: LiveEvent

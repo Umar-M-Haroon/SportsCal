@@ -213,7 +213,7 @@ public extension Leagues {
     /// a fixed count we reason about (soccer, individual sports).
     var regulationPeriods: Int? {
         switch self {
-        case .nba, .wnba, .nfl: return 4
+        case .nba, .wnba, .nfl, .ncaaf: return 4
         case .ncaaMBBTournament: return 2
         case .nhl: return 3
         case .mlb: return 9

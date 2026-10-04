@@ -67,6 +67,9 @@ enum TeamSeasonStatsResolver {
     /// TheSportsDB → ESPN team ID, by inverting the `ESPN-ID-Map` that ESPNTeamFetchJob
     /// writes (`"{bucket}:{espnID}" → tsdbID`).
     static func espnTeamID(for teamID: String, league: Leagues, app: Application, isDebug: Bool) async -> String? {
+        // College teams have no TheSportsDB ID: their games, and so the team page, carry
+        // ESPN's, namespaced ("ncaaf-57").
+        if league == .ncaaf { return Leagues.collegeESPNTeamID(teamID) ?? teamID }
         let mappingKey: RedisKey = isDebug ? "debug-ESPN-ID-Map" : "ESPN-ID-Map"
         guard let map = try? await app.redis.get(mappingKey, asJSON: [String: String].self) else { return nil }
         return espnTeamID(for: teamID, bucket: league.sportBucket, in: map)

@@ -175,6 +175,9 @@ struct BrowseSportView: View {
     @State private var timeFilter: BrowseTimeFilter = .upcoming
     /// Golf only: the tour being browsed. Nil until the user picks one — see `golfTourSections`.
     @State private var selectedGolfTour: Leagues?
+    /// Football only: NFL or college. Both share the football bucket, and a college
+    /// Saturday alone would bury the NFL's week.
+    @State private var footballLeague: Leagues = .nfl
 
     var body: some View {
         Group {
@@ -228,6 +231,9 @@ struct BrowseSportView: View {
             }
         }
         .task {
+            if sport == .nfl, storage.shouldShowCFB, !storage.shouldShowNFL {
+                footballLeague = .ncaaf
+            }
             let vm = SportBrowseViewModel(sport: sport, viewModel: viewModel)
             browseVM = vm
             await vm.fetch()
@@ -243,6 +249,13 @@ struct BrowseSportView: View {
 
     // MARK: - Games List
 
+    /// For football, just the picked league; every other sport passes through.
+    private func inFootballLeague(_ games: [GameWithTeams]) -> [GameWithTeams] {
+        guard sport == .nfl else { return games }
+        let id = "\(footballLeague.rawValue)"
+        return games.filter { $0.game.idLeague == id }
+    }
+
     @ViewBuilder
     private func gamesList(_ browseVM: SportBrowseViewModel) -> some View {
         List {
@@ -255,6 +268,15 @@ struct BrowseSportView: View {
                 .pickerStyle(.segmented)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                if sport == .nfl {
+                    Picker("League", selection: $footballLeague) {
+                        Text("NFL").tag(Leagues.nfl)
+                        Text("College").tag(Leagues.ncaaf)
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
+                }
             }
 
             // DISABLED: Standings movement chart
@@ -280,11 +302,15 @@ struct BrowseSportView: View {
                 // Golf: pick a tour, then that tour's tournaments.
                 golfTourSections(browseVM)
             } else {
+            let liveGames = inFootballLeague(browseVM.liveGames)
+            let todayGames = inFootballLeague(browseVM.todayGames)
+            let upcomingGames = inFootballLeague(browseVM.upcomingGames)
+            let recentGames = inFootballLeague(browseVM.recentGames)
             switch timeFilter {
             case .upcoming:
-                if !browseVM.liveGames.isEmpty {
+                if !liveGames.isEmpty {
                     Section {
-                        ForEach(browseVM.liveGames) { gwt in
+                        ForEach(liveGames) { gwt in
                             gameRow(gwt, isLive: true)
                         }
                     } header: {
@@ -292,8 +318,8 @@ struct BrowseSportView: View {
                     }
                 }
 
-                if !browseVM.todayGames.isEmpty {
-                    todaySection(browseVM.todayGames)
+                if !todayGames.isEmpty {
+                    todaySection(todayGames)
                 }
 
                 #if os(iOS)
@@ -305,12 +331,12 @@ struct BrowseSportView: View {
                 }
                 #endif
 
-                if !browseVM.upcomingGames.isEmpty {
-                    upcomingSections(browseVM.upcomingGames)
+                if !upcomingGames.isEmpty {
+                    upcomingSections(upcomingGames)
                 }
 
-                if browseVM.liveGames.isEmpty && browseVM.todayGames.isEmpty &&
-                   browseVM.upcomingGames.isEmpty {
+                if liveGames.isEmpty && todayGames.isEmpty &&
+                   upcomingGames.isEmpty {
                     Section {
                         emptyState
                     }
@@ -318,11 +344,11 @@ struct BrowseSportView: View {
                 }
 
             case .past:
-                if !browseVM.recentGames.isEmpty {
-                    pastSections(browseVM.recentGames)
+                if !recentGames.isEmpty {
+                    pastSections(recentGames)
                 }
 
-                if browseVM.recentGames.isEmpty {
+                if recentGames.isEmpty {
                     Section {
                         pastEmptyState
                     }

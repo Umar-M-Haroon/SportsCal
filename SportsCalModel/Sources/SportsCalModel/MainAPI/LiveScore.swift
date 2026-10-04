@@ -49,6 +49,10 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
 
     case ncaaMBBTournament = 100
     case wnba = 101
+    /// FBS college football. ESPN-only, and rides in the football bucket next to the NFL
+    /// the way the WNBA rides with the NBA — but on the wire it is split out into its own
+    /// `ncaaf` key (see `LiveScore`'s Codable) so app versions that predate it never see it.
+    case ncaaf = 102
 
     /// Soccer is the default here: the enum is mostly soccer leagues, so this is defined
     /// by exclusion.
@@ -58,7 +62,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     /// call; a `switch` decides it without allocating.
     public var isSoccer: Bool {
         switch self {
-        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament, .wnba,
+        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament, .wnba, .ncaaf,
              .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld:
             return false
         default:
@@ -75,6 +79,13 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     public var isBasketball: Bool {
         switch self {
         case .nba, .ncaaMBBTournament, .wnba: return true
+        default: return false
+        }
+    }
+
+    public var isFootball: Bool {
+        switch self {
+        case .nfl, .ncaaf: return true
         default: return false
         }
     }
@@ -99,6 +110,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     public var sportBucket: String {
         if isBasketball { return "nba" }
         if self == .nfl { return "nfl" }
+        // College IDs overlap the NFL's 1–34, so they get a bucket of their own.
+        if self == .ncaaf { return "ncaaf" }
         if self == .nhl { return "nhl" }
         if self == .mlb { return "mlb" }
         if isGolf { return "golf" }
@@ -181,6 +194,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             self = .ncaaMBBTournament
         case "wnba":
             self = .wnba
+        case "college-football":
+            self = .ncaaf
         default:
             return nil
         }
@@ -260,6 +275,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "mens-college-basketball"
         case .wnba:
             return "wnba"
+        case .ncaaf:
+            return "college-football"
         default:
             return nil
         }
@@ -339,6 +356,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "March Madness"
         case .wnba:
             return "WNBA"
+        case .ncaaf:
+            return "College Football"
         }
     }
 
@@ -346,7 +365,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         switch self {
         case .English_Premier_League, .English_League_Championship, .German_Bundesliga, .Serie_A, .Ligue_1, .La_Liga, .Eredivisie, .MLS, .Liga_MX, .A_League, .FIFA_World_Cup, .UEFA_Champions_League, .UEFA_Europa_League, .FA_Cup, .Copa_del_Rey, .Coupe_De_France, .DFB_Pokal, .UEFA_Nations_League, .Copa_America, .UEFA_Conference_League, .Womens_World_Cup:
             return "soccer"
-        case .nfl:
+        case .nfl, .ncaaf:
             return "football"
         case .nba, .ncaaMBBTournament, .wnba:
             return "basketball"
@@ -383,6 +402,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         case .nba: return "https://a.espncdn.com/i/teamlogos/leagues/500/nba.png"
         case .ncaaMBBTournament: return "https://a.espncdn.com/i/teamlogos/ncaa/500/2.png"
         case .wnba: return "https://a.espncdn.com/i/teamlogos/leagues/500/wnba.png"
+        case .ncaaf: return "https://a.espncdn.com/redesign/assets/img/icons/ESPN-icon-football-college.png"
         default: return nil
         }
     }
@@ -392,6 +412,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         case .nba: return "https://a.espncdn.com/i/teamlogos/leagues/500-dark/nba.png"
         case .ncaaMBBTournament: return "https://a.espncdn.com/i/teamlogos/ncaa/500/2.png"
         case .wnba: return "https://a.espncdn.com/i/teamlogos/leagues/500-dark/wnba.png"
+        case .ncaaf: return "https://a.espncdn.com/redesign/assets/img/icons/ESPN-icon-football-college.png"
         default: return nil
         }
     }
@@ -420,7 +441,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         case .Copa_America: return "83"
         case .UEFA_Conference_League: return "20296"
         case .Womens_World_Cup: return "60"
-        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament, .wnba,
+        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament, .wnba, .ncaaf,
              .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld: return nil
         }
     }
@@ -449,7 +470,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         }
     }
 }
-public struct LiveScore: Codable, Equatable {
+public struct LiveScore: Equatable {
     public init(nba: LiveEvent? = nil, mlb: LiveEvent? = nil, soccer: LiveEvent? = nil, nfl: LiveEvent? = nil, nhl: LiveEvent? = nil, golf: LiveEvent? = nil, tennis: LiveEvent? = nil, racing: LiveEvent? = nil, f1Standings: F1Standings? = nil, worldCup: WorldCupEnrichment? = nil) {
         self.nba = nba
         self.mlb = mlb
@@ -570,5 +591,63 @@ public struct LiveScore: Codable, Equatable {
                   let leagueID = Int(idLeague) else { return true }
             return !Leagues.allCases.map({$0.rawValue}).contains(leagueID)
         })
+    }
+}
+
+// MARK: - Codable
+
+/// College football lives in the `nfl` bucket in memory — the same place everything
+/// football-shaped is handled, so live merges, push-to-start and Live Activities need no
+/// special case — but travels under its own `ncaaf` key.
+///
+/// App versions that predate college football read the `nfl` bucket with no league
+/// filter: sharing the key would put ~950 college games a season into their NFL
+/// schedule. Splitting on encode means they never see one; folding on decode means
+/// everything that knows about it (this server, Redis round-trips, current clients)
+/// still sees one football bucket.
+extension LiveScore: Codable {
+    enum CodingKeys: String, CodingKey {
+        case nba, mlb, soccer, nfl, ncaaf, nhl, golf, tennis, racing, f1Standings, worldCup
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        nba = try container.decodeIfPresent(LiveEvent.self, forKey: .nba)
+        mlb = try container.decodeIfPresent(LiveEvent.self, forKey: .mlb)
+        soccer = try container.decodeIfPresent(LiveEvent.self, forKey: .soccer)
+        nfl = LiveEvent.merging(
+            try container.decodeIfPresent(LiveEvent.self, forKey: .nfl),
+            try container.decodeIfPresent(LiveEvent.self, forKey: .ncaaf)
+        )
+        nhl = try container.decodeIfPresent(LiveEvent.self, forKey: .nhl)
+        golf = try container.decodeIfPresent(LiveEvent.self, forKey: .golf)
+        tennis = try container.decodeIfPresent(LiveEvent.self, forKey: .tennis)
+        racing = try container.decodeIfPresent(LiveEvent.self, forKey: .racing)
+        f1Standings = try container.decodeIfPresent(F1Standings.self, forKey: .f1Standings)
+        worldCup = try container.decodeIfPresent(WorldCupEnrichment.self, forKey: .worldCup)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(nba, forKey: .nba)
+        try container.encodeIfPresent(mlb, forKey: .mlb)
+        try container.encodeIfPresent(soccer, forKey: .soccer)
+        if let nfl {
+            let college = nfl.events.filter(\.isCollegeFootball)
+            if college.isEmpty {
+                try container.encode(nfl, forKey: .nfl)
+            } else {
+                // A bucket that held only college games still goes out as an empty `nfl`:
+                // nil and empty read differently to a delta merge.
+                try container.encode(LiveEvent(events: nfl.events.filter { !$0.isCollegeFootball }), forKey: .nfl)
+                try container.encode(LiveEvent(events: college), forKey: .ncaaf)
+            }
+        }
+        try container.encodeIfPresent(nhl, forKey: .nhl)
+        try container.encodeIfPresent(golf, forKey: .golf)
+        try container.encodeIfPresent(tennis, forKey: .tennis)
+        try container.encodeIfPresent(racing, forKey: .racing)
+        try container.encodeIfPresent(f1Standings, forKey: .f1Standings)
+        try container.encodeIfPresent(worldCup, forKey: .worldCup)
     }
 }

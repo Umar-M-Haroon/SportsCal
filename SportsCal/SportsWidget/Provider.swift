@@ -362,6 +362,7 @@ class Provider: AppIntentTimelineProvider {
         #endif
         guard let defaults else { return games }
         func favOnly(_ key: String) -> Bool { defaults.bool(forKey: key) }
+        let football = FootballPreference(defaults: defaults)
         return games.filter { game in
             guard let sport = game.sportType else { return true }
             let favOnlyForSport: Bool = {
@@ -377,6 +378,8 @@ class Provider: AppIntentTimelineProvider {
                 }
             }()
             if favOnlyForSport && !favorites.matches(game) { return false }
+            // NFL / college switches, and college's Top 25 / conference coverage.
+            if sport == .nfl { return football.admits(game) { favorites.matches(game) } }
             // Tennis/golf tiers the user left out; followed players still show.
             let coverage = EventCoverage.stored(for: sport, in: defaults)
             return game.passesCoverage(coverage) || favorites.matches(game)
@@ -411,7 +414,7 @@ class Provider: AppIntentTimelineProvider {
         if defaults?.bool(forKey: "shouldShowSoccer") ?? false { sports.append(.soccer) }
         if defaults?.bool(forKey: "shouldShowNHL") ?? false { sports.append(.hockey) }
         if defaults?.bool(forKey: "shouldShowMLB") ?? false { sports.append(.mlb) }
-        if defaults?.bool(forKey: "shouldShowNFL") ?? false { sports.append(.nfl) }
+        if FootballPreference(defaults: defaults).isOn { sports.append(.nfl) }
         if defaults?.bool(forKey: "shouldShowGolf") ?? false { sports.append(.golf) }
         if defaults?.bool(forKey: "shouldShowTennis") ?? false { sports.append(.tennis) }
         if defaults?.bool(forKey: "shouldShowRacing") ?? false { sports.append(.racing) }

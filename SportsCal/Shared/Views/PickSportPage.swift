@@ -75,6 +75,14 @@ struct PickSportPage: View {
 //                        appStorage.shouldShowMLB = false
 //                    }
                 }
+                Toggle(isOn: $bindableAppStorage.shouldShowCFB) {
+                    Label {
+                        Text("College Football")
+                    } icon: {
+                        Image(systemName: "football.fill")
+                            .modifier(SportsTint(sport: .nfl))
+                    }
+                }
                 Toggle(isOn: $bindableAppStorage.shouldShowNBA) {
                     Label {
                         Text("NBA")
@@ -189,7 +197,7 @@ struct PickSportPage: View {
                     if !offered { sheetType = .none }
                 }, label: {
                     Text("Continue")
-                        .disabled(!(appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup || appStorage.shouldShowMLB || appStorage.shouldShowNBA || appStorage.shouldShowWNBA || appStorage.shouldShowNFL || appStorage.shouldShowNHL || appStorage.shouldShowGolf || appStorage.shouldShowTennis || appStorage.shouldShowRacing))
+                        .disabled(!(appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup || appStorage.shouldShowMLB || appStorage.shouldShowNBA || appStorage.shouldShowWNBA || appStorage.shouldShowNFL || appStorage.shouldShowCFB || appStorage.shouldShowNHL || appStorage.shouldShowGolf || appStorage.shouldShowTennis || appStorage.shouldShowRacing))
                 })
                 .frame(maxWidth: .infinity,alignment: .center)
                 .buttonStyle(.bordered)

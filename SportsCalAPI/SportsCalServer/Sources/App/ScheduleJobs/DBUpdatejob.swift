@@ -263,7 +263,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 // Skip ESPN-only leagues here — handled separately via ESPN below.
                 // The secondary golf tours have no TheSportsDB entry at all, and the
                 // switch below would drop their response into the soccer bucket.
-                if league == .ncaaMBBTournament || league == .wnba { continue }
+                if league == .ncaaMBBTournament || league == .wnba || league == .ncaaf { continue }
                 if Integrator.secondaryGolfTours.contains(league) { continue }
 
                 if let response = try await SportsDBNetworking.getTeamInfoForLeague(app: context.application, DecodeType: Teams.self, league: league.rawValue) {
@@ -534,6 +534,23 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
             Self.logger.warning("WNBA schedule fetch failed: \(error)")
         }
 
+        // College football (ESPN-only). One `dates=<year>` request returns the whole FBS
+        // calendar year; from November the next year is fetched too, since the bowls,
+        // the CFP and the title game are played in January. Rides in the football bucket
+        // — `LiveScore`'s Codable splits it back out on the wire.
+        let collegeGames = await Self.fetchCollegeFootballSeason(client: context.application.client)
+        if !collegeGames.isEmpty {
+            if schedule.nfl == nil {
+                schedule.nfl = LiveEvent(events: collegeGames)
+            } else {
+                schedule.nfl?.events += collegeGames
+            }
+            // Not added to `allGames`: that feeds the `/teams` payload, and app versions that
+            // predate college football would list ~260 teams they can't show games for.
+            // Current clients derive college teams from the games themselves.
+            Self.logger.info("College football schedule loaded", metadata: ["events": "\(collegeGames.count)"])
+        }
+
         // Golf tours that exist only on ESPN (TheSportsDB carries the PGA TOUR alone).
         // `usesSingleYearSeason` makes each of these one request for the whole season, and
         // every event carries its own league, so they ride in the same `golf` bucket.
@@ -629,6 +646,36 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         try await context.application.redis.set(lastUpdateKey, toJSON: Date())
         Self.logger.info("Schedule check complete", metadata: ["dataChanged": "\(scheduleChanged)"])
     }
+    /// Every FBS game of the current calendar year, plus next January's from November on,
+    /// deduped by event ID (a game can sit on both years' boards across midnight UTC).
+    static func fetchCollegeFootballSeason(client: any Client, now: Date = Date()) async -> [Game] {
+        var games: [Game] = []
+        var seen = Set<String>()
+        for year in collegeFootballScheduleYears(now: now) {
+            do {
+                let scoreboard = try await Integrator.getESPNScoreboard(for: .ncaaf, client, dates: year)
+                for game in LiveEvent(events: scoreboard, league: .ncaaf)?.events ?? [] {
+                    if let id = game.idEvent, !seen.insert(id).inserted { continue }
+                    games.append(game)
+                }
+            } catch {
+                logger.warning("College football schedule fetch failed", metadata: ["year": "\(year)", "error": "\(error)"])
+            }
+        }
+        return games
+    }
+
+    /// The calendar years whose ESPN boards make up the college football schedule.
+    static func collegeFootballScheduleYears(now: Date, calendar: Calendar = Calendar(identifier: .gregorian)) -> [Int] {
+        let year = calendar.component(.year, from: now)
+        let month = calendar.component(.month, from: now)
+        // January–February: last season's regular season lives in last year's board, and
+        // the schedule is rebuilt from scratch — without it, team pages would show only
+        // the bowl game until August.
+        if month <= 2 { return [year - 1, year] }
+        return month >= 11 ? [year, year + 1] : [year]
+    }
+
     // MARK: - ESPN Enrichment
 
     /// Fetches ESPN scoreboards for each sport and merges enrichment data
@@ -745,6 +792,9 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         }
 
         let merged = schedule.events.map { scheduleGame -> Game in
+            // College games come straight from ESPN already, and share the football bucket
+            // with an NFL board whose untranslated ESPN team IDs overlap college ones.
+            if scheduleGame.isCollegeFootball { return scheduleGame }
             let day: String
             if let date = scheduleGame.isoDate {
                 day = df.string(from: date)
@@ -803,6 +853,8 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 awayRecord: espnGame.awayRecord ?? scheduleGame.awayRecord,
                 homeSeed: espnGame.homeSeed ?? scheduleGame.homeSeed,
                 awaySeed: espnGame.awaySeed ?? scheduleGame.awaySeed,
+                homeConference: espnGame.homeConference ?? scheduleGame.homeConference,
+                awayConference: espnGame.awayConference ?? scheduleGame.awayConference,
                 playoff: espnGame.playoff ?? scheduleGame.playoff,
                 season: scheduleGame.season ?? espnGame.season,
                 // ESPN's season.type is authoritative; TheSportsDB's round codes are the fallback.

@@ -38,8 +38,11 @@ class SportBrowseViewModel {
         let live = viewModel.liveEventsForSport(sport)
         liveGames = live.compactMap { viewModel.resolveGameWithTeams($0) }
 
-        // Reuse games already in viewModel if the sport was fetched by getInfo()
-        if let cached = viewModel.gamesDict[sport], !cached.isEmpty {
+        // Reuse games already in viewModel if the sport was fetched by getInfo(). Football
+        // without college switched on came down without college games, and Browse has a
+        // College tab — fetch it instead (the browse fetch asks for all of FBS).
+        let missingCollege = sport == .nfl && !NetworkHandler.wantsCollegeFootball
+        if !missingCollege, let cached = viewModel.gamesDict[sport], !cached.isEmpty {
             fetchedGames = cached
             categorizeIfNeeded(cached)
         } else {

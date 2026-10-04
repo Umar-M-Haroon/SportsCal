@@ -77,7 +77,8 @@ class ApiClient {
   }
 
   async getLiveGames(): Promise<LiveScore> {
-    return this.fetch<LiveScore>('/v2025/all-live-games')
+    // cfb=1: college football is opt-in on the wire; the dashboard shows everything.
+    return this.fetch<LiveScore>('/v2025/all-live-games?cfb=1')
   }
 
   // Write endpoints
@@ -144,7 +145,7 @@ export class WebSocketManager {
   private onMessageCallback: ((data: LiveScore) => void) | null = null
   private onStatusChange: ((connected: boolean) => void) | null = null
 
-  constructor(url = 'ws://localhost:8080/ws') {
+  constructor(url = 'ws://localhost:8080/ws?cfb=1') {
     this.url = url
   }
 

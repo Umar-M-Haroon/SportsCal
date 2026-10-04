@@ -60,6 +60,11 @@ struct PushToStartRegistration: Codable, Content {
     var token: String
     var favorites: [String]
     var eventIDs: [String]? = nil
+    /// Sent (true) by app builds with college football switched on. Absent from every
+    /// older build, which must never be started on a college game: favorites match by
+    /// name, college shares names with other sports (Duke, UConn), and those builds
+    /// can't handle the league.
+    var college: Bool? = nil
 }
 
 /// A client-emitted funnel event ingested by `POST /v2025/telemetry`. Mirrors the
@@ -131,6 +136,17 @@ struct PushToStartInstall: Codable {
     var favorites: [String]
     var eventIDs: [String]
     var environment: APNSEnvironment
+    /// See `PushToStartRegistration.college`. Optional so records stored before it
+    /// existed still decode.
+    var college: Bool? = nil
+
+    /// Whether college games may start a Live Activity on this install.
+    var wantsCollege: Bool { college == true }
+
+    /// Whether `game` may start a Live Activity on this install at all.
+    func accepts(_ game: Game) -> Bool {
+        !game.isCollegeFootball || wantsCollege
+    }
 
     /// How long a push-to-start registration survives without a refresh. Set long
     /// (30 days) so a Live Activity can auto-start at kickoff without the user

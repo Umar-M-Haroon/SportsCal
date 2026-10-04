@@ -18,10 +18,10 @@ final class CloudSyncManager {
     private let syncableKeys: Set<String> = [
         "shouldShowNBA", "shouldShowNFL", "shouldShowNHL", "shouldShowSoccer",
         "shouldShowMLB", "shouldShowGolf", "shouldShowTennis", "shouldShowRacing",
-        "shouldShowWNBA",
+        "shouldShowWNBA", "shouldShowCFB",
         "favoritesOnlyNBA", "favoritesOnlyNFL", "favoritesOnlyNHL", "favoritesOnlySoccer",
         "favoritesOnlyMLB", "favoritesOnlyGolf", "favoritesOnlyTennis", "favoritesOnlyRacing",
-            "coverageTennis", "coverageGolf",
+            "coverageTennis", "coverageGolf", "cfbSelection",
         "favoritesOnlyCompetitions",
         "hidesPastEvents", "soonestOnTop", "duration", "dateFormat",
         "hidePastGamesDuration", "showStartTime", "hiddenCompetitions",
@@ -425,10 +425,10 @@ final class CloudSyncManager {
         let sportKeys = [
             "shouldShowNBA", "shouldShowNFL", "shouldShowNHL", "shouldShowSoccer",
             "shouldShowMLB", "shouldShowGolf", "shouldShowTennis", "shouldShowRacing",
-            "shouldShowWNBA",
+            "shouldShowWNBA", "shouldShowCFB",
             "favoritesOnlyNBA", "favoritesOnlyNFL", "favoritesOnlyNHL", "favoritesOnlySoccer",
             "favoritesOnlyMLB", "favoritesOnlyGolf", "favoritesOnlyTennis", "favoritesOnlyRacing",
-            "coverageTennis", "coverageGolf",
+            "coverageTennis", "coverageGolf", "cfbSelection",
             "favoritesOnlyCompetitions",
             "hiddenCompetitions", "sportOrder"
         ]

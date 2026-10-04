@@ -220,7 +220,7 @@ struct ModernMacWindow: View {
         case .soccer:     return storage.shouldShowSoccer
         case .hockey:     return storage.shouldShowNHL
         case .mlb:        return storage.shouldShowMLB
-        case .nfl:        return storage.shouldShowNFL
+        case .nfl:        return storage.shouldShowNFL || storage.shouldShowCFB
         case .golf:       return storage.shouldShowGolf
         case .tennis:     return storage.shouldShowTennis
         case .racing:     return storage.shouldShowRacing

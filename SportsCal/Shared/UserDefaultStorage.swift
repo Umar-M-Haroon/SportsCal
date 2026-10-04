@@ -23,6 +23,9 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("shouldShowTennis") var shouldShowTennis: Bool = false
     @ObservationIgnored @AppStorage("shouldShowRacing") var shouldShowRacing: Bool = false
     @ObservationIgnored @AppStorage("shouldShowWNBA") var shouldShowWNBA: Bool = false
+    /// College football, switched on separately from the NFL; both feed the football
+    /// section. See `FootballPreference`.
+    @ObservationIgnored @AppStorage("shouldShowCFB") var shouldShowCFB: Bool = false
     @ObservationIgnored @AppStorage("favoritesOnlyNBA") var favoritesOnlyNBA: Bool = false
     @ObservationIgnored @AppStorage("favoritesOnlyNFL") var favoritesOnlyNFL: Bool = false
     @ObservationIgnored @AppStorage("favoritesOnlyNHL") var favoritesOnlyNHL: Bool = false
@@ -35,6 +38,10 @@ class UserDefaultStorage {
     /// Followed players always show regardless. See `EventCoverage`.
     @ObservationIgnored @AppStorage("coverageTennis") var coverageTennis: EventCoverage = .default
     @ObservationIgnored @AppStorage("coverageGolf") var coverageGolf: EventCoverage = .default
+    /// Which college games to show: the Top 25 and/or any set of conferences. Followed
+    /// teams always show. Also decides the football section's sub-headings. See
+    /// `CollegeFootballSelection`.
+    @ObservationIgnored @AppStorage("cfbSelection") var cfbSelection: CollegeFootballSelection = .default
     @ObservationIgnored @AppStorage("shouldShowOnboarding") var shouldShowOnboarding: Bool = true
     @ObservationIgnored @AppStorage("hidesPastEvents") var hidePastEvents: Bool = true  // Hide past games by default for performance
     @ObservationIgnored @AppStorage("soonestOnTop") var soonestOnTop: Bool = true
@@ -246,7 +253,8 @@ class UserDefaultStorage {
         case .soccer:     return shouldShowSoccer
         case .hockey:     return shouldShowNHL
         case .mlb:        return shouldShowMLB
-        case .nfl:        return shouldShowNFL
+        // Football is on when either league is: a college-only fan still gets the section.
+        case .nfl:        return shouldShowNFL || shouldShowCFB
         case .golf:       return shouldShowGolf
         case .tennis:     return shouldShowTennis
         case .racing:     return shouldShowRacing
@@ -280,7 +288,18 @@ class UserDefaultStorage {
         enabledSports = orderedSports.filter { effectiveShouldShow($0) }
         syncSportPrefsToAppGroup()
         bumpPreferenceVersion()
+        if shouldShowCFB != lastCollegeSwitch {
+            // First pass only records the starting value; later flips tell push-to-start
+            // registration (which says whether college Live Activities are wanted).
+            if lastCollegeSwitch != nil {
+                NotificationCenter.default.post(name: .collegeFootballSwitchDidChange, object: nil)
+            }
+            lastCollegeSwitch = shouldShowCFB
+        }
     }
+
+    /// `shouldShowCFB` as of the last `recomputeEnabledSports`, to notice it flipping.
+    @ObservationIgnored private var lastCollegeSwitch: Bool?
 
     /// Reorders the sport list so `source` sits where `target` is (drag-to-reorder
     /// board columns / sidebar). Persists the full order and refreshes derived state.
@@ -308,6 +327,7 @@ class UserDefaultStorage {
         defaults?.set(shouldShowTennis, forKey: "shouldShowTennis")
         defaults?.set(shouldShowRacing, forKey: "shouldShowRacing")
         defaults?.set(shouldShowWNBA, forKey: "shouldShowWNBA")
+        defaults?.set(shouldShowCFB, forKey: "shouldShowCFB")
         defaults?.set(favoritesOnlyNBA, forKey: "favoritesOnlyNBA")
         defaults?.set(favoritesOnlyNFL, forKey: "favoritesOnlyNFL")
         defaults?.set(favoritesOnlyNHL, forKey: "favoritesOnlyNHL")
@@ -318,6 +338,7 @@ class UserDefaultStorage {
         defaults?.set(favoritesOnlyRacing, forKey: "favoritesOnlyRacing")
         defaults?.set(coverageTennis.rawValue, forKey: "coverageTennis")
         defaults?.set(coverageGolf.rawValue, forKey: "coverageGolf")
+        defaults?.set(cfbSelection.rawValue, forKey: CollegeFootballSelection.storageKey)
         defaults?.set(hiddenCompetitions, forKey: "hiddenCompetitions")
         defaults?.set(favoritesOnlyCompetitions, forKey: "favoritesOnlyCompetitions")
     }
@@ -354,7 +375,10 @@ class UserDefaultStorage {
         case .soccer:     shouldShowSoccer = enabled
         case .hockey:     shouldShowNHL = enabled
         case .mlb:        shouldShowMLB = enabled
-        case .nfl:        shouldShowNFL = enabled
+        // Turning football off turns off both leagues; turning it on means the NFL.
+        case .nfl:
+            shouldShowNFL = enabled
+            if !enabled { shouldShowCFB = false }
         case .golf:       shouldShowGolf = enabled
         case .tennis:     shouldShowTennis = enabled
         case .racing:     shouldShowRacing = enabled
@@ -400,7 +424,11 @@ class UserDefaultStorage {
 
     /// Whether `game` clears `sport`'s coverage. `isFavorite` is only evaluated for games
     /// coverage would drop, since the favorite lookup is the expensive part.
+    ///
+    /// Football also applies the NFL / college switches here, so every view that filters
+    /// through this gets the split without knowing about it.
     func admitsCoverage(_ game: Game, sport: SportType, isFavorite: () -> Bool) -> Bool {
+        if sport == .nfl { return footballPreference.admits(game, isFavorite: isFavorite) }
         let coverage = coverage(for: sport)
         return coverage == .everything || game.passesCoverage(coverage) || isFavorite()
     }
@@ -415,8 +443,20 @@ class UserDefaultStorage {
         bumpPreferenceVersion()
     }
 
+    /// NFL / college switches and college coverage, resolved once for a filter pass.
+    var footballPreference: FootballPreference {
+        FootballPreference(showNFL: shouldShowNFL, showCollege: shouldShowCFB, college: cfbSelection)
+    }
+
+    func setCollegeSelection(_ selection: CollegeFootballSelection) {
+        cfbSelection = selection
+        syncSportPrefsToAppGroup()
+        bumpPreferenceVersion()
+    }
+
     func switchTo(sportType: SportType) {
         shouldShowNFL = false
+        shouldShowCFB = false
         shouldShowNBA = false
         shouldShowNHL = false
         shouldShowSoccer = false
@@ -463,4 +503,9 @@ extension Array: @retroactive RawRepresentable where Element: Codable {
         }
         return result
     }
+}
+
+extension Notification.Name {
+    /// College football was switched on or off (see `UserDefaultStorage.recomputeEnabledSports`).
+    static let collegeFootballSwitchDidChange = Notification.Name("collegeFootballSwitchDidChange")
 }

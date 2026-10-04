@@ -24,6 +24,11 @@ final class TeamsManager {
 
     private(set) var teams: [Team] = []
     private(set) var byID: [String: Team] = [:]
+    /// FBS teams, derived from the college football schedule. The server's `/teams`
+    /// payload leaves them out — app versions that predate college football would list
+    /// teams they can't show games for. Directory-only: they stay out of the ID and name
+    /// indexes, so following one goes by name, which works before any cache is warm.
+    private(set) var collegeTeams: [Team] = []
 
     /// Lookup index: normalized (lowercased + diacritic-folded) name/alias → idTeam.
     private var byNameKey: [String: String] = [:]
@@ -54,6 +59,27 @@ final class TeamsManager {
     func teamID(forName name: String) -> String? {
         if let id = byExactName[name] { return id }
         return byNameKey[TeamsManager.normalize(name)]
+    }
+
+    /// Rebuilds `collegeTeams` from the schedule. FCS opponents are left out: they appear
+    /// once or twice a season and would crowd the directory.
+    func updateCollegeTeams(from games: [Game]) {
+        var seen: [String: Team] = [:]
+        for game in games where game.isCollegeFootball {
+            let sides = [
+                (game.idHomeTeam, game.strHomeTeam, game.strHomeTeamBadge, game.homeConference),
+                (game.idAwayTeam, game.strAwayTeam, game.strAwayTeamBadge, game.awayConference),
+            ]
+            for (id, name, badge, conference) in sides {
+                guard let id, !id.isEmpty, seen[id] == nil,
+                      let conference, conference != CollegeConference.fcs.rawValue else { continue }
+                seen[id] = Team(idTeam: id, strTeam: name, strTeamShort: nil, strAlternate: nil, strTeamBadge: badge)
+            }
+        }
+        let updated = seen.values.sorted { ($0.strTeam ?? "") < ($1.strTeam ?? "") }
+        guard updated != collegeTeams else { return }
+        collegeTeams = updated
+        NotificationCenter.default.post(name: .teamsManagerDidUpdate, object: nil)
     }
 
     /// Trigger a background refresh if the cache is stale or empty. Cheap if not needed.
