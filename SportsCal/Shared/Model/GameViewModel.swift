@@ -48,7 +48,7 @@ public class GameViewModel: NSObject {
     /// Bump when Game, LiveScore, or any cached Codable shape changes so previously
     /// persisted `games.cache` / `teams.cache` / `live.cache` files are invalidated
     /// instead of out-voting freshly parsed responses.
-    static let cacheSchemaVersion = 3
+    nonisolated static let cacheSchemaVersion = 3
 
     /// Versioned base name for `Cache.saveToDisk(with:)` — no `.cache` suffix (it appends).
     /// `nonisolated` so background-task helpers (which run outside the main actor)
@@ -64,7 +64,9 @@ public class GameViewModel: NSObject {
 
     /// Snapshot of bundled baseline assets used when no on-disk cache exists yet.
     /// Either side may be nil; callers handle each independently.
-    struct BundledBaseline {
+    /// `@unchecked`: plain value data (SportsCalModel's types aren't annotated
+    /// `Sendable` yet) handed once from the detached cache reader to main.
+    struct BundledBaseline: @unchecked Sendable {
         let liveScore: LiveScore?
         let teams: [Team]?
     }
@@ -73,7 +75,7 @@ public class GameViewModel: NSObject {
     /// `baseline-schedule.json` and `baseline-teams.json` are optional — first-launch
     /// experience improves whenever a release ships with these resources baked in.
     /// Generate fresh files at release-cut time via Scripts/refresh-baseline.sh.
-    static func loadBundledBaselineSnapshot() -> BundledBaseline? {
+    nonisolated static func loadBundledBaselineSnapshot() -> BundledBaseline? {
         let bundle = Bundle.main
         var liveScore: LiveScore?
         var teams: [Team]?
@@ -100,13 +102,27 @@ public class GameViewModel: NSObject {
     /// for hours or days.
     nonisolated static func refreshCachesInBackground() async {
         do {
-            async let scheduleTask = NetworkHandler.handleCall()
+            // Revalidate against the snapshot already on disk: a 304 means it is still
+            // current and there is nothing to download or rewrite. Only send the ETag
+            // when that file actually exists, so a 304 can't leave us with no cache.
+            let scheduleURL = NetworkHandler.scheduleURL()
+            let gamesFileExists = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+                .map { FileManager.default.fileExists(atPath: $0.appendingPathComponent(cacheFilename(base: "games")).path) } ?? false
+            if !gamesFileExists { ScheduleETagStore.clear() }
+            let etag = gamesFileExists ? ScheduleETagStore.etag(for: scheduleURL) : nil
+            async let scheduleTask = NetworkHandler.fetchSchedule(url: scheduleURL, ifNoneMatch: etag)
             async let teamsTask = NetworkHandler.getTeams()
-            let (snapshot, fetchedTeams) = try await (scheduleTask, teamsTask)
+            let (scheduleResult, fetchedTeams) = try await (scheduleTask, teamsTask)
 
-            let games = Cache<String, LiveScore>()
-            games.insert(snapshot, for: "games")
-            try games.saveToDisk(with: cacheStem(base: "games"))
+            if case .fresh(let snapshot, let newETag) = scheduleResult {
+                // Clear first, set after the atomic write: the ETag must never describe
+                // a snapshot that isn't the one on disk.
+                ScheduleETagStore.clear()
+                let games = Cache<String, LiveScore>()
+                games.insert(snapshot, for: "games")
+                try games.saveToDisk(with: cacheStem(base: "games"))
+                ScheduleETagStore.store(newETag, for: scheduleURL)
+            }
 
             let teams = Cache<String, [Team]>()
             teams.insert(fetchedTeams, for: "teams")
@@ -118,7 +134,7 @@ public class GameViewModel: NSObject {
         }
     }
 
-    static func purgeLegacyCacheFiles() {
+    nonisolated static func purgeLegacyCacheFiles() {
         let fm = FileManager.default
         guard let dir = fm.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
         let currentFilenames: Set<String> = ["games", "teams", "live"]
@@ -200,10 +216,16 @@ public class GameViewModel: NSObject {
     var isOffline: Bool = false
     /// Timestamp of the last fully-successful fetch, for the "showing data from …" label.
     var lastSuccessfulFetch: Date?
+    /// True while the schedule on screen came from a disk cache older than its 12h
+    /// lifetime (launch after a long gap). Cleared by the next successful schedule
+    /// fetch or 304 revalidation. `lastSuccessfulFetch` carries the cache's age.
+    var isShowingStaleCache: Bool = false
     /// True when we're showing cached data because the live feed is unreachable:
-    /// we have games AND we're either offline or the last fetch failed.
+    /// we have games AND we're either offline, the last fetch failed, or we're on an
+    /// expired cache with no refresh in flight to replace it.
     var showsStaleBanner: Bool {
-        (isOffline || networkState == .failed) && (totalGames?.isEmpty == false)
+        (isOffline || networkState == .failed || (isShowingStaleCache && !isFetching))
+            && (totalGames?.isEmpty == false)
     }
     /// True when offline with no cached games — a full-screen placeholder reads
     /// better than an empty list.
@@ -270,6 +292,11 @@ public class GameViewModel: NSObject {
     private var gameCache: Cache<String, LiveScore>?
     private var teamCache: Cache<String, [Team]>?
     private var liveCache: Cache<String, LiveScore>?
+    /// Reads + decodes the on-disk caches (or the bundled baseline) off the main actor
+    /// at launch, then applies them on main. Every network path that mutates games or
+    /// teams awaits this first, so a slow cache decode can never land on top of (and
+    /// roll back) fresher network data.
+    @ObservationIgnored private var launchCacheTask: Task<Void, Never>?
     /// Cache for makeGameWithTeams() results, keyed by game ID
     private var gameWithTeamsCache: [String: GameWithTeams] = [:]
     /// Compound key for `gamesWithTeamsDateCache` so cached entries built under one
@@ -702,28 +729,12 @@ public class GameViewModel: NSObject {
         self.networkState = networkState
         self.gamesDict = [:]
         
-        // Delete any cache files from prior schema versions so a stale on-disk copy
-        // can never out-vote a fresh fetch. Bump Self.cacheSchemaVersion whenever
-        // Game/LiveScore gains or changes fields.
-        Self.purgeLegacyCacheFiles()
-
-        let folderURLs = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-        do {
-            guard let cacheFolder = folderURLs.first else {
-                throw CocoaError(.fileNoSuchFile)
-            }
-            let gameFileURL = cacheFolder.appendingPathComponent(Self.cacheFilename(base: "games"))
-            let teamFileURL = cacheFolder.appendingPathComponent(Self.cacheFilename(base: "teams"))
-            let data = try NetworkHandler.sharedDecoder.decode(Cache<String, LiveScore>.self, from: Data(contentsOf: gameFileURL))
-            self.gameCache = data
-            let teamData = try NetworkHandler.sharedDecoder.decode(Cache<String, [Team]>.self, from: Data(contentsOf: teamFileURL))
-            self.teamCache = teamData
-        } catch let error {
-            self.gameCache = Cache<String, LiveScore>()
-            self.teamCache = Cache<String, [Team]>()
-            self.liveCache = Cache<String, LiveScore>(entryLifetime: Self.liveCacheEntryLifetime)
-            AppLogger.viewModel.error("Cache load failed: \(error.localizedDescription)")
-        }
+        // In-memory caches start empty; the disk copies are read off-main below. The
+        // live cache used to be created only when the disk read *failed*, so on every
+        // normal launch it stayed nil and its inserts / `dumpCaches` were silent no-ops.
+        self.gameCache = Cache<String, LiveScore>()
+        self.teamCache = Cache<String, [Team]>()
+        self.liveCache = Cache<String, LiveScore>(entryLifetime: Self.liveCacheEntryLifetime)
 
         // Call super.init() after all stored properties are initialized
         super.init()
@@ -733,40 +744,24 @@ public class GameViewModel: NSObject {
             return
         }
 
-        self.webSocketSession = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+        Self.installDecodeDiagnostics()
 
-        var hasCachedData = false
-        // Load cached teams *before* cached games. setGames() runs a full
-        // filterSports pass (snapshot write + Spotlight index + 45k filter/sort);
-        // doing it before teams exist produced a wasted teams-less first pass
-        // (log: "Teams loaded: 0 … wrote 9210 bytes (0 teams)") that immediately
-        // re-ran once teams arrived. Teams-first makes that first pass correct.
-        if let cacheTeams = teamCache?.value(for: "teams") {
-            self.teams = cacheTeams
-            buildTeamLookupCaches()
+        // Delegate callbacks (`didCloseWith`) touch main-actor state and schedule a
+        // run-loop Timer, so they must be delivered on main.
+        self.webSocketSession = URLSession(configuration: .default, delegate: self, delegateQueue: .main)
+
+        // The games cache is a multi-MB JSON snapshot; reading and decoding it inline
+        // here blocked the first frame. Do it on the cooperative pool and apply it on
+        // main via `setGames`. Until it lands `networkState` stays `.loading`; the fetch
+        // below is a background refresh, so a cache that decodes before the network
+        // answers still means no loading flash once the list is up.
+        launchCacheTask = Task { [weak self] in
+            let loaded = await Task.detached(priority: .userInitiated) {
+                GameViewModel.readLaunchCaches()
+            }.value
+            self?.applyLaunchCaches(loaded)
         }
-        if let cacheGames = gameCache?.value(for: "games") {
-            setGames(result: cacheGames)
-            hasCachedData = true
-        }
-        // First-launch fallback: if no disk cache exists yet, fall through to a
-        // bundled baseline snapshot so the very first app open still shows games
-        // instead of a spinner. Stale-by-design — getInfo() refreshes within seconds.
-        if !hasCachedData, let bundled = Self.loadBundledBaselineSnapshot() {
-            if let teams = bundled.teams, !teams.isEmpty {
-                self.teams = teams
-                buildTeamLookupCaches()
-            }
-            if let liveScore = bundled.liveScore {
-                setGames(result: liveScore)
-                hasCachedData = true
-            }
-        }
-        // If we loaded cached games, show them immediately instead of a loading spinner
-        if hasCachedData {
-            self.networkState = .loaded
-        }
-        getInfo(backgroundRefresh: hasCachedData)
+        getInfo(backgroundRefresh: true)
         observeServerEnvironmentChanges()
         startPathMonitor()
 
@@ -776,6 +771,145 @@ public class GameViewModel: NSObject {
 
     deinit {
         pathMonitor?.cancel()
+    }
+
+    /// Rate limiter state for `installDecodeDiagnostics`: when each distinct summary
+    /// was last sent to Sentry as an event.
+    nonisolated private static let decodeIssueReportTimes = OSAllocatedUnfairLock(initialState: [String: Date]())
+    /// Minimum gap between Sentry events for the same decode summary.
+    nonisolated static let decodeIssueReportInterval: TimeInterval = 60 * 60
+
+    /// Routes SportsCalModel's lenient-decoding recoveries (a skipped game, a dropped
+    /// enrichment blob) to Sentry, which otherwise never hears about them: the decode
+    /// succeeds, so nothing throws.
+    ///
+    /// Every report becomes a breadcrumb, so it rides along with any later error. A
+    /// `captureMessage` is sent at most once an hour per distinct summary — the same
+    /// broken game arrives in every 5s live frame and every schedule fetch, and one
+    /// event per occurrence would flood the project. Idempotent; the handler is called
+    /// on the decoding thread, hence the lock.
+    nonisolated static func installDecodeDiagnostics() {
+        ModelDecodeDiagnostics.issueHandler = { summary in
+            let crumb = Breadcrumb(level: .warning, category: "decode")
+            crumb.message = summary
+            SentrySDK.addBreadcrumb(crumb)
+
+            // Key on the summary minus its "First: …" examples, which vary with the
+            // index of the bad element; the bucket/count part identifies the problem.
+            let key = String(summary.components(separatedBy: " First: ").first?.prefix(200) ?? "")
+            let now = Date()
+            let shouldCapture = decodeIssueReportTimes.withLock { times -> Bool in
+                if let last = times[key], now.timeIntervalSince(last) < decodeIssueReportInterval {
+                    return false
+                }
+                times[key] = now
+                return true
+            }
+            if shouldCapture {
+                SentrySDK.capture(message: summary) { scope in
+                    scope.setLevel(.warning)
+                    scope.setTag(value: "lenient-decode", key: "kind")
+                }
+            }
+        }
+    }
+
+    /// What `init` found on disk (or in the bundle) to show before the first fetch.
+    /// `@unchecked`: plain value data (SportsCalModel's types aren't annotated
+    /// `Sendable` yet) handed once from the detached cache reader to main.
+    struct LaunchCaches: @unchecked Sendable {
+        /// Games from the on-disk cache, possibly past their lifetime.
+        var games: LiveScore?
+        /// When the cached games were written (the last successful schedule fetch).
+        var gamesStoredAt: Date?
+        /// The cached games are older than the cache's lifetime.
+        var gamesExpired = false
+        var teams: [Team]?
+        /// Games/teams came from the bundled baseline, not the disk cache.
+        var baseline: BundledBaseline?
+    }
+
+    /// Reads and decodes the on-disk caches. Pure I/O + decode, no actor state — runs
+    /// on a detached task at launch.
+    ///
+    /// Expired entries are still returned (flagged): yesterday's snapshot is far
+    /// closer to the truth than the bundled baseline, which is cut at release time and
+    /// can be weeks old. The baseline is only consulted when there is no disk cache.
+    nonisolated static func readLaunchCaches() -> LaunchCaches {
+        // Delete any cache files from prior schema versions so a stale on-disk copy
+        // can never out-vote a fresh fetch. Bump Self.cacheSchemaVersion whenever
+        // Game/LiveScore gains or changes fields.
+        purgeLegacyCacheFiles()
+
+        var result = LaunchCaches()
+        if let cacheFolder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            let gameFileURL = cacheFolder.appendingPathComponent(cacheFilename(base: "games"))
+            let teamFileURL = cacheFolder.appendingPathComponent(cacheFilename(base: "teams"))
+            do {
+                let cache = try NetworkHandler.sharedDecoder.decode(Cache<String, LiveScore>.self, from: Data(contentsOf: gameFileURL))
+                if let entry = cache.staleValue(for: "games") {
+                    result.games = entry.value
+                    result.gamesStoredAt = entry.storedAt
+                    result.gamesExpired = entry.isExpired
+                }
+            } catch {
+                AppLogger.viewModel.error("Games cache load failed: \(error.localizedDescription)")
+            }
+            do {
+                let cache = try NetworkHandler.sharedDecoder.decode(Cache<String, [Team]>.self, from: Data(contentsOf: teamFileURL))
+                result.teams = cache.staleValue(for: "teams")?.value
+            } catch {
+                AppLogger.viewModel.error("Teams cache load failed: \(error.localizedDescription)")
+            }
+        }
+        // No usable snapshot on disk: any stored ETag now describes data we don't
+        // have, and sending it could earn a 304 that leaves the app empty.
+        if result.games == nil {
+            ScheduleETagStore.clear()
+        }
+        // First-launch fallback: if no disk cache exists yet, fall through to a
+        // bundled baseline snapshot so the very first app open still shows games
+        // instead of a spinner. Stale-by-design — getInfo() refreshes within seconds.
+        if result.games == nil || result.teams == nil {
+            result.baseline = loadBundledBaselineSnapshot()
+        }
+        return result
+    }
+
+    /// Applies `readLaunchCaches()`'s result on main. Never overwrites data a fetch has
+    /// already delivered (the fetch paths await this task, so that's belt and braces).
+    func applyLaunchCaches(_ loaded: LaunchCaches) {
+        // Teams *before* games. setGames() runs a full filterSports pass (snapshot
+        // write + Spotlight index + 45k filter/sort); doing it before teams exist
+        // produced a wasted teams-less first pass that immediately re-ran once teams
+        // arrived. Teams-first makes that first pass correct.
+        if teams.isEmpty {
+            if let cachedTeams = loaded.teams, !cachedTeams.isEmpty {
+                teams = cachedTeams
+                teamCache?.insert(cachedTeams, for: "teams")
+                buildTeamLookupCaches()
+            } else if let baselineTeams = loaded.baseline?.teams, !baselineTeams.isEmpty {
+                teams = baselineTeams
+                buildTeamLookupCaches()
+            }
+        }
+        guard totalGames?.isEmpty ?? true else { return }
+        var hasCachedData = false
+        if let games = loaded.games {
+            gameCache?.insert(games, for: "games")
+            setGames(result: games)
+            lastSuccessfulFetch = loaded.gamesStoredAt
+            isShowingStaleCache = loaded.gamesExpired
+            hasCachedData = true
+        } else if let baselineGames = loaded.baseline?.liveScore {
+            setGames(result: baselineGames)
+            hasCachedData = true
+        }
+        // Show the cached games right away instead of the loading spinner. A fetch that
+        // already failed keeps its `.failed` so the stale banner still shows.
+        if hasCachedData, networkState == .loading {
+            networkState = .loaded
+        }
     }
 
     /// Watches network reachability so the WebSocket reconnect loop can wait while
@@ -914,6 +1048,8 @@ public class GameViewModel: NSObject {
     private func handleLiveGames() async throws {
         AppLogger.networking.info("Getting live games")
         var liveInfo = try await NetworkHandler.getLiveSnapshot()
+        // The merge needs the cached schedule to merge into.
+        await launchCacheTask?.value
         // Merge live scores into schedule before filtering out completed games
         mergeLiveIntoSchedule(liveInfo)
         liveInfo.removeNonStarting()
@@ -938,8 +1074,10 @@ public class GameViewModel: NSObject {
     
     private func handleTeams() async throws {
         AppLogger.networking.info("Getting teams")
-        async let teams = NetworkHandler.getTeams()
-        self.teams = try await teams
+        let fetchedTeams = try await NetworkHandler.getTeams()
+        // Let the launch cache land first so it can't overwrite these fresher teams.
+        await launchCacheTask?.value
+        self.teams = fetchedTeams
         buildTeamLookupCaches()
         teamCache?.insert(self.teams, for: "teams")
         Cache.writeToDiskDetached(value: self.teams, for: "teams", name: Self.cacheStem(base: "teams"))
@@ -1003,21 +1141,51 @@ public class GameViewModel: NSObject {
         // No session means the VM was built without networking (snapshot/unit
         // tests) — never fall through to URLSession.shared and open a real socket.
         guard let session = webSocketSession else { return }
-        webSocketTask?.cancel(with: .goingAway, reason: nil)
-        webSocketTask = nil
         wsReconnectAttempts = 0
-        webSocketTask = NetworkHandler.connectWebSocketForLive(session: session)
-        webSocketTask?.resume()
+        openLiveSocket(session: session, context: "connect")
+    }
+
+    /// Replaces the live socket with a fresh one and starts reading from it.
+    ///
+    /// The single entry point for (re)opening `/ws` — the initial connect and the
+    /// backoff timer used to carry duplicated copies of this, whose error paths
+    /// cleared `webSocketTask` and reconnected unconditionally. When a socket had
+    /// already been replaced, its dying loop would nil out the *new* socket (orphaning
+    /// it, still open) and schedule a second reconnect on top of the one already made.
+    /// Now each loop is bound to the task it was started for and only tears down state
+    /// that still belongs to it.
+    private func openLiveSocket(session: URLSession, context: String) {
+        // Cancel the outgoing socket so its receive loop ends and the server drops it.
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        let task = NetworkHandler.connectWebSocketForLive(session: session)
+        webSocketTask = task
+        task.resume()
         Task { @MainActor [weak self] in
             do {
-                try await self?.receiveMessages()
+                try await self?.receiveMessages(from: task)
             } catch {
-                AppLogger.networking.error("WebSocket receive error: \(error.localizedDescription)")
-                self?.webSocketTask = nil
-                self?.wsFatalFrameError = NetworkHandler.isOversizedFrameError(error)
-                self?.reconnectWebSocketOnly()
+                self?.handleLiveSocketFailure(of: task, error: error, context: context)
             }
         }
+    }
+
+    /// Error path of a live socket's receive loop. Ignored unless `task` is still the
+    /// current socket: a loop for a socket that has since been replaced or deliberately
+    /// disconnected is expected to fail and must not touch its successor.
+    /// - Parameters:
+    ///   - task: the socket whose loop failed.
+    ///   - error: what ended the loop.
+    ///   - context: label for the log line.
+    func handleLiveSocketFailure(of task: URLSessionWebSocketTask, error: Error, context: String) {
+        guard webSocketTask === task else {
+            task.cancel(with: .goingAway, reason: nil)
+            return
+        }
+        AppLogger.networking.error("WebSocket receive error (\(context)): \(error.localizedDescription)")
+        task.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
+        wsFatalFrameError = NetworkHandler.isOversizedFrameError(error)
+        reconnectWebSocketOnly()
     }
 
     // MARK: - Developer replay
@@ -1143,12 +1311,14 @@ public class GameViewModel: NSObject {
 
         Task { @MainActor [weak self] in
             do {
-                try await self?.receiveMessages()
+                try await self?.receiveMessages(from: task)
             } catch {
                 // Stream ended or errored. During replay we do NOT auto-reconnect (that
                 // would re-dial /replay without a shell and loop); just drop the socket and
                 // reset state so the UI doesn't lie about an active replay.
-                guard let self, self.isReplaying else { return }
+                // Only if this is still the replay socket — after stopReplay() the live
+                // socket has taken over and must be left alone.
+                guard let self, self.isReplaying, self.webSocketTask === task else { return }
                 self.webSocketTask = nil
                 self.isReplaying = false
                 self.replayingGame = nil
@@ -1221,21 +1391,13 @@ public class GameViewModel: NSObject {
         }
         restartTimer?.invalidate()
         restartTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
-            self?.restartTimer = nil
-            guard let session = self?.webSocketSession else { return }
-            self?.webSocketTask?.cancel(with: .goingAway, reason: nil)
-            self?.webSocketTask = nil
-            self?.webSocketTask = NetworkHandler.connectWebSocketForLive(session: session)
-            self?.webSocketTask?.resume()
-            Task { @MainActor [weak self] in
-                do {
-                    try await self?.receiveMessages()
-                } catch {
-                    AppLogger.networking.error("WebSocket receive error (reconnect): \(error.localizedDescription)")
-                    self?.webSocketTask = nil
-                    self?.wsFatalFrameError = NetworkHandler.isOversizedFrameError(error)
-                    self?.reconnectWebSocketOnly()
-                }
+            // Scheduled on the main run loop (every caller is main-actor), so the
+            // callback runs on main.
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.restartTimer = nil
+                guard !self.isReplaying, let session = self.webSocketSession else { return }
+                self.openLiveSocket(session: session, context: "reconnect")
             }
         }
     }
@@ -1267,14 +1429,39 @@ public class GameViewModel: NSObject {
         // NetworkHandler.handleCall is nonisolated, so the network + JSONDecoder run on
         // the cooperative thread pool, not main.
         AppLogger.networking.info("Requesting full schedule snapshot")
-        let snapshot = try await NetworkHandler.handleCall()
+        // The ETag decision depends on what the launch cache produced.
+        await launchCacheTask?.value
 
-        await applySnapshotIncrementally(snapshot)
+        // Revalidate the snapshot we hold. The ETag is only sent when that snapshot is
+        // actually in memory, so a 304 always has something to fall back on; without
+        // one, any stored validator is stale and is dropped.
+        let scheduleURL = NetworkHandler.scheduleURL()
+        let cachedSnapshot = gameCache?.staleValue(for: "games")?.value
+        if cachedSnapshot == nil { ScheduleETagStore.clear() }
+        let etag = cachedSnapshot != nil ? ScheduleETagStore.etag(for: scheduleURL) : nil
 
-        gameCache?.insert(snapshot, for: "games")
-        // Encode + write off the main actor — the snapshot is multi-MB and this ran
-        // inline on every schedule fetch (Sentry: JSONWriter hangs after /schedules).
-        Cache.writeToDiskDetached(value: snapshot, for: "games", name: Self.cacheStem(base: "games"))
+        switch try await NetworkHandler.fetchSchedule(url: scheduleURL, ifNoneMatch: etag) {
+        case .notModified:
+            AppLogger.networking.info("Schedule not modified (304) — keeping cached snapshot")
+            // Normally already on screen from launch; nothing to decode or re-filter.
+            if totalGames?.isEmpty ?? true, let cachedSnapshot {
+                setGames(result: cachedSnapshot)
+            }
+            isShowingStaleCache = false
+        case .fresh(let snapshot, let newETag):
+            await applySnapshotIncrementally(snapshot)
+            isShowingStaleCache = false
+
+            gameCache?.insert(snapshot, for: "games")
+            // The old validator no longer describes what will be on disk. Set the new
+            // one only once the atomic write has landed (see ScheduleETagStore).
+            ScheduleETagStore.clear()
+            // Encode + write off the main actor — the snapshot is multi-MB and this ran
+            // inline on every schedule fetch (Sentry: JSONWriter hangs after /schedules).
+            Cache.writeToDiskDetached(value: snapshot, for: "games", name: Self.cacheStem(base: "games")) {
+                ScheduleETagStore.store(newETag, for: scheduleURL)
+            }
+        }
     }
 
     /// Order sports for incremental reveal: sports the user has favorites in render first,
@@ -1470,9 +1657,15 @@ public class GameViewModel: NSObject {
         return LiveFrame(seq: 0, kind: .full, live: bare)
     }
 
-    @objc
-    func receiveMessages() async throws {
-        while let webSocket = webSocketTask {
+    /// Reads `webSocket` until it fails or stops being the current socket.
+    ///
+    /// Bound to one task rather than re-reading `webSocketTask` each iteration: a loop
+    /// that followed the property would silently start draining a replacement socket,
+    /// leaving two loops on it.
+    /// - Parameter webSocket: the socket this loop owns.
+    /// - Throws: whatever ends the read; the caller decides whether to reconnect.
+    func receiveMessages(from webSocket: URLSessionWebSocketTask) async throws {
+        while webSocketTask === webSocket {
             // Tight window when we expect live pushes (server sends ≤5s apart during
             // live games); generous otherwise so the 60s idle heartbeat isn't read as
             // a dead socket. Either way a truly stalled connection reconnects instead
@@ -1493,12 +1686,23 @@ public class GameViewModel: NSObject {
             switch webSocketMessage {
             case .string(let jsonString):
                 if let jsonData = jsonString.data(using: .utf8) {
-                    // Decode off-main via a child Task (inherits priority + cancellation,
-                    // unlike Task.detached). 1-2 MB LiveScore decodes ran on main before;
-                    // pushed every 5s during live games it was visibly stuttering scrolls.
-                    let frame = try await Task(priority: .userInitiated) {
-                        try Self.decodeLiveFrame(jsonData)
-                    }.value
+                    // Decode off the main actor. A plain `Task {}` here would inherit
+                    // this method's main-actor isolation and run the synchronous decode
+                    // right back on main; it has to be detached to reach the pool.
+                    // 1-2 MB LiveScore decodes pushed every 5s during live games were
+                    // visibly stuttering scrolls. Detached tasks don't inherit
+                    // cancellation, so forward it explicitly.
+                    let decodeTask = Task.detached(priority: .userInitiated) {
+                        try GameViewModel.decodeLiveFrame(jsonData)
+                    }
+                    let frame = try await withTaskCancellationHandler {
+                        try await decodeTask.value
+                    } onCancel: {
+                        decodeTask.cancel()
+                    }
+                    // The socket may have been replaced while we were decoding; this
+                    // frame then belongs to a stream nobody is following any more.
+                    guard webSocketTask === webSocket else { break }
 
                     // The games this frame actually carries. On a delta that's just the
                     // handful that moved, which is what makes the merge below cheap;
@@ -1562,7 +1766,7 @@ public class GameViewModel: NSObject {
     
     /// Merges live WebSocket data into totalGames so schedule rows reflect current scores/status.
     /// Called before removeNonStarting() so completed games also get their final scores merged.
-    private func mergeLiveIntoSchedule(_ liveScore: LiveScore) {
+    func mergeLiveIntoSchedule(_ liveScore: LiveScore) {
         guard var games = totalGames, !games.isEmpty else { return }
 
         let allLive = [liveScore.nba?.events, liveScore.mlb?.events, liveScore.soccer?.events,
@@ -1697,7 +1901,7 @@ public class GameViewModel: NSObject {
     /// - Parameter changedByID: each changed game, keyed by the identity it had *before*
     ///   the merge — the identity the derived collections are still holding. See the note
     ///   at the call site for why that isn't always the same as the new game's `id`.
-    private func patchDerivedCollections(changedByID: [String: Game]) {
+    func patchDerivedCollections(changedByID: [String: Game]) {
         guard !changedByID.isEmpty else { return }
 
         func patch(_ list: inout [Game]) {
@@ -1826,13 +2030,7 @@ public class GameViewModel: NSObject {
     @ObservationIgnored private var onDemandFetchedDays: Set<String> = []
     @ObservationIgnored private var onDemandDebounce: Task<Void, Never>?
 
-    private static let onDemandDayKeyFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.calendar = Calendar(identifier: .gregorian)
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyyMMdd"
-        return f
-    }()
+    private static var onDemandDayKeyFormatter: DateFormatter { NetworkHandler.dayKeyFormatter }
 
     /// Called when the user navigates to a date. If we have no games loaded for
     /// that day (it's outside the cached /schedules window) and we haven't already
@@ -2896,6 +3094,34 @@ public class GameViewModel: NSObject {
             await getData()
         }
     }
+
+    /// Starts a refresh (or joins the one in flight) and returns when it finishes.
+    /// For `.refreshable`, whose spinner should stay up until the data has arrived.
+    /// - Parameter backgroundRefresh: see `getInfo(backgroundRefresh:)`.
+    func refresh(backgroundRefresh: Bool = true) async {
+        getInfo(backgroundRefresh: backgroundRefresh)
+        await networkFetchTask?.value
+    }
+
+    /// Minimum gap between automatic foreground refreshes.
+    static let foregroundRefreshInterval: TimeInterval = 2 * 60
+
+    /// Foreground-resume refresh. Skips the fetch when the last successful one is
+    /// recent (app-switcher bounces used to re-download the full schedule each time),
+    /// and never shows the loading state over data that's already on screen.
+    /// - Parameter now: injectable clock for tests.
+    /// - Returns: whether a refresh was started.
+    @discardableResult
+    func refreshOnForegroundIfNeeded(now: Date = Date()) -> Bool {
+        if let last = lastSuccessfulFetch,
+           now.timeIntervalSince(last) < Self.foregroundRefreshInterval,
+           networkState != .failed {
+            return false
+        }
+        let hasData = !(totalGames?.isEmpty ?? true)
+        getInfo(backgroundRefresh: hasData)
+        return true
+    }
     
     func dumpCaches() throws {
         teamCache?.deleteAll()
@@ -2904,12 +3130,24 @@ public class GameViewModel: NSObject {
         try gameCache?.saveToDisk(with: Self.cacheStem(base: "games"))
         try teamCache?.saveToDisk(with: Self.cacheStem(base: "teams"))
         try liveCache?.saveToDisk(with: Self.cacheStem(base: "live"))
+        // The schedule cache is gone, so its validator must go too.
+        ScheduleETagStore.clear()
         getInfo()
     }
 }
 
 extension GameViewModel: @preconcurrency URLSessionWebSocketDelegate {
+    /// Delivered on the main queue (the session's `delegateQueue` is `.main`), which
+    /// is what makes touching main-actor state and scheduling the reconnect Timer on
+    /// the current run loop valid here. Before, a `nil` delegate queue ran this on a
+    /// URLSession background queue: the state writes raced main, and the Timer was
+    /// added to a run loop that never ran, so the reconnect never fired.
     public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        // A socket we replaced or disconnected on purpose also reports its close;
+        // only the current one should trigger a reconnect.
+        guard self.webSocketTask === webSocketTask else { return }
+        // Replay streams end with a close; their receive loop owns that teardown.
+        guard !isReplaying else { return }
         self.webSocketTask = nil
         // Only reconnect WebSocket — don't refetch all data
         reconnectWebSocketOnly()
