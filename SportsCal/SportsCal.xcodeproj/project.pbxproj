@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0BDE4C1B10FC635D0FB73FEE /* SportsCalModel in Frameworks */ = {isa = PBXBuildFile; productRef = 178724959E674913D3EAB4CD /* SportsCalModel */; };
 		1D1239A026D0D180001B503E /* LocalNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D12399F26D0D180001B503E /* LocalNotificationManager.swift */; };
+		95416E0F80CB7CB09F201A50 /* SoccerAlertRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBDD9230C316D45685E902DA /* SoccerAlertRegistrar.swift */; };
 		1D15BD562A57C71800711F92 /* ListDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D15BD552A57C71800711F92 /* ListDetailView.swift */; };
 		1D15BD5A2F09A00000711F92 /* SportChipFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D15BD592F09A00000711F92 /* SportChipFilterView.swift */; };
 		1D16B0612FA6B18F00490122 /* Color+App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D16B0602FA6B18F00490122 /* Color+App.swift */; };
@@ -423,6 +424,7 @@
 
 /* Begin PBXFileReference section */
 		1D12399F26D0D180001B503E /* LocalNotificationManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocalNotificationManager.swift; sourceTree = "<group>"; };
+		EBDD9230C316D45685E902DA /* SoccerAlertRegistrar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoccerAlertRegistrar.swift; sourceTree = "<group>"; };
 		1D15BD552A57C71800711F92 /* ListDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListDetailView.swift; sourceTree = "<group>"; };
 		1D15BD592F09A00000711F92 /* SportChipFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportChipFilterView.swift; sourceTree = "<group>"; };
 		1D16B0602FA6B18F00490122 /* Color+App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+App.swift"; sourceTree = "<group>"; };
@@ -1168,6 +1170,7 @@
 				EE00020100000001 /* EngagementTracker.swift */,
 				1DBEB4152F05F6340025B04C /* Constants.swift */,
 				1D12399F26D0D180001B503E /* LocalNotificationManager.swift */,
+				EBDD9230C316D45685E902DA /* SoccerAlertRegistrar.swift */,
 				1D5C463026C9C5F900BA827B /* SubscriptionManager.swift */,
 				1D63E71826A9494800FC3DE6 /* Date+Extensions.swift */,
 				1DEC76AB268EFB6600D217A1 /* SportsCalApp.swift */,
@@ -1934,6 +1937,7 @@
 				1DF1FD942741EFA800783E62 /* UserDefaultStorage.swift in Sources */,
 				1DEBC59430707B3F00310FA1 /* F1LapChartView.swift in Sources */,
 				1D1239A026D0D180001B503E /* LocalNotificationManager.swift in Sources */,
+				95416E0F80CB7CB09F201A50 /* SoccerAlertRegistrar.swift in Sources */,
 				1DF1FD922740AECB00783E62 /* Favorites.swift in Sources */,
 				EE00020200000001 /* EngagementTracker.swift in Sources */,
 				1D5AB3F12FD4FBEC00BDFA2A /* WorldCupComponents.swift in Sources */,

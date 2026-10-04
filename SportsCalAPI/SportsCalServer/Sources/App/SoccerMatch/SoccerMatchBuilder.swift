@@ -41,6 +41,7 @@ struct SoccerHeaderCompetition: Codable {
 struct SoccerHeaderCompetitor: Codable {
     var homeAway: String?
     var team: SoccerTeamRef?
+    var score: String?
 }
 
 struct SoccerHeaderStatus: Codable {
@@ -51,6 +52,10 @@ struct SoccerHeaderStatusType: Codable {
     /// "pre", "in" or "post".
     var state: String?
     var completed: Bool?
+    /// e.g. "STATUS_HALFTIME".
+    var name: String?
+    /// e.g. "HT", "67'".
+    var shortDetail: String?
 }
 
 struct SoccerBoxscore: Codable {
@@ -259,9 +264,22 @@ enum SoccerMatchBuilder {
             shots: makeShots(commentary, sides: sides),
             momentum: makeMomentum(commentary, sides: sides, isFinished: summary.matchState == "post"),
             commentary: makeCommentary(commentary, sides: sides),
-            headToHead: makeHeadToHead(summary, homeTeamID: homeTeamRef?.id)
+            headToHead: makeHeadToHead(summary, homeTeamID: homeTeamRef?.id),
+            status: makeStatus(summary)
         )
         return detail.isEmpty ? nil : detail
+    }
+
+    private static func makeStatus(_ summary: SoccerSummaryResponse) -> SoccerMatchStatus? {
+        let competition = summary.header?.competitions?.first
+        guard let type = competition?.status?.type, let state = type.state else { return nil }
+        let score = { (side: String) in
+            competition?.competitors?.first { $0.homeAway == side }?.score.flatMap(Int.init)
+        }
+        return SoccerMatchStatus(
+            state: state, name: type.name, detail: type.shortDetail,
+            homeScore: score("home"), awayScore: score("away")
+        )
     }
 
     // MARK: Lineups

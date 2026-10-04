@@ -124,6 +124,24 @@ protocol APNSSending: Sendable {
         timestamp: Int,
         environment: APNSEnvironment
     ) async throws -> APNSSendResult
+
+    /// A plain alert notification (no Live Activity). `eventID` rides in the payload
+    /// so a tap opens the game; alerts for one match share a notification thread.
+    func sendAlert(
+        deviceToken: String,
+        appID: String,
+        title: String,
+        body: String,
+        eventID: String,
+        type: String,
+        environment: APNSEnvironment
+    ) async throws -> APNSSendResult
+}
+
+/// Custom keys on a plain alert, read by the app's notification tap handler.
+struct AlertPayload: Codable, Sendable {
+    let eventID: String
+    let type: String
 }
 
 /// Production implementation that delegates to `VaporAPNS`. Picks the APNS
@@ -216,6 +234,40 @@ final class VaporAPNSSending: APNSSending {
                 appID: appID,
                 timestamp: timestamp,
                 topic: nil
+            )
+        } catch {
+            throw APNSSendError.from(error)
+        }
+    }
+
+    func sendAlert(
+        deviceToken: String,
+        appID: String,
+        title: String,
+        body: String,
+        eventID: String,
+        type: String,
+        environment: APNSEnvironment
+    ) async throws -> APNSSendResult {
+        let client = await client(for: environment)
+        let notification = APNSAlertNotification(
+            alert: APNSAlertNotificationContent(title: .raw(title), body: .raw(body)),
+            // A goal alert an hour late is worse than none.
+            expiration: .timeIntervalSince1970InSeconds(Int(Date().timeIntervalSince1970) + 15 * 60),
+            priority: .immediately,
+            topic: appID,
+            payload: AlertPayload(eventID: eventID, type: type),
+            sound: .default,
+            threadID: eventID
+        )
+        do {
+            try await client.sendAlertNotification(notification, deviceToken: deviceToken)
+            return APNSSendResult(
+                kind: .alert,
+                deviceToken: deviceToken,
+                appID: appID,
+                timestamp: Int(Date().timeIntervalSince1970),
+                topic: appID
             )
         } catch {
             throw APNSSendError.from(error)

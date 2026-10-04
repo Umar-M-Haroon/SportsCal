@@ -1115,6 +1115,24 @@ struct NetworkHandler {
         return request
     }
 
+    /// Registers this install for soccer match alerts: the team names (as its games
+    /// carry them) and alert kinds. Empty teams or kinds unregisters it.
+    static func registerSoccerAlerts(_ registration: SoccerAlertRegistration) async throws {
+        let url = URL(string: "\(baseURL())/notifications/soccer")!
+        let body = try JSONEncoder().encode(registration)
+        let (_, response) = try await performAuthorized(url: url) { request in
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+            request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
+            request.httpBody = body
+        }
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            guard (200..<300).contains(httpResponse.statusCode) else { throw URLError(.badServerResponse) }
+        }
+    }
+
     static func registerPushToStart(token: String, favorites: [String], eventIDs: [String] = []) async throws {
         let url = URL(string: "\(baseURL())/pushToStart/register")!
         let prepared = try await pushToStartRegistrationRequest(token: token, favorites: favorites, eventIDs: eventIDs)

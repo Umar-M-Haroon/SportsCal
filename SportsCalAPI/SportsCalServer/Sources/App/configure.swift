@@ -194,6 +194,10 @@ public func configure(_ app: Application) async throws {
         app.queues.schedule(apnsJob)
             .minutely()
             .at(5)
+        // Soccer match alerts for followed teams (lineups, goals, cards, HT/FT).
+        app.queues.schedule(SoccerAlertJob())
+            .minutely()
+            .at(35)
         // DISABLED: Standings history snapshots
 //        let standingsSnapshotJob = StandingsSnapshotJob()
 //        app.queues.schedule(standingsSnapshotJob)

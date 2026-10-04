@@ -109,8 +109,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Store token in UserDefaults for later use
         UserDefaults(suiteName: "group.Komodo.SportsCal")?.set(tokenString, forKey: "apnsDeviceToken")
 
-        // TODO: Send token to backend for push notification registration
-        // This would typically call NetworkHandler.registerDeviceToken(tokenString)
+        // The soccer alert registration carries this token; ContentView re-syncs it
+        // (a fresh or rotated token reaches the server this way).
+        NotificationCenter.default.post(name: .apnsDeviceTokenDidUpdate, object: nil)
     }
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {

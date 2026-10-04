@@ -27,13 +27,18 @@ enum SoccerMatchService {
     }
 
     static func detail(req: Request, eventID: String, lookup: Lookup) async throws -> SoccerMatchDetail? {
-        let isDebug = req.application.environment == .development
+        await detail(app: req.application, eventID: eventID, lookup: lookup)
+    }
+
+    /// The same, outside a request — the alert job reads matches through this, so it
+    /// shares the cache (and the single in-flight fetch) with app requests.
+    static func detail(app: Application, eventID: String, lookup: Lookup) async -> SoccerMatchDetail? {
+        let isDebug = app.environment == .development
         let cacheKey = (isDebug ? "debug-" : "") + "Soccer Match-\(eventID)"
-        if let cached = try? await req.kv.getJSON(cacheKey, as: SoccerMatchDetail.self) {
+        if let cached = try? await app.kv.getJSON(cacheKey, as: SoccerMatchDetail.self) {
             return cached
         }
 
-        let app = req.application
         return await SoccerMatchFetches.shared.run(eventID: eventID) {
             guard let (espnID, slug) = await resolveESPNEvent(app: app, eventID: eventID, lookup: lookup, isDebug: isDebug) else {
                 return nil

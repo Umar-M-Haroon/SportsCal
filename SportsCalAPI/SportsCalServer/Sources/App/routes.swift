@@ -1053,6 +1053,45 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         // 12h matches the iOS Live Activity max lifetime; APNSJob slides this forward
         // on every successful update so an active activity never expires mid-game.
         try await req.kv.setJSON(key, value: registration, ttl: 60 * 60 * 12)
+        // Soccer goal alerts stand aside for a running Live Activity, which already
+        // announces the goal. Only installs that say who they are can be matched.
+        if let installID = req.headers.first(name: "X-Install-ID"), !installID.isEmpty {
+            let marker = LiveActivityInstallMarker.key(installID: installID, eventID: body.eventID,
+                                                       sandbox: environment == .sandbox)
+            try? await req.kv.setString(marker, value: "1", ttl: 60 * 60 * 12)
+        }
+        return .ok
+    }
+
+    //MARK: - Soccer alerts
+    // The teams (by name, as the app's games carry them) and alert kinds an install
+    // wants; SoccerAlertJob pushes to it. Empty teams or kinds unregisters.
+    writeRoutes.post("notifications", "soccer") { req async throws -> HTTPStatus in
+        let registration = try req.content.decode(SoccerAlertRegistration.self)
+        guard !registration.token.isEmpty, registration.token.count <= 200,
+              registration.teams.count <= 100 else {
+            throw Abort(.badRequest)
+        }
+        let environment = resolveAPNSEnvironment(from: req)
+        let installID = resolveInstallID(from: req, fallbackToken: registration.token)
+        let key = SoccerAlertDevice.key(installID: installID, sandbox: environment == .sandbox)
+        let teams = registration.teams.map { String($0.prefix(80)) }
+        if teams.isEmpty || registration.kinds.isEmpty {
+            _ = try? await req.kv.delete([key])
+            return .ok
+        }
+        let device = SoccerAlertDevice(installID: installID, token: registration.token,
+                                       teams: teams, kinds: registration.kinds)
+        try await req.kv.setJSON(key, value: device, ttl: SoccerAlertDevice.ttl)
+        req.logger.info("Registered soccer alerts for install \(installID.prefix(8))... [\(environment.rawValue)] teams=\(teams.count) kinds=\(registration.kinds.count)")
+        return .ok
+    }
+
+    writeRoutes.delete("notifications", "soccer") { req async throws -> HTTPStatus in
+        let body = try req.content.decode(DeregisterRequest.self)
+        let environment = resolveAPNSEnvironment(from: req)
+        let installID = resolveInstallID(from: req, fallbackToken: body.token)
+        _ = try? await req.kv.delete([SoccerAlertDevice.key(installID: installID, sandbox: environment == .sandbox)])
         return .ok
     }
 

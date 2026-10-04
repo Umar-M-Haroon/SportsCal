@@ -39,6 +39,8 @@ public struct SoccerMatchDetail: Codable, Equatable, Hashable {
     /// ESPN's running commentary, earliest → latest.
     public var commentary: [SoccerCommentaryEntry]
     public var headToHead: SoccerHeadToHead?
+    /// Where the match stands and the score, as of this fetch.
+    public var status: SoccerMatchStatus?
 
     public init(
         eventID: String,
@@ -49,7 +51,8 @@ public struct SoccerMatchDetail: Codable, Equatable, Hashable {
         shots: [SoccerShot] = [],
         momentum: [SoccerMomentumPoint] = [],
         commentary: [SoccerCommentaryEntry] = [],
-        headToHead: SoccerHeadToHead? = nil
+        headToHead: SoccerHeadToHead? = nil,
+        status: SoccerMatchStatus? = nil
     ) {
         self.eventID = eventID
         self.home = home
@@ -60,6 +63,7 @@ public struct SoccerMatchDetail: Codable, Equatable, Hashable {
         self.momentum = momentum
         self.commentary = commentary
         self.headToHead = headToHead
+        self.status = status
     }
 
     public init(from decoder: Decoder) throws {
@@ -73,6 +77,7 @@ public struct SoccerMatchDetail: Codable, Equatable, Hashable {
         momentum = try c.decodeIfPresent([SoccerMomentumPoint].self, forKey: .momentum) ?? []
         commentary = try c.decodeIfPresent([SoccerCommentaryEntry].self, forKey: .commentary) ?? []
         headToHead = try c.decodeIfPresent(SoccerHeadToHead.self, forKey: .headToHead)
+        status = try c.decodeIfPresent(SoccerMatchStatus.self, forKey: .status)
     }
 
     /// True when there is nothing worth shipping/displaying.
@@ -85,6 +90,30 @@ public struct SoccerMatchDetail: Codable, Equatable, Hashable {
     public func expectedGoals(_ side: BracketSide) -> Double {
         shots.filter { $0.side == side }.reduce(0) { $0 + $1.xG }
     }
+}
+
+// MARK: - Status
+
+public struct SoccerMatchStatus: Codable, Equatable, Hashable {
+    /// ESPN's "pre", "in" or "post".
+    public var state: String
+    /// ESPN's status name, e.g. "STATUS_HALFTIME", "STATUS_FULL_TIME".
+    public var name: String?
+    /// Short display, e.g. "HT", "FT", "67'".
+    public var detail: String?
+    public var homeScore: Int?
+    public var awayScore: Int?
+
+    public init(state: String, name: String? = nil, detail: String? = nil, homeScore: Int? = nil, awayScore: Int? = nil) {
+        self.state = state
+        self.name = name
+        self.detail = detail
+        self.homeScore = homeScore
+        self.awayScore = awayScore
+    }
+
+    public var isHalfTime: Bool { name == "STATUS_HALFTIME" }
+    public var isFinished: Bool { state == "post" }
 }
 
 // MARK: - Per-team lineup
