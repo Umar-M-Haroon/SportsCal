@@ -8,8 +8,9 @@ final class TeamShortCodeTests: XCTestCase {
 
     func testPrefersRealAbbreviation() {
         XCTAssertEqual(Team.shortCode(strTeamShort: "NYK", name: "New York Knicks"), "NYK")
-        // A real (even 2-letter) code wins over derived initials.
-        XCTAssertEqual(Team.shortCode(strTeamShort: "NY", name: "New York Knicks"), "NY")
+        // Only a clean 3-letter code is trusted; a 2-letter ESPN code ("NY") falls
+        // back to the derived initials.
+        XCTAssertEqual(Team.shortCode(strTeamShort: "NY", name: "New York Knicks"), "NYK")
     }
 
     func testDerivesInitialsWhenMissing() {
@@ -23,8 +24,8 @@ final class TeamShortCodeTests: XCTestCase {
         XCTAssertEqual(Team.shortCode(strTeamShort: nil, name: "Real Salt Lake City"), "RSL")
     }
 
-    func testSingleWordFallsBackToName() {
-        XCTAssertEqual(Team.shortCode(strTeamShort: nil, name: "Arsenal"), "ARSENAL")
+    func testSingleWordFallsBackToFirstThreeLetters() {
+        XCTAssertEqual(Team.shortCode(strTeamShort: nil, name: "Arsenal"), "ARS")
     }
 
     func testInstanceHelper() {
