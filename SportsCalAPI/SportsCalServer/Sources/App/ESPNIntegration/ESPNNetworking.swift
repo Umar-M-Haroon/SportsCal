@@ -681,20 +681,19 @@ class ESPNNetworking {
         return try await performGet(req, uri).content.decode(ESPNCoreTeamStatistics.self)
     }
 
-    // MARK: - Soccer Summary (per-event box score: team stats, lineups, key events)
+    // MARK: - Soccer Summary (per-event match detail)
 
-    /// Fetches ESPN's per-event soccer summary, decoding only the box-score slice
-    /// (`boxscore.teams`, `rosters`, `keyEvents`) consumed by `WorldCupBoxScoreBuilder`.
-    static func getSoccerSummary(req: some Client, league: Leagues, eventId: String) async throws -> SoccerSummaryResponse {
-        guard let espnSlug = league.espnSlug else { throw NetworkError.invalidLeague }
-        let sport = league.sport
-        let urlString = "https://site.api.espn.com/apis/site/v2/sports/\(sport)/\(espnSlug)/summary?event=\(eventId)"
+    /// Fetches ESPN's per-event soccer summary, decoding only the slice
+    /// `SoccerMatchBuilder` consumes. ESPN resolves the event by id under any soccer
+    /// slug, so "all" works when the league isn't known.
+    static func getSoccerSummary(req: some Client, leagueSlug: String, eventId: String) async throws -> SoccerSummaryResponse {
+        let urlString = "https://site.api.espn.com/apis/site/v2/sports/soccer/\(leagueSlug)/summary?event=\(eventId)"
         do {
             let response = try await performGet(req, URI(string: urlString))
             return try response.content.decode(SoccerSummaryResponse.self)
         } catch {
             logger.error("ESPN soccer summary fetch failed", metadata: [
-                "league": "\(league)",
+                "league": "\(leagueSlug)",
                 "eventId": "\(eventId)",
                 "url": "\(urlString)",
                 "error": "\(error)"

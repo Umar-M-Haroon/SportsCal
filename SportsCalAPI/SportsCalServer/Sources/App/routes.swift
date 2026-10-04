@@ -1229,26 +1229,43 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         }
     }
 
-    // Per-match box score (team stats, lineups, goal/card/sub timeline) — fetched
-    // lazily from ESPN's per-event summary and cached briefly so a live match stays
-    // fresh while finals aren't re-fetched on every detail open. Returns 404 when ESPN
-    // has no box score yet (pre-match), which the client treats as "not available".
-    routes.get("worldcup", "boxscore", ":eventID") { req async throws -> String in
-        guard let eventID = req.parameters.get("eventID"), !eventID.isEmpty else {
+    // Per-match soccer detail (lineups, events, shots, momentum, commentary, form,
+    // head-to-head) — fetched lazily from ESPN's per-event summary and cached for as
+    // long as the match state allows (see SoccerMatchService). 404 when ESPN has
+    // nothing for the match, which the client treats as "not available".
+    //
+    // `league` (ESPN slug), `date` (yyyyMMdd UTC), `home` and `away` let the server
+    // find a TheSportsDB-id game on ESPN's scoreboard when the event map doesn't know it.
+    routes.get("soccer", "match", ":eventID") { req async throws -> String in
+        guard let eventID = req.parameters.get("eventID"), !eventID.isEmpty, eventID.count <= 20 else {
             throw Abort(.badRequest)
         }
-        let isDebug = req.application.environment == .development
-        let cacheKey: RedisKey = isDebug ? "debug-World Cup BoxScore-\(eventID)" : "World Cup BoxScore-\(eventID)"
-        if let cached = try? await req.application.redis.get(cacheKey, asJSON: WorldCupBoxScore.self) {
-            return encodeResult(res: cached)
+        let slug = (try? req.query.get(String.self, at: "league")).flatMap { slug in
+            slug.count <= 40 && slug.allSatisfy { $0.isLetter || $0.isNumber || $0 == "." || $0 == "_" } ? slug : nil
         }
-        let summary = try await ESPNNetworking.getSoccerSummary(req: req.client, league: .FIFA_World_Cup, eventId: eventID)
-        guard let box = WorldCupBoxScoreBuilder.build(from: summary, eventID: eventID) else {
+        let lookup = SoccerMatchService.Lookup(
+            leagueSlug: slug,
+            day: try? req.query.get(Int.self, at: "date"),
+            homeName: (try? req.query.get(String.self, at: "home")).map { String($0.prefix(80)) },
+            awayName: (try? req.query.get(String.self, at: "away")).map { String($0.prefix(80)) }
+        )
+        guard let detail = try await SoccerMatchService.detail(req: req, eventID: eventID, lookup: lookup) else {
             throw Abort(.notFound)
         }
-        // 90s TTL: short enough to track a live match, long enough to absorb repeat opens.
-        try? await req.application.redis.setex(cacheKey, toJSON: box, expirationInSeconds: 90).get()
-        return encodeResult(res: box)
+        return encodeResult(res: detail)
+    }
+
+    // The same detail under its original World Cup path, for app versions that predate
+    // `/soccer/match`. The original keys are unchanged, so those versions decode it as before.
+    routes.get("worldcup", "boxscore", ":eventID") { req async throws -> String in
+        guard let eventID = req.parameters.get("eventID"), !eventID.isEmpty, eventID.count <= 20 else {
+            throw Abort(.badRequest)
+        }
+        let lookup = SoccerMatchService.Lookup(leagueSlug: Leagues.FIFA_World_Cup.espnSlug)
+        guard let detail = try await SoccerMatchService.detail(req: req, eventID: eventID, lookup: lookup) else {
+            throw Abort(.notFound)
+        }
+        return encodeResult(res: detail)
     }
 
     //MARK: - Standings

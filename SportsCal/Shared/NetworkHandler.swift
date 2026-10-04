@@ -1006,22 +1006,42 @@ struct NetworkHandler {
         return try Self.sharedDecoder.decode(WorldCupSquad.self, from: data)
     }
 
-    /// Error thrown when ESPN has no box score for a World Cup match yet (pre-match).
-    /// Callers should treat this as an empty/unavailable state rather than a failure.
-    struct BoxScoreNotAvailable: Error {}
+    /// Error thrown when ESPN has nothing for a soccer match yet (or ever, for some
+    /// lower-tier cup ties). Callers should treat this as an empty/unavailable state
+    /// rather than a failure.
+    struct SoccerMatchNotAvailable: Error {}
 
-    /// Fetches the per-match box score (team stats, lineups, event timeline) for a
-    /// World Cup fixture. The server fetches+caches ESPN's per-event summary on demand.
-    /// Throws `BoxScoreNotAvailable` on 404 — no box score yet for this event.
-    static func getWorldCupBoxScore(eventID: String) async throws -> WorldCupBoxScore {
+    /// Fetches the match centre (lineups, events, shots, momentum, commentary, form,
+    /// head-to-head) for any soccer fixture. The server fetches+caches ESPN's per-event
+    /// summary on demand. League, day and team names let it find the match on ESPN when
+    /// the game carries a TheSportsDB id it hasn't mapped yet.
+    /// Throws `SoccerMatchNotAvailable` on 404.
+    static func getSoccerMatch(for game: Game, leagueSlug: String?) async throws -> SoccerMatchDetail {
+        guard let eventID = game.idEvent else { throw SoccerMatchNotAvailable() }
         let encoded = eventID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? eventID
-        let url = URL(string: "\(baseURL())/worldcup/boxscore/\(encoded)")!
+        guard var components = URLComponents(string: "\(baseURL())/soccer/match/\(encoded)") else {
+            throw SoccerMatchNotAvailable()
+        }
+        var query = [
+            URLQueryItem(name: "home", value: game.strHomeTeam),
+            URLQueryItem(name: "away", value: game.strAwayTeam),
+        ]
+        if let leagueSlug { query.append(URLQueryItem(name: "league", value: leagueSlug)) }
+        if let date = game.standardDate {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+            let day = calendar.dateComponents([.year, .month, .day], from: date)
+            let yyyymmdd = (day.year ?? 0) * 10000 + (day.month ?? 0) * 100 + (day.day ?? 0)
+            query.append(URLQueryItem(name: "date", value: String(yyyymmdd)))
+        }
+        components.queryItems = query
+        guard let url = components.url else { throw SoccerMatchNotAvailable() }
         let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
             APIVersionChecker.shared.checkVersion(from: httpResponse)
-            if httpResponse.statusCode == 404 { throw BoxScoreNotAvailable() }
+            if httpResponse.statusCode == 404 { throw SoccerMatchNotAvailable() }
         }
-        return try Self.sharedDecoder.decode(WorldCupBoxScore.self, from: data)
+        return try Self.sharedDecoder.decode(SoccerMatchDetail.self, from: data)
     }
 
     static func getStandingsHistory(leagueID: Int, days: Int = 30) async throws -> [StandingsHistoryDay] {

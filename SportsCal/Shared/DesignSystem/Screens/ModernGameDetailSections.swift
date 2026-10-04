@@ -36,13 +36,17 @@ struct ModernGameDetailSections: View {
             liveSituationSection
             playoffSeriesSection
             boxScoreSection
+            soccerMatchSection
             winProbabilitySection
             momentumChartSection
             teamStatsSection
             keyPlayersSection
             playByPlaySection
             injuriesSection
-            headToHeadSection
+            // The soccer match centre carries ESPN's fuller meeting history.
+            if model.soccerMatch?.headToHead == nil {
+                headToHeadSection
+            }
             #if os(iOS)
             if !subscriptionManager.isPro && AdConfiguration.isEnabled,
                let ad = adManager.adForSlot(0) {
@@ -307,8 +311,16 @@ struct ModernGameDetailSections: View {
     }
 
     @ViewBuilder
+    private var soccerMatchSection: some View {
+        if sportType == .soccer, let match = model.soccerMatch, !match.isEmpty {
+            SoccerMatchCentreView(match: match, game: game, style: .modern)
+        }
+    }
+
+    @ViewBuilder
     private var teamStatsSection: some View {
-        if league != .FIFA_World_Cup, let stats = model.teamStats {
+        // Soccer matches with a match centre show their own, richer team stats above.
+        if model.soccerMatch?.teamStats.isEmpty ?? true, let stats = model.teamStats {
             VStack(alignment: .leading, spacing: .appSpace3) {
                 Text("TEAM STATS").appEyebrow().foregroundStyle(accent)
                 TeamStatComparisonView(
