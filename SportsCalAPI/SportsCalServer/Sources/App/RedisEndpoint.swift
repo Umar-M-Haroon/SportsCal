@@ -96,6 +96,7 @@ enum RedisEndpoint {
         case playByPlayMiss(String) // "PBPMiss-{eventID}" — short negative cache for on-demand /plays misses
         case espnIDMap          // "ESPN-ID-Map" — ESPN team ID → TheSportsDB team ID
         case scheduleVersion    // "Schedule Version" — bumped on every `latestSchedule` write (see ScheduleStore)
+        case scheduleCalendarVersions // "Schedule Calendar Versions" — per-sport ETag versions of `latestSchedule`
         public var value: RedisKey {
             switch self {
             case .latestLiveInfo:
@@ -168,6 +169,8 @@ enum RedisEndpoint {
                 return "ESPN-ID-Map"
             case .scheduleVersion:
                 return "Schedule Version"
+            case .scheduleCalendarVersions:
+                return "Schedule Calendar Versions"
             }
         }
         public var debugValue: RedisKey {
@@ -242,6 +245,8 @@ enum RedisEndpoint {
                 return "debug-ESPN-ID-Map"
             case .scheduleVersion:
                 return "debug-Schedule Version"
+            case .scheduleCalendarVersions:
+                return "debug-Schedule Calendar Versions"
             }
         }
         public func getValue(isDebug: Bool = false) -> RedisKey {

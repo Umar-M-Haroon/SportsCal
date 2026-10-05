@@ -688,6 +688,7 @@ struct AdminController: RouteCollection {
         // clear it too or stale tennis events survive the "refresh".
         let keysToDelete = [
             RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug),
+            RedisEndpoint.ESPN.scheduleCalendarVersions.getValue(isDebug: isDebug),
             RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: isDebug),
             RedisEndpoint.ESPN.latestFullLiveInfo.getValue(isDebug: isDebug),
             RedisEndpoint.ESPN.latestSoccerScoreboards.getValue(isDebug: isDebug),
@@ -725,6 +726,7 @@ struct AdminController: RouteCollection {
         // Step 1: Clear schedule cache keys to bypass freshness check
         let keysToDelete = [
             RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: isDebug),
+            RedisEndpoint.ESPN.scheduleCalendarVersions.getValue(isDebug: isDebug),
             RedisEndpoint.ESPN.scheduleLastUpdate.getValue(isDebug: isDebug)
         ]
 

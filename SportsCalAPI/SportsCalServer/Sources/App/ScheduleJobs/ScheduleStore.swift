@@ -50,6 +50,32 @@ enum ScheduleStore {
         RedisEndpoint.ESPN.scheduleVersion.getValue(isDebug: isDebug)
     }
 
+    /// Per-sport calendar versions (`ScheduleCalendarVersion`) of the blob at
+    /// `scheduleKey`, as JSON. Written in the same MSET as the blob, so a reader that
+    /// MGETs both never pairs a new schedule with an old version (a client holding the
+    /// old ETag would get a 304 and miss the change until the next one).
+    static func calendarKey(isDebug: Bool) -> RedisKey {
+        RedisEndpoint.ESPN.scheduleCalendarVersions.getValue(isDebug: isDebug)
+    }
+
+    /// Encodes `schedule` and writes it together with its calendar versions.
+    static func write(_ schedule: LiveScore, app: Application, isDebug: Bool) async throws {
+        let body = String(decoding: try JSONEncoder().encode(schedule), as: UTF8.self)
+        let calendar = String(decoding: try JSONEncoder().encode(ScheduleCalendarVersion.versions(of: schedule)), as: UTF8.self)
+        try await app.redis.mset([scheduleKey(isDebug: isDebug): body, calendarKey(isDebug: isDebug): calendar]).get()
+    }
+
+    /// The raw blob and its calendar versions, read atomically. Versions are nil when
+    /// the key predates them (the first deploy) or was flushed; callers fall back to a
+    /// content hash.
+    static func readRaw(kv: KeyValueStore, isDebug: Bool) async throws -> (body: String?, calendar: [String: String]?) {
+        let values = try await kv.mget([scheduleKey(isDebug: isDebug).rawValue, calendarKey(isDebug: isDebug).rawValue])
+        let body = values.first ?? nil
+        let calendar = (values.count > 1 ? values[1] : nil)
+            .flatMap { try? JSONDecoder().decode([String: String].self, from: Data($0.utf8)) }
+        return (body, calendar)
+    }
+
     /// Reads the version FIRST, then the schedule: a write landing between the two leaves
     /// a newer schedule paired with an older version, which only costs a harmless re-read.
     static func read(app: Application, isDebug: Bool) async throws -> Snapshot {
@@ -103,7 +129,7 @@ enum ScheduleStore {
             guard let updated = try await transform(current), updated != current else {
                 return .unchanged
             }
-            try await app.redis.set(key, toJSON: updated)
+            try await write(updated, app: app, isDebug: isDebug)
             _ = try? await app.redis.increment(versionKey(isDebug: isDebug)).get()
             return .written
         }

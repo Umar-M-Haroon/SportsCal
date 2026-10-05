@@ -14,17 +14,20 @@ import RediStack
 actor LastKnownGoodCache {
     static let shared = LastKnownGoodCache()
 
-    /// The in-process schedule plus its content version (`PayloadVersion`), which is
-    /// the base of the `/schedules` ETag and the key of every slice derived from it.
+    /// The in-process schedule plus its content version (`PayloadVersion`), the key of
+    /// every slice derived from it, and its per-sport calendar versions, the base of the
+    /// `/schedules` ETags (see `ScheduleCalendarVersion`).
     struct ScheduleSnapshot: Sendable {
         let value: String
         let version: String
+        let calendar: [String: String]?
         let age: TimeInterval
     }
 
     private var teams: String?
     private var schedules: String?
     private var schedulesVersion: String?
+    private var schedulesCalendar: [String: String]?
     private var schedulesStoredAt: Date?
     func storeTeams(_ value: String) { teams = value }
     var teamsValue: String? { teams }
@@ -33,8 +36,9 @@ actor LastKnownGoodCache {
     /// is computed once per *new* schedule: re-storing identical bytes (the common case,
     /// since the blob changes at most minutely) costs one `memcmp` and keeps the version.
     @discardableResult
-    func storeSchedules(_ value: String) -> String {
+    func storeSchedules(_ value: String, calendar: [String: String]? = nil) -> String {
         schedulesStoredAt = Date()
+        schedulesCalendar = calendar
         if let schedules, let schedulesVersion, PayloadVersion.bytesEqual(schedules, value) {
             return schedulesVersion
         }
@@ -48,7 +52,8 @@ actor LastKnownGoodCache {
     /// without touching Redis" from "stale but better than a 500".
     var schedulesSnapshot: ScheduleSnapshot? {
         guard let schedules, let schedulesVersion, let schedulesStoredAt else { return nil }
-        return ScheduleSnapshot(value: schedules, version: schedulesVersion, age: Date().timeIntervalSince(schedulesStoredAt))
+        return ScheduleSnapshot(value: schedules, version: schedulesVersion, calendar: schedulesCalendar,
+                                age: Date().timeIntervalSince(schedulesStoredAt))
     }
 
     /// Test hook: forget everything (the cache is process-global).
@@ -56,6 +61,7 @@ actor LastKnownGoodCache {
         teams = nil
         schedules = nil
         schedulesVersion = nil
+        schedulesCalendar = nil
         schedulesStoredAt = nil
     }
 }
@@ -100,27 +106,32 @@ actor DerivedPayloadCache {
     func reset() { entries = [:] }
 }
 
-/// The current schedule blob and its content version: the in-process snapshot when it
-/// is under 30s old, otherwise a Redis read (falling back to the stale snapshot when
-/// Redis fails). Shared by `/schedules` and `/sport/:sport`, so neither drags the
-/// multi-MB blob through the Redis pool per request.
-func currentSchedule(_ req: Request) async throws -> (value: String, version: String) {
+/// The current schedule blob, its content version, and its per-sport calendar versions:
+/// the in-process snapshot when it is under 30s old, otherwise a Redis read (falling
+/// back to the stale snapshot when Redis fails). Shared by `/schedules` and
+/// `/sport/:sport`, so neither drags the multi-MB blob through the Redis pool per request.
+///
+/// `version` changes with any byte (live ticks included) and keys derived slices;
+/// `calendar` changes only when a cached copy would be wrong, and builds the
+/// `/schedules` ETags. It is nil until the first write that records it.
+func currentSchedule(_ req: Request) async throws -> (value: String, version: String, calendar: [String: String]?) {
     if let snap = await LastKnownGoodCache.shared.schedulesSnapshot, snap.age < 30 {
-        return (snap.value, snap.version)
+        return (snap.value, snap.version, snap.calendar)
     }
-    let key = RedisEndpoint.ESPN.latestSchedule.getValue(isDebug: req.application.environment == .development).rawValue
+    let isDebug = req.application.environment == .development
     do {
-        guard let raw = try await req.kv.getString(key), !raw.isEmpty else {
+        let read = try await ScheduleStore.readRaw(kv: req.kv, isDebug: isDebug)
+        guard let raw = read.body, !raw.isEmpty else {
             throw NetworkError.invalidData
         }
-        let version = await LastKnownGoodCache.shared.storeSchedules(raw)
-        return (raw, version)
+        let version = await LastKnownGoodCache.shared.storeSchedules(raw, calendar: read.calendar)
+        return (raw, version, read.calendar)
     } catch {
         // Redis blip (or missing key): a stale schedule beats a 500 — the app is
         // unusable without this endpoint.
         if let snap = await LastKnownGoodCache.shared.schedulesSnapshot {
             req.logger.warning("schedules: Redis read failed, serving last-known-good (age \(Int(snap.age))s) — \(String(reflecting: error))")
-            return (snap.value, snap.version)
+            return (snap.value, snap.version, snap.calendar)
         }
         throw error
     }
@@ -562,7 +573,9 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     routes.get("schedules") { req async throws -> Response in
         let schedule = try await currentSchedule(req)
         let variant = CollegePayload.wantsCollege(req) ? "schedules:cfb=1" : "schedules"
-        let etag = HTTPCaching.etag(version: schedule.version, variant: variant)
+        // The calendar version, not the content hash: live ticks rewrite the blob every
+        // minute but don't change what a cached copy needs (the socket carries them).
+        let etag = HTTPCaching.etag(version: schedule.calendar.map(ScheduleCalendarVersion.combined) ?? schedule.version, variant: variant)
         return HTTPCaching.respond(req, etag: etag) {
             CollegePayload.serve(schedule.value, for: req, variant: "schedules")
         }
