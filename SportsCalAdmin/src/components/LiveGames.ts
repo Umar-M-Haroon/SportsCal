@@ -165,7 +165,7 @@ export class LiveGames {
       { name: 'Golf', data: liveData.golf, allData: allData?.golf, color: '#2ca58d' },
       { name: 'Tennis', data: liveData.tennis, allData: allData?.tennis, color: '#c8b900' },
       { name: 'Formula 1', data: liveData.racing, allData: allData?.racing, color: '#e10600' },
-      { name: 'NASCAR', data: liveData.motorsport, allData: allData?.motorsport, color: '#ffd659' }
+      { name: 'NASCAR / IndyCar / IMSA / WEC', data: liveData.motorsport, allData: allData?.motorsport, color: '#ffd659' }
     ]
 
     const liveGamesCount = sports.reduce((sum, sport) =>
@@ -259,7 +259,7 @@ export class LiveGames {
   }
 
   private renderGame(game: Game, sportName: string): string {
-    if (sportName === 'Golf' || sportName === 'Tennis' || sportName === 'Formula 1' || sportName === 'NASCAR') {
+    if (sportName === 'Golf' || sportName === 'Tennis' || sportName === 'Formula 1' || sportName.startsWith('NASCAR')) {
       return this.renderTournamentGame(game)
     }
     return this.renderTeamGame(game)

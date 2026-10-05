@@ -2,10 +2,12 @@
 //  NASCARViews.swift
 //  SportsCal
 //
-//  NASCAR Cup race weekends: the detail page (running order, stages, lap chart, lap-by-lap
-//  notes, cautions, pit stops, Chase standings) and the small pieces the list rows share.
-//  Data comes from the game's sessions plus `/racing/nascar/race` and
-//  `/racing/nascar/standings`, all built server-side from NASCAR's own feeds.
+//  Race weekends of the series beyond F1 (NASCAR Cup, IndyCar, IMSA, WEC): the detail
+//  page and the pieces the list rows share. Every series fills the same shape (sessions,
+//  per-car detail); what a series doesn't publish simply doesn't show. NASCAR adds stages,
+//  a lap chart, lap notes, cautions, pit stops and the Chase; IMSA and WEC race in classes
+//  to a clock. Data comes from the game's sessions plus `/racing/{series}/race` and
+//  `/racing/{series}/standings`, all built server-side.
 //
 
 import SwiftUI
@@ -70,9 +72,27 @@ struct NASCARRaceStateBar: View {
     let state: RaceState
     let isLive: Bool
 
+    /// Whether there's anything to draw: a lap count, or a race clock.
+    static func applies(to state: RaceState) -> Bool {
+        state.totalLaps > 0 || state.isTimed
+    }
+
     private var progress: Double {
+        if let duration = state.duration, duration > 0 {
+            guard isLive else { return state.flag == .checkered ? 1 : 0 }
+            return min(max((duration - (state.timeRemaining ?? duration)) / duration, 0), 1)
+        }
         guard state.totalLaps > 0 else { return 0 }
         return min(Double(state.lap) / Double(state.totalLaps), 1)
+    }
+
+    /// "Lap 135/267", or for a timed race "6 hours" / "4:12:30 left".
+    private var headline: String {
+        if let duration = state.duration {
+            if isLive, let left = state.timeRemainingLabel { return left }
+            return "\(Int(duration / 3600)) hours"
+        }
+        return state.lap > 0 ? state.lapLabel : "\(state.totalLaps) laps"
     }
 
     var body: some View {
@@ -83,10 +103,14 @@ struct NASCARRaceStateBar: View {
                     .foregroundStyle(state.flag == .white ? Color.primary : state.flag.color)
                     .labelStyle(.titleAndIcon)
                 Spacer()
-                Text(state.lap > 0 ? state.lapLabel : "\(state.totalLaps) laps")
+                Text(headline)
                     .font(.subheadline.monospacedDigit().weight(.semibold))
-                if isLive, state.lap > 0 {
+                if isLive, state.lap > 0, !state.isTimed {
                     Text("\(state.lapsToGo) to go")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                } else if state.isTimed, state.lap > 0 {
+                    Text("\(state.lap) laps")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -143,19 +167,19 @@ struct NASCARRaceStateBar: View {
         .background(Color.secondaryGroupedBackground)
         .cornerRadius(12)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(state.flag.label), \(state.lap > 0 ? state.lapLabel : "\(state.totalLaps) laps")")
+        .accessibilityLabel("\(state.flag.label), \(headline)")
     }
 }
 
 // MARK: - Detail
 
-struct NASCARRaceDetailView<Actions: View>: View {
+struct MotorsportRaceDetailView<Actions: View>: View {
     let game: Game
     @ViewBuilder var actions: () -> Actions
 
     @State private var selectedSessionIndex = 0
     @State private var detail: NASCARRaceDetail?
-    @State private var standings: NASCARStandings?
+    @State private var standings: NetworkHandler.SeriesStandings?
     @State private var showAllNotes = false
     @State private var showAllStandings = false
 
@@ -174,9 +198,7 @@ struct NASCARRaceDetailView<Actions: View>: View {
     private var selectedSession: EventSession? {
         selectedSessionIndex < sessions.count ? sessions[selectedSessionIndex] : nil
     }
-    private var raceID: Int? {
-        game.idEvent.flatMap { id in id.hasPrefix("nascar-") ? Int(id.dropFirst("nascar-".count)) : nil }
-    }
+    private var seriesName: String { game.racingSeries?.leagueName ?? "Racing" }
     /// Lap chart, notes and pit stops exist once the race has gone green.
     private var raceHasStarted: Bool {
         raceSession?.status == "in" || raceSession?.status == "post"
@@ -186,7 +208,7 @@ struct NASCARRaceDetailView<Actions: View>: View {
         ScrollView {
             VStack(spacing: 20) {
                 header
-                if let state = raceSession?.raceState, raceHasStarted {
+                if let state = raceSession?.raceState, raceHasStarted, NASCARRaceStateBar.applies(to: state) {
                     NASCARRaceStateBar(state: state, isLive: raceSession?.status == "in")
                 }
                 actions()
@@ -203,27 +225,33 @@ struct NASCARRaceDetailView<Actions: View>: View {
                     if !detail.cautions.isEmpty { NASCARCautionsCard(cautions: detail.cautions) }
                     if !detail.pitStops.isEmpty { NASCARPitStopsCard(stops: detail.pitStops) }
                 }
-                if let standings {
-                    NASCARStandingsCard(standings: standings, showAll: $showAllStandings)
+                switch standings {
+                case .drivers(let table):
+                    NASCARStandingsCard(standings: table, showAll: $showAllStandings)
+                case .classes(let tables):
+                    ClassStandingsCard(standings: tables)
+                case nil:
+                    EmptyView()
                 }
                 weekendSchedule
             }
             .padding()
         }
-        .navigationTitle("NASCAR Cup Series")
+        .navigationTitle(seriesName)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .onAppear(perform: selectDefaultSession)
         .task {
-            standings = try? await NetworkHandler.fetchNASCARStandings()
+            if let series = game.racingSeries {
+                standings = try? await NetworkHandler.fetchSeriesStandings(series)
+            }
         }
         .task(id: game.idEvent) {
             // Always fetched: besides the race story it carries every session's full results.
-            guard let raceID else { return }
             // While the race runs, the server rebuilds the detail every 30s.
             repeat {
-                if let fresh = try? await NetworkHandler.fetchNASCARRaceDetail(raceID: raceID) {
+                if let fresh = try? await NetworkHandler.fetchRaceDetail(for: game) {
                     detail = fresh
                 }
                 guard isLive else { break }
@@ -250,7 +278,7 @@ struct NASCARRaceDetailView<Actions: View>: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("NASCAR CUP SERIES")
+                    Text(seriesName.uppercased())
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(Color.app(.racing))
                     Text(game.strHomeTeam)
@@ -272,7 +300,7 @@ struct NASCARRaceDetailView<Actions: View>: View {
                 }
             }
 
-            if game.seasonPhase == .postseason {
+            if game.isNASCAR, game.seasonPhase == .postseason {
                 Label("The Chase", systemImage: "trophy.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.orange)
@@ -304,6 +332,7 @@ struct NASCARRaceDetailView<Actions: View>: View {
     private var raceFacts: [String] {
         guard let state = raceSession?.raceState else { return [] }
         var facts: [String] = []
+        if let duration = state.duration { facts.append("\(Int(duration / 3600)) hours") }
         if state.totalLaps > 0 { facts.append("\(state.totalLaps) laps") }
         if let miles = state.distanceMiles, miles > 0 {
             facts.append("\(miles.formatted(.number.precision(.fractionLength(0...1)))) mi")
@@ -384,6 +413,22 @@ struct NASCARRaceDetailView<Actions: View>: View {
 struct NASCARLeaderboard: View {
     let session: EventSession
     @State private var showAll = false
+    /// Endurance racing: the class shown (nil = overall).
+    @State private var selectedClass: String?
+
+    /// Classes in the order they first appear (the fastest class leads overall).
+    private var classes: [String] {
+        var seen: [String] = []
+        for entry in session.leaderboard {
+            if let cls = entry.stockCar?.vehicleClass, !seen.contains(cls) { seen.append(cls) }
+        }
+        return seen.count > 1 ? seen : []
+    }
+
+    private var entries: [LeaderboardEntry] {
+        guard let selectedClass else { return session.leaderboard }
+        return session.leaderboard.filter { $0.stockCar?.vehicleClass == selectedClass }
+    }
 
     private var isRace: Bool { session.sessionType == "race" }
     private var title: String {
@@ -398,7 +443,7 @@ struct NASCARLeaderboard: View {
     }
 
     var body: some View {
-        let entries = session.leaderboard
+        let entries = self.entries
         let shown = showAll ? entries : Array(entries.prefix(15))
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -406,6 +451,14 @@ struct NASCARLeaderboard: View {
                 Spacer()
                 if session.status == "in", let progress = session.progress {
                     Text(progress).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            if !classes.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        classChip(nil, label: "Overall")
+                        ForEach(classes, id: \.self) { classChip($0, label: $0) }
+                    }
                 }
             }
             if entries.isEmpty {
@@ -430,11 +483,30 @@ struct NASCARLeaderboard: View {
         .cornerRadius(12)
     }
 
+    private func classChip(_ cls: String?, label: String) -> some View {
+        let isSelected = selectedClass == cls
+        let color = Color(hex: NASCARVocabulary.classColorHex(cls)) ?? .accentColor
+        return Button {
+            withAnimation(.snappy) { selectedClass = cls }
+        } label: {
+            Text(label)
+                .font(.caption.weight(isSelected ? .bold : .regular))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(isSelected ? color.opacity(0.22) : Color.gray.opacity(0.12)))
+                .overlay(Capsule().strokeBorder(isSelected ? color : .clear, lineWidth: 1.2))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
     private func row(_ entry: LeaderboardEntry) -> some View {
         let car = entry.stockCar
+        // In a class view, the place in the class.
+        let place = selectedClass != nil ? (car?.classPosition ?? entry.position) : entry.position
         return HStack(spacing: 10) {
-            Text("\(entry.position)")
-                .font(.subheadline.monospacedDigit().weight(entry.position <= 3 ? .bold : .regular))
+            Text("\(place)")
+                .font(.subheadline.monospacedDigit().weight(place <= 3 ? .bold : .regular))
                 .frame(width: 24, alignment: .trailing)
             if let car {
                 CarNumberBadge(number: car.carNumber, manufacturer: car.manufacturer)
@@ -444,6 +516,14 @@ struct NASCARLeaderboard: View {
                     Text(entry.name)
                         .font(.subheadline.weight(entry.position == 1 ? .semibold : .regular))
                         .lineLimit(1)
+                    if selectedClass == nil, let cls = car?.vehicleClass, !classes.isEmpty {
+                        Text(cls)
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color(hex: NASCARVocabulary.classColorHex(cls)) ?? .gray, in: RoundedRectangle(cornerRadius: 3))
+                    }
                     if car?.inPlayoffs == true {
                         Image(systemName: "trophy.fill")
                             .font(.system(size: 9))
@@ -471,9 +551,11 @@ struct NASCARLeaderboard: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// "Hendrick Motorsports · Led 235" for races; team and speed for timed sessions.
+    /// "Hendrick Motorsports · Led 235" for races; team and speed for timed sessions;
+    /// for endurance the car and team ("Porsche 963 · Porsche Penske Motorsport").
     private func detailLine(_ entry: LeaderboardEntry) -> String {
         var parts: [String] = []
+        if let vehicle = entry.stockCar?.vehicle { parts.append(vehicle) }
         if let team = entry.constructor { parts.append(team) }
         if isRace {
             if let led = entry.stockCar?.lapsLed, led > 0 { parts.append("Led \(led)") }
@@ -487,6 +569,9 @@ struct NASCARLeaderboard: View {
     private func trailing(_ entry: LeaderboardEntry) -> String {
         if isRace {
             if entry.position == 1 { return session.status == "post" ? "Winner" : (session.status == "in" ? "Leader" : "Pole") }
+            if selectedClass != nil, entry.stockCar?.classPosition == 1 {
+                return session.status == "post" ? "Class winner" : "Class leader"
+            }
             return entry.gap ?? ""
         }
         if entry.position == 1 { return entry.score }
@@ -699,7 +784,9 @@ struct NASCARStandingsCard: View {
     @Binding var showAll: Bool
 
     var body: some View {
-        let drivers = showAll ? standings.drivers : Array(standings.drivers.prefix(standings.playoffSpots + 4))
+        // With a Chase, down to just past the cut line; otherwise the top fifteen.
+        let defaultRows = standings.hasPlayoffField ? standings.playoffSpots + 4 : 15
+        let drivers = showAll ? standings.drivers : Array(standings.drivers.prefix(defaultRows))
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("\(String(standings.season)) Standings").font(.headline)
@@ -738,15 +825,20 @@ struct NASCARStandingsCard: View {
             Text("\(driver.position)")
                 .font(.subheadline.monospacedDigit())
                 .frame(width: 24, alignment: .trailing)
-            CarNumberBadge(number: driver.carNumber, manufacturer: driver.manufacturer, size: 22)
+            if !driver.carNumber.isEmpty {
+                CarNumberBadge(number: driver.carNumber, manufacturer: driver.manufacturer, size: 22)
+            }
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 4) {
                     Text(driver.name).font(.subheadline).lineLimit(1)
                     if driver.movement != 0 { PositionChangeBadge(change: driver.movement) }
                 }
-                Text("\(driver.wins) W · \(driver.top5) T5 · \(driver.stageWins) stage wins")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                // NASCAR publishes season stats with its points; other series only points.
+                if driver.starts > 0 {
+                    Text("\(driver.wins) W · \(driver.top5) T5 · \(driver.stageWins) stage wins")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 1) {
@@ -767,16 +859,69 @@ struct NASCARStandingsCard: View {
     }
 }
 
+// MARK: - Class standings
+
+/// Championship standings with a table per class (IMSA).
+struct ClassStandingsCard: View {
+    let standings: ClassStandings
+    @State private var selected: String?
+    @State private var showAll = false
+
+    private var table: ClassStandings.ClassTable? {
+        standings.classes.first { $0.name == selected } ?? standings.classes.first
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("\(String(standings.season)) Standings").font(.headline)
+            Picker("Class", selection: Binding(get: { table?.name ?? "" }, set: { selected = $0 })) {
+                ForEach(standings.classes) { Text($0.name).tag($0.name) }
+            }
+            .pickerStyle(.segmented)
+            if let table {
+                let drivers = showAll ? table.drivers : Array(table.drivers.prefix(10))
+                ForEach(drivers) { driver in
+                    HStack(spacing: 10) {
+                        Text("\(driver.position)")
+                            .font(.subheadline.monospacedDigit())
+                            .frame(width: 24, alignment: .trailing)
+                        Text(driver.name).font(.subheadline).lineLimit(1)
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text("\(driver.points)").font(.subheadline.monospacedDigit().weight(.semibold))
+                            if driver.behindLeader < 0 {
+                                Text("\(driver.behindLeader)").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+                if table.drivers.count > 10 {
+                    Button(showAll ? "Show Less" : "Show All \(table.drivers.count)") {
+                        withAnimation { showAll.toggle() }
+                    }
+                    .font(.subheadline)
+                }
+            }
+        }
+        .padding()
+        .background(Color.secondaryGroupedBackground)
+        .cornerRadius(12)
+    }
+}
+
 // MARK: - Discovery
 
-/// Shown once to F1 fans who haven't turned NASCAR on: a card next to F1 content with a
-/// one-tap "Turn On". Either button retires it for good; after that, NASCAR lives in
-/// the racing league picker like any other competition.
+/// Shown once to F1 fans who haven't turned any other series on: a card next to F1
+/// content that opens the racing league picker. Either button retires it for good; after
+/// that, the series live in the picker like any other competition.
 enum NASCARPromo {
-    static let dismissedKey = "promo.nascarCup.dismissed"
+    static let dismissedKey = "promo.racingSeries.dismissed"
+
+    static var series: [Leagues] { Leagues.allCases.filter(\.isMotorsportSeries) }
 
     static func isEligible(storage: UserDefaultStorage, dismissed: Bool) -> Bool {
-        !dismissed && storage.hiddenCompetitions.contains(Leagues.nascarCup.leagueName)
+        !dismissed && series.allSatisfy { storage.hiddenCompetitions.contains($0.leagueName) }
     }
 }
 
@@ -784,6 +929,7 @@ struct NASCARPromoCard: View {
     @Environment(UserDefaultStorage.self) private var storage
     @Environment(GameViewModel.self) private var viewModel
     @AppStorage(NASCARPromo.dismissedKey) private var dismissed = false
+    @State private var showPicker = false
 
     var body: some View {
         if NASCARPromo.isEligible(storage: storage, dismissed: dismissed) {
@@ -793,19 +939,17 @@ struct NASCARPromoCard: View {
                         .font(.title2)
                         .foregroundStyle(Color.app(.racing))
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("New: NASCAR Cup Series")
+                        Text("New: NASCAR, IndyCar, IMSA & WEC")
                             .font(.headline)
-                        Text("Every race weekend with the live running order, stages, cautions, pit stops and the Chase.")
+                        Text("Race weekends with results for every session, live running orders, endurance classes and standings.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 HStack {
-                    Button("Turn On") {
-                        WhatsNewAction.showCompetition(.nascarCup, sport: .racing)
-                            .apply(storage: storage, viewModel: viewModel)
-                        dismissed = true
+                    Button("Choose Series") {
+                        showPicker = true
                     }
                     .buttonStyle(.borderedProminent)
                     Button("Not Now") {
@@ -819,6 +963,26 @@ struct NASCARPromoCard: View {
             .padding()
             .background(Color.secondaryGroupedBackground)
             .cornerRadius(12)
+            .sheet(isPresented: $showPicker, onDismiss: {
+                // Whatever was turned on should show now, not on the next refresh.
+                if !NASCARPromo.series.allSatisfy({ storage.hiddenCompetitions.contains($0.leagueName) }) {
+                    if !storage.userShouldShow(.racing) { storage.toggleSport(.racing, enabled: true) }
+                    dismissed = true
+                    viewModel.filterSports(force: true)
+                    viewModel.getInfo()
+                }
+            }) {
+                NavigationStack {
+                    CompetitionPage(competitions: NASCARPromo.series)
+                        .environment(storage)
+                        .navigationTitle("Racing Series")
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { showPicker = false }
+                            }
+                        }
+                }
+            }
         }
     }
 }
@@ -853,7 +1017,7 @@ struct RacingSeriesHiddenNotice: View {
             Button("Show in My Schedule") {
                 WhatsNewAction.showCompetition(series, sport: .racing)
                     .apply(storage: storage, viewModel: viewModel)
-                if series == .nascarCup { promoDismissed = true }
+                if series.isMotorsportSeries { promoDismissed = true }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)

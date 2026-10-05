@@ -26,9 +26,9 @@ struct RaceScoreView: View {
     /// done) to avoid stating the same session twice. Without a strip, fall back to the full
     /// session-aware text ("Race · Sun 2:00 PM").
     private var raceStatusText: String? {
-        // NASCAR's live line is where the race stands ("Caution · Lap 92/267"), which the
-        // session strip can't say.
-        if game.isNASCAR, isLive, let progress = game.strProgress {
+        // A series beyond F1 says where the race stands ("Caution · Lap 92/267", "Hour 6
+        // of 10"), which the session strip can't.
+        if game.isMotorsportSeries, isLive, let progress = game.strProgress {
             return progress
         }
         if hasSessionStrip {
@@ -53,7 +53,7 @@ struct RaceScoreView: View {
         var parts = [game.strHomeTeam]
         if isLive { parts.append("live") }
         if let circuit = game.circuitInfo { parts.append("\(circuit.locality), \(circuit.country)") }
-        else if let venue = game.venueName, game.isNASCAR { parts.append(venue) }
+        else if let venue = game.venueName, game.isMotorsportSeries { parts.append(venue) }
         if let status = raceStatusText { parts.append(status) }
         let entries = game.resolvedLeaderboard.prefix(3)
         if !entries.isEmpty {
@@ -87,8 +87,8 @@ struct RaceScoreView: View {
                         .foregroundColor(.red)
                     Text(game.strHomeTeam)
                         .font(.headline)
-                    if game.isNASCAR {
-                        Text("NASCAR")
+                    if game.isMotorsportSeries, let tag = game.racingSeries?.racingShortName {
+                        Text(tag)
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 5)
@@ -114,13 +114,13 @@ struct RaceScoreView: View {
                         Text("\(circuit.locality), \(circuit.country)")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                    } else if game.isNASCAR, let venue = game.venueName {
+                    } else if game.isMotorsportSeries, let venue = game.venueName {
                         Text(venue)
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
-                    if (game.circuitInfo != nil || (game.isNASCAR && game.venueName != nil)) && raceStatusText != nil {
+                    if (game.circuitInfo != nil || (game.isMotorsportSeries && game.venueName != nil)) && raceStatusText != nil {
                         Text("·")
                             .font(.caption)
                             .foregroundColor(.secondary)

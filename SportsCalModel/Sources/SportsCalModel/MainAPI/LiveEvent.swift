@@ -1170,10 +1170,15 @@ extension Game {
         return league
     }
 
-    /// A NASCAR race weekend. These carry car numbers, manufacturers, stages and
-    /// cautions, and get their own detail view; F1-only enrichment never applies.
+    /// A NASCAR race weekend: stages, cautions, lap notes and the Chase.
     public var isNASCAR: Bool {
         racingSeries == .nascarCup
+    }
+
+    /// An endurance race weekend (IMSA, WEC): several classes race at once, each car
+    /// has a crew of drivers, and races run to a clock rather than a lap count.
+    public var isEnduranceRacing: Bool {
+        racingSeries == .imsa || racingSeries == .wec
     }
 
     /// A non-F1 racing series (see `Leagues.isMotorsportSeries`).

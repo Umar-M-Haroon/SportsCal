@@ -234,10 +234,36 @@ public enum NASCARVocabulary {
     /// Brand colour per manufacturer, hex without "#".
     public static func manufacturerColorHex(_ manufacturer: String?) -> String? {
         switch manufacturer?.lowercased() {
-        case "chevrolet": "D4A017"
+        case "chevrolet", "corvette": "D4A017"
         case "ford": "1F5AA6"
         case "toyota": "EB0A1E"
         case "dodge": "BA0C2F"
+        case "honda", "acura": "C8102E"
+        case "porsche": "8A1538"
+        case "cadillac": "3A3A3A"
+        case "bmw": "1C69D4"
+        case "ferrari": "DC0000"
+        case "aston martin": "00665E"
+        case "lamborghini": "B8860B"
+        case "mclaren": "FF8000"
+        case "mercedes-amg", "mercedes": "00A19C"
+        case "alpine": "0090FF"
+        case "peugeot": "1F2B4D"
+        case "lexus": "4A4A4A"
+        case "genesis": "6B4E2E"
+        case "oreca", "ligier": "5B6770"
+        default: nil
+        }
+    }
+
+    /// Endurance class colours, as the series' graphics use them.
+    public static func classColorHex(_ vehicleClass: String?) -> String? {
+        switch vehicleClass?.uppercased().replacingOccurrences(of: " ", with: "") {
+        case "GTP", "HYPERCAR": "D50032"
+        case "LMP2": "0072CE"
+        case "GTDPRO": "E4002B"
+        case "GTD": "00A651"
+        case "LMGT3": "FF8200"
         default: nil
         }
     }
@@ -277,5 +303,30 @@ public enum NASCARVocabulary {
         case 3: ("race", "Race")
         default: nil
         }
+    }
+}
+
+// MARK: - Multi-class standings
+
+/// Championship standings for series where each class has its own title (IMSA:
+/// GTP, LMP2, GTD PRO, GTD).
+public struct ClassStandings: Codable, Equatable, Hashable {
+    public var season: Int
+    public var classes: [ClassTable]
+
+    public struct ClassTable: Codable, Equatable, Hashable, Identifiable {
+        public var id: String { name }
+        public var name: String
+        public var drivers: [NASCARStandingsEntry]
+
+        public init(name: String, drivers: [NASCARStandingsEntry]) {
+            self.name = name
+            self.drivers = drivers
+        }
+    }
+
+    public init(season: Int, classes: [ClassTable]) {
+        self.season = season
+        self.classes = classes
     }
 }

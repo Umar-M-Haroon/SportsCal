@@ -83,12 +83,12 @@ extension WhatsNewRelease {
     static let all: [WhatsNewRelease] = [
         WhatsNewRelease(version: "3.4", features: [
             WhatsNewFeature(
-                id: "nascar-cup",
-                title: "NASCAR Cup Series",
-                subtitle: "Every race weekend with the live running order, stages, cautions, lap-by-lap notes, pit stops and the Chase standings.",
+                id: "racing-series",
+                title: "NASCAR, IndyCar, IMSA & WEC",
+                subtitle: "Every race weekend with results for each session, live running orders, NASCAR's stages and the Chase, endurance classes and crews, and standings. Pick the series you follow.",
                 systemImage: "flag.checkered.2.crossed",
                 tint: Color.app(.racing),
-                action: .showCompetition(.nascarCup, sport: .racing)
+                action: .manageSports(title: "Choose Series")
             ),
             WhatsNewFeature(
                 id: "college-football",

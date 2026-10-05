@@ -262,8 +262,8 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
             // switch below would drop their response into the soccer bucket.
             if league == .ncaaMBBTournament || league == .wnba || league == .ncaaf { continue }
             if Integrator.secondaryGolfTours.contains(league) { continue }
-            // NASCAR comes from NASCAR's own feeds, below.
-            if league == .nascarCup { continue }
+            // Racing series beyond F1 have their own services (NASCAR, IndyCar, IMSA, WEC), below.
+            if league.isMotorsportSeries { continue }
             // Season-scoped fetches (previous/current/next): an empty result means the
             // fetch failed (`getSchedule` swallows per-season errors), never "no games".
             fallbackLeagues.insert(league)
@@ -607,6 +607,28 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
             Self.logger.info("NASCAR schedule loaded", metadata: ["events": "\(nascarGames.count)"])
         } catch {
             Self.logger.warning("NASCAR schedule fetch failed: \(error)")
+        }
+
+        // IndyCar: TheSportsDB weekends, ESPN results.
+        fallbackLeagues.insert(.indycar)
+        do {
+            let indyCarGames = try await IndyCarService.scheduleGames(app: context.application, isDebug: isDebug)
+            schedule.racing = LiveEvent.merging(schedule.racing, LiveEvent(events: indyCarGames))
+            Self.logger.info("IndyCar schedule loaded", metadata: ["events": "\(indyCarGames.count)"])
+        } catch {
+            Self.logger.warning("IndyCar schedule fetch failed: \(error)")
+        }
+
+        // IMSA and WEC: TheSportsDB weekends, Al Kamel's published results.
+        for series in AlKamelSeries.allCases {
+            fallbackLeagues.insert(series.league)
+            do {
+                let games = try await AlKamelService.scheduleGames(series, app: context.application, isDebug: isDebug)
+                schedule.racing = LiveEvent.merging(schedule.racing, LiveEvent(events: games))
+                Self.logger.info("\(series.rawValue) schedule loaded", metadata: ["events": "\(games.count)"])
+            } catch {
+                Self.logger.warning("\(series.rawValue) schedule fetch failed: \(error)")
+            }
         }
 
         // Enrich schedule with ESPN scoreboard data (records, leaders, linescores, venue, etc.)

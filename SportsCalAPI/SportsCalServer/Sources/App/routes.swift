@@ -769,6 +769,36 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return encodeResult(res: try await NASCARService.raceDetail(raceID: raceID, app: req.application, isDebug: isDebug))
     }
 
+    //MARK: - IndyCar / IMSA / WEC standings and race detail
+    // IndyCar: one driver table. IMSA: a table per class (`ClassStandings`). WEC
+    // publishes standings as PDF only (404).
+    routes.get("racing", ":series", "standings") { req async throws -> String in
+        let isDebug = req.application.environment == .development
+        switch req.parameters.get("series") {
+        case "indycar": return encodeResult(res: try await IndyCarService.standings(app: req.application, isDebug: isDebug))
+        case "imsa": return encodeResult(res: try await AlKamelService.standings(.imsa, app: req.application, isDebug: isDebug))
+        default: throw Abort(.notFound)
+        }
+    }
+
+    // `race` is TheSportsDB's race ID (the game's `idEvent` is "{series}-{race}"). The
+    // body carries every session's full results; the schedule's copy is trimmed.
+    routes.get("racing", ":series", "race", ":race") { req async throws -> String in
+        guard let raceID = req.parameters.get("race"), raceID.count <= 20, raceID.allSatisfy(\.isNumber) else {
+            throw Abort(.badRequest)
+        }
+        let isDebug = req.application.environment == .development
+        switch req.parameters.get("series") {
+        case "indycar":
+            return encodeResult(res: try await IndyCarService.raceDetail(tsdbRaceID: raceID, app: req.application, isDebug: isDebug))
+        case let series?:
+            guard let series = AlKamelSeries(rawValue: series) else { throw Abort(.notFound) }
+            return encodeResult(res: try await AlKamelService.raceDetail(series, tsdbRaceID: raceID, app: req.application, isDebug: isDebug))
+        default:
+            throw Abort(.notFound)
+        }
+    }
+
     //MARK: - Live Websocket
     routes.webSocket("ws") { req, ws async in
         let isDebug = req.application.environment == .development

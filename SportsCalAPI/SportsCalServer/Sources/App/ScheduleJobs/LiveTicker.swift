@@ -142,9 +142,17 @@ enum LiveTicker {
         // NASCAR owns its games outright (built from NASCAR's feed on both paths), so a
         // live weekend is rebuilt whole rather than overlaid: laps, flags and the running
         // order all live in its sessions, which the overlay doesn't carry.
-        let nascar = leagues.contains(.nascarCup)
+        var nascar = leagues.contains(.nascarCup)
             ? await NASCARService.liveGames(app: app, isDebug: isDebug)
             : []
+        if leagues.contains(.indycar) {
+            nascar += await IndyCarService.liveGames(app: app, isDebug: isDebug)
+        }
+        // IMSA/WEC results are re-read at most every five minutes (their cache), so the
+        // fast tick costs a Redis read until a new hour's classification is out.
+        for series in AlKamelSeries.allCases where leagues.contains(series.league) {
+            nascar += await AlKamelService.liveGames(series, app: app, isDebug: isDebug)
+        }
 
         guard !overlays.isEmpty || !nascar.isEmpty else { return fastInterval }
 

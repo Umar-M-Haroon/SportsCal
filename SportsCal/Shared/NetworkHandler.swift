@@ -833,6 +833,51 @@ struct NetworkHandler {
         return try Self.sharedDecoder.decode(Game.self, from: data)
     }
 
+    /// Standings for a racing series beyond F1: one driver table (NASCAR, IndyCar) or
+    /// a table per class (IMSA). Nil when the series publishes none we can read (WEC).
+    enum SeriesStandings {
+        case drivers(NASCARStandings)
+        case classes(ClassStandings)
+    }
+
+    static func fetchSeriesStandings(_ series: Leagues) async throws -> SeriesStandings? {
+        switch series {
+        case .nascarCup: return .drivers(try await fetchNASCARStandings())
+        case .indycar, .imsa:
+            let path = series == .indycar ? "indycar" : "imsa"
+            let url = URL(string: "\(baseURL())/racing/\(path)/standings")!
+            let (data, response) = try await performAuthorized(url: url)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            return series == .indycar
+                ? .drivers(try Self.sharedDecoder.decode(NASCARStandings.self, from: data))
+                : .classes(try Self.sharedDecoder.decode(ClassStandings.self, from: data))
+        default:
+            return nil
+        }
+    }
+
+    /// Every session's full results (and NASCAR's lap chart, notes and pit stops) for a
+    /// race weekend of a series beyond F1. The schedule's copy is trimmed.
+    static func fetchRaceDetail(for game: Game) async throws -> NASCARRaceDetail? {
+        guard let series = game.racingSeries, let id = game.idEvent else { return nil }
+        let path: String
+        switch series {
+        case .nascarCup:
+            guard let raceID = Int(id.replacingOccurrences(of: "nascar-", with: "")) else { return nil }
+            return try await fetchNASCARRaceDetail(raceID: raceID)
+        case .indycar: path = "indycar/race/\(id.replacingOccurrences(of: "indycar-", with: ""))"
+        case .imsa: path = "imsa/race/\(id.replacingOccurrences(of: "imsa-", with: ""))"
+        case .wec: path = "wec/race/\(id.replacingOccurrences(of: "wec-", with: ""))"
+        default: return nil
+        }
+        let url = URL(string: "\(baseURL())/racing/\(path)")!
+        let (data, response) = try await performAuthorized(url: url)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+        APIVersionChecker.shared.checkVersion(from: httpResponse)
+        return try Self.sharedDecoder.decode(NASCARRaceDetail.self, from: data)
+    }
+
     /// NASCAR Cup driver standings with the Chase picture.
     static func fetchNASCARStandings() async throws -> NASCARStandings {
         let url = URL(string: "\(baseURL())/racing/nascar/standings")!

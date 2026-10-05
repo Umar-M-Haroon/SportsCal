@@ -178,7 +178,7 @@ struct BrowseSportView: View {
     /// Football only: NFL or college. Both share the football bucket, and a college
     /// Saturday alone would bury the NFL's week.
     @State private var footballLeague: Leagues = .nfl
-    /// Racing only: F1 or NASCAR. Both share the racing bucket.
+    /// Racing only: the series shown. All share the racing bucket.
     @State private var racingSeries: Leagues = .formula1
 
     var body: some View {
@@ -236,11 +236,10 @@ struct BrowseSportView: View {
             if sport == .nfl, storage.shouldShowCFB, !storage.shouldShowNFL {
                 footballLeague = .ncaaf
             }
-            // Open on the series the user follows when they've hidden F1 but not NASCAR.
-            if sport == .racing,
-               storage.hiddenCompetitions.contains(Leagues.formula1.leagueName),
-               !storage.hiddenCompetitions.contains(Leagues.nascarCup.leagueName) {
-                racingSeries = .nascarCup
+            // Open on a series the user follows when they've hidden F1.
+            if sport == .racing, storage.hiddenCompetitions.contains(Leagues.formula1.leagueName),
+               let followed = Leagues.allCases.first(where: { $0.isMotorsportSeries && !storage.hiddenCompetitions.contains($0.leagueName) }) {
+                racingSeries = followed
             }
             let vm = SportBrowseViewModel(sport: sport, viewModel: viewModel)
             browseVM = vm
@@ -293,8 +292,9 @@ struct BrowseSportView: View {
                 }
                 if sport == .racing {
                     Picker("Series", selection: $racingSeries) {
-                        Text("F1").tag(Leagues.formula1)
-                        Text("NASCAR").tag(Leagues.nascarCup)
+                        ForEach(Leagues.allCases.filter(\.isRacing), id: \.self) { series in
+                            Text(series.racingShortName ?? series.leagueName).tag(series)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .listRowBackground(Color.clear)
@@ -304,7 +304,7 @@ struct BrowseSportView: View {
 
             if sport == .racing {
                 if racingSeries == .formula1 {
-                    // One-time pointer to NASCAR for F1 fans (dismissed for good once acted on).
+                    // One-time pointer to the other series for F1 fans (dismissed for good once acted on).
                     NASCARPromoSection()
                 } else if storage.hiddenCompetitions.contains(racingSeries.leagueName) {
                     Section {

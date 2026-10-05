@@ -47,8 +47,10 @@ public struct LeaderboardEntry: Codable, Equatable, Hashable {
 }
 
 // MARK: - StockCarDetail
-/// Per-car data NASCAR publishes that F1 has no equivalent for (car numbers,
-/// manufacturers, laps led, playoff eligibility).
+/// Per-car data the car-number series publish (NASCAR, IndyCar, IMSA, WEC) that F1's
+/// feed has no equivalent for: car number, manufacturer, laps led, and for endurance
+/// racing the class and the driver crew. Named for where it started; every field is
+/// optional beyond the car number, so each series fills what it has.
 public struct StockCarDetail: Codable, Equatable, Hashable {
     public var carNumber: String
     /// Full manufacturer name: "Chevrolet", "Ford", "Toyota".
@@ -70,8 +72,14 @@ public struct StockCarDetail: Codable, Equatable, Hashable {
     public var sponsor: String?
     /// Laps down to the leader; 0 on the lead lap.
     public var lapsDown: Int?
+    /// Endurance racing: the car's class ("GTP", "LMP2", "GTD PRO", "HYPERCAR", "LMGT3"),
+    /// its position within it, its model ("Porsche 963") and the drivers sharing it.
+    public var vehicleClass: String?
+    public var classPosition: Int?
+    public var vehicle: String?
+    public var drivers: [String]?
 
-    public init(carNumber: String, manufacturer: String? = nil, startPosition: Int? = nil, lapsCompleted: Int? = nil, lapsLed: Int? = nil, pitStops: Int? = nil, bestLapTime: Double? = nil, bestLapSpeed: Double? = nil, status: String? = nil, points: Int? = nil, playoffPoints: Int? = nil, inPlayoffs: Bool? = nil, sponsor: String? = nil, lapsDown: Int? = nil) {
+    public init(carNumber: String, manufacturer: String? = nil, startPosition: Int? = nil, lapsCompleted: Int? = nil, lapsLed: Int? = nil, pitStops: Int? = nil, bestLapTime: Double? = nil, bestLapSpeed: Double? = nil, status: String? = nil, points: Int? = nil, playoffPoints: Int? = nil, inPlayoffs: Bool? = nil, sponsor: String? = nil, lapsDown: Int? = nil, vehicleClass: String? = nil, classPosition: Int? = nil, vehicle: String? = nil, drivers: [String]? = nil) {
         self.carNumber = carNumber
         self.manufacturer = manufacturer
         self.startPosition = startPosition
@@ -86,6 +94,10 @@ public struct StockCarDetail: Codable, Equatable, Hashable {
         self.inPlayoffs = inPlayoffs
         self.sponsor = sponsor
         self.lapsDown = lapsDown
+        self.vehicleClass = vehicleClass
+        self.classPosition = classPosition
+        self.vehicle = vehicle
+        self.drivers = drivers
     }
 
     /// Places gained (+) or lost (−) from the start.
@@ -124,8 +136,11 @@ public struct RaceState: Codable, Equatable, Hashable {
     public var distanceMiles: Double?
     /// TV network ("USA", "FOX", "Prime Video").
     public var broadcast: String?
+    /// Races run to a clock (endurance): its length and what's left, in seconds.
+    public var duration: Double?
+    public var timeRemaining: Double?
 
-    public init(lap: Int, totalLaps: Int, flag: Flag, stage: Int? = nil, stageEndLap: Int? = nil, cautions: Int? = nil, cautionLaps: Int? = nil, leadChanges: Int? = nil, leaders: Int? = nil, stageEndLaps: [Int]? = nil, distanceMiles: Double? = nil, broadcast: String? = nil) {
+    public init(lap: Int, totalLaps: Int, flag: Flag, stage: Int? = nil, stageEndLap: Int? = nil, cautions: Int? = nil, cautionLaps: Int? = nil, leadChanges: Int? = nil, leaders: Int? = nil, stageEndLaps: [Int]? = nil, distanceMiles: Double? = nil, broadcast: String? = nil, duration: Double? = nil, timeRemaining: Double? = nil) {
         self.lap = lap
         self.totalLaps = totalLaps
         self.flag = flag
@@ -138,6 +153,18 @@ public struct RaceState: Codable, Equatable, Hashable {
         self.stageEndLaps = stageEndLaps
         self.distanceMiles = distanceMiles
         self.broadcast = broadcast
+        self.duration = duration
+        self.timeRemaining = timeRemaining
+    }
+
+    /// Timed races have no lap count to run to.
+    public var isTimed: Bool { duration != nil }
+
+    /// "4:12:30 left" for a timed race.
+    public var timeRemainingLabel: String? {
+        guard let timeRemaining, timeRemaining >= 0 else { return nil }
+        let seconds = Int(timeRemaining)
+        return String(format: "%d:%02d:%02d left", seconds / 3600, seconds % 3600 / 60, seconds % 60)
     }
 
     public var lapsToGo: Int { max(totalLaps - lap, 0) }

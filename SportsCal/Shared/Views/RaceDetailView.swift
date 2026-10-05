@@ -44,10 +44,10 @@ struct RaceDetailView: View {
 
     // MARK: - Body
     var body: some View {
-        // NASCAR has its own page (car numbers, stages, cautions, the Chase); the
-        // favourite/follow/calendar/notify actions are shared.
-        if game.isNASCAR {
-            NASCARRaceDetailView(game: game) { actionsRow }
+        // The series beyond F1 (NASCAR, IndyCar, IMSA, WEC) have their own page (car
+        // numbers, classes, stages); the favourite/follow/calendar/notify actions are shared.
+        if game.isMotorsportSeries {
+            MotorsportRaceDetailView(game: game) { actionsRow }
                 .sheet(item: $sheetType, content: sheetContent)
         } else {
             f1Body

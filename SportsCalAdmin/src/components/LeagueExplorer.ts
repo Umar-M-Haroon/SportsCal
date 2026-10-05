@@ -150,7 +150,12 @@ export class LeagueExplorer {
     if (this.scheduleData.mlb) computeForEvents(this.scheduleData.mlb.events, Leagues.MLB)
     if (this.scheduleData.golf) computeForEvents(this.scheduleData.golf.events, Leagues.PGA)
     if (this.scheduleData.racing) computeForEvents(this.scheduleData.racing.events, Leagues.Formula1)
-    if (this.scheduleData.motorsport) computeForEvents(this.scheduleData.motorsport.events, Leagues.NASCARCup)
+    if (this.scheduleData.motorsport) {
+      for (const series of [Leagues.NASCARCup, Leagues.IndyCar, Leagues.IMSA, Leagues.WEC]) {
+        const events = this.scheduleData.motorsport.events.filter(g => g.idLeague === String(series))
+        if (events.length) computeForEvents(events, series)
+      }
+    }
 
     // Multi-league sports: soccer & tennis — group by idLeague
     const groupByLeague = (events: Game[]) => {
@@ -374,7 +379,7 @@ export class LeagueExplorer {
       case Leagues.MLB: return 'baseball'
       case Leagues.PGA: return 'golf'
       case Leagues.ATP: case Leagues.WTA: return 'tennis'
-      case Leagues.Formula1: case Leagues.NASCARCup: return 'racing'
+      case Leagues.Formula1: case Leagues.NASCARCup: case Leagues.IndyCar: case Leagues.IMSA: case Leagues.WEC: return 'racing'
       default: return 'soccer'
     }
   }
@@ -389,7 +394,7 @@ export class LeagueExplorer {
   }
 
   private isRacingLeague(leagueId: number): boolean {
-    return leagueId === Leagues.Formula1 || leagueId === Leagues.NASCARCup
+    return [Leagues.Formula1, Leagues.NASCARCup, Leagues.IndyCar, Leagues.IMSA, Leagues.WEC].includes(leagueId)
   }
 
   private extractGPName(sessionName: string): string {
@@ -465,7 +470,9 @@ export class LeagueExplorer {
     if (leagueId === Leagues.MLB && this.scheduleData.mlb) return this.scheduleData.mlb.events
     if (leagueId === Leagues.PGA && this.scheduleData.golf) return this.scheduleData.golf.events
     if (leagueId === Leagues.Formula1 && this.scheduleData.racing) return this.scheduleData.racing.events
-    if (leagueId === Leagues.NASCARCup && this.scheduleData.motorsport) return this.scheduleData.motorsport.events
+    if (this.isRacingLeague(leagueId) && leagueId !== Leagues.Formula1 && this.scheduleData.motorsport) {
+      return this.scheduleData.motorsport.events.filter(g => g.idLeague === String(leagueId))
+    }
 
     // Tennis — filter by league ID
     if ((leagueId === Leagues.ATP || leagueId === Leagues.WTA) && this.scheduleData.tennis) {

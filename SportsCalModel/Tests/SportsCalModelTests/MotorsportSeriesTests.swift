@@ -72,6 +72,30 @@ final class MotorsportSeriesTests: XCTestCase {
         XCTAssertEqual(race.leaders.first?.teamColor, "1F5AA6")
     }
 
+    func testIndyCarIMSAWECAreHiddenRacingSeries() {
+        for league in [Leagues.indycar, .imsa, .wec] {
+            XCTAssertTrue(league.isRacing, "\(league)")
+            XCTAssertTrue(league.isMotorsportSeries, "\(league)")
+            XCTAssertFalse(league.isSoccer, "\(league) must not fall into the soccer bucket")
+            XCTAssertTrue(league.isHiddenByDefault, "\(league) is opt-in")
+            XCTAssertNil(league.espnSlug, "\(league) has its own service; ESPN league loops must skip it")
+            XCTAssertEqual(SportType(league: league), .racing)
+        }
+        XCTAssertEqual(Leagues.allCases.filter(\.isRacing).compactMap(\.racingShortName), ["F1", "NASCAR", "IndyCar", "IMSA", "WEC"])
+    }
+
+    func testEnduranceLiveActivityShowsTheClock() throws {
+        let entry = LeaderboardEntry(name: "Vanthoor / Estre", score: "P1", position: 1,
+                                     stockCar: StockCarDetail(carNumber: "6", manufacturer: "Porsche", vehicleClass: "GTP"))
+        let session = EventSession(sessionType: "race", sessionName: "Race", status: "in", leaderboard: [entry],
+                                   raceState: RaceState(lap: 200, totalLaps: 0, flag: .green, duration: 36000, timeRemaining: 4 * 3600 + 750))
+        let game = Game(idEvent: "imsa-2415574", idLeague: "4488", strHomeTeam: "Motul Petit Le Mans", strAwayTeam: "Vanthoor / Estre",
+                        isoDate: nil, sessions: [session])
+        XCTAssertTrue(game.isEnduranceRacing)
+        let race = try XCTUnwrap(LiveActivityRace(game: game, standings: nil))
+        XCTAssertEqual(race.session, "4:12:30 left", "not \"Lap 200/0\"")
+    }
+
     func testDriverNameCleanup() {
         XCTAssertEqual(NASCARVocabulary.cleanDriverName("Austin Cindric (C)"), "Austin Cindric")
         XCTAssertEqual(NASCARVocabulary.cleanDriverName("Austin Hill(i)"), "Austin Hill")

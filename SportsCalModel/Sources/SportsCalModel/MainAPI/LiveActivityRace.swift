@@ -54,7 +54,10 @@ public struct LiveActivityRace: Codable, Hashable, Sendable {
         guard !top.isEmpty || live != nil else { return nil }
 
         // Series with lap counts (NASCAR) show where the race is instead of the session.
-        if let state = session?.raceState, session?.status == "in", state.lap > 0 {
+        if let state = session?.raceState, session?.status == "in", state.isTimed {
+            // Endurance races run to a clock: "4:12:30 left".
+            self.session = state.timeRemainingLabel ?? session?.progress ?? "Race"
+        } else if let state = session?.raceState, session?.status == "in", state.lap > 0, state.totalLaps > 0 {
             self.session = state.flag == .yellow ? "Caution L\(state.lap)" : state.lapLabel
         } else {
             self.session = session?.shortName ?? "Race"

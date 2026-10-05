@@ -58,7 +58,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // NASCAR Cup: rebuilt from NASCAR's live feed for any race weekend in progress. Not
         // gated on `active`: that window keys off the race start, and Friday practice is
         // two days before it. Outside race weekends this is a Redis read, no fetch.
-        let nascar = await NASCARService.liveGames(app: context.application, isDebug: isDebug)
+        // IndyCar the same way, from ESPN's current board.
+        var nascar = await NASCARService.liveGames(app: context.application, isDebug: isDebug)
+            + IndyCarService.liveGames(app: context.application, isDebug: isDebug)
+        for series in AlKamelSeries.allCases {
+            nascar += await AlKamelService.liveGames(series, app: context.application, isDebug: isDebug)
+        }
 
         if let active, active.isEmpty, nascar.isEmpty {
             // Nothing is live, so skip the live-score work — but still refresh the forward
