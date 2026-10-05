@@ -54,7 +54,13 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // Compute the active-league set once. nil = cold start (both schedule sources
         // empty) — treat as "fetch everything" so we populate cache for the next tick.
         let active = await Integrator.activeLeaguesCached(redis: redis, isDebug: isDebug)
-        if let active, active.isEmpty {
+
+        // NASCAR Cup: rebuilt from NASCAR's live feed for any race weekend in progress. Not
+        // gated on `active`: that window keys off the race start, and Friday practice is
+        // two days before it. Outside race weekends this is a Redis read, no fetch.
+        let nascar = await NASCARService.liveGames(app: context.application, isDebug: isDebug)
+
+        if let active, active.isEmpty, nascar.isEmpty {
             // Nothing is live, so skip the live-score work — but still refresh the forward
             // schedule window. It is the schedule backfill, and a quiet period is exactly
             // when the calendar is emptiest and it matters most; returning here would leave
@@ -136,6 +142,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
            let collegeEvent = LiveEvent(events: collegeBoard, league: .ncaaf) {
             var result = newResult ?? LiveScore()
             result.nfl = LiveEvent.merging(result.nfl, collegeEvent)
+            newResult = result
+        }
+
+        if !nascar.isEmpty {
+            var result = newResult ?? LiveScore()
+            result.racing = Self.replacingGames(in: result.racing, with: nascar)
             newResult = result
         }
 
@@ -713,6 +725,21 @@ struct ESPNFetchJob: AsyncScheduledJob {
     /// Max ESPN day-board fetches in flight while building the forward window.
     static let forwardWindowConcurrency = 6
 
+    /// `bucket` with each of `games` swapped in for the game with the same `idEvent`, or
+    /// appended when there is none. For sources that own their games outright (NASCAR),
+    /// where a fresh copy is the whole truth rather than an overlay.
+    static func replacingGames(in bucket: LiveEvent?, with games: [Game]) -> LiveEvent {
+        let fresh = Dictionary(games.compactMap { game in game.idEvent.map { ($0, game) } }, uniquingKeysWith: { _, new in new })
+        var seen = Set<String>()
+        var events: [Game] = (bucket?.events ?? []).map { game in
+            guard let id = game.idEvent, let replacement = fresh[id] else { return game }
+            seen.insert(id)
+            return replacement
+        }
+        events += games.filter { game in game.idEvent.map { !seen.contains($0) } ?? true }
+        return LiveEvent(events: events)
+    }
+
     /// Keeps the first occurrence of each event ID. A game without one can't be addressed,
     /// so it passes through untouched rather than being collapsed against other ID-less games.
     static func dedupedByEventID(_ games: [Game]) -> [Game] {
@@ -1120,7 +1147,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
     /// and which Redis keyspace to read/delete from for dedup and cleanup.
     /// Live Activity `awayTeam` attribute for F1. Must match the app's
     /// `GameViewModel.raceActivitySubtitle` so update matching agrees.
-    static let raceActivitySubtitle = "Formula 1"
+    static func raceActivitySubtitle(for game: Game) -> String {
+        game.racingSeries?.leagueName ?? "Formula 1"
+    }
 
     static func sendPushToStartNotification(
         game: Game,
@@ -1139,7 +1168,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
         guard let eventID = game.idEvent else { return }
         let homeTeam = game.strHomeTeam
         // F1's strAwayTeam is whoever leads right now; a static attribute would freeze it.
-        let awayTeam = game.isRace ? Self.raceActivitySubtitle : game.strAwayTeam
+        let awayTeam = game.isRace ? Self.raceActivitySubtitle(for: game) : game.strAwayTeam
         // Validate the ID-based lookup by name to guard against cross-sport ID collisions
         // (e.g. ESPN NBA ID 18 ≠ ESPN NHL ID 18 — a wrong translation would return "LAC"
         // for the Knicks). Fall back to name-based lookup if the ID resolves to a different team.
@@ -1426,8 +1455,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
         var espnByNormalizedNames: [String: [Game]] = [:]
         // Key: alias-resolved canonical key (catches "PSG" ≡ "Paris Saint-Germain" etc.)
         var espnByCanonicalKey: [String: [Game]] = [:]
-        // Key: lowercased event/tournament name (for individual sports)
+        // Key: league|lowercased event/tournament name (for individual sports). The league
+        // is part of the key so two series running a same-named event can't cross-match.
         var espnByEventName: [String: Game] = [:]
+        // Key: idEvent. Only ever equal when both copies came from the same upstream
+        // (NASCAR games are built from NASCAR's feed on both sides), so it is exact.
+        var espnByEventID: [String: Game] = [:]
         // Key: league|day — the pool the loose name fallback scans.
         var espnByLeagueDay: [String: [Game]] = [:]
 
@@ -1457,7 +1490,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
             // bleeding today's score/status across every tournament. Exclude them; tennis still
             // matches legitimately via the team-name+day path above.
             if game.isIndividualSport && !game.isTennisMatch {
-                espnByEventName[game.strHomeTeam.lowercased()] = game
+                espnByEventName["\(game.idLeague ?? "-")|\(game.strHomeTeam.lowercased())"] = game
+            }
+            if let id = game.idEvent, !id.isEmpty {
+                espnByEventID[id] = game
             }
         }
 
@@ -1482,8 +1518,13 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 Self.closestByKickoff(candidates?.filter { $0.isCollegeFootball == scheduleGame.isCollegeFootball }, to: scheduleGame)
             }
 
+            // Same upstream, same event.
+            if let id = scheduleGame.idEvent, !id.isEmpty {
+                espnMatch = espnByEventID[id]
+            }
+
             // Primary: match by team IDs + day
-            if let homeID = scheduleGame.idHomeTeam, let awayID = scheduleGame.idAwayTeam,
+            if espnMatch == nil, let homeID = scheduleGame.idHomeTeam, let awayID = scheduleGame.idAwayTeam,
                !homeID.isEmpty, !awayID.isEmpty {
                 let key = "\(homeID.lowercased())|\(awayID.lowercased())|\(day)"
                 espnMatch = closest(espnByTeamIDs[key])
@@ -1547,7 +1588,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
             // Individual sports: match by event/tournament name (golf/F1 only — see build above).
             if espnMatch == nil && scheduleGame.isIndividualSport && !scheduleGame.isTennisMatch {
-                espnMatch = espnByEventName[scheduleGame.strHomeTeam.lowercased()]
+                espnMatch = espnByEventName["\(scheduleGame.idLeague ?? "-")|\(scheduleGame.strHomeTeam.lowercased())"]
             }
 
             if let match = espnMatch {

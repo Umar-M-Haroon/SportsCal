@@ -44,6 +44,17 @@ struct RaceDetailView: View {
 
     // MARK: - Body
     var body: some View {
+        // NASCAR has its own page (car numbers, stages, cautions, the Chase); the
+        // favourite/follow/calendar/notify actions are shared.
+        if game.isNASCAR {
+            NASCARRaceDetailView(game: game) { actionsRow }
+                .sheet(item: $sheetType, content: sheetContent)
+        } else {
+            f1Body
+        }
+    }
+
+    private var f1Body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 circuitImageSection
@@ -53,6 +64,7 @@ struct RaceDetailView: View {
                 }
                 gameInfo
                 actionsRow
+                NASCARPromoCard()
                 if hasSessions {
                     gapRibbonSection
                     if let sessionDetail, !sessionDetail.lapPositions.isEmpty {
@@ -85,19 +97,22 @@ struct RaceDetailView: View {
         .onAppear {
             selectDefaultSession()
         }
-        .sheet(item: $sheetType) { sheet in
-            switch sheet {
-            case .calendar(let eventGame):
-                #if os(iOS)
-                if let game = eventGame {
-                    makeCalendarEvent(game: game)
-                }
-                #else
-                EmptyView()
-                #endif
-            default:
-                EmptyView()
+        .sheet(item: $sheetType, content: sheetContent)
+    }
+
+    @ViewBuilder
+    private func sheetContent(_ sheet: SheetType) -> some View {
+        switch sheet {
+        case .calendar(let eventGame):
+            #if os(iOS)
+            if let game = eventGame {
+                makeCalendarEvent(game: game)
             }
+            #else
+            EmptyView()
+            #endif
+        default:
+            EmptyView()
         }
     }
 

@@ -586,9 +586,11 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         // Browse wants all of FBS, and honouring a client-chosen selection would let the
         // cache hold one multi-MB slice per conference combination (~32k of them).
         let college = WidgetCollegeFilter(query: req.query).browsingAllFBS()
-        let variant = sport == .nfl
-            ? "sport:nfl:\(college.variantKey)"
-            : "sport:\(sport.rawValue)"
+        let variant = switch sport {
+        case .nfl: "sport:nfl:\(college.variantKey)"
+        case .racing: "sport:racing:motorsport=\(college.includeMotorsport)"
+        default: "sport:\(sport.rawValue)"
+        }
         let etag = HTTPCaching.etag(version: schedule.version, variant: variant)
         // A client can only hold this tag from an earlier 200 for the same schedule
         // version and variant, so the slice existed; answer 304 before building it.
@@ -599,7 +601,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
             guard let data = source.data(using: .utf8),
                   let decoded = try? JSONDecoder().decode(LiveScore.self, from: data),
                   var event = decoded.event(for: sport) else { return nil }
-            if sport == .nfl {
+            if sport == .nfl || sport == .racing {
                 event.events = event.events.filter { college.admits($0, favorites: []) }
             }
             return encodeResult(res: event)
@@ -703,6 +705,22 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
             throw Abort(.notFound)
         }
         return encodeResult(res: detail)
+    }
+
+    //MARK: - NASCAR Cup standings and race detail
+    // Both read through a short Redis cache, so app traffic never reaches NASCAR directly.
+    routes.get("racing", "nascar", "standings") { req async throws -> String in
+        let isDebug = req.application.environment == .development
+        return encodeResult(res: try await NASCARService.standings(app: req.application, isDebug: isDebug))
+    }
+
+    // `race` is NASCAR's race ID (the game's `idEvent` is "nascar-{race}").
+    routes.get("racing", "nascar", "race", ":race") { req async throws -> String in
+        guard let raceID = req.parameters.get("race").flatMap(Int.init) else {
+            throw Abort(.badRequest)
+        }
+        let isDebug = req.application.environment == .development
+        return encodeResult(res: try await NASCARService.raceDetail(raceID: raceID, app: req.application, isDebug: isDebug))
     }
 
     //MARK: - Live Websocket
@@ -1777,21 +1795,26 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 ///   the default (Top 25); present but empty (`cfbSel=`) means followed teams only.
 ///   A game whose home or away team name is in `favorites` always passes.
 /// - `nfl=0` — drop NFL games (college on, NFL off: the client still asks for `sports=nfl`).
+/// - `motorsport=1` — include racing series other than F1 (NASCAR, …). Clients that predate
+///   them render every racing game as an F1 weekend.
 struct WidgetCollegeFilter {
     var includeCollege = false
     var selection: CollegeFootballSelection = .default
     var includeNFL = true
+    var includeMotorsport = false
 
-    init(includeCollege: Bool = false, selection: CollegeFootballSelection = .default, includeNFL: Bool = true) {
+    init(includeCollege: Bool = false, selection: CollegeFootballSelection = .default, includeNFL: Bool = true, includeMotorsport: Bool = false) {
         self.includeCollege = includeCollege
         self.selection = selection
         self.includeNFL = includeNFL
+        self.includeMotorsport = includeMotorsport
     }
 
     init(query: URLQueryContainer) {
         includeCollege = (try? query.get(String.self, at: "cfb")) == "1"
         selection = Self.selection(from: try? query.get(String.self, at: "cfbSel"))
         includeNFL = (try? query.get(String.self, at: "nfl")) != "0"
+        includeMotorsport = (try? query.get(String.self, at: "motorsport")) == "1"
     }
 
     static func selection(from raw: String?) -> CollegeFootballSelection {
@@ -1804,15 +1827,16 @@ struct WidgetCollegeFilter {
     /// The same opt-ins with every FBS game — for responses cached per variant, which
     /// must not multiply by the user's selection.
     func browsingAllFBS() -> WidgetCollegeFilter {
-        WidgetCollegeFilter(includeCollege: includeCollege, selection: .allFBS, includeNFL: includeNFL)
+        WidgetCollegeFilter(includeCollege: includeCollege, selection: .allFBS, includeNFL: includeNFL, includeMotorsport: includeMotorsport)
     }
 
     /// Stable cache-key fragment for the response variant this filter produces.
     var variantKey: String {
-        "cfb=\(includeCollege):\(selection.rawValue):nfl=\(includeNFL)"
+        "cfb=\(includeCollege):\(selection.rawValue):nfl=\(includeNFL):motorsport=\(includeMotorsport)"
     }
 
     func admits(_ game: Game, favorites: Set<String>) -> Bool {
+        if game.isMotorsportSeries { return includeMotorsport }
         if game.isCollegeFootball {
             guard includeCollege else { return false }
             let isFavorite = favorites.contains(game.strHomeTeam) || favorites.contains(game.strAwayTeam)

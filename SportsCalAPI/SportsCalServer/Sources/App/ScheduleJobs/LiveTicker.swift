@@ -139,11 +139,27 @@ enum LiveTicker {
                 overlays.append((source.sport, games, source.matchStrategy))
             }
         }
-        guard !overlays.isEmpty else { return fastInterval }
+        // NASCAR owns its games outright (built from NASCAR's feed on both paths), so a
+        // live weekend is rebuilt whole rather than overlaid: laps, flags and the running
+        // order all live in its sessions, which the overlay doesn't carry.
+        let nascar = leagues.contains(.nascarCup)
+            ? await NASCARService.liveGames(app: app, isDebug: isDebug)
+            : []
+
+        guard !overlays.isEmpty || !nascar.isEmpty else { return fastInterval }
 
         var working = (try? await app.redis.get(liveKey, asJSON: LiveScore.self)) ?? cached
         var changed = Set<String>()
         var situationChanged = Set<String>()
+        if !nascar.isEmpty {
+            let before = Dictionary((working.racing?.events ?? []).compactMap { g in g.idEvent.map { ($0, g) } }, uniquingKeysWith: { a, _ in a })
+            for game in nascar {
+                guard let id = game.idEvent, before[id] != game else { continue }
+                // Only a status change is worth the push scan; laps and positions just republish.
+                if before[id]?.strStatus != game.strStatus { changed.insert(id) } else { situationChanged.insert(id) }
+            }
+            working.racing = ESPNFetchJob.replacingGames(in: working.racing, with: nascar)
+        }
         for overlay in overlays {
             let r = LiveMerge.overlay(cached: working, sport: overlay.sport, fresh: overlay.games, strategy: overlay.strategy)
             working = r.liveScore

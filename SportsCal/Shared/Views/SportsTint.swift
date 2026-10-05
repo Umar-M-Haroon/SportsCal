@@ -100,7 +100,7 @@ extension SportType {
         case .tennis:
             return "Tennis"
         case .racing:
-            return "Formula 1"
+            return "Racing"
         }
     }
 }

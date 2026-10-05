@@ -109,7 +109,8 @@ export class LiveGames {
         soccer: allGames.soccer ? { events: filterLive(allGames.soccer.events) } : undefined,
         golf: allGames.golf ? { events: filterLive(allGames.golf.events) } : undefined,
         tennis: allGames.tennis ? { events: filterLive(allGames.tennis.events) } : undefined,
-        racing: allGames.racing ? { events: filterLive(allGames.racing.events) } : undefined
+        racing: allGames.racing ? { events: filterLive(allGames.racing.events) } : undefined,
+        motorsport: allGames.motorsport ? { events: filterLive(allGames.motorsport.events) } : undefined
       }
 
       this.handleLiveData(liveData, allGames)
@@ -163,7 +164,8 @@ export class LiveGames {
       { name: 'Soccer', data: liveData.soccer, allData: allData?.soccer, color: '#00a650' },
       { name: 'Golf', data: liveData.golf, allData: allData?.golf, color: '#2ca58d' },
       { name: 'Tennis', data: liveData.tennis, allData: allData?.tennis, color: '#c8b900' },
-      { name: 'Formula 1', data: liveData.racing, allData: allData?.racing, color: '#e10600' }
+      { name: 'Formula 1', data: liveData.racing, allData: allData?.racing, color: '#e10600' },
+      { name: 'NASCAR', data: liveData.motorsport, allData: allData?.motorsport, color: '#ffd659' }
     ]
 
     const liveGamesCount = sports.reduce((sum, sport) =>
@@ -257,7 +259,7 @@ export class LiveGames {
   }
 
   private renderGame(game: Game, sportName: string): string {
-    if (sportName === 'Golf' || sportName === 'Tennis' || sportName === 'Formula 1') {
+    if (sportName === 'Golf' || sportName === 'Tennis' || sportName === 'Formula 1' || sportName === 'NASCAR') {
       return this.renderTournamentGame(game)
     }
     return this.renderTeamGame(game)

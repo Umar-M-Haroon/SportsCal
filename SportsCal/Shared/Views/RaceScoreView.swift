@@ -8,7 +8,7 @@
 import SwiftUI
 import SportsCalModel
 
-/// Displays an F1 race with a mini leaderboard showing top 3 drivers and constructors
+/// Displays a race weekend (F1, NASCAR) with a mini leaderboard of the top 3
 struct RaceScoreView: View {
     var game: Game
     @Environment(Favorites.self) private var favorites
@@ -26,6 +26,11 @@ struct RaceScoreView: View {
     /// done) to avoid stating the same session twice. Without a strip, fall back to the full
     /// session-aware text ("Race · Sun 2:00 PM").
     private var raceStatusText: String? {
+        // NASCAR's live line is where the race stands ("Caution · Lap 92/267"), which the
+        // session strip can't say.
+        if game.isNASCAR, isLive, let progress = game.strProgress {
+            return progress
+        }
         if hasSessionStrip {
             if case .finished = game.raceWeekendStatus { return "Final" }
             return nil
@@ -48,6 +53,7 @@ struct RaceScoreView: View {
         var parts = [game.strHomeTeam]
         if isLive { parts.append("live") }
         if let circuit = game.circuitInfo { parts.append("\(circuit.locality), \(circuit.country)") }
+        else if let venue = game.venueName, game.isNASCAR { parts.append(venue) }
         if let status = raceStatusText { parts.append(status) }
         let entries = game.resolvedLeaderboard.prefix(3)
         if !entries.isEmpty {
@@ -81,6 +87,14 @@ struct RaceScoreView: View {
                         .foregroundColor(.red)
                     Text(game.strHomeTeam)
                         .font(.headline)
+                    if game.isNASCAR {
+                        Text("NASCAR")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .overlay(Capsule().strokeBorder(Color.secondary.opacity(0.4)))
+                    }
                     Spacer()
                     if isLive {
                         Text("LIVE")
@@ -100,8 +114,13 @@ struct RaceScoreView: View {
                         Text("\(circuit.locality), \(circuit.country)")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                    } else if game.isNASCAR, let venue = game.venueName {
+                        Text(venue)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
                     }
-                    if game.circuitInfo != nil && raceStatusText != nil {
+                    if (game.circuitInfo != nil || (game.isNASCAR && game.venueName != nil)) && raceStatusText != nil {
                         Text("·")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -123,7 +142,11 @@ struct RaceScoreView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                     .frame(width: 18, alignment: .trailing)
-                                HeadshotView(url: entry.headshot, size: 24)
+                                if let car = entry.stockCar {
+                                    CarNumberBadge(number: car.carNumber, manufacturer: car.manufacturer, size: 20)
+                                } else {
+                                    HeadshotView(url: entry.headshot, size: 24)
+                                }
                                 Text(entry.name)
                                     .font(.subheadline)
                                     .fontWeight(index == 0 ? .semibold : .regular)

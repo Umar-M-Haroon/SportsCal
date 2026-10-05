@@ -79,9 +79,10 @@ enum SpotlightIndexer {
 
             // Add leaderboard info for individual sports
             if game.isRace {
-                let leaders = game.raceLeaderboard.prefix(3)
+                let leaders = game.resolvedLeaderboard.prefix(3)
                 if !leaders.isEmpty {
-                    let leaderStr = leaders.map { "\($0.name) P\($0.position)" }.joined(separator: ", ")
+                    // `score` reads "P1" for races.
+                    let leaderStr = leaders.map { "\($0.name) \($0.score)" }.joined(separator: ", ")
                     descParts.append(leaderStr)
                 }
             } else if game.isIndividualSport {

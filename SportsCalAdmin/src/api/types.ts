@@ -39,6 +39,8 @@ export interface LiveScore {
   golf?: LiveEvent
   tennis?: LiveEvent
   racing?: LiveEvent
+  /** Racing series other than F1 (NASCAR Cup, idLeague 4393) — split out of `racing` on the wire. */
+  motorsport?: LiveEvent
 }
 
 export interface Team {
@@ -78,7 +80,8 @@ export enum Leagues {
   PGA = 4425,
   ATP = 4464,
   WTA = 4517,
-  Formula1 = 4370
+  Formula1 = 4370,
+  NASCARCup = 4393
 }
 
 export const LeagueNames: Record<Leagues, string> = {
@@ -110,7 +113,8 @@ export const LeagueNames: Record<Leagues, string> = {
   [Leagues.PGA]: 'PGA Tour',
   [Leagues.ATP]: 'ATP Tour',
   [Leagues.WTA]: 'WTA Tour',
-  [Leagues.Formula1]: 'Formula 1'
+  [Leagues.Formula1]: 'Formula 1',
+  [Leagues.NASCARCup]: 'NASCAR Cup Series'
 }
 
 // Admin-specific types

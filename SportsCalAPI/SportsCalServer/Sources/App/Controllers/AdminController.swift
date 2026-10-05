@@ -329,9 +329,12 @@ struct AdminController: RouteCollection {
         }
 
         if let racing = schedule?.racing {
-            let analysis = analyzeLeague(events: racing.events, league: .formula1)
-            leagueAnalyses.append(analysis)
-            totalGames += racing.events.count
+            for series in Leagues.allCases where series.isRacing {
+                let games = racing.events.filter { $0.racingSeries == series }
+                guard !games.isEmpty else { continue }
+                leagueAnalyses.append(analyzeLeague(events: games, league: series))
+                totalGames += games.count
+            }
         }
 
         // Calculate summary
@@ -432,7 +435,7 @@ struct AdminController: RouteCollection {
                 return gameLeagueId == leagueId
             }
         } else if league.isRacing, let racing = schedule?.racing {
-            games = racing.events
+            games = racing.events.filter { $0.racingSeries == league }
         } else if let soccer = schedule?.soccer {
             games = soccer.events.filter { game in
                 guard let idLeague = game.idLeague,

@@ -171,7 +171,7 @@ public class GameViewModel: NSObject {
         let built = total.filter { game in
             guard let leagueString = game.idLeague,
                   let intLeague = Int(leagueString),
-                  let league = Leagues(rawValue: intLeague), league.isSoccer else { return true }
+                  let league = Leagues(rawValue: intLeague), league.isSoccer || league.isRacing else { return true }
             return !hiddenCompetitions.contains(league.leagueName)
         }.sorted { ($0.standardDate ?? .now) < ($1.standardDate ?? .now) }
         _calendarGamesCache = built
@@ -438,7 +438,8 @@ public class GameViewModel: NSObject {
            !applyCoverage(hidingCompetitions(events, context: context), sport: .tennis).isEmpty {
             sports.append(.tennis)
         }
-        if appStorage.shouldShowRacing, let events = currentLiveInfo?.racing?.events, !events.isEmpty {
+        if appStorage.shouldShowRacing, let events = currentLiveInfo?.racing?.events,
+           !hidingCompetitions(events, context: context).isEmpty {
             sports.append(.racing)
         }
         return sports
@@ -527,12 +528,13 @@ public class GameViewModel: NSObject {
         }
 
         if let racingEvents = currentLiveInfo?.racing?.events {
-            let filteredRacing = racingEvents.filter { game in
+            // Racing spans several series (F1, NASCAR), each hideable like a golf tour.
+            let filteredRacing = hidingCompetitions(racingEvents.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let _ = Leagues(rawValue: intLeague) else { return false }
                 return true
-            }
+            }, context: context)
             if !filteredRacing.isEmpty {
                 counts[.racing] = filteredRacing.count
             }
@@ -693,7 +695,7 @@ public class GameViewModel: NSObject {
                 return false
             })
             if let racingGames {
-                games.append(contentsOf: applyFavoritesFilter(racingGames, favoritesOnly: appStorage.favoritesOnlyRacing, context: context))
+                games.append(contentsOf: applyFavoritesFilter(hidingCompetitions(racingGames, context: context), favoritesOnly: appStorage.favoritesOnlyRacing, context: context))
             }
         }
         return Array(OrderedSet(games))
@@ -715,7 +717,7 @@ public class GameViewModel: NSObject {
             guard let leagueString = game.idLeague,
                   let intLeague = Int(leagueString),
                   let league = Leagues(rawValue: intLeague) else { return false }
-            if league.isSoccer {
+            if league.isSoccer || league.isRacing {
                 return !hiddenCompetitions.contains(league.leagueName)
             }
             return true
@@ -2206,7 +2208,7 @@ public class GameViewModel: NSObject {
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyTennis, context: context))
         }
         if appStorage.shouldShowRacing {
-            let games = gamesDict[.racing] ?? []
+            let games = hidingCompetitions(gamesDict[.racing] ?? [], context: context)
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyRacing, context: context))
         }
         return allGames
@@ -3170,10 +3172,10 @@ extension GameViewModel {
         // team names like "Philadelphia Flyers" are unique and disambiguate cleanly.
         guard let homeTeamName = homeTeam.strTeam ?? homeTeam.strTeamShort,
               let rawAwayTeamName = awayTeam.strTeam ?? awayTeam.strTeamShort else { throw ModelErrors.unknownTeam(game) }
-        // F1: the "away team" is the leader when you tap Follow; label the activity
-        // "Formula 1" instead of freezing that driver into its static attributes.
-        let awayTeamName = game.isRace ? LiveSportActivityAttributes.raceSubtitle : rawAwayTeamName
-        let homeShort = game.isRace ? "F1" : homeTeam.strTeamShort
+        // Races: the "away team" is the leader when you tap Follow; label the activity
+        // with the series ("Formula 1") instead of freezing that driver into its attributes.
+        let awayTeamName = game.isRace ? LiveSportActivityAttributes.raceSubtitle(for: game) : rawAwayTeamName
+        let homeShort = game.isRace ? (game.isNASCAR ? "CUP" : "F1") : homeTeam.strTeamShort
         let awayShort = game.isRace ? nil : awayTeam.strTeamShort
 
         // Download and cache badge images independently (don't require both to succeed)

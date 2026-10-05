@@ -53,13 +53,19 @@ public struct LiveActivityRace: Codable, Hashable, Sendable {
         // (empty leaders), so push-to-start lands on the F1 layout, not a "0-0" score.
         guard !top.isEmpty || live != nil else { return nil }
 
-        self.session = session?.shortName ?? "Race"
+        // Series with lap counts (NASCAR) show where the race is instead of the session.
+        if let state = session?.raceState, session?.status == "in", state.lap > 0 {
+            self.session = state.flag == .yellow ? "Caution L\(state.lap)" : state.lapLabel
+        } else {
+            self.session = session?.shortName ?? "Race"
+        }
         self.leaders = top.map { entry in
             Driver(
                 position: entry.position,
                 code: standings?.driverCode(for: entry.name) ?? Self.fallbackCode(entry.name),
                 gap: entry.position == 1 ? nil : Self.shortGap(entry.gap),
-                teamColor: entry.constructor.flatMap { standings?.teamColorHex(for: $0) }
+                teamColor: entry.stockCar.flatMap { NASCARVocabulary.manufacturerColorHex($0.manufacturer) }
+                    ?? entry.constructor.flatMap { standings?.teamColorHex(for: $0) }
             )
         }
     }

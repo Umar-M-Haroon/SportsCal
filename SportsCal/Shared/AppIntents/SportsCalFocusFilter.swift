@@ -46,7 +46,7 @@ struct SportsCalFocusFilter: SetFocusFilterIntent {
         if showNFL { enabledSports.append("NFL") }
         if showGolf { enabledSports.append("Golf") }
         if showTennis { enabledSports.append("Tennis") }
-        if showRacing { enabledSports.append("F1") }
+        if showRacing { enabledSports.append("Racing") }
 
         let subtitle = enabledSports.isEmpty ? "No sports" : enabledSports.joined(separator: ", ")
         return DisplayRepresentation(title: "Sport Filters", subtitle: "\(subtitle)")

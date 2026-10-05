@@ -23,8 +23,11 @@ public struct LeaderboardEntry: Codable, Equatable, Hashable {
     public let flagAlt: String?
     public let teeTime: String?
     public let roundDetails: [GolfRoundDetail]?
+    /// Stock-car detail (NASCAR). All optional, so F1/golf/tennis rows and older payloads
+    /// decode unchanged; `constructor` holds the race team for these rows.
+    public var stockCar: StockCarDetail?
 
-    public init(name: String, score: String, position: Int, headshot: String? = nil, thruHole: String? = nil, rounds: [String] = [], constructor: String? = nil, gap: String? = nil, isCut: Bool? = nil, movement: Int? = nil, flagURL: String? = nil, flagAlt: String? = nil, teeTime: String? = nil, roundDetails: [GolfRoundDetail]? = nil) {
+    public init(name: String, score: String, position: Int, headshot: String? = nil, thruHole: String? = nil, rounds: [String] = [], constructor: String? = nil, gap: String? = nil, isCut: Bool? = nil, movement: Int? = nil, flagURL: String? = nil, flagAlt: String? = nil, teeTime: String? = nil, roundDetails: [GolfRoundDetail]? = nil, stockCar: StockCarDetail? = nil) {
         self.name = name
         self.score = score
         self.position = position
@@ -39,7 +42,108 @@ public struct LeaderboardEntry: Codable, Equatable, Hashable {
         self.flagAlt = flagAlt
         self.teeTime = teeTime
         self.roundDetails = roundDetails
+        self.stockCar = stockCar
     }
+}
+
+// MARK: - StockCarDetail
+/// Per-car data NASCAR publishes that F1 has no equivalent for (car numbers,
+/// manufacturers, laps led, playoff eligibility).
+public struct StockCarDetail: Codable, Equatable, Hashable {
+    public var carNumber: String
+    /// Full manufacturer name: "Chevrolet", "Ford", "Toyota".
+    public var manufacturer: String?
+    public var startPosition: Int?
+    public var lapsCompleted: Int?
+    public var lapsLed: Int?
+    public var pitStops: Int?
+    /// Best lap in seconds, and its speed in mph.
+    public var bestLapTime: Double?
+    public var bestLapSpeed: Double?
+    /// "Running" while on track; otherwise why the car is out ("Accident", "Engine").
+    public var status: String?
+    /// Points earned in this race (finals only).
+    public var points: Int?
+    public var playoffPoints: Int?
+    /// Still eligible for the championship (the "chase").
+    public var inPlayoffs: Bool?
+    public var sponsor: String?
+    /// Laps down to the leader; 0 on the lead lap.
+    public var lapsDown: Int?
+
+    public init(carNumber: String, manufacturer: String? = nil, startPosition: Int? = nil, lapsCompleted: Int? = nil, lapsLed: Int? = nil, pitStops: Int? = nil, bestLapTime: Double? = nil, bestLapSpeed: Double? = nil, status: String? = nil, points: Int? = nil, playoffPoints: Int? = nil, inPlayoffs: Bool? = nil, sponsor: String? = nil, lapsDown: Int? = nil) {
+        self.carNumber = carNumber
+        self.manufacturer = manufacturer
+        self.startPosition = startPosition
+        self.lapsCompleted = lapsCompleted
+        self.lapsLed = lapsLed
+        self.pitStops = pitStops
+        self.bestLapTime = bestLapTime
+        self.bestLapSpeed = bestLapSpeed
+        self.status = status
+        self.points = points
+        self.playoffPoints = playoffPoints
+        self.inPlayoffs = inPlayoffs
+        self.sponsor = sponsor
+        self.lapsDown = lapsDown
+    }
+
+    /// Places gained (+) or lost (−) from the start.
+    public func positionsGained(finishing position: Int) -> Int? {
+        guard let start = startPosition, start > 0, position > 0 else { return nil }
+        return start - position
+    }
+
+    /// Whether the car is out of the race.
+    public var isOut: Bool {
+        guard let status, !status.isEmpty else { return false }
+        return status.caseInsensitiveCompare("Running") != .orderedSame
+    }
+}
+
+// MARK: - RaceState
+/// Where an oval-style race stands: laps, flag, stage, cautions. Carried on the race
+/// session of series whose feeds publish it (NASCAR).
+public struct RaceState: Codable, Equatable, Hashable {
+    public enum Flag: String, Codable, Hashable {
+        case green, yellow, red, white, checkered, none
+    }
+
+    public var lap: Int
+    public var totalLaps: Int
+    public var flag: Flag
+    /// 1-based stage in progress, and the lap it ends on. Nil outside staged races.
+    public var stage: Int?
+    public var stageEndLap: Int?
+    public var cautions: Int?
+    public var cautionLaps: Int?
+    public var leadChanges: Int?
+    public var leaders: Int?
+    /// Lap each stage ends on ([80, 165, 267]); known before the race starts.
+    public var stageEndLaps: [Int]?
+    public var distanceMiles: Double?
+    /// TV network ("USA", "FOX", "Prime Video").
+    public var broadcast: String?
+
+    public init(lap: Int, totalLaps: Int, flag: Flag, stage: Int? = nil, stageEndLap: Int? = nil, cautions: Int? = nil, cautionLaps: Int? = nil, leadChanges: Int? = nil, leaders: Int? = nil, stageEndLaps: [Int]? = nil, distanceMiles: Double? = nil, broadcast: String? = nil) {
+        self.lap = lap
+        self.totalLaps = totalLaps
+        self.flag = flag
+        self.stage = stage
+        self.stageEndLap = stageEndLap
+        self.cautions = cautions
+        self.cautionLaps = cautionLaps
+        self.leadChanges = leadChanges
+        self.leaders = leaders
+        self.stageEndLaps = stageEndLaps
+        self.distanceMiles = distanceMiles
+        self.broadcast = broadcast
+    }
+
+    public var lapsToGo: Int { max(totalLaps - lap, 0) }
+
+    /// "Lap 135/267".
+    public var lapLabel: String { "Lap \(lap)/\(totalLaps)" }
 }
 
 // MARK: - EventSession
@@ -50,14 +154,17 @@ public struct EventSession: Codable, Equatable, Hashable {
     public let progress: String?
     public let date: String?
     public let leaderboard: [LeaderboardEntry]
+    /// Laps/flag/stage for a race in a series that publishes it (NASCAR); nil for F1.
+    public var raceState: RaceState?
 
-    public init(sessionType: String, sessionName: String, status: String? = nil, progress: String? = nil, date: String? = nil, leaderboard: [LeaderboardEntry] = []) {
+    public init(sessionType: String, sessionName: String, status: String? = nil, progress: String? = nil, date: String? = nil, leaderboard: [LeaderboardEntry] = [], raceState: RaceState? = nil) {
         self.sessionType = sessionType
         self.sessionName = sessionName
         self.status = status
         self.progress = progress
         self.date = date
         self.leaderboard = leaderboard
+        self.raceState = raceState
     }
 
     /// When the session starts. ESPN sends minute precision ("2026-10-04T07:00Z"),
@@ -88,6 +195,9 @@ public struct EventSession: Codable, Equatable, Hashable {
         case "qual", "qualifying": "Quali"
         case "ss", "sq", "sprint qualifying", "sprint shootout": "Sprint Q"
         case "sr", "sprint": "Sprint"
+        case "race", "r": "Race"
+        // NASCAR names its own practices ("Practice", "Practice 2").
+        case "practice": sessionName
         case "": sessionName.isEmpty ? "?" : sessionName
         default: sessionType
         }
@@ -100,7 +210,7 @@ public struct EventSession: Codable, Equatable, Hashable {
         case "sr", "sprint": 5
         case "qual", "qualifying": 4
         case "ss", "sq", "sprint qualifying", "sprint shootout": 3
-        case "fp3": 2
+        case "fp3", "practice": 2
         case "fp2": 1
         default: 0
         }

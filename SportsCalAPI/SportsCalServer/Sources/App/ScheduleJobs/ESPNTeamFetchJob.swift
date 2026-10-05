@@ -30,6 +30,9 @@ struct ESPNTeamFetchJob: AsyncScheduledJob {
                 // overwrite logos/abbreviations with wrong data
                 // College football teams aren't in the teams payload at all (see DBUpdateJob).
                 if league == .ncaaMBBTournament || league == .ncaaf { continue }
+                // Leagues not sourced from ESPN (NASCAR) have no teams endpoint; asking
+                // throws, and one throw fails this whole group.
+                if league.espnSlug == nil { continue }
                 group.addTask {
                     [league : try await Integrator.getTeam(league: league, client: context.application.client)]
                 }

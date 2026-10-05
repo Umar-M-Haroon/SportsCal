@@ -161,7 +161,7 @@ struct PickSportPage: View {
                 }
                 Toggle(isOn: $bindableAppStorage.shouldShowRacing) {
                     Label {
-                        Text("Formula 1")
+                        Text("Racing")
                     } icon: {
                         Image(systemName: "flag.checkered.2.crossed")
                             .modifier(SportsTint(sport: .racing))

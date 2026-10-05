@@ -178,6 +178,8 @@ struct BrowseSportView: View {
     /// Football only: NFL or college. Both share the football bucket, and a college
     /// Saturday alone would bury the NFL's week.
     @State private var footballLeague: Leagues = .nfl
+    /// Racing only: F1 or NASCAR. Both share the racing bucket.
+    @State private var racingSeries: Leagues = .formula1
 
     var body: some View {
         Group {
@@ -234,6 +236,12 @@ struct BrowseSportView: View {
             if sport == .nfl, storage.shouldShowCFB, !storage.shouldShowNFL {
                 footballLeague = .ncaaf
             }
+            // Open on the series the user follows when they've hidden F1 but not NASCAR.
+            if sport == .racing,
+               storage.hiddenCompetitions.contains(Leagues.formula1.leagueName),
+               !storage.hiddenCompetitions.contains(Leagues.nascarCup.leagueName) {
+                racingSeries = .nascarCup
+            }
             let vm = SportBrowseViewModel(sport: sport, viewModel: viewModel)
             browseVM = vm
             await vm.fetch()
@@ -249,10 +257,16 @@ struct BrowseSportView: View {
 
     // MARK: - Games List
 
-    /// For football, just the picked league; every other sport passes through.
-    private func inFootballLeague(_ games: [GameWithTeams]) -> [GameWithTeams] {
-        guard sport == .nfl else { return games }
-        let id = "\(footballLeague.rawValue)"
+    /// For football and racing, just the picked league or series; every other sport
+    /// passes through.
+    private func inSelectedLeague(_ games: [GameWithTeams]) -> [GameWithTeams] {
+        let league: Leagues
+        switch sport {
+        case .nfl: league = footballLeague
+        case .racing: league = racingSeries
+        default: return games
+        }
+        let id = "\(league.rawValue)"
         return games.filter { $0.game.idLeague == id }
     }
 
@@ -276,6 +290,26 @@ struct BrowseSportView: View {
                     .pickerStyle(.segmented)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
+                }
+                if sport == .racing {
+                    Picker("Series", selection: $racingSeries) {
+                        Text("F1").tag(Leagues.formula1)
+                        Text("NASCAR").tag(Leagues.nascarCup)
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
+                }
+            }
+
+            if sport == .racing {
+                if racingSeries == .formula1 {
+                    // One-time pointer to NASCAR for F1 fans (dismissed for good once acted on).
+                    NASCARPromoSection()
+                } else if storage.hiddenCompetitions.contains(racingSeries.leagueName) {
+                    Section {
+                        RacingSeriesHiddenNotice(series: racingSeries)
+                    }
                 }
             }
 
@@ -306,10 +340,10 @@ struct BrowseSportView: View {
                 // Golf: pick a tour, then that tour's tournaments.
                 golfTourSections(browseVM)
             } else {
-            let liveGames = inFootballLeague(browseVM.liveGames)
-            let todayGames = inFootballLeague(browseVM.todayGames)
-            let upcomingGames = inFootballLeague(browseVM.upcomingGames)
-            let recentGames = inFootballLeague(browseVM.recentGames)
+            let liveGames = inSelectedLeague(browseVM.liveGames)
+            let todayGames = inSelectedLeague(browseVM.todayGames)
+            let upcomingGames = inSelectedLeague(browseVM.upcomingGames)
+            let recentGames = inSelectedLeague(browseVM.recentGames)
             switch timeFilter {
             case .upcoming:
                 if !liveGames.isEmpty {

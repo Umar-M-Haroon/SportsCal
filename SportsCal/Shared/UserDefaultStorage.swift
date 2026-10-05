@@ -367,13 +367,21 @@ class UserDefaultStorage {
         defaults?.set(coverageGolf.rawValue, forKey: "coverageGolf")
         defaults?.set(cfbSelection.rawValue, forKey: CollegeFootballSelection.storageKey)
         defaults?.set(hiddenCompetitions, forKey: "hiddenCompetitions")
+        defaults?.set(visibleMotorsportSeries, forKey: NetworkHandler.visibleMotorsportSeriesKey)
         defaults?.set(favoritesOnlyCompetitions, forKey: "favoritesOnlyCompetitions")
+    }
+
+    /// League names of the non-F1 racing series that aren't hidden. Widgets ask the
+    /// server for those series only when this is non-empty (see `NetworkHandler`).
+    var visibleMotorsportSeries: [String] {
+        Leagues.allCases.filter(\.isMotorsportSeries).map(\.leagueName).filter { !hiddenCompetitions.contains($0) }
     }
 
     /// Sync just hiddenCompetitions to the shared app group (called from CompetitionView)
     func syncHiddenCompetitions() {
         let defaults = UserDefaults(suiteName: Self.suiteName)
         defaults?.set(hiddenCompetitions, forKey: "hiddenCompetitions")
+        defaults?.set(visibleMotorsportSeries, forKey: NetworkHandler.visibleMotorsportSeriesKey)
         defaults?.set(favoritesOnlyCompetitions, forKey: "favoritesOnlyCompetitions")
         defaults?.set(sportOrder, forKey: "sportOrder")
         bumpPreferenceVersion()

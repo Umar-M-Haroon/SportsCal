@@ -40,10 +40,12 @@ struct LiveSportActivityAttributes: ActivityAttributes {
         }
     }
 
-    /// `awayTeam` for F1 activities. Attributes are fixed at start, and F1's strAwayTeam
-    /// is whoever leads at that moment, so a constant label stands in. Matches the
-    /// server's `ESPNFetchJob.raceActivitySubtitle`.
-    static let raceSubtitle = "Formula 1"
+    /// `awayTeam` for race activities. Attributes are fixed at start, and a race's
+    /// strAwayTeam is whoever leads at that moment, so the series name stands in.
+    /// Matches the server's `ESPNFetchJob.raceActivitySubtitle(for:)`.
+    static func raceSubtitle(for game: SportsCalModel.Game) -> String {
+        game.racingSeries?.leagueName ?? "Formula 1"
+    }
 
     var homeTeam: String
     var awayTeam: String

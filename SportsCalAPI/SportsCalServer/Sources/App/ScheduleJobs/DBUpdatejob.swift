@@ -262,6 +262,8 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
             // switch below would drop their response into the soccer bucket.
             if league == .ncaaMBBTournament || league == .wnba || league == .ncaaf { continue }
             if Integrator.secondaryGolfTours.contains(league) { continue }
+            // NASCAR comes from NASCAR's own feeds, below.
+            if league == .nascarCup { continue }
             // Season-scoped fetches (previous/current/next): an empty result means the
             // fetch failed (`getSchedule` swallows per-season errors), never "no games".
             fallbackLeagues.insert(league)
@@ -593,6 +595,18 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
             } catch {
                 Self.logger.warning("Golf tour schedule fetch failed for \(tour): \(error)")
             }
+        }
+
+        // NASCAR Cup: NASCAR's own feeds (schedule, every session's results, live state).
+        // Appended after the league loop because the F1 case replaces the racing bucket.
+        // A failed fetch carries the previous NASCAR games over (`fallbackLeagues`).
+        fallbackLeagues.insert(.nascarCup)
+        do {
+            let nascarGames = try await NASCARService.scheduleGames(app: context.application, isDebug: isDebug)
+            schedule.racing = LiveEvent.merging(schedule.racing, LiveEvent(events: nascarGames))
+            Self.logger.info("NASCAR schedule loaded", metadata: ["events": "\(nascarGames.count)"])
+        } catch {
+            Self.logger.warning("NASCAR schedule fetch failed: \(error)")
         }
 
         // Enrich schedule with ESPN scoreboard data (records, leaders, linescores, venue, etc.)

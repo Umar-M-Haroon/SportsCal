@@ -30,7 +30,7 @@ public enum SportType: String, CaseIterable {
             self = .golf
         case .atp, .wta:
             self = .tennis
-        case .formula1:
+        case .formula1, .nascarCup:
             self = .racing
         default:
             self = .soccer
@@ -67,7 +67,7 @@ public enum SportType: String, CaseIterable {
         case .tennis:
             return "Tennis"
         case .racing:
-            return "F1"
+            return "Racing"
         }
     }
 }

@@ -643,6 +643,11 @@ struct NetworkHandler {
                 URLQueryItem(name: "cfbSel", value: CollegeFootballSelection.allFBS.rawValue),
             ]
         }
+        // Racing series beyond F1 are opt-in on flat game lists (older builds would show
+        // them as F1 weekends); this build filters them by the user's league picks.
+        if sport == .racing {
+            components.queryItems = [URLQueryItem(name: "motorsport", value: "1")]
+        }
         let url = components.url!
         let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
@@ -664,6 +669,9 @@ struct NetworkHandler {
             components.queryItems?.append(URLQueryItem(name: "favorites", value: favorites.joined(separator: ",")))
         }
         components.queryItems?.append(contentsOf: collegeFootballQueryItems(sports: sports))
+        if wantsMotorsportSeries {
+            components.queryItems?.append(URLQueryItem(name: "motorsport", value: "1"))
+        }
         let url = components.url!
         let config = URLSessionConfiguration.ephemeral
         config.urlCache = nil
@@ -678,6 +686,23 @@ struct NetworkHandler {
         let decoded = try Self.sharedDecoder.decode(WidgetResponse.self, from: data)
         AppLogger.widget.info("[widgetFetch] decoded \(decoded.games.count) games, \(decoded.teams.count) teams")
         return (decoded.games, decoded.teams)
+    }
+
+    /// App-group key listing the racing series beyond F1 the user has turned on, written
+    /// by `UserDefaultStorage`. Lives here because this file is in every target.
+    static let visibleMotorsportSeriesKey = "visibleMotorsportSeries"
+
+    /// Whether the user has a racing series beyond F1 (NASCAR) switched on. Read from the
+    /// key the app writes (`visibleMotorsportSeriesKey`) rather than
+    /// `hiddenCompetitions`: those series are hidden by default, and a widget that runs
+    /// before the app has seeded that would otherwise read "not hidden" and ask for them.
+    private static var wantsMotorsportSeries: Bool {
+        #if os(watchOS)
+        let defaults: UserDefaults? = .standard
+        #else
+        let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
+        #endif
+        return !(defaults?.stringArray(forKey: visibleMotorsportSeriesKey) ?? []).isEmpty
     }
 
     /// College football opt-in for flat game lists. The server leaves college games out of
@@ -757,6 +782,28 @@ struct NetworkHandler {
             if httpResponse.statusCode == 404 { return nil }
         }
         return try Self.sharedDecoder.decode(F1SessionDetail.self, from: data)
+    }
+
+    /// NASCAR Cup driver standings with the Chase picture.
+    static func fetchNASCARStandings() async throws -> NASCARStandings {
+        let url = URL(string: "\(baseURL())/racing/nascar/standings")!
+        let (data, response) = try await performAuthorized(url: url)
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+        }
+        return try Self.sharedDecoder.decode(NASCARStandings.self, from: data)
+    }
+
+    /// Lap chart, lap notes, stages, cautions and pit stops for one NASCAR race.
+    /// `raceID` is NASCAR's ID (the game's `idEvent` is "nascar-{raceID}").
+    static func fetchNASCARRaceDetail(raceID: Int) async throws -> NASCARRaceDetail? {
+        let url = URL(string: "\(baseURL())/racing/nascar/race/\(raceID)")!
+        let (data, response) = try await performAuthorized(url: url)
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            if httpResponse.statusCode == 404 { return nil }
+        }
+        return try Self.sharedDecoder.decode(NASCARRaceDetail.self, from: data)
     }
 
     /// Fetches play-by-play directly from **production**, regardless of the currently

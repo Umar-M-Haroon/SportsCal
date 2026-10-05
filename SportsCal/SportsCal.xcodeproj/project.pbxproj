@@ -221,6 +221,7 @@
 		1DE4EBB32F3AB03300CAC2E8 /* TennisMatchDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB22F3AB03300CAC2E8 /* TennisMatchDetailView.swift */; };
 		1DE4EBB62F3ACECB00CAC2E8 /* RaceScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB52F3ACECB00CAC2E8 /* RaceScoreView.swift */; };
 		1DE4EBB72F3ACECB00CAC2E8 /* RaceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB42F3ACECB00CAC2E8 /* RaceDetailView.swift */; };
+		4642C4709D1CD7E8DA134ACC /* NASCARViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17048B99499D52C53BCE56D5 /* NASCARViews.swift */; };
 		1DE4EBB92F3AE86000CAC2E8 /* CalendarPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB82F3AE86000CAC2E8 /* CalendarPage.swift */; };
 		1DE4EBBB2F3AF17800CAC2E8 /* SportPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBBA2F3AF17800CAC2E8 /* SportPickerSheet.swift */; };
 		1DE4EBBD2F3C7EBD00CAC2E8 /* BrowsePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBBC2F3C7EBD00CAC2E8 /* BrowsePage.swift */; };
@@ -594,6 +595,7 @@
 		1DE4EBB02F3AB02300CAC2E8 /* TennisMatchScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TennisMatchScoreView.swift; sourceTree = "<group>"; };
 		1DE4EBB22F3AB03300CAC2E8 /* TennisMatchDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TennisMatchDetailView.swift; sourceTree = "<group>"; };
 		1DE4EBB42F3ACECB00CAC2E8 /* RaceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceDetailView.swift; sourceTree = "<group>"; };
+		17048B99499D52C53BCE56D5 /* NASCARViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NASCARViews.swift; sourceTree = "<group>"; };
 		1DE4EBB52F3ACECB00CAC2E8 /* RaceScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceScoreView.swift; sourceTree = "<group>"; };
 		1DE4EBB82F3AE86000CAC2E8 /* CalendarPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarPage.swift; sourceTree = "<group>"; };
 		1DE4EBBA2F3AF17800CAC2E8 /* SportPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportPickerSheet.swift; sourceTree = "<group>"; };
@@ -924,6 +926,7 @@
 				1DE897CD2F3DBE55006657FF /* AutoFollowButton.swift */,
 				1DE4EBBC2F3C7EBD00CAC2E8 /* BrowsePage.swift */,
 				1DE4EBB42F3ACECB00CAC2E8 /* RaceDetailView.swift */,
+				17048B99499D52C53BCE56D5 /* NASCARViews.swift */,
 				1DE4EBB52F3ACECB00CAC2E8 /* RaceScoreView.swift */,
 				1D15BD552A57C71800711F92 /* ListDetailView.swift */,
 				1D77F64A297CFDCC0023E6DB /* SportsTint.swift */,
@@ -1928,6 +1931,7 @@
 				1D8D4DEA2FE629C200D40105 /* ProFeature.swift in Sources */,
 				1DE4EBB62F3ACECB00CAC2E8 /* RaceScoreView.swift in Sources */,
 				1DE4EBB72F3ACECB00CAC2E8 /* RaceDetailView.swift in Sources */,
+				4642C4709D1CD7E8DA134ACC /* NASCARViews.swift in Sources */,
 				1D77F64B297CFDCC0023E6DB /* SportsTint.swift in Sources */,
 				1D8D4E882FE63E8400D40105 /* UpsellCoordinator.swift in Sources */,
 				1DE897CC2F3DB6FA006657FF /* LocalServerDiscovery.swift in Sources */,

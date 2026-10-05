@@ -93,6 +93,14 @@ extension WhatsNewRelease {
         ]),
         WhatsNewRelease(version: "3.3", features: [
             WhatsNewFeature(
+                id: "nascar-cup",
+                title: "NASCAR Cup Series",
+                subtitle: "Every race weekend with the live running order, stages, cautions, lap-by-lap notes, pit stops and the Chase standings.",
+                systemImage: "flag.checkered.2.crossed",
+                tint: Color.app(.racing),
+                action: .showCompetition(.nascarCup, sport: .racing)
+            ),
+            WhatsNewFeature(
                 id: "a-league",
                 title: "A-League",
                 subtitle: "Fixtures, live scores, standings, and team widgets for Australia's top flight.",

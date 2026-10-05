@@ -31,7 +31,7 @@ enum SportAppEnum: String, AppEnum {
             .nfl: "Football",
             .golf: "Golf",
             .tennis: "Tennis",
-            .racing: "Formula 1"
+            .racing: "Racing"
         ]
     }
 

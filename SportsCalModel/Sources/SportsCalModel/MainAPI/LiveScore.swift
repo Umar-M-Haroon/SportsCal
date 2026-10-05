@@ -46,6 +46,10 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     case wta = 4517
 
     case formula1 = 4370
+    /// NASCAR Cup Series. Keyed by TheSportsDB's ID, but sourced entirely from NASCAR's own
+    /// feeds (`cf.nascar.com`), which carry far more than ESPN or TheSportsDB: every lap,
+    /// stage, caution and pit stop. Off by default; see `isHiddenByDefault`.
+    case nascarCup = 4393
 
     case ncaaMBBTournament = 100
     case wnba = 101
@@ -62,7 +66,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     /// call; a `switch` decides it without allocating.
     public var isSoccer: Bool {
         switch self {
-        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament, .wnba, .ncaaf,
+        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .nascarCup, .ncaaMBBTournament, .wnba, .ncaaf,
              .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld:
             return false
         default:
@@ -73,7 +77,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     /// Leagues that start out hidden until the user turns them on in Settings. Seeded
     /// into `hiddenCompetitions` once per league, so turning one on sticks.
     public var isHiddenByDefault: Bool {
-        self == .A_League
+        self == .A_League || self == .nascarCup
     }
 
     public var isBasketball: Bool {
@@ -102,7 +106,18 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     }
 
     public var isRacing: Bool {
-        return self == .formula1
+        switch self {
+        case .formula1, .nascarCup: return true
+        default: return false
+        }
+    }
+
+    /// Racing series other than Formula 1. App versions that predate them render every
+    /// racing game as an F1 weekend, so on the wire they travel under their own
+    /// `motorsport` key (see `LiveScore`'s Codable) and flat `[Game]` routes leave them
+    /// out unless the request sends `motorsport=1`.
+    public var isMotorsportSeries: Bool {
+        isRacing && self != .formula1
     }
 
     /// Sport bucket used to namespace ESPN team IDs in the cross-sport ID map,
@@ -352,6 +367,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "WTA Tour"
         case .formula1:
             return "Formula 1"
+        case .nascarCup:
+            return "NASCAR Cup Series"
         case .ncaaMBBTournament:
             return "March Madness"
         case .wnba:
@@ -377,7 +394,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "golf"
         case .atp, .wta:
             return "tennis"
-        case .formula1:
+        case .formula1, .nascarCup:
             return "racing"
         }
     }
@@ -441,7 +458,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         case .Copa_America: return "83"
         case .UEFA_Conference_League: return "20296"
         case .Womens_World_Cup: return "60"
-        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .ncaaMBBTournament, .wnba, .ncaaf,
+        case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .nascarCup, .ncaaMBBTournament, .wnba, .ncaaf,
              .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld: return nil
         }
     }
@@ -449,7 +466,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     /// Whether this league uses single-year season format (e.g., "2025") instead of "2024-2025"
     public var usesSingleYearSeason: Bool {
         switch self {
-        case .atp, .wta, .pga, .formula1, .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld:
+        case .atp, .wta, .pga, .formula1, .nascarCup, .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld:
             return true
         default:
             return false
@@ -462,7 +479,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     /// which also gates whole-year ESPN scoreboard fetches.
     public var sportsDBSingleYearSeason: Bool {
         switch self {
-        case .atp, .wta, .pga, .formula1, .mlb, .nfl,
+        case .atp, .wta, .pga, .formula1, .nascarCup, .mlb, .nfl,
              .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld:
             return true
         default:
@@ -605,9 +622,12 @@ public struct LiveScore: Equatable {
 /// schedule. Splitting on encode means they never see one; folding on decode means
 /// everything that knows about it (this server, Redis round-trips, current clients)
 /// still sees one football bucket.
+///
+/// Racing series other than F1 (NASCAR, …) get the same treatment under `motorsport`:
+/// app versions that predate them render every game in `racing` as a Formula 1 weekend.
 extension LiveScore: Codable {
     enum CodingKeys: String, CodingKey {
-        case nba, mlb, soccer, nfl, ncaaf, nhl, golf, tennis, racing, f1Standings, worldCup
+        case nba, mlb, soccer, nfl, ncaaf, nhl, golf, tennis, racing, motorsport, f1Standings, worldCup
     }
 
     /// Lenient per sport: a bucket that fails outright (not an object, no `events`)
@@ -628,7 +648,10 @@ extension LiveScore: Codable {
                 container.decodeLenient(LiveEvent.self, forKey: .nhl),
                 container.decodeLenient(LiveEvent.self, forKey: .golf),
                 container.decodeLenient(LiveEvent.self, forKey: .tennis),
-                container.decodeLenient(LiveEvent.self, forKey: .racing),
+                LiveEvent.merging(
+                    container.decodeLenient(LiveEvent.self, forKey: .racing),
+                    container.decodeLenient(LiveEvent.self, forKey: .motorsport)
+                ),
                 container.decodeLenient(F1Standings.self, forKey: .f1Standings),
                 container.decodeLenient(WorldCupEnrichment.self, forKey: .worldCup)
             )
@@ -654,7 +677,17 @@ extension LiveScore: Codable {
         try container.encodeIfPresent(nhl, forKey: .nhl)
         try container.encodeIfPresent(golf, forKey: .golf)
         try container.encodeIfPresent(tennis, forKey: .tennis)
-        try container.encodeIfPresent(racing, forKey: .racing)
+        if let racing {
+            let series = racing.events.filter(\.isMotorsportSeries)
+            if series.isEmpty {
+                try container.encode(racing, forKey: .racing)
+            } else {
+                // As with `nfl` above: a racing bucket that held only other series still
+                // goes out as an empty `racing`, because nil and empty differ to a delta merge.
+                try container.encode(LiveEvent(events: racing.events.filter { !$0.isMotorsportSeries }), forKey: .racing)
+                try container.encode(LiveEvent(events: series), forKey: .motorsport)
+            }
+        }
         try container.encodeIfPresent(f1Standings, forKey: .f1Standings)
         try container.encodeIfPresent(worldCup, forKey: .worldCup)
     }

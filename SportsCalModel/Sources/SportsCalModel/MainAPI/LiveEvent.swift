@@ -1154,12 +1154,31 @@ extension Game {
         return strSport == "golf" || strSport == "tennis" || strSport == "racing"
     }
 
-    /// Whether this is an F1 race
+    /// Whether this is a race weekend from any racing series (F1, NASCAR, …).
     public var isRace: Bool {
         if let id = idLeague, let leagueID = Int(id), let league = Leagues(rawValue: leagueID) {
             return league.isRacing
         }
         return strSport == "racing"
+    }
+
+    /// The racing series this game belongs to, or nil when it isn't a race.
+    public var racingSeries: Leagues? {
+        guard let league = idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:)), league.isRacing else {
+            return nil
+        }
+        return league
+    }
+
+    /// A NASCAR race weekend. These carry car numbers, manufacturers, stages and
+    /// cautions, and get their own detail view; F1-only enrichment never applies.
+    public var isNASCAR: Bool {
+        racingSeries == .nascarCup
+    }
+
+    /// A non-F1 racing series (see `Leagues.isMotorsportSeries`).
+    public var isMotorsportSeries: Bool {
+        racingSeries?.isMotorsportSeries ?? false
     }
 
     /// Best-effort playoff marker when structured `playoff` data isn't available

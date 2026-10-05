@@ -155,7 +155,9 @@ struct F1EnrichmentJob: AsyncScheduledJob {
                 schedule.f1Standings = standings
             }
             if var racingEvents = schedule.racing?.events {
-                for i in racingEvents.indices {
+                // F1 only: NASCAR and other series share venues with F1 (Austin, Miami),
+                // and the name/venue matching below would hand them F1 circuit data.
+                for i in racingEvents.indices where racingEvents[i].racingSeries == .formula1 {
                     let game = racingEvents[i]
                     let circuitInfo = enrichedCircuits.isEmpty ? nil : findCircuitForGame(game, circuits: enrichedCircuits)
                     let timingForGame = recentRaceTiming.flatMap { timing in
