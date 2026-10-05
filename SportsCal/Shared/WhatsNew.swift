@@ -83,6 +83,14 @@ extension WhatsNewRelease {
     static let all: [WhatsNewRelease] = [
         WhatsNewRelease(version: "3.4", features: [
             WhatsNewFeature(
+                id: "nascar-cup",
+                title: "NASCAR Cup Series",
+                subtitle: "Every race weekend with the live running order, stages, cautions, lap-by-lap notes, pit stops and the Chase standings.",
+                systemImage: "flag.checkered.2.crossed",
+                tint: Color.app(.racing),
+                action: .showCompetition(.nascarCup, sport: .racing)
+            ),
+            WhatsNewFeature(
                 id: "college-football",
                 title: "College Football",
                 subtitle: "Every FBS game with AP rankings, bowls and the Playoff. Pick the Top 25 and any conferences, each with its own section — teams you follow always show.",
@@ -92,14 +100,6 @@ extension WhatsNewRelease {
             ),
         ]),
         WhatsNewRelease(version: "3.3", features: [
-            WhatsNewFeature(
-                id: "nascar-cup",
-                title: "NASCAR Cup Series",
-                subtitle: "Every race weekend with the live running order, stages, cautions, lap-by-lap notes, pit stops and the Chase standings.",
-                systemImage: "flag.checkered.2.crossed",
-                tint: Color.app(.racing),
-                action: .showCompetition(.nascarCup, sport: .racing)
-            ),
             WhatsNewFeature(
                 id: "a-league",
                 title: "A-League",
