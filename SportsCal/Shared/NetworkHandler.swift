@@ -609,6 +609,43 @@ struct NetworkHandler {
         return .fresh(snapshot, etag: httpResponse?.value(forHTTPHeaderField: "ETag"))
     }
 
+    /// Outcome of a conditional `/schedules/sports/:key` fetch.
+    enum SliceFetchResult {
+        case notModified
+        /// One sport's part of the schedule, decoded as a `LiveScore` with that bucket.
+        case fresh(LiveScore, etag: String?)
+        /// The server predates per-sport slices (404); use `/schedules`.
+        case unavailable
+    }
+
+    /// One sport's slice of the schedule (see `ScheduleSliceSync`), revalidated with
+    /// `ifNoneMatch` when the caller holds that slice.
+    static func fetchScheduleSlice(_ key: LiveScore.WireKey, ifNoneMatch: String?) async throws -> SliceFetchResult {
+        let url = URL(string: "\(baseURL())/schedules/sports/\(key.rawValue)")!
+        let (data, response) = try await performAuthorized(url: url) { request in
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            if let ifNoneMatch {
+                request.setValue(ifNoneMatch, forHTTPHeaderField: "If-None-Match")
+            }
+        }
+        guard let httpResponse = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        APIVersionChecker.shared.checkVersion(from: httpResponse)
+        switch httpResponse.statusCode {
+        case 304:
+            guard ifNoneMatch != nil else { throw URLError(.badServerResponse) }
+            return .notModified
+        case 404:
+            return .unavailable
+        case 200:
+            let slice = try Self.sharedDecoder.decode(LiveScore.self, from: data)
+            return .fresh(slice, etag: httpResponse.value(forHTTPHeaderField: "ETag"))
+        default:
+            // Never decode an error body: `LiveScore` decodes leniently, and an error
+            // object would read as a sport with no games and wipe it.
+            throw URLError(.badServerResponse)
+        }
+    }
+
     /// `yyyyMMdd` in the Gregorian calendar and POSIX locale — the server's day-key
     /// format, shared with `GameViewModel`'s on-demand day bookkeeping.
     static let dayKeyFormatter: DateFormatter = {
@@ -696,7 +733,7 @@ struct NetworkHandler {
     /// key the app writes (`visibleMotorsportSeriesKey`) rather than
     /// `hiddenCompetitions`: those series are hidden by default, and a widget that runs
     /// before the app has seeded that would otherwise read "not hidden" and ask for them.
-    private static var wantsMotorsportSeries: Bool {
+    static var wantsMotorsportSeries: Bool {
         #if os(watchOS)
         let defaults: UserDefaults? = .standard
         #else
@@ -782,6 +819,18 @@ struct NetworkHandler {
             if httpResponse.statusCode == 404 { return nil }
         }
         return try Self.sharedDecoder.decode(F1SessionDetail.self, from: data)
+    }
+
+    /// A golf tournament with its whole field and scorecards. The schedule carries only
+    /// the top five of a finished one.
+    static func fetchGolfTournament(league: Leagues, eventID: String) async throws -> Game {
+        let url = URL(string: "\(baseURL())/golf/tournament/\(league.rawValue)/\(eventID)")!
+        let (data, response) = try await performAuthorized(url: url)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        APIVersionChecker.shared.checkVersion(from: httpResponse)
+        return try Self.sharedDecoder.decode(Game.self, from: data)
     }
 
     /// NASCAR Cup driver standings with the Chase picture.

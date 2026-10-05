@@ -102,6 +102,14 @@ public class GameViewModel: NSObject {
     /// for hours or days.
     nonisolated static func refreshCachesInBackground() async {
         do {
+            // Per-sport slices first; `/schedules` only when the server predates them.
+            if try await refreshSlicesInBackground() {
+                let teams = Cache<String, [Team]>()
+                teams.insert(try await NetworkHandler.getTeams(), for: "teams")
+                try teams.saveToDisk(with: cacheStem(base: "teams"))
+                AppLogger.networking.info("Background refresh: persisted teams + schedule slices")
+                return
+            }
             // Revalidate against the snapshot already on disk: a 304 means it is still
             // current and there is nothing to download or rewrite. Only send the ETag
             // when that file actually exists, so a 304 can't leave us with no cache.
@@ -132,6 +140,28 @@ public class GameViewModel: NSObject {
         } catch {
             AppLogger.networking.error("Background refresh failed: \(error.localizedDescription)")
         }
+    }
+
+    /// The slice half of `refreshCachesInBackground`. False when the server has no slice
+    /// endpoint, so the caller falls back to `/schedules`.
+    nonisolated private static func refreshSlicesInBackground() async throws -> Bool {
+        let cached: LiveScore? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            .map { $0.appendingPathComponent(cacheFilename(base: "games")) }
+            .flatMap { try? Data(contentsOf: $0) }
+            .flatMap { try? NetworkHandler.sharedDecoder.decode(Cache<String, LiveScore>.self, from: $0) }?
+            .staleValue(for: "games")?.value
+        if cached == nil { SliceETagStore.clear() }
+        guard let outcome = try await ScheduleSliceSync.refresh(wanted: ScheduleSliceSync.currentWantedKeys(), cached: cached) else {
+            return false
+        }
+        guard outcome.changed else { return true }
+        SliceETagStore.clear()
+        ScheduleETagStore.clear()
+        let games = Cache<String, LiveScore>()
+        games.insert(outcome.snapshot, for: "games")
+        try games.saveToDisk(with: cacheStem(base: "games"))
+        SliceETagStore.store(outcome.etags, base: NetworkHandler.baseURL())
+        return true
     }
 
     nonisolated static func purgeLegacyCacheFiles() {
@@ -1439,6 +1469,9 @@ public class GameViewModel: NSObject {
         // The ETag decision depends on what the launch cache produced.
         await launchCacheTask?.value
 
+        if try await handleGameSlices() { return }
+        // The server predates per-sport slices: the all-sports blob, as before.
+
         // Revalidate the snapshot we hold. The ETag is only sent when that snapshot is
         // actually in memory, so a 304 always has something to fall back on; without
         // one, any stored validator is stale and is dropped.
@@ -1470,6 +1503,57 @@ public class GameViewModel: NSObject {
             }
         }
     }
+
+    /// Fetches the schedule one sport at a time (`ScheduleSliceSync`). False when the
+    /// server has no slice endpoint, so `handleGames` falls back to `/schedules`.
+    private func handleGameSlices() async throws -> Bool {
+        let cachedSnapshot = gameCache?.staleValue(for: "games")?.value
+        if cachedSnapshot == nil { SliceETagStore.clear() }
+        let wanted = ScheduleSliceSync.currentWantedKeys()
+        guard let outcome = try await ScheduleSliceSync.refresh(wanted: wanted, cached: cachedSnapshot) else {
+            SliceETagStore.clear()
+            return false
+        }
+        guard outcome.changed else {
+            AppLogger.networking.info("Schedule slices not modified (304) — keeping cached snapshot")
+            if totalGames?.isEmpty ?? true, let cachedSnapshot {
+                setGames(result: cachedSnapshot)
+            }
+            isShowingStaleCache = false
+            return true
+        }
+        AppLogger.networking.info("Schedule slices refreshed: \(wanted.map(\.rawValue).joined(separator: ","))")
+        await applySnapshotIncrementally(outcome.snapshot)
+        isShowingStaleCache = false
+        let favorites = self.favorites
+        FavoriteSlices.update(from: outcome.snapshot) { favorites.contains($0) }
+
+        gameCache?.insert(outcome.snapshot, for: "games")
+        // Validators describe what is on disk: clear now, store once the write lands.
+        SliceETagStore.clear()
+        ScheduleETagStore.clear()
+        let base = NetworkHandler.baseURL()
+        Cache.writeToDiskDetached(value: outcome.snapshot, for: "games", name: Self.cacheStem(base: "games")) {
+            SliceETagStore.store(outcome.etags, base: base)
+        }
+        return true
+    }
+
+    /// Fetches the slices a preference change just asked for (a sport turned on, college
+    /// football, NASCAR) instead of waiting for the next refresh. Only when the snapshot
+    /// in hand is slice-based: the all-sports one already holds everything.
+    private func fetchMissingSlicesIfNeeded() {
+        // `filterSports` runs on every live tick; while offline a missing slice would
+        // otherwise start a refresh on each one.
+        if let last = lastMissingSliceFetch, Date().timeIntervalSince(last) < 30 { return }
+        let held = SliceETagStore.etags(base: NetworkHandler.baseURL())
+        guard !held.isEmpty, networkFetchTask == nil else { return }
+        let wanted = Set(ScheduleSliceSync.currentWantedKeys())
+        guard !wanted.isSubset(of: Set(held.keys)) else { return }
+        lastMissingSliceFetch = Date()
+        getInfo(backgroundRefresh: true)
+    }
+    @ObservationIgnored private var lastMissingSliceFetch: Date?
 
     /// Order sports for incremental reveal: sports the user has favorites in render first,
     /// then user-enabled sports, then disabled sports (still loaded so the calendar has data).
@@ -2018,9 +2102,12 @@ public class GameViewModel: NSObject {
         gameWithTeamsCache.removeAll()
         gamesWithTeamsDateCache.removeAll()
 
-        totalGames = [result.nhl?.events, result.nfl?.events, result.soccer?.events, result.mlb?.events, result.nba?.events, result.golf?.events, result.tennis?.events, result.racing?.events]
+        let snapshotGames = [result.nhl?.events, result.nfl?.events, result.soccer?.events, result.mlb?.events, result.nba?.events, result.golf?.events, result.tennis?.events, result.racing?.events]
             .compactMap({$0})
             .flatMap({$0})
+        // Days the user browsed outside the snapshot's window survive a refresh; they
+        // used to vanish here and stay blank until relaunch.
+        totalGames = reapplyingOnDemandDays(to: snapshotGames)
         TeamsManager.shared.updateCollegeTeams(from: result.nfl?.events ?? [])
         if let standings = result.f1Standings {
             f1Standings = standings
@@ -2036,6 +2123,9 @@ public class GameViewModel: NSObject {
     /// Days (yyyyMMdd) already fetched on-demand, so we don't re-hit the network
     /// for the same empty day. Not observed — pure bookkeeping.
     @ObservationIgnored private var onDemandFetchedDays: Set<String> = []
+    /// The games each on-demand day brought in, keyed by day start, so `setGames` can put
+    /// them back after a refresh replaces `totalGames`.
+    @ObservationIgnored private var onDemandGamesByDay: [Date: [Game]] = [:]
     @ObservationIgnored private var onDemandDebounce: Task<Void, Never>?
 
     private static var onDemandDayKeyFormatter: DateFormatter { NetworkHandler.dayKeyFormatter }
@@ -2092,23 +2182,50 @@ public class GameViewModel: NSObject {
             .compactMap { $0 }
             .flatMap { $0 }
         guard !incoming.isEmpty else { return }
+        onDemandGamesByDay[Calendar.current.startOfDay(for: date)] = incoming
 
-        let calendar = Calendar.current
-        let worldCupID = String(Leagues.FIFA_World_Cup.rawValue)
-        var games = totalGames ?? []
-        games.removeAll { game in
-            game.idLeague != worldCupID
-                && (game.standardDate.map { calendar.isDate($0, inSameDayAs: date) } ?? false)
-        }
-        let existingIDs = Set(games.map(\.id))
-        let fresh = incoming.filter { !existingIDs.contains($0.id) }
-        guard !fresh.isEmpty else { return }
-
-        games.append(contentsOf: fresh)
+        let before = totalGames ?? []
+        let games = replacingDay(date, with: incoming, in: before)
+        guard games.count != before.count || games.map(\.id) != before.map(\.id) else { return }
         gameWithTeamsCache.removeAll()
         gamesWithTeamsDateCache.removeAll()
         totalGames = games
         filterSports(force: true, skipLiveUpdate: true)
+    }
+
+    /// `games` with `date`'s games replaced by `incoming` (World Cup games kept: they
+    /// carry enrichment the per-day fetch doesn't), without duplicating any ID.
+    private func replacingDay(_ date: Date, with incoming: [Game], in games: [Game]) -> [Game] {
+        let calendar = Calendar.current
+        let worldCupID = String(Leagues.FIFA_World_Cup.rawValue)
+        var result = games
+        result.removeAll { game in
+            game.idLeague != worldCupID
+                && (game.standardDate.map { calendar.isDate($0, inSameDayAs: date) } ?? false)
+        }
+        let existingIDs = Set(result.map(\.id))
+        result.append(contentsOf: incoming.filter { !existingIDs.contains($0.id) })
+        return result
+    }
+
+    /// Re-applies the on-demand days the snapshot doesn't own: past days and those more
+    /// than three weeks out. Inside the window the snapshot is fresher, so it wins.
+    private func reapplyingOnDemandDays(to games: [Game]) -> [Game] {
+        guard !onDemandGamesByDay.isEmpty else { return games }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        var result = games
+        for (day, incoming) in onDemandGamesByDay {
+            let offset = calendar.dateComponents([.day], from: today, to: day).day ?? 0
+            if offset >= 0 && offset <= 21 {
+                // The snapshot now covers it; forget it so a later visit re-checks.
+                onDemandGamesByDay[day] = nil
+                onDemandFetchedDays.remove(Self.onDemandDayKeyFormatter.string(from: day))
+                continue
+            }
+            result = replacingDay(day, with: incoming, in: result)
+        }
+        return result
     }
 
     func handleSports(force: Bool = false) {
@@ -2374,6 +2491,7 @@ public class GameViewModel: NSObject {
     }
 
     func filterSports(searchString: String? = nil, force: Bool = false, skipLiveUpdate: Bool = false, skipSideEffects: Bool = false) {
+        fetchMissingSlicesIfNeeded()
         // Refresh filter-state hash so subsequent reads/writes use the right scope.
         currentFilterStateHash = computeFilterStateHash()
         // Only purge the entire date cache when the underlying games actually changed

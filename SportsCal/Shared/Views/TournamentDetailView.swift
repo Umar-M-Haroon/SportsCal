@@ -13,7 +13,16 @@ import EventKitUI
 #endif
 
 struct TournamentDetailView: View {
-    let game: Game
+    private let scheduledGame: Game
+    /// The whole field with scorecards, for a finished golf tournament: the schedule
+    /// keeps only its top five (see the server's `ScheduleSlimming`).
+    @State private var fullGame: Game?
+
+    init(game: Game) {
+        self.scheduledGame = game
+    }
+
+    private var game: Game { fullGame ?? scheduledGame }
 
     @Environment(GameViewModel.self) private var viewModel
     @Environment(Favorites.self) private var favorites
@@ -55,6 +64,13 @@ struct TournamentDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .task(id: scheduledGame.idEvent) {
+            // PGA TOUR rows carry TheSportsDB's ID; the ESPN merge records ESPN's alongside.
+            guard let league, league.isGolf,
+                  let eventID = scheduledGame.lastPlayScoreboardID ?? scheduledGame.idEvent,
+                  scheduledGame.hasDoneStatus, (scheduledGame.leaderboardEntries?.count ?? 0) <= 5 else { return }
+            fullGame = try? await NetworkHandler.fetchGolfTournament(league: league, eventID: eventID)
+        }
         .sheet(item: $sheetType) { sheet in
             switch sheet {
             case .calendar(let eventGame):
