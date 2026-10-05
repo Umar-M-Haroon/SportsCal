@@ -126,9 +126,11 @@ enum ScheduleStore {
             } else {
                 current = try await app.redis.get(key, asJSON: LiveScore.self)
             }
-            guard let updated = try await transform(current), updated != current else {
-                return .unchanged
-            }
+            // Slimmed before the comparison: a writer that re-merges a full board (ESPN
+            // keeps a finished tournament up for days) must not rewrite the blob every run.
+            guard let transformed = try await transform(current) else { return .unchanged }
+            let updated = ScheduleSlimming.slimmed(transformed)
+            guard updated != current else { return .unchanged }
             try await write(updated, app: app, isDebug: isDebug)
             _ = try? await app.redis.increment(versionKey(isDebug: isDebug)).get()
             return .written

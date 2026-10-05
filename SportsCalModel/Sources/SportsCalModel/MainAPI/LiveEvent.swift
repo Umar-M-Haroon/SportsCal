@@ -806,7 +806,7 @@ public struct Game: Identifiable, Equatable, Hashable {
     public let awayLeaders: [GameLeader]?
     public var isCompleted: Bool? = false
     public var isoDate: Date?
-    public let leaderboardEntries: [LeaderboardEntry]?
+    public var leaderboardEntries: [LeaderboardEntry]?
     public let sessions: [EventSession]?
     public let venueName: String?
     public let homeTeamColor: String?

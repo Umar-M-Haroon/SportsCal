@@ -112,7 +112,7 @@ class ESPNNetworking {
         return fallback
     }
 
-    private static func performGet(
+    static func performGet(
         _ req: some Client,
         _ uri: URI,
         beforeSend: (inout ClientRequest) throws -> Void = { _ in }

@@ -692,3 +692,75 @@ extension LiveScore: Codable {
         try container.encodeIfPresent(worldCup, forKey: .worldCup)
     }
 }
+
+// MARK: - Per-sport slices
+
+/// The schedule split the way it travels: one slice per top-level JSON key, each with its
+/// own ETag on `/schedules/sports/:key`, so an app downloads only the sports it shows and
+/// a change in one sport doesn't invalidate the others.
+public extension LiveScore {
+    enum WireKey: String, CaseIterable, Codable, Sendable {
+        case nba, mlb, soccer, nfl, ncaaf, nhl, golf, tennis, racing, motorsport
+        /// Top-level enrichment (F1 standings, World Cup).
+        case meta
+
+        /// The JSON members this slice carries.
+        public var members: [String] {
+            self == .meta ? ["f1Standings", "worldCup"] : [rawValue]
+        }
+    }
+
+    /// The slices that make up `sport`. College football and racing series beyond F1
+    /// are their own slices, fetched only when the user has them on.
+    static func wireKeys(for sport: SportType, college: Bool, motorsport: Bool) -> [WireKey] {
+        switch sport {
+        case .basketball: [.nba]
+        case .mlb: [.mlb]
+        case .soccer: [.soccer]
+        case .nfl: college ? [.nfl, .ncaaf] : [.nfl]
+        case .hockey: [.nhl]
+        case .golf: [.golf]
+        case .tennis: [.tennis]
+        case .racing: motorsport ? [.racing, .motorsport] : [.racing]
+        }
+    }
+
+    /// The part of this schedule that travels under `key`.
+    func slice(_ key: WireKey) -> LiveScore {
+        func only(_ event: LiveEvent?, _ keep: (Game) -> Bool) -> LiveEvent? {
+            event.map { LiveEvent(events: $0.events.filter(keep)) }
+        }
+        switch key {
+        case .nba: return LiveScore(nba: nba)
+        case .mlb: return LiveScore(mlb: mlb)
+        case .soccer: return LiveScore(soccer: soccer)
+        case .nfl: return LiveScore(nfl: only(nfl) { !$0.isCollegeFootball })
+        case .ncaaf: return LiveScore(nfl: only(nfl) { $0.isCollegeFootball })
+        case .nhl: return LiveScore(nhl: nhl)
+        case .golf: return LiveScore(golf: golf)
+        case .tennis: return LiveScore(tennis: tennis)
+        case .racing: return LiveScore(racing: only(racing) { !$0.isMotorsportSeries })
+        case .motorsport: return LiveScore(racing: only(racing) { $0.isMotorsportSeries })
+        case .meta: return LiveScore(f1Standings: f1Standings, worldCup: worldCup)
+        }
+    }
+
+    /// One schedule from slices: games concatenated per bucket, enrichment from
+    /// whichever slice carries it.
+    static func combining(_ parts: [LiveScore]) -> LiveScore {
+        parts.reduce(into: LiveScore()) { result, part in
+            result = LiveScore(
+                nba: LiveEvent.merging(result.nba, part.nba),
+                mlb: LiveEvent.merging(result.mlb, part.mlb),
+                soccer: LiveEvent.merging(result.soccer, part.soccer),
+                nfl: LiveEvent.merging(result.nfl, part.nfl),
+                nhl: LiveEvent.merging(result.nhl, part.nhl),
+                golf: LiveEvent.merging(result.golf, part.golf),
+                tennis: LiveEvent.merging(result.tennis, part.tennis),
+                racing: LiveEvent.merging(result.racing, part.racing),
+                f1Standings: result.f1Standings ?? part.f1Standings,
+                worldCup: result.worldCup ?? part.worldCup
+            )
+        }
+    }
+}

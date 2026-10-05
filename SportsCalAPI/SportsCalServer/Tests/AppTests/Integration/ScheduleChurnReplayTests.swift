@@ -36,4 +36,27 @@ final class ScheduleChurnReplayTests: XCTestCase {
         print("CHURN over \(files.count) snapshots: content ETag changed \(contentChanges)x, calendar ETag changed \(calendarChanges)x")
         XCTAssertLessThan(calendarChanges, contentChanges)
     }
+
+    /// Slice sizes after golf slimming, and that the slices add back up to the schedule.
+    func testSlicesOfARealSchedule() throws {
+        guard let dir = ProcessInfo.processInfo.environment["SCHEDULE_SNAPSHOTS"] else {
+            throw XCTSkip("set SCHEDULE_SNAPSHOTS to a directory of captured /schedules bodies")
+        }
+        let file = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir).filter { $0.hasSuffix(".json") }.sorted().last)
+        let original = try JSONDecoder().decode(LiveScore.self, from: Data(contentsOf: URL(fileURLWithPath: dir).appendingPathComponent(file)))
+        let slimmed = ScheduleSlimming.slimmed(original)
+        let json = String(decoding: try JSONEncoder().encode(slimmed), as: UTF8.self)
+        let before = try JSONEncoder().encode(original).count
+        print("SLICE schedule \(before / 1000)KB -> \(json.utf8.count / 1000)KB after golf slimming")
+        var parts: [LiveScore] = []
+        for key in LiveScore.WireKey.allCases {
+            let body = ScheduleSlice.body(for: key, in: json)
+            print("SLICE \(key.rawValue): \(body.utf8.count / 1000)KB")
+            parts.append(try JSONDecoder().decode(LiveScore.self, from: Data(body.utf8)))
+        }
+        let combined = LiveScore.combining(parts)
+        for (sport, games) in slimmed.allGamesBySport {
+            XCTAssertEqual(combined.event(for: sport)?.events.count, games.count, "\(sport)")
+        }
+    }
 }

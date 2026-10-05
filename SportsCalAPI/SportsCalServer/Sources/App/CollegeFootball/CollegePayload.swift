@@ -110,6 +110,33 @@ enum CollegePayload {
         }
     }
 
+    /// The value range of every top-level member of a JSON object, in one pass. Empty
+    /// when `b` isn't an object this scanner can walk.
+    static func topLevelValueRanges(in b: [UInt8]) -> [String: Range<Int>] {
+        var ranges: [String: Range<Int>] = [:]
+        var i = 0
+        skipWhitespace(b, &i)
+        guard i < b.count, b[i] == openBrace else { return [:] }
+        i += 1
+        while true {
+            skipWhitespace(b, &i)
+            guard i < b.count, b[i] != closeBrace else { return ranges }
+            let keyStart = i
+            guard skipString(b, &i) else { return [:] }
+            let key = String(decoding: b[(keyStart + 1)..<(i - 1)], as: UTF8.self)
+            skipWhitespace(b, &i)
+            guard i < b.count, b[i] == colon else { return [:] }
+            i += 1
+            skipWhitespace(b, &i)
+            let valueStart = i
+            guard skipValue(b, &i) else { return [:] }
+            ranges[key] = valueStart..<i
+            skipWhitespace(b, &i)
+            guard i < b.count, b[i] == comma else { return ranges }
+            i += 1
+        }
+    }
+
     /// The byte range to delete to remove the top-level member `name`, including exactly
     /// one of its neighbouring commas so the object stays valid.
     static func topLevelMemberRange(named name: String, in b: [UInt8]) -> Range<Int>? {

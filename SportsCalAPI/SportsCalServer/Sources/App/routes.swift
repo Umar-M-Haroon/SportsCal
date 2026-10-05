@@ -581,6 +581,39 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         }
     }
 
+    //MARK: - Schedule slices
+    // One sport's part of `/schedules` (`LiveScore.WireKey`: nba, nfl, ncaaf, …, meta),
+    // each with its own calendar-version ETag, so an app downloads only the sports it
+    // shows and a tennis final doesn't invalidate its NBA copy. The body is the
+    // schedule's own JSON members, cut out byte-for-byte (no decode of the full blob),
+    // e.g. `{"nba":{…}}`, which decodes as a `LiveScore` with one bucket.
+    routes.get("schedules", "sports", ":key") { req async throws -> Response in
+        guard let key = req.parameters.get("key").flatMap(LiveScore.WireKey.init(rawValue:)) else {
+            throw Abort(.notFound)
+        }
+        let schedule = try await currentSchedule(req)
+        let variant = "slice:\(key.rawValue)"
+        let etag = HTTPCaching.etag(version: schedule.calendar?[key.rawValue] ?? schedule.version, variant: variant)
+        if HTTPCaching.notModified(req, etag: etag) {
+            return HTTPCaching.respond(req, etag: etag) { "" }
+        }
+        let body = await DerivedPayloadCache.shared.value(variant: variant, version: schedule.version, source: schedule.value) { source in
+            ScheduleSlice.body(for: key, in: source)
+        } ?? ScheduleSlice.body(for: key, in: schedule.value)
+        return HTTPCaching.respond(req, etag: etag) { body }
+    }
+
+    //MARK: - Golf tournament (full leaderboard)
+    // The schedule keeps only the top five of a finished tournament (see
+    // `ScheduleSlimming`); this is the whole field with scorecards, from ESPN.
+    routes.get("golf", "tournament", ":league", ":event") { req async throws -> String in
+        guard let league = req.parameters.get("league").flatMap(Int.init).flatMap(Leagues.init(rawValue:)), league.isGolf,
+              let event = req.parameters.get("event"), event.count <= 20, event.allSatisfy(\.isNumber) else {
+            throw Abort(.badRequest)
+        }
+        return encodeResult(res: try await GolfTournamentDetail.game(league: league, eventID: event, app: req.application))
+    }
+
     //MARK: - Sport
     // Slicing one sport out of the schedule used to decode the entire multi-MB
     // `LiveScore` per request and re-encode the slice. The slice is a pure function of
