@@ -86,43 +86,79 @@ enum ScheduleCalendarVersion {
     // MARK: - Projection
 
     /// The fields of `game` a cached copy depends on, as one line.
+    ///
+    /// Built one value per statement on purpose: written as a single array literal of
+    /// `?? ""` expressions, the Linux release compiler gave up type-checking it ("unable
+    /// to type-check this expression in reasonable time") and broke the prod build.
     static func projection(_ game: Game) -> String {
-        var parts: [String] = [
-            game.idEvent ?? "", game.idLeague ?? "",
-            game.strHomeTeam, game.strAwayTeam, game.idHomeTeam ?? "", game.idAwayTeam ?? "",
-            game.strHomeTeamBadge ?? "", game.strAwayTeamBadge ?? "",
-            game.strTimestamp ?? "", game.endDate ?? "", game.venueName ?? "",
-            game.round ?? "", game.tournamentName ?? "", game.drawSlug ?? "",
-            game.season ?? "", game.seasonPhase?.rawValue ?? "",
-            game.homeSeed.map(String.init) ?? "", game.awaySeed.map(String.init) ?? "",
-            game.homeConference ?? "", game.awayConference ?? "",
-            game.homeRecord ?? "", game.awayRecord ?? "",
-            game.playoff?.seriesTitle ?? "", game.playoff?.gameNumber.map(String.init) ?? "",
-            // Enrichment the hourly jobs attach: presence and size, not every detail.
-            "\(game.homeInjuries?.count ?? -1)/\(game.awayInjuries?.count ?? -1)",
-            game.circuitInfo?.circuitImageURL ?? (game.circuitInfo == nil ? "" : "c"),
-            game.golfCourseInfo == nil ? "" : "g",
-            game.raceTiming == nil ? "" : "t",
-        ]
+        var parts: [String] = []
+        parts.reserveCapacity(40)
+        func add(_ value: String?) { parts.append(value ?? "") }
+        func add(_ value: Int?) { parts.append(value.map(String.init) ?? "") }
+
+        add(game.idEvent)
+        add(game.idLeague)
+        add(game.strHomeTeam)
+        add(game.strAwayTeam)
+        add(game.idHomeTeam)
+        add(game.idAwayTeam)
+        add(game.strHomeTeamBadge)
+        add(game.strAwayTeamBadge)
+        add(game.strTimestamp)
+        add(game.endDate)
+        add(game.venueName)
+        add(game.round)
+        add(game.tournamentName)
+        add(game.drawSlug)
+        add(game.season)
+        add(game.seasonPhase?.rawValue)
+        add(game.homeSeed)
+        add(game.awaySeed)
+        add(game.homeConference)
+        add(game.awayConference)
+        add(game.homeRecord)
+        add(game.awayRecord)
+        add(game.playoff?.seriesTitle)
+        add(game.playoff?.gameNumber)
+        // Enrichment the hourly jobs attach: presence and size, not every detail.
+        add(game.homeInjuries?.count ?? -1)
+        add(game.awayInjuries?.count ?? -1)
+        if let circuit = game.circuitInfo {
+            add(circuit.circuitImageURL ?? "c")
+        } else {
+            add("")
+        }
+        add(game.golfCourseInfo == nil ? "" : "g")
+        add(game.raceTiming == nil ? "" : "t")
+
         // Race weekends: each session's slot and, once it's done, who won it.
         for session in game.sessions ?? [] {
-            let done = session.status == "post"
-            parts.append("\(session.sessionType)@\(session.date ?? "")\(done ? "=" + (session.leaderboard.first?.name ?? "") : "")")
+            var slot = session.sessionType + "@" + (session.date ?? "")
+            if session.status == "post" {
+                slot += "=" + (session.leaderboard.first?.name ?? "")
+            }
+            parts.append(slot)
         }
+
         switch state(of: game) {
         case .open:
-            parts.append("open")
+            add("open")
         case .calledOff(let status):
-            parts.append("off:\(status)")
+            add("off:" + status)
         case .final:
-            parts.append(contentsOf: [
-                "final", game.strStatus ?? "", game.strProgress ?? "",
-                game.intHomeScore ?? "", game.intAwayScore ?? "",
-                (game.homeLinescores ?? []).map { String($0) }.joined(separator: ","),
-                (game.awayLinescores ?? []).map { String($0) }.joined(separator: ","),
-                game.leaderboardEntries?.first.map { "\($0.name):\($0.score)" } ?? "",
-                game.excitement.map(String.init) ?? "",
-            ])
+            add("final")
+            add(game.strStatus)
+            add(game.strProgress)
+            add(game.intHomeScore)
+            add(game.intAwayScore)
+            add((game.homeLinescores ?? []).map { String($0) }.joined(separator: ","))
+            add((game.awayLinescores ?? []).map { String($0) }.joined(separator: ","))
+            if let leader = game.leaderboardEntries?.first {
+                add(leader.name + ":" + leader.score)
+            } else {
+                add("")
+            }
+            add(game.excitement)
         }
         return parts.joined(separator: "\u{1F}")
     }
