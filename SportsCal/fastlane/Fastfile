@@ -67,6 +67,25 @@ def testflight_changelog
   log.empty? ? "Internal build." : log
 end
 
+# The External TestFlight group's name in App Store Connect.
+EXTERNAL_GROUP = "External"
+
+# MARKETING_VERSION from the project file, read directly so this works on Linux CI
+# (get_version_number shells out to agvtool, which needs Xcode).
+def marketing_version
+  pbxproj = File.read(File.expand_path("../SportsCal.xcodeproj/project.pbxproj", __dir__))
+  versions = pbxproj.scan(/MARKETING_VERSION = ([0-9.]+);/).flatten
+  # The app targets share one version; the extensions' 1.0 is not it.
+  versions.map { |v| Gem::Version.new(v) }.max.to_s
+end
+
+# "What to Test" for external testers: the hand-written notes, not commit subjects.
+def external_notes
+  path = File.expand_path("testflight_external_notes.txt", __dir__)
+  notes = File.exist?(path) ? File.read(path).strip : ""
+  notes.empty? ? "Bug fixes and improvements." : notes
+end
+
 def upload_dsyms_to_sentry
   has_credential = !ENV["SENTRY_AUTH_TOKEN"].to_s.empty? ||
                    File.exist?(File.expand_path("~/.sentryclirc"))
@@ -175,6 +194,95 @@ platform :ios do
     else
       UI.success("Build is live for the Internal TestFlight group.")
     end
+  end
+
+  # Sends an Xcode Cloud build of the current version (MARKETING_VERSION in the
+  # project) to the External TestFlight group: submits it for Beta App Review and
+  # notifies testers once Apple approves (the first build of a version waits for a
+  # review; later builds of the same version usually go through on their own).
+  # Run by .github/workflows/testflight-external.yml after every push to main;
+  # Xcode Cloud itself only distributes to the Internal group.
+  #
+  #   fastlane external                        # newest processed build of the version
+  #   fastlane external build:163              # a specific build
+  #   fastlane external wait_for_new:true      # wait for a build newer than the current
+  #                                            # newest (what CI uses right after a push)
+  #   fastlane external dry_run:true           # find the build, distribute nothing
+  #
+  # Testers see fastlane/testflight_external_notes.txt as "What to Test".
+  desc "Distribute the newest build of the current version to external TestFlight testers"
+  lane :external do |options|
+    api_key = asc_api_key
+    version = marketing_version
+    app = Spaceship::ConnectAPI::App.find("com.KomodoLLC.SportsCal")
+    UI.user_error!("App not found in App Store Connect") unless app
+
+    newest = lambda do
+      Spaceship::ConnectAPI.get_builds(
+        filter: { app: app.id, "preReleaseVersion.version" => version, processingState: "VALID", expired: "false" },
+        sort: "-uploadedDate",
+        # Spaceship's default includes ask for `betaBuildMetrics`, which the API now rejects.
+        includes: "preReleaseVersion",
+        limit: 1
+      ).first
+    end
+
+    build = nil
+    if options[:build]
+      build = Spaceship::ConnectAPI.get_builds(
+        filter: { app: app.id, version: options[:build].to_s }, includes: "preReleaseVersion", limit: 1
+      ).first
+      UI.user_error!("Build #{options[:build]} not found") unless build
+    elsif options[:wait_for_new].to_s == "true"
+      baseline = newest.call&.version.to_i
+      wait_minutes = (options[:wait_minutes] || 90).to_i
+      deadline = Time.now + wait_minutes * 60
+      UI.message("Waiting up to #{wait_minutes} min for a #{version} build newer than #{baseline}...")
+      loop do
+        candidate = newest.call
+        if candidate && candidate.version.to_i > baseline
+          build = candidate
+          break
+        end
+        break if Time.now > deadline
+        sleep 60
+      end
+      unless build
+        UI.important("No new #{version} build after #{wait_minutes} min (did Xcode Cloud fail, or build a different version?). Nothing distributed.")
+        next
+      end
+    else
+      build = newest.call
+    end
+    UI.user_error!("No processed #{version} build found") unless build
+
+    groups = Spaceship::ConnectAPI.get_beta_groups(filter: { app: app.id, name: EXTERNAL_GROUP }).to_a
+    group = groups.find { |g| g.name == EXTERNAL_GROUP }
+    UI.user_error!("TestFlight group '#{EXTERNAL_GROUP}' not found") unless group
+    already = Spaceship::ConnectAPI.get_builds(
+      filter: { app: app.id, betaGroups: group.id, version: build.version }, includes: "preReleaseVersion", limit: 1
+    ).any?
+    if already
+      UI.success("Build #{build.version} (#{version}) is already in '#{EXTERNAL_GROUP}'.")
+      next
+    end
+
+    if options[:dry_run].to_s == "true"
+      UI.success("Dry run: would distribute build #{build.version} (#{version}) to '#{EXTERNAL_GROUP}' with notes:\n#{external_notes}")
+      next
+    end
+    UI.message("Distributing build #{build.version} (#{version}) to '#{EXTERNAL_GROUP}'.")
+    upload_to_testflight(
+      api_key: api_key,
+      distribute_only: true,
+      app_version: version,
+      build_number: build.version,
+      distribute_external: true,
+      groups: [EXTERNAL_GROUP],
+      notify_external_testers: true,
+      changelog: external_notes
+    )
+    UI.success("Build #{build.version} submitted for external testing.")
   end
 
   # Builds come from Xcode Cloud (the "Default" workflow runs on every push to

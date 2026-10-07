@@ -1,0 +1,9 @@
+New in 3.3 — please try:
+
+• More racing: NASCAR Cup, IndyCar, IMSA and WEC join F1. Turn them on from the card on an F1 race page, or Racing's leagues in your sport settings. Check race pages (running order, classes and crews for IMSA/WEC, standings) and Browse › Racing.
+• A-League: fixtures, live scores and standings.
+• Tennis & golf coverage: pick Grand Slams/majors only, big events, or everything.
+• More golf tours: DP World, LPGA, LIV, Champions and Korn Ferry.
+• Soccer match centre: lineups, shots, momentum and commentary on match pages.
+
+Tell us about anything that looks wrong, is slow, or crashes (shake or screenshot to send feedback).

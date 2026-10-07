@@ -1,0 +1,78 @@
+name: TestFlight external
+
+# Xcode Cloud's "Default" workflow builds every push to main and hands the build to
+# the Internal TestFlight group. This waits for that build to finish processing,
+# then sends it to the External group (fastlane `external`): Beta App Review, then
+# testers are notified. The first build of a new version waits on Apple's review;
+# later builds of the same version usually go straight through.
+#
+# Testers' "What to Test" text is SportsCal/fastlane/testflight_external_notes.txt.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "SportsCal/**"
+      - "SportsCalModel/**"
+      - ".github/workflows/testflight-external.yml"
+  workflow_dispatch:
+    inputs:
+      build:
+        description: "Build number to distribute (blank = newest processed build of the current version)"
+        required: false
+
+# A newer push supersedes a run still waiting on the previous build: the newest
+# build is the one testers should get.
+concurrency:
+  group: testflight-external
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  distribute:
+    name: Distribute to external testers
+    runs-on: ubuntu-latest
+    # Xcode Cloud takes ~25 minutes to build and ASC ~10 to process.
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: SportsCal
+    steps:
+      - uses: actions/checkout@v4
+
+      # Current fastlane, as run locally (the Gemfile.lock pins a 2021 release and a
+      # macOS-only platform, so it isn't used here).
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - name: Install fastlane
+        run: gem install fastlane --no-document
+
+      # The Fastfile reads the key from the path fastlane uses locally.
+      - name: Install the App Store Connect key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          printf '%s\n' "$ASC_KEY_P8" > ~/.appstoreconnect/private_keys/AuthKey_JQ6VYF64LN.p8
+          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_JQ6VYF64LN.p8
+
+      - name: Distribute
+        env:
+          BUILD: ${{ github.event.inputs.build }}
+        run: |
+          if [ -n "${BUILD}" ]; then
+            fastlane external build:"${BUILD}"
+          else
+            fastlane external wait_for_new:true wait_minutes:100
+          fi
+
+      - name: Open an issue on failure
+        if: failure()
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/report-failure.sh "TestFlight external"

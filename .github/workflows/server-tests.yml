@@ -13,6 +13,10 @@ on:
       - ".github/workflows/server-tests.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   unit-and-integration:
     name: Unit + integration (in-memory fakes)
@@ -40,4 +44,11 @@ jobs:
       - name: Run hermetic test suites
         run: |
           swift test \
-            --filter 'ContentStateDiffTests|ContentStateHashTests|TeamMatchingTests|DedupKeyTests|RegistrationCodableTests|APNSJobStateDiffTests|APNSJobErrorHandlingTests|APNSBatchingTests|ESPNFetchJobPushToStartTests|ESPNFetchJobAlreadyLiveStartTests|ScheduleMergeTests|ScheduleUpdateJobTests|ESPNRequestHeadersTests|ForwardWindowTests|ESPNSoccerJobMergeTests|LiveMergeTests|JobLockTests|RateLimitIdentityTests|ChunkedTests|ReplayDriverTests|SetIfAbsentTests|TelemetryTests|F1EnrichmentWriteGuardTests|SoccerMatchBuilderTests|SoccerCompetitionBuilderTests|SoccerAlertJobTests|WorldCupEnrichmentTests|PushToStartEnvFallbackTests|AppAttestVerifierTests|CBORDecoderTests|AttestControllerTests|AuthPolicyRoutingTests|AppAttestMaintenanceTests'
+            --filter 'ContentStateDiffTests|ContentStateHashTests|TeamMatchingTests|DedupKeyTests|RegistrationCodableTests|APNSJobStateDiffTests|APNSJobErrorHandlingTests|APNSBatchingTests|ESPNFetchJobPushToStartTests|ESPNFetchJobAlreadyLiveStartTests|ScheduleMergeTests|ScheduleUpdateJobTests|ESPNRequestHeadersTests|ForwardWindowTests|ESPNSoccerJobMergeTests|LiveMergeTests|JobLockTests|RateLimitIdentityTests|ChunkedTests|ReplayDriverTests|SetIfAbsentTests|TelemetryTests|F1EnrichmentWriteGuardTests|SoccerMatchBuilderTests|SoccerCompetitionBuilderTests|SoccerAlertJobTests|WorldCupEnrichmentTests|PushToStartEnvFallbackTests|AppAttestVerifierTests|CBORDecoderTests|AttestControllerTests|AuthPolicyRoutingTests|AppAttestMaintenanceTests|NASCARGameBuilderTests|MotorsportSeriesTests|ScheduleCalendarVersionTests|ScheduleSliceTests|ScheduleSliceRoutesTests'
+
+      - name: Open an issue if main fails
+        if: failure() && github.ref == 'refs/heads/main'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/report-failure.sh "Server tests"

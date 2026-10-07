@@ -45,7 +45,15 @@ Upload the EXISTING staged screenshots only (retry after an ASC 500 on the relea
 [bundle exec] fastlane ios beta
 ```
 
-Archive the app and upload the build to App Store Connect (TestFlight)
+Archive and ship a build to the internal TestFlight group
+
+### ios external
+
+```sh
+[bundle exec] fastlane ios external
+```
+
+Distribute the newest build of the current version to external TestFlight testers
 
 ### ios submit_review
 

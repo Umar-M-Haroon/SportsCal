@@ -25,6 +25,10 @@ concurrency:
   group: deploy-prod
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   deploy:
     name: Sync, build, and restart on Hetzner
@@ -152,6 +156,14 @@ jobs:
           echo "::error::$HEALTH_URL did not come back healthy within 5 minutes"
           ssh deploy-target "cd $REMOTE_DIR && docker compose logs --tail=80 app" || true
           exit 1
+
+      # A failed deploy leaves prod on the previous build with nothing visibly wrong;
+      # two failed in a row on 2026-10-05 and went unnoticed for ~30 hours.
+      - name: Open an issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/report-failure.sh "Deploy prod"
 
       - name: Report
         if: always()
