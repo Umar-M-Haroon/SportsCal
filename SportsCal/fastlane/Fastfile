@@ -275,6 +275,9 @@ platform :ios do
     distribute = lambda do
       upload_to_testflight(
         api_key: api_key,
+        # Without these pilot prompts for them on Linux runners.
+        app_platform: "ios",
+        app_identifier: "com.KomodoLLC.SportsCal",
         distribute_only: true,
         app_version: version,
         build_number: build.version,
