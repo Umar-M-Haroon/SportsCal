@@ -183,6 +183,10 @@ struct BrowseSportView: View {
     @State private var selectedLeague: Leagues?
     /// League sections the user expanded or collapsed by hand; the rest use `defaultExpanded`.
     @State private var leagueExpansion: [Leagues: Bool] = [:]
+    /// Racing groups (remaining races, a season's results) opened past their preview.
+    @State private var expandedRaceGroups: Set<String> = []
+    /// Racing: the picked series' standings, nil until loaded (F1 reads the view model's).
+    @State private var seriesStandings: NetworkHandler.SeriesStandings?
 
     /// Tennis, golf and racing browse whole events (tournaments, weekends) rather than days.
     private var browsesEvents: Bool {
@@ -262,16 +266,16 @@ struct BrowseSportView: View {
 
     // MARK: - Games List
 
-    /// For racing, just the picked series; every other sport passes through.
-    private func inSelectedLeague(_ games: [GameWithTeams]) -> [GameWithTeams] {
-        guard sport == .racing else { return games }
-        let id = "\(racingSeries.rawValue)"
-        return games.filter { $0.game.idLeague == id }
+    /// Just the picked racing series.
+    private func inSelectedSeries(_ games: [GameWithTeams]) -> [GameWithTeams] {
+        games.filter { $0.game.knownLeague == racingSeries }
     }
 
     @ViewBuilder
     private func gamesList(_ browseVM: SportBrowseViewModel) -> some View {
-        if !browsesEvents {
+        if sport == .racing {
+            racingBrowseList(browseVM)
+        } else if !browsesEvents {
             dayBrowseList(browseVM)
         } else {
         List {
@@ -284,27 +288,6 @@ struct BrowseSportView: View {
                 .pickerStyle(.segmented)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-                if sport == .racing {
-                    Picker("Series", selection: $racingSeries) {
-                        ForEach(Leagues.allCases.filter(\.isRacing), id: \.self) { series in
-                            Text(series.racingShortName ?? series.leagueName).tag(series)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
-                }
-            }
-
-            if sport == .racing {
-                if racingSeries == .formula1 {
-                    // One-time pointer to the other series for F1 fans (dismissed for good once acted on).
-                    NASCARPromoSection()
-                } else if storage.hiddenCompetitions.contains(racingSeries.leagueName) {
-                    Section {
-                        RacingSeriesHiddenNotice(series: racingSeries)
-                    }
-                }
             }
 
             // DISABLED: Standings movement chart
@@ -329,61 +312,7 @@ struct BrowseSportView: View {
             } else if sport == .golf {
                 // Golf: pick a tour, then that tour's tournaments.
                 golfTourSections(browseVM)
-            } else {
-            let liveGames = inSelectedLeague(browseVM.liveGames)
-            let todayGames = inSelectedLeague(browseVM.todayGames)
-            let upcomingGames = inSelectedLeague(browseVM.upcomingGames)
-            let recentGames = inSelectedLeague(browseVM.recentGames)
-            switch timeFilter {
-            case .upcoming:
-                if !liveGames.isEmpty {
-                    Section {
-                        ForEach(liveGames) { gwt in
-                            gameRow(gwt, isLive: true)
-                        }
-                    } header: {
-                        LiveAnimatedView()
-                    }
-                }
-
-                if !todayGames.isEmpty {
-                    racingSection(todayGames, header: "Today")
-                }
-
-                #if os(iOS)
-                if !subscriptionManager.isPro && AdConfiguration.isEnabled,
-                   let ad = adManager.adForSlot(0) {
-                    Section {
-                        NativeAdCardView(nativeAd: ad)
-                    }
-                }
-                #endif
-
-                if !upcomingGames.isEmpty {
-                    racingSection(upcomingGames, header: "Upcoming Races")
-                }
-
-                if liveGames.isEmpty && todayGames.isEmpty &&
-                   upcomingGames.isEmpty {
-                    Section {
-                        emptyState
-                    }
-                    .listRowBackground(Color.clear)
-                }
-
-            case .past:
-                if !recentGames.isEmpty {
-                    pastSeasonSections(recentGames)
-                }
-
-                if recentGames.isEmpty {
-                    Section {
-                        pastEmptyState
-                    }
-                    .listRowBackground(Color.clear)
-                }
             }
-            } // end racing branch
         }
         }
     }
@@ -606,11 +535,18 @@ struct BrowseSportView: View {
         }
     }
 
-    private func leagueChip(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private func leagueChip(_ title: String, isSelected: Bool, isHidden: Bool = false,
+                            action: @escaping () -> Void) -> some View {
         Button {
             withAnimation(.easeInOut(duration: 0.2)) { action() }
         } label: {
-            Text(title)
+            HStack(spacing: 4) {
+                if isHidden {
+                    Image(systemName: "eye.slash")
+                        .font(.caption2)
+                }
+                Text(title)
+            }
                 .font(.subheadline.weight(isSelected ? .semibold : .regular))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -997,18 +933,145 @@ struct BrowseSportView: View {
         }
     }
 
-    // MARK: - Racing sections
+    // MARK: - Racing
 
-    /// Flat racing list — one row per Grand Prix (RaceScoreView shows the GP name + status),
-    /// prefixed with the weekend date range. Avoids a section header per single-row GP.
-    @ViewBuilder
-    private func racingSection(_ games: [GameWithTeams], header: String) -> some View {
-        Section(header) {
-            ForEach(games) { gwt in
-                raceRow(gwt)
+    /// Racing reads as one series' season: series chips, what's live, the next weekend,
+    /// standings, then the rest of the calendar and this season's results — no
+    /// Upcoming/Past toggle, and long groups preview a few rows behind "Show all".
+    private func racingBrowseList(_ browseVM: SportBrowseViewModel) -> some View {
+        let live = inSelectedSeries(browseVM.liveGames)
+        let ahead = inSelectedSeries(browseVM.todayGames + browseVM.upcomingGames)
+        let seasons = groupedBySeason(inSelectedSeries(browseVM.recentGames))
+        let hidden = Set(storage.hiddenCompetitions)
+
+        return List {
+            Section {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Leagues.allCases.filter(\.isRacing), id: \.self) { series in
+                            leagueChip(series.racingShortName ?? series.leagueName,
+                                       isSelected: series == racingSeries,
+                                       isHidden: hidden.contains(series.leagueName)) {
+                                racingSeries = series
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                }
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+
+            if racingSeries == .formula1 {
+                // One-time pointer to the other series for F1 fans (dismissed for good once acted on).
+                NASCARPromoSection()
+            } else if hidden.contains(racingSeries.leagueName) {
+                Section {
+                    RacingSeriesHiddenNotice(series: racingSeries)
+                }
+            }
+
+            if !live.isEmpty {
+                Section {
+                    ForEach(live) { gwt in
+                        gameRow(gwt, isLive: true)
+                    }
+                } header: {
+                    LiveAnimatedView()
+                }
+            }
+
+            if let next = ahead.first {
+                Section("Next Up") {
+                    raceRow(next)
+                }
+            }
+
+            if hasStandings {
+                Section {
+                    NavigationLink {
+                        RacingStandingsScreen(series: racingSeries, f1: viewModel.f1Standings,
+                                              standings: seriesStandings)
+                    } label: {
+                        Label("\(racingSeries.racingShortName ?? racingSeries.leagueName) Standings",
+                              systemImage: "list.number")
+                    }
+                }
+            }
+
+            #if os(iOS)
+            if !subscriptionManager.isPro && AdConfiguration.isEnabled,
+               let ad = adManager.adForSlot(0) {
+                Section {
+                    NativeAdCardView(nativeAd: ad)
+                }
+            }
+            #endif
+
+            let remaining = Array(ahead.dropFirst())
+            if !remaining.isEmpty {
+                racePreviewSection(remaining, key: "remaining", preview: 4) {
+                    Text("Coming Up (\(remaining.count))")
+                }
+            }
+
+            ForEach(Array(seasons.enumerated()), id: \.element.year) { index, season in
+                racePreviewSection(season.games, key: "season-\(season.year)", preview: index == 0 ? 3 : 0) {
+                    Label("\(String(season.year)) Results (\(season.games.count))",
+                          systemImage: "flag.checkered.2.crossed")
+                }
+            }
+
+            if live.isEmpty && ahead.isEmpty && seasons.isEmpty {
+                Section {
+                    emptyState
+                }
+                .listRowBackground(Color.clear)
             }
         }
+        #if os(iOS)
+        .listSectionSpacing(.compact)
+        #endif
+        .task(id: racingSeries) {
+            seriesStandings = nil
+            guard racingSeries != .formula1 else { return }
+            seriesStandings = try? await NetworkHandler.fetchSeriesStandings(racingSeries)
+        }
     }
+
+    /// F1's standings come with the schedule; the other series' are fetched per pick.
+    private var hasStandings: Bool {
+        racingSeries == .formula1 ? viewModel.f1Standings != nil : seriesStandings != nil
+    }
+
+    /// The first `preview` races, then a toggle for the rest. A zero preview starts collapsed
+    /// behind the header (older seasons).
+    @ViewBuilder
+    private func racePreviewSection(_ games: [GameWithTeams], key: String, preview: Int,
+                                    @ViewBuilder header: () -> some View) -> some View {
+        let isExpanded = expandedRaceGroups.contains(key)
+        let shown = isExpanded ? games : Array(games.prefix(preview))
+        Section {
+            ForEach(shown) { gwt in
+                raceRow(gwt)
+            }
+            if games.count > shown.count || (isExpanded && games.count > preview) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if isExpanded { expandedRaceGroups.remove(key) } else { expandedRaceGroups.insert(key) }
+                    }
+                } label: {
+                    Text(isExpanded ? "Show fewer" : (preview == 0 ? "Show \(games.count) races" : "Show all \(games.count)"))
+                        .font(.subheadline)
+                }
+            }
+        } header: {
+            header()
+        }
+    }
+
+    // MARK: - Racing rows
 
     @ViewBuilder
     private func raceRow(_ gwt: GameWithTeams) -> some View {
@@ -1040,23 +1103,6 @@ struct BrowseSportView: View {
         let firstPart = first.formatted(.dateTime.month(.abbreviated).day())
         let lastPart = last.formatted(.dateTime.month(.abbreviated).day())
         return "\(firstPart) – \(lastPart)"
-    }
-
-    // MARK: - Past results by season (racing)
-
-    /// Past F1 results grouped into one section per season (newest season first).
-    @ViewBuilder
-    private func pastSeasonSections(_ games: [GameWithTeams]) -> some View {
-        let seasons = groupedBySeason(games)
-        ForEach(seasons, id: \.year) { season in
-            Section {
-                ForEach(season.games) { gwt in
-                    raceRow(gwt)
-                }
-            } header: {
-                Label("\(season.year) Season", systemImage: "flag.checkered.2.crossed")
-            }
-        }
     }
 
     /// Groups games by their race-day year, descending; rows within a season newest-first.
@@ -1175,5 +1221,37 @@ struct BrowseSportView: View {
                 .environment(favorites)
             }
         }
+    }
+}
+
+/// A racing series' championship, pushed from racing browse.
+private struct RacingStandingsScreen: View {
+    let series: Leagues
+    let f1: F1Standings?
+    let standings: NetworkHandler.SeriesStandings?
+    @State private var showAll = false
+
+    var body: some View {
+        ScrollView {
+            Group {
+                if series == .formula1, let f1 {
+                    F1TitleFightCard(standings: f1)
+                } else {
+                    switch standings {
+                    case .drivers(let table):
+                        NASCARStandingsCard(standings: table, showAll: $showAll)
+                    case .classes(let tables):
+                        ClassStandingsCard(standings: tables)
+                    case nil:
+                        ContentUnavailableView("No Standings", systemImage: "list.number")
+                    }
+                }
+            }
+            .padding()
+        }
+        .navigationTitle("\(series.racingShortName ?? series.leagueName) Standings")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
