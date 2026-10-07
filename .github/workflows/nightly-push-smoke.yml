@@ -14,6 +14,10 @@ jobs:
   docker-redis-smoke:
     name: Docker Redis smoke
     runs-on: ubuntu-latest
+    # Same toolchain image the prod deploy builds with (deploy/Dockerfile); the
+    # setup-swift 5.10 toolchain stopped resolving packages once vapor/apns
+    # moved to swift-tools-version 6.0.
+    container: swift:6.0-jammy
     services:
       redis:
         image: redis:7-alpine
@@ -28,13 +32,11 @@ jobs:
       run:
         working-directory: SportsCalAPI/SportsCalServer
     env:
-      REDIS_HOST: 127.0.0.1
+      # Inside a job container, service containers are reached by name.
+      REDIS_HOST: redis
       REDIS_PORT: 6379
     steps:
       - uses: actions/checkout@v4
-      - uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: "5.10"
       - name: Run full server test suite against real Redis
         run: swift test
 
