@@ -272,17 +272,43 @@ platform :ios do
       next
     end
     UI.message("Distributing build #{build.version} (#{version}) to '#{EXTERNAL_GROUP}'.")
-    upload_to_testflight(
-      api_key: api_key,
-      distribute_only: true,
-      app_version: version,
-      build_number: build.version,
-      distribute_external: true,
-      groups: [EXTERNAL_GROUP],
-      notify_external_testers: true,
-      changelog: external_notes
-    )
-    UI.success("Build #{build.version} submitted for external testing.")
+    # Done by hand rather than with upload_to_testflight(distribute_only:): pilot
+    # submits for Beta App Review *before* adding the group, but an Xcode Cloud
+    # build that isn't in an external group yet reports NOT_APPLICABLE, so pilot
+    # would skip the submission and the build would sit unreleased in the group.
+    build = Spaceship::ConnectAPI::Build.get(build_id: build.id)
+
+    # 1. "What to Test" text, and notify testers once it's approved.
+    localization = build.get_beta_build_localizations.find { |l| l.locale == "en-US" }
+    if localization
+      Spaceship::ConnectAPI.patch_beta_build_localizations(localization_id: localization.id, attributes: { whatsNew: external_notes })
+    else
+      Spaceship::ConnectAPI.post_beta_build_localizations(build_id: build.id, attributes: { locale: "en-US", whatsNew: external_notes })
+    end
+    Spaceship::ConnectAPI.patch_build_beta_details(build_beta_details_id: build.build_beta_detail.id, attributes: { autoNotifyEnabled: true })
+
+    # 2. Add to the group.
+    build.add_beta_groups(beta_groups: [group])
+
+    # 3. Submit for Beta App Review once ASC has moved the build to
+    #    READY_FOR_BETA_SUBMISSION. Later builds of an already-approved version
+    #    are usually approved within minutes.
+    state = nil
+    10.times do
+      build = Spaceship::ConnectAPI::Build.get(build_id: build.id)
+      state = build.build_beta_detail.external_build_state
+      break unless state == "NOT_APPLICABLE" || state == "PROCESSING_EXCEPTION"
+      sleep 15
+    end
+    case state
+    when "READY_FOR_BETA_SUBMISSION"
+      build.post_beta_app_review_submission
+      UI.success("Build #{build.version} added to '#{EXTERNAL_GROUP}' and submitted for Beta App Review.")
+    when "WAITING_FOR_BETA_REVIEW", "IN_BETA_REVIEW", "BETA_APPROVED", "IN_BETA_TESTING"
+      UI.success("Build #{build.version} added to '#{EXTERNAL_GROUP}' (#{state}).")
+    else
+      UI.user_error!("Build #{build.version} added to '#{EXTERNAL_GROUP}' but its external state is #{state}; check TestFlight.")
+    end
   end
 
   # Builds come from Xcode Cloud (the "Default" workflow runs on every push to
