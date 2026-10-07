@@ -30,6 +30,16 @@ class SportBrowseViewModel {
     /// The raw games fetched during browse (kept so "Add to My Sports" can merge without re-fetching)
     private(set) var fetchedGames: [Game] = []
 
+    /// Every fetched game bucketed by local start-of-day, unresolved. Team-sport browse pages
+    /// one day at a time over this, so nothing is capped and only the shown day is resolved.
+    private(set) var gamesByDay: [Date: [Game]] = [:]
+    /// Leagues in the feed, busiest first — the browse league chips.
+    private(set) var leagues: [Leagues] = []
+    /// Resolved rows per day, filled on first view of that day.
+    @ObservationIgnored private var resolvedDays: [Date: [GameWithTeams]] = [:]
+    /// Day-strip dots per league filter (nil key = all leagues).
+    @ObservationIgnored private var datesCache: [Leagues?: Set<DateComponents>] = [:]
+
     func fetch() async {
         isLoading = true
         errorMessage = nil
@@ -68,6 +78,72 @@ class SportBrowseViewModel {
     private func categorizeIfNeeded(_ games: [Game]) {
         guard sport != .tennis else { return }
         categorize(games)
+        indexByDay(games)
+    }
+
+    // MARK: - Day index
+
+    private func indexByDay(_ games: [Game]) {
+        let calendar = Calendar.current
+        var byDay: [Date: [Game]] = [:]
+        var counts: [Leagues: Int] = [:]
+        for game in games {
+            guard let league = game.knownLeague, let date = game.standardDate else { continue }
+            byDay[calendar.startOfDay(for: date), default: []].append(game)
+            counts[league, default: 0] += 1
+        }
+        gamesByDay = byDay
+        resolvedDays = [:]
+        datesCache = [:]
+        leagues = counts.keys.sorted {
+            counts[$0] != counts[$1] ? counts[$0]! > counts[$1]! : $0.leagueName < $1.leagueName
+        }
+    }
+
+    /// Days with games, optionally for one league — the day strip's dots.
+    func datesWithGames(league: Leagues?) -> Set<DateComponents> {
+        if let cached = datesCache[league] { return cached }
+        let calendar = Calendar.current
+        var dates = Set<DateComponents>()
+        for (day, games) in gamesByDay where league == nil || games.contains(where: { $0.knownLeague == league }) {
+            dates.insert(calendar.dateComponents([.day, .month, .year], from: day))
+        }
+        datesCache[league] = dates
+        return dates
+    }
+
+    /// The nearest day with games strictly before or after `day`, for the empty-day hint.
+    func adjacentDayWithGames(from day: Date, league: Leagues?, forward: Bool) -> Date? {
+        let start = Calendar.current.startOfDay(for: day)
+        let candidates = gamesByDay.lazy
+            .filter { forward ? $0.key > start : $0.key < start }
+            .filter { league == nil || $0.value.contains(where: { $0.knownLeague == league }) }
+            .map(\.key)
+        return forward ? candidates.min() : candidates.max()
+    }
+
+    /// The day a browse page opens on: today when anything's on (or live), else the next
+    /// matchday, else the most recent one.
+    func initialDay() -> Date {
+        let today = Calendar.current.startOfDay(for: Date())
+        if !liveGames.isEmpty || gamesByDay[today] != nil { return today }
+        return adjacentDayWithGames(from: today, league: nil, forward: true)
+            ?? adjacentDayWithGames(from: today, league: nil, forward: false)
+            ?? today
+    }
+
+    /// One day's games, resolved with teams and sorted by start time. Games that are live
+    /// right now are left out; the page shows those in its Live section.
+    func games(on day: Date) -> [GameWithTeams] {
+        let day = Calendar.current.startOfDay(for: day)
+        if let cached = resolvedDays[day] { return cached }
+        let liveIDs = Set(liveGames.compactMap { $0.game.idEvent })
+        let resolved = (gamesByDay[day] ?? [])
+            .filter { $0.idEvent.map { !liveIDs.contains($0) } ?? true }
+            .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
+            .compactMap { viewModel.resolveGameWithTeams($0) }
+        resolvedDays[day] = resolved
+        return resolved
     }
 
     private func categorize(_ games: [Game]) {
@@ -123,5 +199,12 @@ class SportBrowseViewModel {
         self.upcomingGames = Array(upcoming.prefix(50))
         // Racing returns ~2 full seasons (~50 races) which we split by season; keep enough.
         self.recentGames = Array(recent.prefix(sport == .racing ? 80 : 30))
+    }
+}
+
+extension Game {
+    /// `idLeague` as a known `Leagues` case, nil for leagues the app doesn't model.
+    var knownLeague: Leagues? {
+        idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))
     }
 }

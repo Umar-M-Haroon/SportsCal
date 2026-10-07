@@ -175,11 +175,19 @@ struct BrowseSportView: View {
     @State private var timeFilter: BrowseTimeFilter = .upcoming
     /// Golf only: the tour being browsed. Nil until the user picks one — see `golfTourSections`.
     @State private var selectedGolfTour: Leagues?
-    /// Football only: NFL or college. Both share the football bucket, and a college
-    /// Saturday alone would bury the NFL's week.
-    @State private var footballLeague: Leagues = .nfl
     /// Racing only: the series shown. All share the racing bucket.
     @State private var racingSeries: Leagues = .formula1
+    /// Team sports: the day being browsed. Set to `initialDay()` once data arrives.
+    @State private var selectedDay = Calendar.current.startOfDay(for: Date())
+    /// Team sports: the league chip picked, nil for all leagues.
+    @State private var selectedLeague: Leagues?
+    /// League sections the user expanded or collapsed by hand; the rest use `defaultExpanded`.
+    @State private var leagueExpansion: [Leagues: Bool] = [:]
+
+    /// Tennis, golf and racing browse whole events (tournaments, weekends) rather than days.
+    private var browsesEvents: Bool {
+        sport == .tennis || sport == .golf || sport == .racing
+    }
 
     var body: some View {
         Group {
@@ -233,9 +241,6 @@ struct BrowseSportView: View {
             }
         }
         .task {
-            if sport == .nfl, storage.shouldShowCFB, !storage.shouldShowNFL {
-                footballLeague = .ncaaf
-            }
             // Open on a series the user follows when they've hidden F1.
             if sport == .racing, storage.hiddenCompetitions.contains(Leagues.formula1.leagueName),
                let followed = Leagues.allCases.first(where: { $0.isMotorsportSeries && !storage.hiddenCompetitions.contains($0.leagueName) }) {
@@ -244,6 +249,7 @@ struct BrowseSportView: View {
             let vm = SportBrowseViewModel(sport: sport, viewModel: viewModel)
             browseVM = vm
             await vm.fetch()
+            selectedDay = vm.initialDay()
         }
         #if os(iOS)
         .onAppear {
@@ -256,21 +262,18 @@ struct BrowseSportView: View {
 
     // MARK: - Games List
 
-    /// For football and racing, just the picked league or series; every other sport
-    /// passes through.
+    /// For racing, just the picked series; every other sport passes through.
     private func inSelectedLeague(_ games: [GameWithTeams]) -> [GameWithTeams] {
-        let league: Leagues
-        switch sport {
-        case .nfl: league = footballLeague
-        case .racing: league = racingSeries
-        default: return games
-        }
-        let id = "\(league.rawValue)"
+        guard sport == .racing else { return games }
+        let id = "\(racingSeries.rawValue)"
         return games.filter { $0.game.idLeague == id }
     }
 
     @ViewBuilder
     private func gamesList(_ browseVM: SportBrowseViewModel) -> some View {
+        if !browsesEvents {
+            dayBrowseList(browseVM)
+        } else {
         List {
             Section {
                 Picker("Time", selection: $timeFilter) {
@@ -281,15 +284,6 @@ struct BrowseSportView: View {
                 .pickerStyle(.segmented)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-                if sport == .nfl {
-                    Picker("League", selection: $footballLeague) {
-                        Text("NFL").tag(Leagues.nfl)
-                        Text("College").tag(Leagues.ncaaf)
-                    }
-                    .pickerStyle(.segmented)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
-                }
                 if sport == .racing {
                     Picker("Series", selection: $racingSeries) {
                         ForEach(Leagues.allCases.filter(\.isRacing), id: \.self) { series in
@@ -311,10 +305,6 @@ struct BrowseSportView: View {
                         RacingSeriesHiddenNotice(series: racingSeries)
                     }
                 }
-            }
-
-            if sport == .soccer {
-                soccerCompetitionsSection(browseVM)
             }
 
             // DISABLED: Standings movement chart
@@ -357,7 +347,7 @@ struct BrowseSportView: View {
                 }
 
                 if !todayGames.isEmpty {
-                    todaySection(todayGames)
+                    racingSection(todayGames, header: "Today")
                 }
 
                 #if os(iOS)
@@ -370,7 +360,7 @@ struct BrowseSportView: View {
                 #endif
 
                 if !upcomingGames.isEmpty {
-                    upcomingSections(upcomingGames)
+                    racingSection(upcomingGames, header: "Upcoming Races")
                 }
 
                 if liveGames.isEmpty && todayGames.isEmpty &&
@@ -383,7 +373,7 @@ struct BrowseSportView: View {
 
             case .past:
                 if !recentGames.isEmpty {
-                    pastSections(recentGames)
+                    pastSeasonSections(recentGames)
                 }
 
                 if recentGames.isEmpty {
@@ -393,7 +383,8 @@ struct BrowseSportView: View {
                     .listRowBackground(Color.clear)
                 }
             }
-            } // end team-sport / racing branch
+            } // end racing branch
+        }
         }
     }
 
@@ -445,43 +436,260 @@ struct BrowseSportView: View {
         }
     }
 
-    /// Soccer: a strip of the competitions in the feed, each opening its hub (table,
-    /// matches, top scorers). Busiest competitions first, in declaration order on ties.
-    @ViewBuilder
-    private func soccerCompetitionsSection(_ browseVM: SportBrowseViewModel) -> some View {
-        let games = browseVM.liveGames + browseVM.todayGames + browseVM.upcomingGames + browseVM.recentGames
-        let counts = Dictionary(grouping: games.compactMap { $0.game.idLeague.flatMap(Int.init) }, by: { $0 })
-            .mapValues(\.count)
-        let leagues = Leagues.allCases
-            .filter { counts[$0.rawValue] != nil && SportType(league: $0) == .soccer }
-            .sorted { (counts[$0.rawValue] ?? 0) > (counts[$1.rawValue] ?? 0) }
-        if !leagues.isEmpty {
-            Section("Competitions") {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(leagues, id: \.rawValue) { league in
-                            NavigationLink {
-                                SoccerCompetitionHubView(league: league)
-                                    .environment(viewModel)
-                                    .environment(favorites)
-                            } label: {
-                                Text(league.leagueName)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 7)
-                                    .background(Color.secondaryGroupedBackground, in: Capsule())
-                            }
-                            .buttonStyle(.plain)
+    // MARK: - Day browse (team sports)
+
+    /// Team sports browse like the home page, scoped to one sport: a day strip, league chips,
+    /// then that day's games grouped into collapsible league sections. One day at a time keeps
+    /// the page short however busy the sport is, and any date stays reachable.
+    private func dayBrowseList(_ browseVM: SportBrowseViewModel) -> some View {
+        let leagues = browseVM.leagues
+        let league = selectedLeague.flatMap { leagues.contains($0) ? $0 : nil }
+        let isToday = Calendar.current.isDateInToday(selectedDay)
+        let live = isToday ? browseVM.liveGames.filter { league == nil || $0.game.knownLeague == league } : []
+        let dayGames = browseVM.games(on: selectedDay).filter { league == nil || $0.game.knownLeague == league }
+        let favoriteGames = dayGames.filter { favorites.contains($0.game) }
+        let sections = leagueSections(dayGames.filter { !favorites.contains($0.game) }, order: leagues)
+
+        return List {
+            Section {
+                if leagues.count > 1 {
+                    leagueChipStrip(leagues, selected: league)
+                }
+                DayChipStrip(
+                    selectedDate: $selectedDay,
+                    datesWithGames: browseVM.datesWithGames(league: league)
+                )
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+
+            if let league, sport == .soccer {
+                Section {
+                    soccerHubLink(league)
+                }
+            }
+
+            if !live.isEmpty {
+                Section {
+                    ForEach(live) { gwt in
+                        gameRow(gwt, isLive: true)
+                    }
+                } header: {
+                    LiveAnimatedView()
+                }
+            }
+
+            if !favoriteGames.isEmpty {
+                Section {
+                    ForEach(favoriteGames) { gwt in
+                        dayGroupedRow(gwt)
+                    }
+                } header: {
+                    HStack {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.yellow)
+                        Text("Your Teams")
+                            .font(.headline)
+                    }
+                }
+            }
+
+            #if os(iOS)
+            if !subscriptionManager.isPro && AdConfiguration.isEnabled,
+               !dayGames.isEmpty, let ad = adManager.adForSlot(0) {
+                Section {
+                    NativeAdCardView(nativeAd: ad)
+                }
+            }
+            #endif
+
+            ForEach(Array(sections.enumerated()), id: \.element.league) { index, section in
+                let isExpanded = leagueExpansion[section.league]
+                    ?? defaultExpanded(section.league, index: index, in: sections, filtered: league != nil)
+                Section {
+                    if isExpanded {
+                        ForEach(section.games) { gwt in
+                            dayGroupedRow(gwt)
                         }
                     }
-                    .padding(.vertical, 2)
+                } header: {
+                    leagueSectionHeader(section.league, count: section.games.count, isExpanded: isExpanded)
+                }
+                #if os(iOS)
+                if index == 0, !subscriptionManager.isPro && AdConfiguration.isEnabled,
+                   let ad = adManager.adForSlot(1) {
+                    Section {
+                        NativeAdCardView(nativeAd: ad)
+                    }
+                }
+                #endif
+            }
+
+            if live.isEmpty && dayGames.isEmpty {
+                Section {
+                    emptyDay(browseVM, league: league)
                 }
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            }
+        }
+        #if os(iOS)
+        .listSectionSpacing(.compact)
+        .gesture(daySwipeGesture)
+        #endif
+    }
+
+    /// Groups a day's games by league: leagues the user follows first, then the feed's order
+    /// (busiest first).
+    private func leagueSections(_ games: [GameWithTeams], order: [Leagues]) -> [(league: Leagues, games: [GameWithTeams])] {
+        let grouped = Dictionary(grouping: games.filter { $0.game.knownLeague != nil }) { $0.game.knownLeague! }
+        return order
+            .filter { grouped[$0] != nil }
+            .sorted { isFollowed($0) && !isFollowed($1) }
+            .map { (league: $0, games: grouped[$0] ?? []) }
+    }
+
+    /// The sport is on the user's schedule and the league isn't hidden from it.
+    private func isFollowed(_ league: Leagues) -> Bool {
+        storage.enabledSports.contains(sport) && !storage.hiddenCompetitions.contains(league.leagueName)
+    }
+
+    /// Followed leagues open; others start collapsed so a busy day stays scannable. With one
+    /// league picked, or when nothing is followed, the first section opens.
+    private func defaultExpanded(_ league: Leagues, index: Int,
+                                 in sections: [(league: Leagues, games: [GameWithTeams])],
+                                 filtered: Bool) -> Bool {
+        if filtered || sections.count == 1 { return true }
+        if isFollowed(league) { return true }
+        return index == 0 && !sections.contains { isFollowed($0.league) }
+    }
+
+    private func leagueSectionHeader(_ league: Leagues, count: Int, isExpanded: Bool) -> some View {
+        Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    leagueExpansion[league] = !isExpanded
+                }
+            } label: {
+                HStack {
+                    Text(league.leagueName)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Text("(\(count))")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+    }
+
+    /// "All" plus each league in the feed. Picking one scopes the day strip's dots and the
+    /// list to that league.
+    private func leagueChipStrip(_ leagues: [Leagues], selected: Leagues?) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                leagueChip("All", isSelected: selected == nil) { selectedLeague = nil }
+                ForEach(leagues, id: \.self) { league in
+                    leagueChip(league.racingShortName ?? league.leagueName, isSelected: selected == league) {
+                        selectedLeague = league
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+        }
+    }
+
+    private func leagueChip(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { action() }
+        } label: {
+            Text(title)
+                .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(isSelected ? Color.app(sport).opacity(0.2) : Color.gray.opacity(0.12)))
+                .overlay(Capsule().strokeBorder(isSelected ? Color.app(sport) : .clear, lineWidth: 1.5))
+                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    /// Soccer competitions have a hub (table, matches, top scorers); link it once one is picked.
+    private func soccerHubLink(_ league: Leagues) -> some View {
+        NavigationLink {
+            SoccerCompetitionHubView(league: league)
+                .environment(viewModel)
+                .environment(favorites)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "list.number")
+                    .foregroundStyle(Color.app(.soccer))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(league.leagueName).font(.headline)
+                    Text("Table · Matches · Top Scorers")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
     }
+
+    /// No games on the picked day: say so and offer the nearest matchdays either side.
+    private func emptyDay(_ browseVM: SportBrowseViewModel, league: Leagues?) -> some View {
+        let previous = browseVM.adjacentDayWithGames(from: selectedDay, league: league, forward: false)
+        let next = browseVM.adjacentDayWithGames(from: selectedDay, league: league, forward: true)
+        return VStack(spacing: 12) {
+            Image(systemName: "calendar.badge.clock")
+                .font(.largeTitle)
+                .foregroundColor(.secondary)
+            Text("No \(league?.leagueName ?? sport.displayName) games \(relativeDayPhrase(selectedDay))")
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            HStack(spacing: 16) {
+                if let previous {
+                    Button {
+                        withAnimation { selectedDay = previous }
+                    } label: {
+                        Label(previous.formatted(.dateTime.month(.abbreviated).day()), systemImage: "chevron.left")
+                    }
+                }
+                if let next {
+                    Button {
+                        withAnimation { selectedDay = next }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(next.formatted(.dateTime.month(.abbreviated).day()))
+                            Image(systemName: "chevron.right")
+                        }
+                    }
+                }
+            }
+            .font(.subheadline)
+            .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+    }
+
+    #if os(iOS)
+    private var daySwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 50)
+            .onEnded { value in
+                guard abs(value.translation.width) > abs(value.translation.height),
+                      let day = Calendar.current.date(byAdding: .day,
+                                                      value: value.translation.width < 0 ? 1 : -1,
+                                                      to: selectedDay) else { return }
+                withAnimation(.easeInOut(duration: 0.2)) { selectedDay = day }
+            }
+    }
+    #endif
 
     @ViewBuilder
     private func tennisTournamentSections(_ browseVM: SportBrowseViewModel) -> some View {
@@ -729,62 +937,7 @@ struct BrowseSportView: View {
         return game.venueName
     }
 
-    // MARK: - Section dispatchers
-
-    /// Today section — shows time only since the date is implied
-    @ViewBuilder
-    private func todaySection(_ games: [GameWithTeams]) -> some View {
-        if sport == .racing {
-            racingSection(games, header: "Today")
-        } else {
-            Section("Today") {
-                ForEach(games) { gwt in
-                    dayGroupedRow(gwt)
-                }
-            }
-        }
-    }
-
-    /// Upcoming (future) games, dispatched per sport.
-    @ViewBuilder
-    private func upcomingSections(_ games: [GameWithTeams]) -> some View {
-        if sport == .racing {
-            racingSection(games, header: "Upcoming Races")
-        } else {
-            dayGroupedSections(games, ascending: true)
-        }
-    }
-
-    /// Past (recent) results, dispatched per sport.
-    @ViewBuilder
-    private func pastSections(_ games: [GameWithTeams]) -> some View {
-        if sport == .racing {
-            pastSeasonSections(games)
-        } else {
-            dayGroupedSections(games, ascending: false)
-        }
-    }
-
-    // MARK: - Day-grouped sections (team sports)
-
-    /// Groups games under day headers (Today / Tomorrow / Yesterday / weekday + date).
-    /// Rows show time only since the day is already in the header.
-    @ViewBuilder
-    private func dayGroupedSections(_ games: [GameWithTeams], ascending: Bool) -> some View {
-        let groups = groupedByDay(games, ascending: ascending)
-        ForEach(Array(groups.enumerated()), id: \.element.day) { index, group in
-            Section {
-                ForEach(group.games) { gwt in
-                    dayGroupedRow(gwt)
-                }
-            } header: {
-                Text(dayLabel(group.day))
-            }
-            #if os(iOS)
-            adSection(afterGroupIndex: index)
-            #endif
-        }
-    }
+    // MARK: - Day rows
 
     /// Row for a day-grouped section. Team sports use the dense `CompactGameRowView`
     /// (time/score on the right). Individual sports fall back to the full row plus a
@@ -822,45 +975,13 @@ struct BrowseSportView: View {
         }
     }
 
-    #if os(iOS)
-    /// Inserts a single native ad after the first day group for non-pro users.
-    /// Together with the Today-section ad (slot 0) this caps the Browse feed at
-    /// `AdConfiguration.maxAdsPerScreen` (2) total, with distinct creatives.
-    @ViewBuilder
-    private func adSection(afterGroupIndex index: Int) -> some View {
-        if !subscriptionManager.isPro && AdConfiguration.isEnabled {
-            let slot: Int? = (index == 0) ? 1 : nil
-            if let slot, let ad = adManager.adForSlot(slot) {
-                Section {
-                    NativeAdCardView(nativeAd: ad)
-                }
-            }
+    /// "today" / "tomorrow" / "yesterday" / "on Saturday, Oct 11", to finish a sentence.
+    private func relativeDayPhrase(_ day: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(day) || cal.isDateInTomorrow(day) || cal.isDateInYesterday(day) {
+            return dayLabel(day).lowercased()
         }
-    }
-    #endif
-
-    /// Buckets games by calendar day (race weekends bucket by race day).
-    private func groupedByDay(_ games: [GameWithTeams], ascending: Bool) -> [(day: Date, games: [GameWithTeams])] {
-        var buckets: [Date: [GameWithTeams]] = [:]
-        for gwt in games {
-            guard let day = dayBucketStart(gwt.game) else { continue }
-            buckets[day, default: []].append(gwt)
-        }
-        return buckets
-            .sorted { ascending ? $0.key < $1.key : $0.key > $1.key }
-            .map { day, dayGames in
-                let sorted = dayGames.sorted {
-                    let d0 = $0.game.standardDate ?? .distantFuture
-                    let d1 = $1.game.standardDate ?? .distantFuture
-                    return ascending ? d0 < d1 : d0 > d1
-                }
-                return (day: day, games: sorted)
-            }
-    }
-
-    private func dayBucketStart(_ game: Game) -> Date? {
-        let date = game.isRace ? (game.effectiveEndDate ?? game.standardDate) : game.standardDate
-        return date.map { Calendar.current.startOfDay(for: $0) }
+        return "on \(dayLabel(day))"
     }
 
     private func dayLabel(_ day: Date) -> String {
