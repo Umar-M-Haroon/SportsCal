@@ -39,6 +39,14 @@ class SportBrowseViewModel {
     @ObservationIgnored private var resolvedDays: [Date: [GameWithTeams]] = [:]
     /// Day-strip dots per league filter (nil key = all leagues).
     @ObservationIgnored private var datesCache: [Leagues?: Set<DateComponents>] = [:]
+    @ObservationIgnored private var seasonsCache: [Leagues?: [SeasonSpan]] = [:]
+
+    /// A season in the feed and the matchdays it covers.
+    struct SeasonSpan: Hashable {
+        let season: String
+        let firstDay: Date
+        let lastDay: Date
+    }
 
     func fetch() async {
         isLoading = true
@@ -97,6 +105,7 @@ class SportBrowseViewModel {
         gamesByDay = byDay
         resolvedDays = [:]
         datesCache = [:]
+        seasonsCache = [:]
         leagues = counts.keys.sorted {
             counts[$0] != counts[$1] ? counts[$0]! > counts[$1]! : $0.leagueName < $1.leagueName
         }
@@ -112,6 +121,26 @@ class SportBrowseViewModel {
         }
         datesCache[league] = dates
         return dates
+    }
+
+    /// Seasons in the feed, newest first, optionally for one league — the season menu.
+    func seasons(league: Leagues?) -> [SeasonSpan] {
+        if let cached = seasonsCache[league] { return cached }
+        let calendar = Calendar.current
+        var spans: [String: (first: Date, last: Date)] = [:]
+        for (day, games) in gamesByDay {
+            for game in games where league == nil || game.knownLeague == league {
+                guard let season = game.resolvedSeason else { continue }
+                let span = spans[season]
+                spans[season] = (min(span?.first ?? day, day), max(span?.last ?? day, day))
+            }
+        }
+        let result = spans
+            .map { SeasonSpan(season: $0.key, firstDay: calendar.startOfDay(for: $0.value.first),
+                              lastDay: calendar.startOfDay(for: $0.value.last)) }
+            .sorted { $0.lastDay > $1.lastDay }
+        seasonsCache[league] = result
+        return result
     }
 
     /// The nearest day with games strictly before or after `day`, for the empty-day hint.
@@ -198,9 +227,10 @@ class SportBrowseViewModel {
         upcoming.sort { ($0.game.standardDate ?? .distantFuture) < ($1.game.standardDate ?? .distantFuture) }
 
         self.todayGames = today
-        self.upcomingGames = Array(upcoming.prefix(50))
-        // Racing returns ~2 full seasons (~50 races) which we split by season; keep enough.
-        self.recentGames = Array(recent.prefix(sport == .racing ? 80 : 30))
+        // Racing keeps everything: browse splits it by series and season, and five series
+        // run ~100 races a year, so a shared cap would cut whole seasons out of one series.
+        self.upcomingGames = sport == .racing ? upcoming : Array(upcoming.prefix(50))
+        self.recentGames = sport == .racing ? recent : Array(recent.prefix(30))
     }
 }
 

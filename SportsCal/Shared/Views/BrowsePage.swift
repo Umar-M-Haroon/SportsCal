@@ -228,6 +228,11 @@ struct BrowseSportView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
+            if !browsesEvents, let browseVM, !browseVM.isLoading {
+                ToolbarItem(placement: .automatic) {
+                    seasonMenu(browseVM)
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 if !storage.enabledSports.contains(sport) {
                     Button {
@@ -425,8 +430,10 @@ struct BrowseSportView: View {
             }
 
             #if os(iOS)
+            // Ads only once a day has enough games to sit between; a one-game final
+            // shouldn't be sandwiched by two.
             if !subscriptionManager.isPro && AdConfiguration.isEnabled,
-               !dayGames.isEmpty, let ad = adManager.adForSlot(0) {
+               dayGames.count >= 4, let ad = adManager.adForSlot(0) {
                 Section {
                     NativeAdCardView(nativeAd: ad)
                 }
@@ -446,7 +453,8 @@ struct BrowseSportView: View {
                     leagueSectionHeader(section.league, count: section.games.count, isExpanded: isExpanded)
                 }
                 #if os(iOS)
-                if index == 0, !subscriptionManager.isPro && AdConfiguration.isEnabled,
+                if index == 0, sections.count > 1, dayGames.count >= 8,
+                   !subscriptionManager.isPro && AdConfiguration.isEnabled,
                    let ad = adManager.adForSlot(1) {
                     Section {
                         NativeAdCardView(nativeAd: ad)
@@ -466,6 +474,38 @@ struct BrowseSportView: View {
         .listSectionSpacing(.compact)
         .gesture(daySwipeGesture)
         #endif
+    }
+
+    /// Jumps the day strip between seasons: the current one opens where the page would,
+    /// a past one on its final matchday (the final, the last round). Only for one league —
+    /// leagues label seasons differently ("2025-2026" vs MLS's "2026") — and hidden with one season.
+    @ViewBuilder
+    private func seasonMenu(_ browseVM: SportBrowseViewModel) -> some View {
+        let league = selectedLeague.flatMap { browseVM.leagues.contains($0) ? $0 : nil }
+            ?? (browseVM.leagues.count == 1 ? browseVM.leagues.first : nil)
+        let seasons = league.map { browseVM.seasons(league: $0) } ?? []
+        if seasons.count > 1 {
+            let showing = seasons.first { $0.firstDay <= selectedDay && selectedDay <= $0.lastDay }
+            Menu {
+                ForEach(seasons, id: \.self) { span in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedDay = span == seasons.first ? browseVM.initialDay() : span.lastDay
+                        }
+                    } label: {
+                        if span == showing {
+                            Label(Game.seasonDisplayName(span.season), systemImage: "checkmark")
+                        } else {
+                            Text(Game.seasonDisplayName(span.season))
+                        }
+                    }
+                }
+            } label: {
+                Label(showing.map { Game.seasonDisplayName($0.season) } ?? "Season",
+                      systemImage: "calendar.badge.clock")
+            }
+            .accessibilityLabel("Season")
+        }
     }
 
     /// Groups a day's games by league: leagues the user follows first, then the feed's order
