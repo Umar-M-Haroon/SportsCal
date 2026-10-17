@@ -10,6 +10,9 @@ import SportsCalModel
 /// lead to a `Team` push must be value-based too, or the team gets pushed twice.
 enum BrowseRoute: Hashable {
     case teams
+    /// One sport's browse page — pushed from the Mac's sport sidebar, which shows Home's
+    /// board rather than the Browse grid.
+    case sport(SportType)
 }
 
 struct BrowsePage: View {
@@ -17,12 +20,11 @@ struct BrowsePage: View {
     @Environment(UserDefaultStorage.self) private var storage
     @Environment(Favorites.self) private var favorites
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 16),
-        GridItem(.flexible(), spacing: 16)
-    ]
+    /// Two columns on a phone, more as the width allows (iPad, a wide Mac window).
+    private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16)]
 
     var body: some View {
+        let summaries = sportSummaries()
         ScrollView {
             if WorldCupSeason.isActive {
                 NavigationLink {
@@ -31,21 +33,8 @@ struct BrowsePage: View {
                         .environment(storage)
                         .environment(favorites)
                 } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "soccerball")
-                            .font(.title2)
-                            .foregroundStyle(Color.app(.soccer))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("FIFA World Cup 2026").font(.headline)
-                            Text("Groups · Bracket · Golden Boot")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").foregroundStyle(.secondary)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color.app(.soccer).opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+                    BrowseBanner(systemImage: "soccerball", title: "FIFA World Cup 2026",
+                                 subtitle: "Groups · Bracket · Golden Boot", tint: Color.app(.soccer))
                 }
                 .buttonStyle(.plain)
                 .padding([.horizontal, .top])
@@ -56,21 +45,8 @@ struct BrowsePage: View {
                             .environment(viewModel)
                             .environment(favorites)
                     } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "trophy.fill")
-                                .font(.title2)
-                                .foregroundStyle(Color.app(.soccer))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Knockout Bracket").font(.headline)
-                                Text("Round of 32 → Final")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(.secondary)
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.app(.soccer).opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+                        BrowseBanner(systemImage: "trophy.fill", title: "Knockout Bracket",
+                                     subtitle: "Round of 32 → Final", tint: Color.app(.soccer))
                     }
                     .buttonStyle(.plain)
                     .padding(.horizontal)
@@ -78,35 +54,28 @@ struct BrowsePage: View {
                 }
             }
 
+            let events = BigEvent.upcoming(in: viewModel.totalGames ?? [],
+                                           liveIDs: Set(viewModel.allLiveEvents.compactMap(\.idEvent)))
+            if !events.isEmpty {
+                bigEventsRail(events)
+            }
+
             NavigationLink(value: BrowseRoute.teams) {
-                HStack(spacing: 12) {
-                    Image(systemName: "person.3.fill")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Teams").font(.headline)
-                        Text("Browse & follow any team")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").foregroundStyle(.secondary)
-                }
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(Color.secondaryGroupedBackground, in: RoundedRectangle(cornerRadius: 16))
+                BrowseBanner(systemImage: "person.3.fill", title: "Teams",
+                             subtitle: "Browse & follow any team", tint: .secondary,
+                             background: Color.secondaryGroupedBackground)
             }
             .buttonStyle(.plain)
             .padding(.horizontal)
+            .padding(.top, 8)
 
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(storage.orderedSports, id: \.self) { sport in
                     NavigationLink {
-                        BrowseSportView(sport: sport)
-                            .environment(viewModel)
-                            .environment(storage)
-                            .environment(favorites)
+                        sportPage(sport)
                     } label: {
-                        SportCard(sport: sport, liveCount: viewModel.liveGameCountsBySport[sport] ?? 0)
+                        SportCard(sport: sport, liveCount: viewModel.liveGameCountsBySport[sport] ?? 0,
+                                  summary: summaries[sport])
                     }
                     .buttonStyle(.plain)
                 }
@@ -114,24 +83,252 @@ struct BrowsePage: View {
             .padding()
         }
     }
+
+    private func sportPage(_ sport: SportType) -> some View {
+        BrowseSportView(sport: sport)
+            .environment(viewModel)
+            .environment(storage)
+            .environment(favorites)
+    }
+
+    // MARK: - Big events
+
+    /// Majors, finals and playoff series in the next fortnight, across the sports on the
+    /// schedule. Each opens its sport's browse page.
+    private func bigEventsRail(_ events: [BigEvent]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("BIG EVENTS")
+                .appEyebrow()
+                .foregroundStyle(.secondary)
+                .padding(.horizontal)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(events) { event in
+                        NavigationLink {
+                            sportPage(event.sport)
+                        } label: {
+                            bigEventCard(event)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+        .padding(.top, 12)
+    }
+
+    private func bigEventCard(_ event: BigEvent) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: event.sport.systemImage)
+                    .foregroundStyle(event.sport.color)
+                if event.isLive {
+                    Text("LIVE")
+                        .font(.caption2.bold())
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Color.red, in: Capsule())
+                }
+            }
+            Text(event.title)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+            Spacer(minLength: 0)
+            Text(event.dateText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .frame(width: 168, height: 104, alignment: .topLeading)
+        .background(event.sport.color.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(event.sport.color.opacity(0.25), lineWidth: 1))
+    }
+
+    // MARK: - Sport card summaries
+
+    /// One line per sport card — what's live, how much is on today, or when it's next on.
+    /// One pass over the schedule rather than a filter per sport: this runs on every live tick.
+    private func sportSummaries() -> [SportType: String] {
+        let now = Date()
+        let calendar = Calendar.current
+        let endOfToday = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
+        var todayCounts: [SportType: Int] = [:]
+        var next: [SportType: Game] = [:]
+        // Golf and tennis cards summarize what their pages list — every tour — not the
+        // coverage-filtered schedule, which on the default Big Events tier leaves golf blank
+        // for months between majors.
+        let eventGames = (viewModel.gamesDict[.golf] ?? []) + (viewModel.gamesDict[.tennis] ?? [])
+        let teamGames = (viewModel.filteredGames ?? []).filter { $0.sportType != .golf && $0.sportType != .tennis }
+        var laterTodayCounts: [SportType: Int] = [:]
+        for game in teamGames + eventGames {
+            guard let date = game.standardDate, date < endOfToday, let sport = game.sportType else { continue }
+            if calendar.isDateInToday(date) { todayCounts[sport, default: 0] += 1 }
+            guard date > now else { continue }
+            laterTodayCounts[sport, default: 0] += 1
+        }
+        for game in teamGames + eventGames {
+            guard let date = game.standardDate, date >= endOfToday, let sport = game.sportType else { continue }
+            if let best = next[sport]?.standardDate, best <= date { continue }
+            next[sport] = game
+        }
+        var result: [SportType: String] = [:]
+        for sport in SportType.allCases {
+            let live = viewModel.liveGameCountsBySport[sport] ?? 0
+            // Every game dated today, finished ones included — what the sport's page lists.
+            let today = todayCounts[sport] ?? 0
+            let laterToday = laterTodayCounts[sport] ?? 0
+            let noun = sport.isEventSport ? "event" : "game"
+            if live > 0 {
+                // Tennis counts matches and golf events while their pages list tournaments, so name the unit.
+                let unit = sport == .tennis ? (live == 1 ? " match" : " matches") : sport == .golf ? (live == 1 ? " event" : " events") : ""
+                result[sport] = "\(live) live\(unit)" + (laterToday > 0 ? " · \(laterToday) more today" : "")
+            } else if today > 0 {
+                result[sport] = "\(today) \(noun)\(today == 1 ? "" : "s") today"
+            } else if let game = next[sport], let start = game.standardDate {
+                // Golf's day markers shifted onto the real day, as the golf page shows them.
+                let date = sport == .golf ? (game.eventDaySpan?.first ?? start) : start
+                let when = date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+                result[sport] = sport.isEventSport ? "\(game.strHomeTeam) · \(when)" : "Next: \(when)"
+            }
+        }
+        return result
+    }
+}
+
+private extension SportType {
+    /// Sports whose rows are whole events (a tournament, a race weekend) rather than games.
+    var isEventSport: Bool { self == .golf || self == .tennis || self == .racing }
+}
+
+/// A full-width link card at the top of Browse.
+private struct BrowseBanner: View {
+    let systemImage: String
+    let title: String
+    let subtitle: String
+    let tint: Color
+    var background: Color?
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.title2)
+                .foregroundStyle(tint)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline)
+                Text(subtitle)
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right").foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(background ?? tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+/// A major, a final or a playoff series coming up soon.
+struct BigEvent: Identifiable {
+    let id: String
+    let title: String
+    let sport: SportType
+    let start: Date
+    let end: Date
+    let isLive: Bool
+
+    var dateText: String {
+        let calendar = Calendar.current
+        if isLive { return "On now" }
+        if calendar.isDateInToday(start) { return "Today" }
+        if calendar.isDateInTomorrow(start) { return "Tomorrow" }
+        if calendar.isDate(start, inSameDayAs: end) {
+            return start.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+        }
+        return "\(start.formatted(.dateTime.month(.abbreviated).day())) – \(end.formatted(.dateTime.month(.abbreviated).day()))"
+    }
+
+    /// How far ahead the rail looks.
+    static let window: TimeInterval = 14 * 86_400
+
+    /// Tennis and golf majors (one card per tournament) and team-sport playoff series
+    /// (one per series title, e.g. "NBA Finals") that are on now or start within `window`.
+    /// A tournament is live across its whole span; a series only while one of its games is in
+    /// `liveIDs` (the live feed) — between games it shows its dates, not LIVE.
+    static func upcoming(in games: [Game], liveIDs: Set<String>, now: Date = Date()) -> [BigEvent] {
+        let horizon = now.addingTimeInterval(window)
+        var spans: [String: (title: String, sport: SportType, start: Date, end: Date, live: Bool)] = [:]
+        for game in games {
+            guard let start = game.standardDate, let sport = game.sportType else { continue }
+            let title: String
+            switch sport {
+            case .tennis, .golf:
+                guard game.eventTier == .major else { continue }
+                title = sport == .tennis ? (game.tournamentName ?? game.strLeague ?? "Grand Slam") : game.strHomeTeam
+            case .racing:
+                continue
+            default:
+                guard let series = game.playoff?.seriesTitle.map(seriesName), !series.isEmpty,
+                      game.playoff?.seriesCompleted != true else { continue }
+                title = series
+            }
+            let end = game.effectiveEndDate ?? start
+            guard end >= now.addingTimeInterval(-6 * 3600), start <= horizon else { continue }
+            let key = "\(sport.rawValue)|\(title)"
+            let live = game.idEvent.map(liveIDs.contains) ?? false
+            if let span = spans[key] {
+                spans[key] = (title, sport, min(span.start, start), max(span.end, end), span.live || live)
+            } else {
+                spans[key] = (title, sport, start, end, live)
+            }
+        }
+        return spans
+            .map { span in
+                let isTournament = span.value.sport == .tennis || span.value.sport == .golf
+                let inWindow = span.value.start <= now && now <= span.value.end
+                return BigEvent(id: span.key, title: span.value.title, sport: span.value.sport,
+                                start: span.value.start, end: span.value.end,
+                                isLive: span.value.live || (isTournament && inWindow))
+            }
+            .sorted { $0.isLive != $1.isLive ? $0.isLive : $0.start < $1.start }
+    }
+
+    /// ESPN titles the extra games of a series "ALCS - Game 5 If Necessary"; fold them into "ALCS".
+    private static func seriesName(_ title: String) -> String {
+        guard let range = title.range(of: #"\s+-\s+Game \d+.*$"#, options: .regularExpression) else { return title }
+        return String(title[..<range.lowerBound])
+    }
 }
 
 private struct SportCard: View {
     let sport: SportType
     let liveCount: Int
+    var summary: String?
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 8) {
             Image(systemName: sport.systemImage)
-                .font(.system(size: 36))
+                .font(.system(size: 32))
                 .foregroundColor(sport.color)
 
             Text(sport.displayName)
                 .font(.headline)
                 .foregroundColor(.primary)
+
+            // Two lines reserved on every card — "US Grand Prix · Sun Oct 19" needs both — so
+            // icons stay aligned whether or not a card has anything to say.
+            Text(summary ?? " ")
+                .font(.caption)
+                .foregroundStyle(liveCount > 0 ? Color.red : .secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2, reservesSpace: true)
+                .padding(.horizontal, 8)
+                .accessibilityHidden(summary == nil)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 120)
+        .frame(height: 132)
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(sport.color.opacity(0.1))
@@ -151,12 +348,8 @@ private struct SportCard: View {
                     .padding(8)
             }
         }
+        .accessibilityElement(children: .combine)
     }
-}
-
-private enum BrowseTimeFilter: String, CaseIterable {
-    case upcoming = "Upcoming"
-    case past = "Past"
 }
 
 struct BrowseSportView: View {
@@ -172,9 +365,10 @@ struct BrowseSportView: View {
     @State private var browseVM: SportBrowseViewModel?
     @State private var shouldShowSportsCalProAlert = false
     @State private var sheetType: SheetType?
-    @State private var timeFilter: BrowseTimeFilter = .upcoming
-    /// Golf only: the tour being browsed. Nil until the user picks one — see `golfTourSections`.
+    /// Golf only: the tour being browsed. Nil until picked — see `golfBrowseList`.
     @State private var selectedGolfTour: Leagues?
+    /// Tennis only: ATP or WTA, nil for both.
+    @State private var tennisTour: Leagues?
     /// Racing only: the series shown. All share the racing bucket.
     @State private var racingSeries: Leagues = .formula1
     /// Team sports: the day being browsed. Set to `initialDay()` once data arrives.
@@ -183,8 +377,8 @@ struct BrowseSportView: View {
     @State private var selectedLeague: Leagues?
     /// League sections the user expanded or collapsed by hand; the rest use `defaultExpanded`.
     @State private var leagueExpansion: [Leagues: Bool] = [:]
-    /// Racing groups (remaining races, a season's results) opened past their preview.
-    @State private var expandedRaceGroups: Set<String> = []
+    /// Event groups (coming up, results, a season) opened past their preview.
+    @State private var expandedGroups: Set<String> = []
     /// Racing: the picked series' standings, nil until loaded (F1 reads the view model's).
     @State private var seriesStandings: NetworkHandler.SeriesStandings?
 
@@ -250,11 +444,9 @@ struct BrowseSportView: View {
             }
         }
         .task {
-            // Open on a series the user follows when they've hidden F1.
-            if sport == .racing, storage.hiddenCompetitions.contains(Leagues.formula1.leagueName),
-               let followed = Leagues.allCases.first(where: { $0.isMotorsportSeries && !storage.hiddenCompetitions.contains($0.leagueName) }) {
-                racingSeries = followed
-            }
+            // Coming back from a pushed detail keeps the page as it was left.
+            guard browseVM == nil else { return }
+            restoreChip()
             let vm = SportBrowseViewModel(sport: sport, viewModel: viewModel)
             browseVM = vm
             await vm.fetch()
@@ -269,6 +461,76 @@ struct BrowseSportView: View {
         #endif
     }
 
+    // MARK: - Chips
+
+    /// Reopens on the chip last picked for this sport. Racing with nothing remembered and F1
+    /// hidden opens on a series the user follows.
+    private func restoreChip() {
+        let remembered = BrowseChipMemory.league(for: sport)
+        switch sport {
+        case .racing:
+            if let remembered, remembered.isRacing {
+                racingSeries = remembered
+            } else if storage.hiddenCompetitions.contains(Leagues.formula1.leagueName),
+                      let followed = Leagues.allCases.first(where: { $0.isMotorsportSeries && !storage.hiddenCompetitions.contains($0.leagueName) }) {
+                racingSeries = followed
+            }
+        case .golf:
+            selectedGolfTour = remembered
+        case .tennis:
+            tennisTour = remembered.flatMap { $0 == .atp || $0 == .wta ? $0 : nil }
+        default:
+            selectedLeague = remembered
+        }
+    }
+
+    /// The chip strip in its own unstyled list section.
+    private func chipSection(_ items: [BrowseChipItem], selected: Leagues?,
+                             onSelect: @escaping (Leagues?) -> Void) -> some View {
+        Section {
+            chipStrip(items, selected: selected, onSelect: onSelect)
+        }
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    /// Picking a chip also remembers it for next time.
+    private func chipStrip(_ items: [BrowseChipItem], selected: Leagues?,
+                           onSelect: @escaping (Leagues?) -> Void) -> some View {
+        BrowseChipStrip(items: items,
+                        selectedID: selected.map { String($0.rawValue) } ?? BrowseChipItem.all.id,
+                        sport: sport) { item in
+            onSelect(item.league)
+            BrowseChipMemory.remember(item.league.map { String($0.rawValue) }, for: sport)
+        }
+    }
+
+    /// A competition hidden from the schedule, with the switch to bring it back.
+    private func hiddenNotice(_ league: Leagues) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("\(league.leagueName) is hidden from your schedule.")
+                    .font(.subheadline)
+                Button("Show in My Schedule") {
+                    WhatsNewAction.showCompetition(league, sport: sport)
+                        .apply(storage: storage, viewModel: viewModel)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    /// Whether an event group was opened past its preview. Keys include the chip, so each
+    /// series or tour keeps its own.
+    private func groupExpansion(_ key: String) -> Binding<Bool> {
+        Binding(
+            get: { expandedGroups.contains(key) },
+            set: { if $0 { expandedGroups.insert(key) } else { expandedGroups.remove(key) } }
+        )
+    }
+
     // MARK: - Games List
 
     /// Just the picked racing series.
@@ -278,51 +540,26 @@ struct BrowseSportView: View {
 
     @ViewBuilder
     private func gamesList(_ browseVM: SportBrowseViewModel) -> some View {
-        if sport == .racing {
-            racingBrowseList(browseVM)
-        } else if !browsesEvents {
-            dayBrowseList(browseVM)
-        } else {
-        List {
-            Section {
-                Picker("Time", selection: $timeFilter) {
-                    ForEach(BrowseTimeFilter.allCases, id: \.self) { filter in
-                        Text(filter.rawValue).tag(filter)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-            }
-
-            // DISABLED: Standings movement chart
-//            Section {
-//                StandingsChartView(sport: sport)
-//                    .environment(favorites)
-//                    .listRowInsets(EdgeInsets())
-//                    .listRowBackground(Color.clear)
-//            }
-
-            // DISABLED: XY Stat Scatter Plot
-//            Section {
-//                StatScatterView(sport: sport)
-//                    .environment(favorites)
-//                    .listRowInsets(EdgeInsets())
-//                    .listRowBackground(Color.clear)
-//            }
-
-            if sport == .tennis {
-                // Tennis: drill-in tournament hub (group all matches into tournaments).
-                tennisTournamentSections(browseVM)
-            } else if sport == .golf {
-                // Golf: pick a tour, then that tour's tournaments.
-                golfTourSections(browseVM)
-            }
-        }
+        switch sport {
+        case .racing: racingBrowseList(browseVM)
+        case .tennis: tennisBrowseList(browseVM)
+        case .golf: golfBrowseList(browseVM)
+        default: dayBrowseList(browseVM)
         }
     }
 
-    // MARK: - Tennis tournament hub
+    #if os(iOS)
+    @ViewBuilder
+    private func adSection(slot: Int) -> some View {
+        if !subscriptionManager.isPro && AdConfiguration.isEnabled, let ad = adManager.adForSlot(slot) {
+            Section {
+                NativeAdCardView(nativeAd: ad)
+            }
+        }
+    }
+    #endif
+
+    // MARK: - Tennis
 
     private struct TennisTournament: Identifiable {
         var id: String { name }
@@ -344,8 +581,10 @@ struct BrowseSportView: View {
         }
     }
 
-    /// Groups tennis match games into tournaments (by tournamentName), preserving order.
-    private func tennisTournaments(from games: [Game]) -> [TennisTournament] {
+    /// Groups tennis match games into tournaments (by tournamentName), preserving order. A
+    /// tournament is live when the live feed has one of its matches — schedule copies keep
+    /// TheSportsDB's statuses.
+    private func tennisTournaments(from games: [Game], liveIDs: Set<String>) -> [TennisTournament] {
         var buckets: [String: [Game]] = [:]
         var order: [String] = []
         for game in games {
@@ -356,25 +595,128 @@ struct BrowseSportView: View {
             buckets[name, default: []].append(game)
         }
         return order.map { name in
-            let gs = buckets[name] ?? []
-            let dates = gs.compactMap { $0.standardDate }
+            let all = buckets[name] ?? []
+            // A tournament whose draw isn't out yet arrives as one entry (not a match) carrying
+            // the event's dates; its hub lists matches only.
+            let gs = all.filter(\.isTennisMatch)
+            // Match times set the dates once there are matches; before that, the entry's own span.
+            let dates = gs.isEmpty
+                ? all.compactMap(\.standardDate) + all.compactMap(\.endDateParsed)
+                : gs.compactMap(\.standardDate)
             // From the draw, not `idLeague` — a row cached before draws existed carries a
             // stale league, and mixed doubles counts toward both tours.
             let tours = Set(gs.flatMap { $0.tennisTours })
             return TennisTournament(
                 name: name, games: gs,
                 startDate: dates.min(), endDate: dates.max(),
-                isLive: gs.contains { $0.strStatus?.lowercased() == "in" },
+                isLive: gs.contains { $0.strStatus?.lowercased() == "in" || liveIDs.contains($0.idEvent ?? "") },
                 tours: tours
             )
         }
     }
 
+    /// Tennis browse: ATP/WTA chips, then tournaments live now, coming up and finished —
+    /// each a drill-in to the tournament's hub.
+    private func tennisBrowseList(_ browseVM: SportBrowseViewModel) -> some View {
+        let _ = storage.preferenceVersion
+        let liveIDs = Set(browseVM.liveGames.compactMap { $0.game.idEvent })
+        let all = tennisTournaments(from: browseVM.fetchedGames, liveIDs: liveIDs)
+        // Tournaments with no draw data yet can't be told apart, so they show under both tours.
+        let tournaments = tennisTour.map { tour in all.filter { $0.tours.isEmpty || $0.tours.contains(tour) } } ?? all
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let live = tournaments.filter(\.isLive)
+        let now = Date()
+        let notLive = tournaments
+            .filter { !$0.isLive && ($0.endDate ?? .distantFuture) >= startOfToday }
+            .sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
+        // Started but nothing in play right now (overnight, between sessions).
+        let underWay = notLive.filter { ($0.startDate ?? .distantFuture) <= now }
+        let ahead = notLive.filter { ($0.startDate ?? .distantFuture) > now }
+        let results = tournaments
+            .filter { !$0.isLive && ($0.endDate ?? .distantPast) < startOfToday }
+            .sorted { ($0.endDate ?? .distantPast) > ($1.endDate ?? .distantPast) }
+        let chipKey = tennisTour.map { String($0.rawValue) } ?? "all"
+
+        return List {
+            chipSection([.all, BrowseChipItem(league: .atp, title: "ATP"), BrowseChipItem(league: .wta, title: "WTA")],
+                        selected: tennisTour) { tennisTour = $0 }
+
+            if let tennisTour, storage.hiddenCompetitions.contains(tennisTour.leagueName) {
+                hiddenNotice(tennisTour)
+            }
+
+            if !live.isEmpty {
+                Section {
+                    ForEach(live) { tennisTournamentLink($0) }
+                } header: {
+                    LiveAnimatedView()
+                }
+            }
+
+            if !underWay.isEmpty {
+                Section("Under Way") {
+                    ForEach(underWay) { tennisTournamentLink($0) }
+                }
+            }
+
+            if !ahead.isEmpty {
+                PreviewGroupSection(items: ahead, preview: 5, noun: "tournaments",
+                                    isExpanded: groupExpansion("tennis-\(chipKey)-ahead")) {
+                    Text("Coming Up (\(ahead.count))")
+                } row: {
+                    tennisTournamentLink($0)
+                }
+            }
+
+            #if os(iOS)
+            adSection(slot: 0)
+            #endif
+
+            if !results.isEmpty {
+                PreviewGroupSection(items: results, preview: 3, noun: "tournaments",
+                                    isExpanded: groupExpansion("tennis-\(chipKey)-results")) {
+                    Text("Results (\(results.count))")
+                } row: {
+                    tennisTournamentLink($0)
+                }
+            }
+
+            if tournaments.isEmpty {
+                Section { emptyState }
+                    .listRowBackground(Color.clear)
+            }
+        }
+        #if os(iOS)
+        .listSectionSpacing(.compact)
+        #endif
+    }
+
+    private func tennisTournamentLink(_ tournament: TennisTournament) -> some View {
+        NavigationLink {
+            TournamentHubView(
+                tournamentName: tournament.name, games: tournament.games,
+                shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
+                sheetType: $sheetType
+            )
+            .environment(viewModel)
+            .environment(favorites)
+        } label: {
+            tournamentCard(
+                systemImage: "tennisball.fill",
+                name: tournament.name,
+                badge: tournament.tourBadge,
+                dateText: tennisDateText(tournament),
+                isLive: tournament.isLive
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Day browse (team sports)
 
-    /// Team sports browse like the home page, scoped to one sport: a day strip, league chips,
-    /// then that day's games grouped into collapsible league sections. One day at a time keeps
-    /// the page short however busy the sport is, and any date stays reachable.
+    /// Team sports browse like the home page, scoped to one sport: league chips, a day
+    /// strip, then that day's games grouped into collapsible league sections. One day at a
+    /// time keeps the page short however busy the sport is, and any date stays reachable.
     private func dayBrowseList(_ browseVM: SportBrowseViewModel) -> some View {
         let leagues = browseVM.leagues
         let league = selectedLeague.flatMap { leagues.contains($0) ? $0 : nil }
@@ -383,11 +725,14 @@ struct BrowseSportView: View {
         let dayGames = browseVM.games(on: selectedDay).filter { league == nil || $0.game.knownLeague == league }
         let favoriteGames = dayGames.filter { favorites.contains($0.game) }
         let sections = leagueSections(dayGames.filter { !favorites.contains($0.game) }, order: leagues)
+        // One league in view — picked, or the only one the sport has — gets its hub.
+        let hubLeague = league ?? (leagues.count == 1 ? leagues.first : nil)
 
         return List {
             Section {
                 if leagues.count > 1 {
-                    leagueChipStrip(leagues, selected: league)
+                    chipStrip([.all] + leagues.map { BrowseChipItem(league: $0) },
+                              selected: league) { selectedLeague = $0 }
                 }
                 DayChipStrip(
                     selectedDate: $selectedDay,
@@ -398,67 +743,48 @@ struct BrowseSportView: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
 
-            if let league, sport == .soccer {
+            if let hubLeague {
                 Section {
-                    soccerHubLink(league)
+                    LeagueHubLink(league: hubLeague, sport: sport, games: browseVM.games(in: hubLeague))
                 }
             }
 
-            if !live.isEmpty {
-                Section {
-                    ForEach(live) { gwt in
-                        gameRow(gwt, isLive: true)
-                    }
-                } header: {
-                    LiveAnimatedView()
-                }
-            }
-
-            if !favoriteGames.isEmpty {
-                Section {
-                    ForEach(favoriteGames) { gwt in
-                        dayGroupedRow(gwt)
-                    }
-                } header: {
-                    HStack {
-                        Image(systemName: "star.fill")
-                            .foregroundColor(.yellow)
-                        Text("Your Teams")
-                            .font(.headline)
-                    }
-                }
-            }
-
-            #if os(iOS)
-            // Ads only once a day has enough games to sit between; a one-game final
-            // shouldn't be sandwiched by two.
-            if !subscriptionManager.isPro && AdConfiguration.isEnabled,
-               dayGames.count >= 4, let ad = adManager.adForSlot(0) {
-                Section {
-                    NativeAdCardView(nativeAd: ad)
-                }
-            }
-            #endif
+            LiveGamesSection(games: live) { gameRow($0, isLive: true) }
+            YourTeamsSection(games: favoriteGames) { dayGroupedRow($0) }
 
             ForEach(Array(sections.enumerated()), id: \.element.league) { index, section in
-                let isExpanded = leagueExpansion[section.league]
-                    ?? defaultExpanded(section.league, index: index, in: sections, filtered: league != nil)
-                Section {
-                    if isExpanded {
+                if hubLeague != nil, sections.count == 1 {
+                    // One league in view: the hub card above already names it, so no header.
+                    Section {
                         ForEach(section.games) { gwt in
                             dayGroupedRow(gwt)
                         }
                     }
-                } header: {
-                    leagueSectionHeader(section.league, count: section.games.count, isExpanded: isExpanded)
+                } else {
+                    let isExpanded = leagueExpansion[section.league]
+                        ?? defaultExpanded(section.league, index: index, in: sections, filtered: league != nil)
+                    Section {
+                        if isExpanded {
+                            ForEach(section.games) { gwt in
+                                dayGroupedRow(gwt)
+                            }
+                        }
+                    } header: {
+                        CollapsibleSectionHeader(title: section.league.leagueName, count: section.games.count,
+                                                 isExpanded: isExpanded) {
+                            leagueExpansion[section.league] = !isExpanded
+                        }
+                    }
                 }
                 #if os(iOS)
-                if index == 0, sections.count > 1, dayGames.count >= 8,
-                   !subscriptionManager.isPro && AdConfiguration.isEnabled,
-                   let ad = adManager.adForSlot(1) {
-                    Section {
-                        NativeAdCardView(nativeAd: ad)
-                    }
+                // After the first section, so the day's first games stay above the fold, and
+                // only once a day has enough games to sit between — a one-game final shouldn't
+                // be sandwiched by an ad.
+                if index == 0, dayGames.count >= 4 {
+                    adSection(slot: 0)
+                }
+                if index == 1, dayGames.count >= 8 {
+                    adSection(slot: 1)
                 }
                 #endif
             }
@@ -487,16 +813,19 @@ struct BrowseSportView: View {
         if seasons.count > 1 {
             let showing = seasons.first { $0.firstDay <= selectedDay && selectedDay <= $0.lastDay }
             Menu {
-                ForEach(seasons, id: \.self) { span in
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedDay = span == seasons.first ? browseVM.initialDay() : span.lastDay
-                        }
-                    } label: {
-                        if span == showing {
-                            Label(Game.seasonDisplayName(span.season), systemImage: "checkmark")
-                        } else {
-                            Text(Game.seasonDisplayName(span.season))
+                // The server keeps the current and previous season, so say why the list stops.
+                Section("This season and last") {
+                    ForEach(seasons, id: \.self) { span in
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                selectedDay = span == seasons.first ? browseVM.initialDay() : span.lastDay
+                            }
+                        } label: {
+                            if span == showing {
+                                Label(Game.seasonDisplayName(span.season), systemImage: "checkmark")
+                            } else {
+                                Text(Game.seasonDisplayName(span.season))
+                            }
                         }
                     }
                 }
@@ -531,90 +860,6 @@ struct BrowseSportView: View {
         if filtered || sections.count == 1 { return true }
         if isFollowed(league) { return true }
         return index == 0 && !sections.contains { isFollowed($0.league) }
-    }
-
-    private func leagueSectionHeader(_ league: Leagues, count: Int, isExpanded: Bool) -> some View {
-        Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    leagueExpansion[league] = !isExpanded
-                }
-            } label: {
-                HStack {
-                    Text(league.leagueName)
-                        .font(.headline)
-                        .lineLimit(1)
-                    Text("(\(count))")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(.isHeader)
-            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
-    }
-
-    /// "All" plus each league in the feed. Picking one scopes the day strip's dots and the
-    /// list to that league.
-    private func leagueChipStrip(_ leagues: [Leagues], selected: Leagues?) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                leagueChip("All", isSelected: selected == nil) { selectedLeague = nil }
-                ForEach(leagues, id: \.self) { league in
-                    leagueChip(league.racingShortName ?? league.leagueName, isSelected: selected == league) {
-                        selectedLeague = league
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-        }
-    }
-
-    private func leagueChip(_ title: String, isSelected: Bool, isHidden: Bool = false,
-                            action: @escaping () -> Void) -> some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.2)) { action() }
-        } label: {
-            HStack(spacing: 4) {
-                if isHidden {
-                    Image(systemName: "eye.slash")
-                        .font(.caption2)
-                }
-                Text(title)
-            }
-                .font(.subheadline.weight(isSelected ? .semibold : .regular))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(isSelected ? Color.app(sport).opacity(0.2) : Color.gray.opacity(0.12)))
-                .overlay(Capsule().strokeBorder(isSelected ? Color.app(sport) : .clear, lineWidth: 1.5))
-                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-
-    /// Soccer competitions have a hub (table, matches, top scorers); link it once one is picked.
-    private func soccerHubLink(_ league: Leagues) -> some View {
-        NavigationLink {
-            SoccerCompetitionHubView(league: league)
-                .environment(viewModel)
-                .environment(favorites)
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "list.number")
-                    .foregroundStyle(Color.app(.soccer))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(league.leagueName).font(.headline)
-                    Text("Table · Matches · Top Scorers")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-        }
     }
 
     /// No games on the picked day: say so and offer the nearest matchdays either side.
@@ -667,61 +912,6 @@ struct BrowseSportView: View {
     }
     #endif
 
-    @ViewBuilder
-    private func tennisTournamentSections(_ browseVM: SportBrowseViewModel) -> some View {
-        let tournaments = tennisTournaments(from: browseVM.fetchedGames)
-        let startOfToday = Calendar.current.startOfDay(for: Date())
-        let filtered: [TennisTournament] = {
-            switch timeFilter {
-            case .upcoming:
-                return tournaments
-                    .filter { ($0.endDate ?? .distantFuture) >= startOfToday }
-                    .sorted {
-                        if $0.isLive != $1.isLive { return $0.isLive }
-                        return ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture)
-                    }
-            case .past:
-                return tournaments
-                    .filter { ($0.endDate ?? .distantPast) < startOfToday }
-                    .sorted { ($0.endDate ?? .distantPast) > ($1.endDate ?? .distantPast) }
-            }
-        }()
-
-        if filtered.isEmpty {
-            Section {
-                if timeFilter == .past { pastEmptyState } else { emptyState }
-            }
-            .listRowBackground(Color.clear)
-        } else {
-            Section(timeFilter == .upcoming ? "Tournaments" : "Past Tournaments") {
-                ForEach(filtered) { tournament in
-                    NavigationLink {
-                        TournamentHubView(
-                            tournamentName: tournament.name, games: tournament.games,
-                            shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
-                            sheetType: $sheetType
-                        )
-                        .environment(viewModel)
-                        .environment(favorites)
-                    } label: {
-                        tennisTournamentCard(tournament)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    private func tennisTournamentCard(_ tournament: TennisTournament) -> some View {
-        tournamentCard(
-            systemImage: "tennisball.fill",
-            name: tournament.name,
-            badge: tournament.tourBadge,
-            dateText: dateRangeText(tournament.startDate, tournament.endDate),
-            isLive: tournament.isLive
-        )
-    }
-
     /// One row per tournament in the tennis and golf lists: sport icon, name, an optional tint
     /// badge (tour for tennis, "Major" for golf), date range and an optional detail line.
     @ViewBuilder
@@ -733,7 +923,7 @@ struct BrowseSportView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(name)
                     .font(.headline)
-                    .lineLimit(1)
+                    .lineLimit(2)
                 HStack(spacing: 6) {
                     if let badge {
                         Text(badge)
@@ -769,6 +959,17 @@ struct BrowseSportView: View {
     }
 
     /// "Jun 1 – 14" / "Jun 28 – Jul 5" / single day fallback.
+    /// A tennis tournament's end is only known once its final is scheduled — mid-event the
+    /// last match on the board is tomorrow's — so one in progress says when it started.
+    private func tennisDateText(_ tournament: TennisTournament) -> String {
+        let now = Date()
+        if let start = tournament.startDate, start <= now, !tournament.games.isEmpty,
+           (tournament.endDate ?? .distantFuture) >= Calendar.current.startOfDay(for: now) {
+            return "Started \(start.formatted(.dateTime.month(.abbreviated).day()))"
+        }
+        return dateRangeText(tournament.startDate, tournament.endDate)
+    }
+
     private func dateRangeText(_ start: Date?, _ end: Date?) -> String {
         guard let start else { return "" }
         guard let end, !Calendar.current.isDate(start, inSameDayAs: end) else {
@@ -781,108 +982,96 @@ struct BrowseSportView: View {
         return "\(start.formatted(.dateTime.month(.abbreviated).day())) – \(end.formatted(.dateTime.month(.abbreviated).day()))"
     }
 
-    // MARK: - Golf tours
+    // MARK: - Golf
 
-    /// Golf browse: a tour strip (only tours with events), then the selected tour's
-    /// tournaments for the Upcoming/Past filter. Like tennis browse, this is the unfiltered
-    /// catalog — a tour hidden from the schedule is still browsable (so you can find it again),
-    /// but it isn't opened on by default and says it's hidden; the coverage preference isn't
-    /// applied either, and majors are badged instead.
-    @ViewBuilder
-    private func golfTourSections(_ browseVM: SportBrowseViewModel) -> some View {
+    /// Golf browse: tour chips (only tours with events), then the tour's tournaments live
+    /// now, coming up and finished. This is the unfiltered catalog — a tour hidden from the
+    /// schedule is still browsable (so you can find it again), but it isn't opened on by
+    /// default and says it's hidden; the coverage preference isn't applied either, and
+    /// majors are badged instead.
+    private func golfBrowseList(_ browseVM: SportBrowseViewModel) -> some View {
+        let _ = storage.preferenceVersion
         let games = browseVM.fetchedGames
         let tours = GolfTourBoard.tours(in: games)
         let hidden = Set(storage.hiddenCompetitions)
-        if let tour = selectedGolfTour.flatMap({ tours.contains($0) ? $0 : nil })
-            ?? GolfTourBoard.defaultTour(in: tours, hidden: hidden) {
+        let tour = selectedGolfTour.flatMap { tours.contains($0) ? $0 : nil }
+            ?? GolfTourBoard.defaultTour(in: tours, hidden: hidden)
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let events = tour.map { GolfTourBoard.events(for: $0, in: games) } ?? []
+        let upcoming = GolfTourBoard.upcoming(events, startOfToday: startOfToday)
+        let live = upcoming.filter(GolfTourBoard.isLive)
+        let now = Date()
+        let notLive = upcoming.filter { !GolfTourBoard.isLive($0) }
+        // Started but not in play right now (between rounds).
+        let underWay = notLive.filter { ($0.eventDaySpan?.first ?? .distantFuture) <= now }
+        let ahead = notLive.filter { ($0.eventDaySpan?.first ?? .distantFuture) > now }
+        let results = GolfTourBoard.past(events, startOfToday: startOfToday)
+        let chipKey = tour.map { String($0.rawValue) } ?? "none"
+
+        return List {
             if tours.count > 1 {
-                Section {
-                    golfTourStrip(tours, selected: tour, hidden: hidden)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-                        .listRowBackground(Color.clear)
-                }
+                chipSection(tours.map { BrowseChipItem(league: $0) }, selected: tour) { selectedGolfTour = $0 }
             }
 
-            let events = GolfTourBoard.events(for: tour, in: games)
-            let startOfToday = Calendar.current.startOfDay(for: Date())
-            let listed = timeFilter == .upcoming
-                ? GolfTourBoard.upcoming(events, startOfToday: startOfToday)
-                : GolfTourBoard.past(events, startOfToday: startOfToday)
-            let isHidden = hidden.contains(tour.leagueName)
+            if let tour, hidden.contains(tour.leagueName) {
+                hiddenNotice(tour)
+            }
 
-            if listed.isEmpty {
+            if !live.isEmpty {
                 Section {
-                    if timeFilter == .past { pastEmptyState } else { emptyState }
-                } footer: {
-                    if isHidden { hiddenTourFooter(tour) }
-                }
-                .listRowBackground(Color.clear)
-            } else {
-                Section {
-                    ForEach(listed) { game in
-                        NavigationLink {
-                            TournamentDetailView(game: game)
-                                .environment(viewModel)
-                                .environment(favorites)
-                        } label: {
-                            golfTournamentCard(game)
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    ForEach(live) { golfTournamentLink($0) }
                 } header: {
-                    Text(timeFilter == .upcoming ? tour.leagueName : "\(tour.leagueName) Results")
-                } footer: {
-                    if isHidden { hiddenTourFooter(tour) }
+                    LiveAnimatedView()
                 }
             }
-        } else {
-            Section {
-                if timeFilter == .past { pastEmptyState } else { emptyState }
-            }
-            .listRowBackground(Color.clear)
-        }
-    }
 
-    private func hiddenTourFooter(_ tour: Leagues) -> some View {
-        Text("\(tour.leagueName) is hidden from your schedule. Show it again in Settings.")
-    }
-
-    private func golfTourStrip(_ tours: [Leagues], selected: Leagues, hidden: Set<String>) -> some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(tours, id: \.self) { tour in
-                        let isSelected = tour == selected
-                        Button {
-                            selectedGolfTour = tour
-                        } label: {
-                            HStack(spacing: 4) {
-                                if hidden.contains(tour.leagueName) {
-                                    Image(systemName: "eye.slash")
-                                        .font(.caption2)
-                                }
-                                Text(tour.golfTourShortName ?? tour.leagueName)
-                                    .font(.subheadline.weight(isSelected ? .semibold : .regular))
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule().fill(isSelected ? Color.app(.golf).opacity(0.2) : Color.gray.opacity(0.12))
-                            )
-                            .overlay(
-                                Capsule().strokeBorder(isSelected ? Color.app(.golf) : .clear, lineWidth: 1.5)
-                            )
-                            .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(isSelected ? .isSelected : [])
-                        .id(tour)
-                    }
+            if !underWay.isEmpty {
+                Section("Under Way") {
+                    ForEach(underWay) { golfTournamentLink($0) }
                 }
-                .padding(.horizontal, 16)
             }
-            .onAppear { proxy.scrollTo(selected, anchor: .center) }
+
+            if !ahead.isEmpty {
+                PreviewGroupSection(items: ahead, preview: 5, noun: "tournaments",
+                                    isExpanded: groupExpansion("golf-\(chipKey)-ahead")) {
+                    Text("Coming Up (\(ahead.count))")
+                } row: {
+                    golfTournamentLink($0)
+                }
+            }
+
+            #if os(iOS)
+            adSection(slot: 0)
+            #endif
+
+            if !results.isEmpty {
+                PreviewGroupSection(items: results, preview: 3, noun: "tournaments",
+                                    isExpanded: groupExpansion("golf-\(chipKey)-results")) {
+                    Text("Results (\(results.count))")
+                } row: {
+                    golfTournamentLink($0)
+                }
+            }
+
+            if events.isEmpty {
+                Section { emptyState }
+                    .listRowBackground(Color.clear)
+            }
         }
+        #if os(iOS)
+        .listSectionSpacing(.compact)
+        #endif
+    }
+
+    private func golfTournamentLink(_ game: Game) -> some View {
+        NavigationLink {
+            TournamentDetailView(game: game)
+                .environment(viewModel)
+                .environment(favorites)
+        } label: {
+            golfTournamentCard(game)
+        }
+        .buttonStyle(.plain)
     }
 
     private func golfTournamentCard(_ game: Game) -> some View {
@@ -917,7 +1106,7 @@ struct BrowseSportView: View {
 
     /// Row for a day-grouped section. Team sports use the dense `CompactGameRowView`
     /// (time/score on the right). Individual sports fall back to the full row plus a
-    /// time/tournament caption.
+    /// time caption.
     @ViewBuilder
     private func dayGroupedRow(_ gwt: GameWithTeams) -> some View {
         let game = gwt.game
@@ -932,19 +1121,10 @@ struct BrowseSportView: View {
             .environment(favorites)
         } else {
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
-                    if let date = game.standardDate {
-                        GameTimeLabel(date: date, includeDate: false)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    if sport == .tennis,
-                       let tournament = game.tournamentName ?? game.strLeague {
-                        Text("· \(tournament)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
+                if let date = game.standardDate {
+                    GameTimeLabel(date: date, includeDate: false)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 gameRow(gwt, isLive: false)
             }
@@ -975,33 +1155,21 @@ struct BrowseSportView: View {
 
     // MARK: - Racing
 
-    /// Racing reads as one series' season: series chips, what's live, the next weekend,
-    /// standings, then the rest of the calendar and this season's results — no
-    /// Upcoming/Past toggle, and long groups preview a few rows behind "Show all".
+    /// Racing reads as one series' season: series chips, what's live, the next weekend in
+    /// full, the championship's top three, then the rest of the calendar and each season's
+    /// results — long groups preview a few rows behind "Show all".
     private func racingBrowseList(_ browseVM: SportBrowseViewModel) -> some View {
+        let _ = storage.preferenceVersion
         let live = inSelectedSeries(browseVM.liveGames)
         let ahead = inSelectedSeries(browseVM.todayGames + browseVM.upcomingGames)
         let seasons = groupedBySeason(inSelectedSeries(browseVM.recentGames))
         let hidden = Set(storage.hiddenCompetitions)
+        let seriesName = racingSeries.racingShortName ?? racingSeries.leagueName
+        let chipKey = String(racingSeries.rawValue)
 
         return List {
-            Section {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(Leagues.allCases.filter(\.isRacing), id: \.self) { series in
-                            leagueChip(series.racingShortName ?? series.leagueName,
-                                       isSelected: series == racingSeries,
-                                       isHidden: hidden.contains(series.leagueName)) {
-                                racingSeries = series
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                }
-            }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
+            chipSection(Leagues.allCases.filter(\.isRacing).map { BrowseChipItem(league: $0) },
+                        selected: racingSeries) { racingSeries = $0 ?? racingSeries }
 
             if racingSeries == .formula1 {
                 // One-time pointer to the other series for F1 fans (dismissed for good once acted on).
@@ -1012,54 +1180,58 @@ struct BrowseSportView: View {
                 }
             }
 
-            if !live.isEmpty {
-                Section {
-                    ForEach(live) { gwt in
-                        gameRow(gwt, isLive: true)
-                    }
-                } header: {
-                    LiveAnimatedView()
-                }
-            }
+            LiveGamesSection(games: live) { gameRow($0, isLive: true) }
 
             if let next = ahead.first {
                 Section("Next Up") {
-                    raceRow(next)
+                    NavigationLink {
+                        RaceDetailView(game: next.game)
+                            .environment(viewModel)
+                            .environment(favorites)
+                    } label: {
+                        RaceWeekendCard(game: next.game)
+                    }
                 }
             }
 
             if hasStandings {
                 Section {
+                    if !standingsRows.isEmpty {
+                        RacingStandingsPreview(title: "\(seriesName) Standings", rows: standingsRows)
+                    }
                     NavigationLink {
                         RacingStandingsScreen(series: racingSeries, f1: viewModel.f1Standings,
                                               standings: seriesStandings)
                     } label: {
-                        Label("\(racingSeries.racingShortName ?? racingSeries.leagueName) Standings",
-                              systemImage: "list.number")
+                        Text(standingsRows.isEmpty ? "\(seriesName) Standings" : "Full Standings")
+                            .font(.subheadline)
                     }
+                } header: {
+                    Text("Championship")
                 }
             }
 
             #if os(iOS)
-            if !subscriptionManager.isPro && AdConfiguration.isEnabled,
-               let ad = adManager.adForSlot(0) {
-                Section {
-                    NativeAdCardView(nativeAd: ad)
-                }
-            }
+            adSection(slot: 0)
             #endif
 
             let remaining = Array(ahead.dropFirst())
             if !remaining.isEmpty {
-                racePreviewSection(remaining, key: "remaining", preview: 4) {
+                PreviewGroupSection(items: remaining, preview: 4, noun: "races",
+                                    isExpanded: groupExpansion("racing-\(chipKey)-remaining")) {
                     Text("Coming Up (\(remaining.count))")
+                } row: {
+                    raceRow($0)
                 }
             }
 
             ForEach(Array(seasons.enumerated()), id: \.element.year) { index, season in
-                racePreviewSection(season.games, key: "season-\(season.year)", preview: index == 0 ? 3 : 0) {
+                PreviewGroupSection(items: season.games, preview: index == 0 ? 3 : 0, noun: "races",
+                                    isExpanded: groupExpansion("racing-\(chipKey)-season-\(season.year)")) {
                     Label("\(String(season.year)) Results (\(season.games.count))",
                           systemImage: "flag.checkered.2.crossed")
+                } row: {
+                    raceRow($0)
                 }
             }
 
@@ -1085,30 +1257,12 @@ struct BrowseSportView: View {
         racingSeries == .formula1 ? viewModel.f1Standings != nil : seriesStandings != nil
     }
 
-    /// The first `preview` races, then a toggle for the rest. A zero preview starts collapsed
-    /// behind the header (older seasons).
-    @ViewBuilder
-    private func racePreviewSection(_ games: [GameWithTeams], key: String, preview: Int,
-                                    @ViewBuilder header: () -> some View) -> some View {
-        let isExpanded = expandedRaceGroups.contains(key)
-        let shown = isExpanded ? games : Array(games.prefix(preview))
-        Section {
-            ForEach(shown) { gwt in
-                raceRow(gwt)
-            }
-            if games.count > shown.count || (isExpanded && games.count > preview) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        if isExpanded { expandedRaceGroups.remove(key) } else { expandedRaceGroups.insert(key) }
-                    }
-                } label: {
-                    Text(isExpanded ? "Show fewer" : (preview == 0 ? "Show \(games.count) races" : "Show all \(games.count)"))
-                        .font(.subheadline)
-                }
-            }
-        } header: {
-            header()
+    /// The picked series' drivers' table, for the inline top three.
+    private var standingsRows: [RacingStandingRow] {
+        if racingSeries == .formula1 {
+            return viewModel.f1Standings.map(RacingStandingsPreview.rows(f1:)) ?? []
         }
+        return seriesStandings.map(RacingStandingsPreview.rows(series:)) ?? []
     }
 
     // MARK: - Racing rows
@@ -1131,18 +1285,7 @@ struct BrowseSportView: View {
         guard let first = dates.first, let last = dates.last else {
             return game.standardDate.map { $0.formatted(.dateTime.month(.abbreviated).day()) }
         }
-        let cal = Calendar.current
-        if cal.isDate(first, inSameDayAs: last) {
-            return first.formatted(.dateTime.month(.abbreviated).day())
-        }
-        if cal.component(.month, from: first) == cal.component(.month, from: last) {
-            let firstPart = first.formatted(.dateTime.month(.abbreviated).day())
-            let lastDay = cal.component(.day, from: last)
-            return "\(firstPart)–\(lastDay)"
-        }
-        let firstPart = first.formatted(.dateTime.month(.abbreviated).day())
-        let lastPart = last.formatted(.dateTime.month(.abbreviated).day())
-        return "\(firstPart) – \(lastPart)"
+        return dateRangeText(first, last)
     }
 
     /// Groups games by their race-day year, descending; rows within a season newest-first.
@@ -1171,19 +1314,7 @@ struct BrowseSportView: View {
             Image(systemName: sport.systemImage)
                 .font(.largeTitle)
                 .foregroundColor(.secondary)
-            Text("No games found for \(sport.displayName)")
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-    }
-
-    private var pastEmptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.largeTitle)
-                .foregroundColor(.secondary)
-            Text("No recent results for \(sport.displayName)")
+            Text("No events found for \(sport.displayName)")
                 .foregroundColor(.secondary)
             if storage.hidePastEvents {
                 Text("Past events are hidden in Settings. Turn off \"Hide past events\" to see recent results.")

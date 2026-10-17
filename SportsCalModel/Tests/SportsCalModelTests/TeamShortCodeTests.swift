@@ -46,4 +46,16 @@ final class TeamShortCodeTests: XCTestCase {
         let team = try JSONDecoder().decode(Team.self, from: json)
         XCTAssertEqual(team.strTeamShort, "BKN")
     }
+
+    /// TheSportsDB sends "" for a minor team's missing fields; decoding them as nil lets views
+    /// fall back to initials and the placeholder badge instead of rendering blanks.
+    func testDecodingTreatsBlankFieldsAsMissing() throws {
+        let json = #"{"idTeam":"999","strTeam":"London Lions","strTeamShort":"","strTeamBadge":" ","strAlternate":""}"#
+        let team = try JSONDecoder().decode(Team.self, from: Data(json.utf8))
+        XCTAssertEqual(team.strTeam, "London Lions")
+        XCTAssertNil(team.strTeamShort)
+        XCTAssertNil(team.strTeamBadge)
+        XCTAssertNil(team.strAlternate)
+        XCTAssertEqual(Team.shortCode(strTeamShort: team.strTeamShort, name: team.strTeam ?? ""), "LLI")
+    }
 }

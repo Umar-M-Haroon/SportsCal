@@ -71,9 +71,15 @@ struct SoccerLeagueTableView: View {
 
             HStack(spacing: 6) {
                 WCBadge(url: row.badge, size: 18)
-                Text(row.teamName)
-                    .font(.subheadline)
-                    .lineLimit(1)
+                // Full name when it fits, else the name fans already shorten it to.
+                ViewThatFits(in: .horizontal) {
+                    Text(row.teamName)
+                    Text(Self.shortTeamName(row.teamName))
+                        .minimumScaleFactor(0.85)
+                }
+                .font(.subheadline)
+                .lineLimit(1)
+                .accessibilityLabel(row.teamName)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -112,6 +118,16 @@ struct SoccerLeagueTableView: View {
                 .font(.system(size: 6))
                 .foregroundStyle(change > 0 ? Color.green : Color.red)
         }
+    }
+
+    /// "Brighton & Hove Albion" → "Brighton", "Newcastle United" → "Newcastle Utd".
+    static func shortTeamName(_ name: String) -> String {
+        let replacements: [(String, String)] = [
+            (" & Hove Albion", ""), ("Manchester ", "Man "), ("Nottingham Forest", "Nott'm Forest"),
+            ("Wolverhampton Wanderers", "Wolves"), (" Hotspur", ""), (" Wanderers", ""),
+            (" United", " Utd"), (" Athletic", ""), (" Albion", ""),
+        ]
+        return replacements.reduce(name) { $0.replacingOccurrences(of: $1.0, with: $1.1) }
     }
 
     private func formDots(_ form: [SoccerResult]) -> some View {

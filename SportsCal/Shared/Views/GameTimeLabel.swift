@@ -24,7 +24,9 @@ struct GameTimeLabel: View {
 
     var body: some View {
         if startsWithinHour {
-            Text(date, style: .relative)
+            // "in 4 min", live-updating — `.relative` reads "4 min, 21 sec" and wraps in a row.
+            Text(.currentDate, format: .reference(to: date, allowedFields: [.minute], maxFieldCount: 1))
+                .lineLimit(1)
         } else if !includeDate || Calendar.current.isDateInToday(date) {
             Text(date, style: .time)
         } else if date.timeIntervalSinceNow > 0 && date.timeIntervalSinceNow < 7 * 86400 {

@@ -97,6 +97,25 @@ struct PlayoffPill: View {
     }
 }
 
+/// Quiet badge marking an exhibition game, so preseason results don't read as real ones.
+/// Neutral rather than accent-filled so it never competes with ``PlayoffPill``.
+struct PreseasonPill: View {
+    var body: some View {
+        Text("Preseason")
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.secondary.opacity(0.15), in: Capsule())
+            .lineLimit(1)
+    }
+}
+
+extension Game {
+    /// Only leagues that stamp phases can be preseason; everything else resolves to regular.
+    var isPreseason: Bool { resolvedSeasonPhase == .preseason }
+}
+
 #Preview {
     let nbaSeries = Game(
         strLeague: "\(Leagues.nba.rawValue)",
@@ -119,6 +138,7 @@ struct PlayoffPill: View {
     return VStack(alignment: .leading, spacing: 10) {
         PlayoffPill(game: nbaSeries, homeTeamShort: "LAL", awayTeamShort: "BOS")
         PlayoffPill(game: nflWildCard, homeTeamShort: "DAL", awayTeamShort: "SF")
+        PreseasonPill()
     }
     .padding()
 }

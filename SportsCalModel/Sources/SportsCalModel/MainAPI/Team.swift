@@ -50,14 +50,23 @@ public struct Team: Codable, Hashable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let id = try container.decodeIfPresent(String.self, forKey: .idTeam)
-        let decodedShort = try container.decodeIfPresent(String.self, forKey: .strTeamShort)
+        // TheSportsDB sends "" rather than null for minor teams' missing fields (an exhibition
+        // side like London Lions, small Europa/Conference League clubs). Views treat a non-nil
+        // value as real, so "" would render a blank abbreviation and logo instead of falling
+        // back to initials and the placeholder badge.
+        func text(_ key: CodingKeys) throws -> String? {
+            // Only blanks become nil — names are matched verbatim elsewhere, so no trimming.
+            let value = try container.decodeIfPresent(String.self, forKey: key)
+            return value?.trimmingCharacters(in: .whitespaces).isEmpty == false ? value : nil
+        }
+        let id = try text(.idTeam)
+        let decodedShort = try text(.strTeamShort)
         self.idTeam = id
-        self.strTeam = try container.decodeIfPresent(String.self, forKey: .strTeam)
+        self.strTeam = try text(.strTeam)
         // Apply the curated correction so e.g. the Knicks' stored "NY" surfaces as "NYK".
         self.strTeamShort = Team.canonicalAbbreviationOverrides[id ?? ""] ?? decodedShort
-        self.strAlternate = try container.decodeIfPresent(String.self, forKey: .strAlternate)
-        self.strTeamBadge = try container.decodeIfPresent(String.self, forKey: .strTeamBadge)
+        self.strAlternate = try text(.strAlternate)
+        self.strTeamBadge = try text(.strTeamBadge)
     }
 }
 

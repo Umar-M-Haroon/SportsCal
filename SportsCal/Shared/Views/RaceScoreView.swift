@@ -151,6 +151,8 @@ struct RaceScoreView: View {
                                     .font(.subheadline)
                                     .fontWeight(index == 0 ? .semibold : .regular)
                                     .lineLimit(1)
+                                    // The driver keeps their name; the team gives way first.
+                                    .layoutPriority(1)
                                 if let constructor = entry.constructor {
                                     Text(constructor)
                                         .font(.caption2)
@@ -158,7 +160,7 @@ struct RaceScoreView: View {
                                         .lineLimit(1)
                                 }
                                 Spacer()
-                                Text(index == 0 ? "Leader" : (entry.gap ?? entry.score))
+                                Text(index == 0 ? (game.displayStatus == "Final" ? "Winner" : "Leader") : (entry.gap ?? entry.score))
                                     .font(.subheadline)
                                     .fontWeight(index == 0 ? .semibold : .regular)
                                     .foregroundColor(index == 0 ? .primary : .secondary)
@@ -237,6 +239,13 @@ struct SessionIndicatorStrip: View {
                     pill(for: session)
                 }
             }
+        }
+        // Fade the trailing edge so pills that run past the card read as scrollable, not cut off.
+        .mask {
+            LinearGradient(stops: [.init(color: .black, location: 0),
+                                   .init(color: .black, location: 0.9),
+                                   .init(color: .clear, location: 1)],
+                           startPoint: .leading, endPoint: .trailing)
         }
     }
 

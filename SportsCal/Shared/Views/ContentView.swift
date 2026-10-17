@@ -435,6 +435,11 @@ struct ContentView: View {
                         TeamsListView()
                             .environment(viewModel)
                             .environment(favorites)
+                    case .sport(let sport):
+                        BrowseSportView(sport: sport)
+                            .environment(viewModel)
+                            .environment(storage)
+                            .environment(favorites)
                     }
                 }
             }
@@ -635,6 +640,16 @@ struct ContentView: View {
                         .help("Schedule, standings and roster for \(team.strTeam ?? "this team")")
                     }
                 }
+                if case .sport(let sport) = sidebarSelection ?? .games {
+                    ToolbarItem {
+                        Button {
+                            browseTeamPath = NavigationPath([BrowseRoute.sport(sport)])
+                        } label: {
+                            Label("Browse \(sport.displayName)", systemImage: "square.grid.2x2")
+                        }
+                        .help("Every league, standings and the full season for \(sport.displayName)")
+                    }
+                }
                 ToolbarItem {
                     Button {
                         browseTeamPath = NavigationPath([BrowseRoute.teams])
@@ -654,6 +669,11 @@ struct ContentView: View {
                 case .teams:
                     TeamsListView()
                         .environment(viewModel)
+                        .environment(favorites)
+                case .sport(let sport):
+                    BrowseSportView(sport: sport)
+                        .environment(viewModel)
+                        .environment(storage)
                         .environment(favorites)
                 }
             }

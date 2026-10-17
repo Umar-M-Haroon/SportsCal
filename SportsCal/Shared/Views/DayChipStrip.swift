@@ -100,6 +100,16 @@ struct DayChipStrip: View {
             .padding(.vertical, 4)
         }
         .scrollPosition(id: $scrollPosition, anchor: .center)
+        // Fade the ends so a chip sliced by the Today button reads as "more this way".
+        .mask {
+            HStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: 24)
+                Rectangle()
+                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: 24)
+            }
+        }
         .onAppear {
             scrollPosition = calendar.startOfDay(for: selectedDate)
         }

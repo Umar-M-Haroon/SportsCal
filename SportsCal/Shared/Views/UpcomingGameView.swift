@@ -83,6 +83,10 @@ struct UpcomingGameView: View {
                     )
                     .frame(maxWidth: .infinity, alignment: .center)
                 }
+                if game.isPreseason {
+                    PreseasonPill()
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
             }
             .contextMenu {
                 #if canImport(ActivityKit) && os(iOS)

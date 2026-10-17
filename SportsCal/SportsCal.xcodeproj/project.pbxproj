@@ -226,6 +226,8 @@
 		1DE4EBB92F3AE86000CAC2E8 /* CalendarPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB82F3AE86000CAC2E8 /* CalendarPage.swift */; };
 		1DE4EBBB2F3AF17800CAC2E8 /* SportPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBBA2F3AF17800CAC2E8 /* SportPickerSheet.swift */; };
 		1DE4EBBD2F3C7EBD00CAC2E8 /* BrowsePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBBC2F3C7EBD00CAC2E8 /* BrowsePage.swift */; };
+		5B76D2653DF4947711B6A7A3 /* LeagueHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E514235289FB20CABC7710D8 /* LeagueHubView.swift */; };
+		3261DED59A9FD1F05E8D5387 /* BrowseComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B839117E0EA41EA254D29D9 /* BrowseComponents.swift */; };
 		1DE897CB2F3DB6FA006657FF /* LocalServerDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897CA2F3DB6FA006657FF /* LocalServerDiscovery.swift */; };
 		1DE897CC2F3DB6FA006657FF /* LocalServerDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897CA2F3DB6FA006657FF /* LocalServerDiscovery.swift */; };
 		1DE897CE2F3DBE55006657FF /* AutoFollowButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE897CD2F3DBE55006657FF /* AutoFollowButton.swift */; };
@@ -604,6 +606,8 @@
 		1DE4EBB82F3AE86000CAC2E8 /* CalendarPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarPage.swift; sourceTree = "<group>"; };
 		1DE4EBBA2F3AF17800CAC2E8 /* SportPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportPickerSheet.swift; sourceTree = "<group>"; };
 		1DE4EBBC2F3C7EBD00CAC2E8 /* BrowsePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowsePage.swift; sourceTree = "<group>"; };
+		E514235289FB20CABC7710D8 /* LeagueHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeagueHubView.swift; sourceTree = "<group>"; };
+		3B839117E0EA41EA254D29D9 /* BrowseComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseComponents.swift; sourceTree = "<group>"; };
 		1DE897CA2F3DB6FA006657FF /* LocalServerDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalServerDiscovery.swift; sourceTree = "<group>"; };
 		1DE897CD2F3DBE55006657FF /* AutoFollowButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFollowButton.swift; sourceTree = "<group>"; };
 		1DE897CF2F3DBE80006657FF /* SearchToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchToken.swift; sourceTree = "<group>"; };
@@ -931,6 +935,8 @@
 			children = (
 				1DE897CD2F3DBE55006657FF /* AutoFollowButton.swift */,
 				1DE4EBBC2F3C7EBD00CAC2E8 /* BrowsePage.swift */,
+				E514235289FB20CABC7710D8 /* LeagueHubView.swift */,
+				3B839117E0EA41EA254D29D9 /* BrowseComponents.swift */,
 				1DE4EBB42F3ACECB00CAC2E8 /* RaceDetailView.swift */,
 				17048B99499D52C53BCE56D5 /* NASCARViews.swift */,
 				1DE4EBB52F3ACECB00CAC2E8 /* RaceScoreView.swift */,
@@ -1876,6 +1882,8 @@
 				79F9785EAC05D33FA972CD8F /* ScheduleSliceSync.swift in Sources */,
 				AB12CD3400000003000000AA /* PushToStartRegistrationPlanner.swift in Sources */,
 				1DE4EBBD2F3C7EBD00CAC2E8 /* BrowsePage.swift in Sources */,
+				5B76D2653DF4947711B6A7A3 /* LeagueHubView.swift in Sources */,
+				3261DED59A9FD1F05E8D5387 /* BrowseComponents.swift in Sources */,
 				1D8352D52905532D00E60D7F /* DateFormatters.swift in Sources */,
 				1D7D46B029EBC3BF00179018 /* DetailView.swift in Sources */,
 				1D5C463726C9FB5000BA827B /* SettingsData.swift in Sources */,

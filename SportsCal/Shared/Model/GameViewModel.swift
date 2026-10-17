@@ -386,8 +386,8 @@ public class GameViewModel: NSObject {
         let computedTodayGamesWithTeams = computedTodayGames.compactMap { makeGameWithTeams($0) }
         let computedTodayFavorites = computedTodayGamesWithTeams.filter { favorites.contains($0.game) }
         let computedTodayOther = computeTodayOtherGamesBySport(todayGamesWithTeams: computedTodayGamesWithTeams)
-        let liveIDs = Set(computedLiveEventsWithTeams.map(\.id))
-        let computedTodayAll = computeTodayAllGamesBySport(todayGamesWithTeams: computedTodayGamesWithTeams, liveIDs: liveIDs)
+        let live = LiveFixtureIndex(live: computedLiveEvents)
+        let computedTodayAll = computeTodayAllGamesBySport(todayGamesWithTeams: computedTodayGamesWithTeams, live: live)
 
         // Batch-assign all stored properties — SwiftUI coalesces into one update
         liveEvents = computedLiveEvents
@@ -609,8 +609,8 @@ public class GameViewModel: NSObject {
         return grouped
     }
 
-    private func computeTodayAllGamesBySport(todayGamesWithTeams: [GameWithTeams], liveIDs: Set<String>) -> [SportType: [GameWithTeams]] {
-        let nonLive = todayGamesWithTeams.filter { !liveIDs.contains($0.id) }
+    private func computeTodayAllGamesBySport(todayGamesWithTeams: [GameWithTeams], live: LiveFixtureIndex) -> [SportType: [GameWithTeams]] {
+        let nonLive = todayGamesWithTeams.filter { !live.contains($0.game) }
         var grouped: [SportType: [GameWithTeams]] = [:]
         for gameWithTeams in nonLive {
             guard let leagueString = gameWithTeams.game.idLeague,

@@ -40,6 +40,7 @@ class SportBrowseViewModel {
     /// Day-strip dots per league filter (nil key = all leagues).
     @ObservationIgnored private var datesCache: [Leagues?: Set<DateComponents>] = [:]
     @ObservationIgnored private var seasonsCache: [Leagues?: [SeasonSpan]] = [:]
+    @ObservationIgnored private var leagueGamesCache: [Leagues: [Game]] = [:]
 
     /// A season in the feed and the matchdays it covers.
     struct SeasonSpan: Hashable {
@@ -106,10 +107,26 @@ class SportBrowseViewModel {
         resolvedDays = [:]
         datesCache = [:]
         seasonsCache = [:]
+        leagueGamesCache = [:]
         leagues = counts.keys.sorted {
-            counts[$0] != counts[$1] ? counts[$0]! > counts[$1]! : $0.leagueName < $1.leagueName
+            let (rankA, rankB) = (Self.soccerChipRank[$0] ?? .max, Self.soccerChipRank[$1] ?? .max)
+            if rankA != rankB { return rankA < rankB }
+            return counts[$0] != counts[$1] ? counts[$0]! > counts[$1]! : $0.leagueName < $1.leagueName
         }
     }
+
+    /// Soccer chips lead with the top flights and the Champions League; busiest-first alone put
+    /// the Championship and the cups (more fixtures) ahead of the Premier League. Leagues not
+    /// listed, and every other sport, fall back to busiest-first.
+    private static let soccerChipRank: [Leagues: Int] = {
+        let order: [Leagues] = [
+            .English_Premier_League, .La_Liga, .UEFA_Champions_League, .German_Bundesliga, .Serie_A,
+            .Ligue_1, .MLS, .FIFA_World_Cup, .Womens_World_Cup, .UEFA_Europa_League,
+            .UEFA_Conference_League, .Liga_MX, .Eredivisie, .A_League, .English_League_Championship,
+            .UEFA_Nations_League, .Copa_America, .FA_Cup, .Copa_del_Rey, .DFB_Pokal, .Coupe_De_France,
+        ]
+        return Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
+    }()
 
     /// Days with games, optionally for one league — the day strip's dots.
     func datesWithGames(league: Leagues?) -> Set<DateComponents> {
@@ -143,6 +160,14 @@ class SportBrowseViewModel {
         return result
     }
 
+    /// One league's games, unresolved — what its hub lists.
+    func games(in league: Leagues) -> [Game] {
+        if let cached = leagueGamesCache[league] { return cached }
+        let games = fetchedGames.filter { $0.knownLeague == league }
+        leagueGamesCache[league] = games
+        return games
+    }
+
     /// The nearest day with games strictly before or after `day`, for the empty-day hint.
     func adjacentDayWithGames(from day: Date, league: Leagues?, forward: Bool) -> Date? {
         let start = Calendar.current.startOfDay(for: day)
@@ -168,9 +193,10 @@ class SportBrowseViewModel {
     func games(on day: Date) -> [GameWithTeams] {
         let day = Calendar.current.startOfDay(for: day)
         if let cached = resolvedDays[day] { return cached }
-        let liveIDs = Set(liveGames.compactMap { $0.game.idEvent })
+        // By fixture, not id: live games carry ESPN ids, schedule rows TheSportsDB ones.
+        let live = LiveFixtureIndex(live: liveGames.map(\.game))
         let resolved = (gamesByDay[day] ?? [])
-            .filter { $0.idEvent.map { !liveIDs.contains($0) } ?? true }
+            .filter { !live.contains($0) }
             .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
             .compactMap { viewModel.resolveGameWithTeams($0) }
         resolvedDays[day] = resolved

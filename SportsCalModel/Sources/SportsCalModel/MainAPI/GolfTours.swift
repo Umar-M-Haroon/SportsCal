@@ -42,14 +42,27 @@ public extension Game {
     private static let espnDayMarkerShift: TimeInterval = 7 * 60 * 60
 
     /// First and last day of the event, as instants inside those days. A multi-day event
-    /// (a golf tournament's Thursday–Sunday) is shifted off its day markers; a single-day
-    /// event is its start on both ends. Nil without a start date.
+    /// (a golf tournament's Thursday–Sunday) is shifted off its day markers; a date-only start
+    /// (TheSportsDB's `…T00:00:00`, midnight UTC) is pinned to that calendar day locally, so
+    /// a Thursday start doesn't read as Wednesday west of UTC; any other single-day event is
+    /// its start on both ends. Nil without a start date.
     var eventDaySpan: (first: Date, last: Date)? {
         guard let start = isoDate ?? strTimestamp.flatMap(DateParsers.parse) else { return nil }
         if let end = endDateParsed, end > start {
             return (start.addingTimeInterval(Self.espnDayMarkerShift), end.addingTimeInterval(Self.espnDayMarkerShift))
         }
+        if let day = Self.localDay(ofUTCMidnight: start) { return (day, day) }
         return (start, start)
+    }
+
+    /// The local start of the calendar day `date` names, when `date` is exactly midnight UTC
+    /// (a date with no time); nil for a real start time.
+    private static func localDay(ofUTCMidnight date: Date) -> Date? {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let parts = utc.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+        guard parts.hour == 0, parts.minute == 0, parts.second == 0 else { return nil }
+        return Calendar.current.date(from: DateComponents(year: parts.year, month: parts.month, day: parts.day))
     }
 }
 
@@ -68,14 +81,39 @@ public enum GolfTourBoard {
     }
 
     /// `tour`'s events, one per tournament. The same event can reach the client twice (the
-    /// schedule row and the live row), so later copies of an `idEvent` are dropped.
+    /// schedule row and the live row), so later copies of an `idEvent` are dropped. Copies
+    /// can also carry different ids (a TheSportsDB row ESPN's merge didn't match), so a
+    /// same-named event whose days overlap is folded in too — keeping whichever copy has the
+    /// fuller leaderboard.
     public static func events(for tour: Leagues, in games: [Game]) -> [Game] {
         var seen = Set<String>()
-        return games.filter { game in
-            guard game.golfTour == tour else { return false }
-            guard let id = game.idEvent else { return true }
-            return seen.insert(id).inserted
+        var result: [Game] = []
+        for game in games where game.golfTour == tour {
+            if let id = game.idEvent, !seen.insert(id).inserted { continue }
+            if let index = result.firstIndex(where: { isSameTournament($0, game) }) {
+                if (game.leaderboardEntries?.count ?? 0) > (result[index].leaderboardEntries?.count ?? 0) {
+                    result[index] = game
+                }
+                continue
+            }
+            result.append(game)
         }
+        return result
+    }
+
+    /// Same name (case- and accent-insensitive) and overlapping days.
+    static func isSameTournament(_ a: Game, _ b: Game) -> Bool {
+        let fold = { (name: String) in
+            name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+                .trimmingCharacters(in: .whitespaces)
+        }
+        guard fold(a.strHomeTeam) == fold(b.strHomeTeam),
+              let spanA = a.eventDaySpan, let spanB = b.eventDaySpan else { return false }
+        // A day of slack: one copy can be dated from the first tee time, the other from a
+        // day marker.
+        let slack: TimeInterval = 24 * 60 * 60
+        return spanA.first <= spanB.last.addingTimeInterval(slack)
+            && spanB.first <= spanA.last.addingTimeInterval(slack)
     }
 
     /// Events still to finish — live now, or whose last day is today or later — live first,

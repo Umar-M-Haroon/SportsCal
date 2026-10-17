@@ -298,30 +298,31 @@ struct DayPage: View {
         }
     }
 
-    /// IDs shown in the Live section. The sections below skip them so a live game
-    /// appears once, and always as the live copy. Applied outside the `dayData` cache
-    /// because the live set changes on every WebSocket push.
-    private var liveSectionIDs: Set<String> {
-        Set(filteredLiveEvents.map(\.id))
+    /// The games shown in the Live section. The sections below skip them so a live game
+    /// appears once, and always as the live copy. Matched by fixture, since live games
+    /// carry ESPN ids and schedule rows TheSportsDB ones. Applied outside the `dayData`
+    /// cache because the live set changes on every WebSocket push.
+    private var liveSection: LiveFixtureIndex {
+        LiveFixtureIndex(live: filteredLiveEvents.map(\.game))
     }
 
     private var filteredFavorites: [GameWithTeams] {
-        let liveIDs = liveSectionIDs
-        guard !liveIDs.isEmpty else { return dayData.filteredFavorites }
-        return dayData.filteredFavorites.filter { !liveIDs.contains($0.id) }
+        let live = liveSection
+        guard !live.isEmpty else { return dayData.filteredFavorites }
+        return dayData.filteredFavorites.filter { !live.contains($0.game) }
     }
 
     private var filteredSuggested: [GameWithTeams] {
-        let liveIDs = liveSectionIDs
-        guard !liveIDs.isEmpty else { return dayData.suggestedGames }
-        return dayData.suggestedGames.filter { !liveIDs.contains($0.id) }
+        let live = liveSection
+        guard !live.isEmpty else { return dayData.suggestedGames }
+        return dayData.suggestedGames.filter { !live.contains($0.game) }
     }
 
     private var filteredOtherBySport: [(sport: SportType, games: [GameWithTeams])] {
-        let liveIDs = liveSectionIDs
-        guard !liveIDs.isEmpty else { return dayData.filteredOtherBySport }
+        let live = liveSection
+        guard !live.isEmpty else { return dayData.filteredOtherBySport }
         return dayData.filteredOtherBySport.compactMap { section in
-            let games = section.games.filter { !liveIDs.contains($0.id) }
+            let games = section.games.filter { !live.contains($0.game) }
             return games.isEmpty ? nil : (sport: section.sport, games: games)
         }
     }
@@ -378,10 +379,10 @@ struct DayPage: View {
         return storage.enabledSports.compactMap { sport -> BoardColumn? in
             let sportGames = grouped[sport] ?? []
             let liveForSport = live.filter { $0.game.sportType == sport }
-            let liveForSportIDs = Set(liveForSport.map { $0.id })
+            let liveForSportIndex = LiveFixtureIndex(live: liveForSport.map(\.game))
 
             let other = sportGames
-                .filter { !liveForSportIDs.contains($0.id) }
+                .filter { !liveForSportIndex.contains($0.game) }
                 .sorted { a, b in
                     let aDone = a.game.hasDoneStatus
                     let bDone = b.game.hasDoneStatus
@@ -820,31 +821,10 @@ struct DayPage: View {
         }
 
         // Live games (only on today)
-        if !filteredLiveEvents.isEmpty {
-            Section {
-                ForEach(filteredLiveEvents) { gameWithTeams in
-                    gameRow(for: gameWithTeams, isLive: true)
-                }
-            } header: {
-                LiveAnimatedView()
-            }
-        }
+        LiveGamesSection(games: filteredLiveEvents) { gameRow(for: $0, isLive: true) }
 
         // Favorites for this day
-        if !filteredFavorites.isEmpty {
-            Section {
-                ForEach(filteredFavorites) { gameWithTeams in
-                    gameRow(for: gameWithTeams, isLive: false)
-                }
-            } header: {
-                HStack {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.yellow)
-                    Text("Your Teams")
-                        .font(.headline)
-                }
-            }
-        }
+        YourTeamsSection(games: filteredFavorites) { gameRow(for: $0, isLive: false) }
 
         // Suggested for you
         if storage.showSuggestedForYou, !filteredSuggested.isEmpty {
@@ -892,30 +872,17 @@ struct DayPage: View {
                     sportSectionContent(games: section.games, region: "sport-\(index)", adPlan: adPlan)
                 }
             } header: {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        if collapsedSportSections.contains(section.sport) {
-                            collapsedSportSections.remove(section.sport)
-                        } else {
-                            collapsedSportSections.insert(section.sport)
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: section.sport.systemImage)
-                            .foregroundColor(section.sport.color)
-                        Text(section.sport.displayName)
-                            .font(.headline)
-                        Text("(\(section.games.count))")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                CollapsibleSectionHeader(title: section.sport.displayName,
+                                         systemImage: section.sport.systemImage,
+                                         tint: section.sport.color,
+                                         count: section.games.count,
+                                         isExpanded: !isCollapsed) {
+                    if collapsedSportSections.contains(section.sport) {
+                        collapsedSportSections.remove(section.sport)
+                    } else {
+                        collapsedSportSections.insert(section.sport)
                     }
                 }
-                .buttonStyle(.plain)
             }
         }
 

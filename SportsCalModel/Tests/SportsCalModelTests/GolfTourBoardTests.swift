@@ -47,7 +47,32 @@ final class GolfTourBoardTests: XCTestCase {
         XCTAssertEqual(GolfTourBoard.events(for: .dpWorld, in: games).map(\.idEvent), ["2"])
     }
 
+    /// TheSportsDB dates a tournament with a bare day (midnight UTC); it must stay on that day
+    /// locally rather than sliding to the evening before west of UTC.
+    func testDateOnlyStartStaysOnItsDayLocally() throws {
+        let game = event("1", "Butterfield Bermuda Championship", tour: .pga, start: "2026-10-22T00:00:00")
+        let span = try XCTUnwrap(game.eventDaySpan)
+        let local = Calendar.current.dateComponents([.year, .month, .day, .hour], from: span.first)
+        XCTAssertEqual(local, DateComponents(year: 2026, month: 10, day: 22, hour: 0))
+        XCTAssertEqual(span.first, span.last)
+
+        // A real tee time is left alone.
+        let timed = event("2", "Tee time", tour: .pga, start: "2026-10-22T13:45:00Z")
+        XCTAssertEqual(timed.eventDaySpan?.first, day("2026-10-22T13:45:00Z"))
+    }
+
     /// A Thursday–Sunday event stays upcoming through Sunday, then moves to results.
+    func testSameTournamentUnderTwoIDsIsListedOnce() {
+        // A schedule copy and an unmatched second copy of the same week, dated a day apart.
+        let games = [
+            event("tsdb-9", "Baycurrent Classic", tour: .pga, start: "2026-10-09T04:00Z", end: "2026-10-11T04:00Z"),
+            event("espn-8", "BayCurrent Classic", tour: .pga, start: "2026-10-08T04:00Z", end: "2026-10-11T04:00Z"),
+            // Same name a year later is a different tournament.
+            event("espn-2027", "Baycurrent Classic", tour: .pga, start: "2027-10-08T04:00Z", end: "2027-10-11T04:00Z"),
+        ]
+        XCTAssertEqual(GolfTourBoard.events(for: .pga, in: games).map(\.idEvent), ["tsdb-9", "espn-2027"])
+    }
+
     func testMultiDayEventIsUpcomingUntilItsLastDay() {
         let tournament = event("1", "Open de France", tour: .dpWorld,
                                start: "2026-09-24T04:00Z", end: "2026-09-27T04:00Z")

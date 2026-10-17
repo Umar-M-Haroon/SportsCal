@@ -138,7 +138,8 @@ struct TournamentHubView: View {
                     }
                 }
             } else {
-                Section { Text("No matches available").foregroundStyle(.secondary) }
+                // Listed from the tour calendar before its draw is out.
+                Section { Text("The draw hasn't been published yet").foregroundStyle(.secondary) }
             }
         }
         .navigationTitle(tournamentName)

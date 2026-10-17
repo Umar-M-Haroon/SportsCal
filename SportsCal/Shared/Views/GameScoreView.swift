@@ -26,6 +26,20 @@ enum GameRowAccessibility {
         isLive: Bool,
         now: Date = Date()
     ) -> String {
+        let base = baseLabel(game: game, awayName: awayName, homeName: homeName,
+                             awayScore: awayScore, homeScore: homeScore, isLive: isLive, now: now)
+        return game.isPreseason ? "\(base), preseason" : base
+    }
+
+    private static func baseLabel(
+        game: Game,
+        awayName: String,
+        homeName: String,
+        awayScore: Int?,
+        homeScore: Int?,
+        isLive: Bool,
+        now: Date
+    ) -> String {
         let status = game.displayStatus
         let matchup = "\(awayName) vs \(homeName)"
         var score: String?
@@ -234,6 +248,10 @@ struct GameScoreView: View {
                         awayTeamShort: awayTeam.strTeamShort
                     )
                     .frame(maxWidth: .infinity, alignment: .center)
+                }
+                if game.isPreseason {
+                    PreseasonPill()
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
             .accessibilityElement(children: .combine)

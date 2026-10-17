@@ -174,6 +174,20 @@ final class TennisTourTests: XCTestCase {
         XCTAssertEqual(fromATP.events, fromWTA.events)
     }
 
+    /// A tournament listed before its draw is published comes through as one entry (not a
+    /// match), so Browse can show it under Coming Up; once matches exist, only matches come out.
+    func testTournamentWithoutADrawIsKeptAsOneEntry() throws {
+        let empty = try XCTUnwrap(LiveEvent(events: try scoreboard(slug: "atp", draws: [("mens-singles", [])]), league: .atp))
+        XCTAssertEqual(empty.events.count, 1)
+        let entry = try XCTUnwrap(empty.events.first)
+        XCTAssertEqual(entry.idEvent, "189-2026")
+        XCTAssertEqual(entry.tournamentName, "US Open")
+        XCTAssertFalse(entry.isTennisMatch)
+
+        let drawn = try XCTUnwrap(LiveEvent(events: try scoreboard(slug: "atp", draws: [("mens-singles", ["101"])]), league: .atp))
+        XCTAssertEqual(drawn.events.map(\.idEvent), ["101"])
+    }
+
     // MARK: - Fixture
 
     /// Mirrors the real ESPN tennis shape: tournament event → groupings → competitions.

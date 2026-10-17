@@ -202,8 +202,8 @@ public struct LiveEvent: Codable, Equatable, Hashable {
             }
 
             // 2) Tennis: matches nested under groupings → competitions → competitors with athlete
-            if let groupings = event.groupings {
-                return groupings.flatMap { grouping -> [Game] in
+            if let groupings = event.groupings ?? (league.isTennis ? [] : nil) {
+                let matches = groupings.flatMap { grouping -> [Game] in
                     // The tour comes from the draw, never from the board this was fetched
                     // on. ESPN serves a combined slam's entire draw — men's and women's —
                     // on both the `atp` and the `wta` scoreboard, so trusting the board
@@ -254,6 +254,21 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         )
                     }
                 }
+                if !matches.isEmpty || !league.isTennis { return matches }
+                // No draw published yet — every slot was TBD vs TBD, or there are no groupings.
+                // Keep the tournament as one entry (no team ids, so `isTennisMatch` is false) so
+                // Browse can list it under Coming Up; real matches replace it once the draw fills.
+                let name = event.name
+                return [Game(
+                    idLiveScore: event.id, idEvent: event.id, strSport: sportType.rawValue,
+                    idLeague: leagueID,
+                    strHomeTeam: name, strAwayTeam: "TBD",
+                    strStatus: event.status?.type.state,
+                    strTimestamp: event.date,
+                    isCompleted: event.status?.type.completed, isoDate: nil,
+                    tournamentName: name,
+                    endDate: event.endDate
+                )]
             }
 
             // 3) Racing: create ONE game per event (Grand Prix weekend) with all sessions

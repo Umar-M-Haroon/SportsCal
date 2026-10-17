@@ -93,8 +93,21 @@ struct CompactGameRowView: View {
         }
     }
 
-    @ViewBuilder
     private var trailing: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            status
+            if game.isPreseason {
+                Text("Preseason")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var status: some View {
         if isLive {
             HStack(spacing: 3) {
                 Circle().fill(.red).frame(width: 6, height: 6)
