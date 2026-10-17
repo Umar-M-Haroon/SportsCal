@@ -17,7 +17,10 @@ class SportBrowseViewModel {
 
     var isLoading = true
     var errorMessage: String?
-    var liveGames: [GameWithTeams] = []
+    /// Read through to the app's live feed, so a page left open keeps ticking.
+    var liveGames: [GameWithTeams] {
+        viewModel.liveEventsForSport(sport).compactMap { viewModel.resolveGameWithTeams($0) }
+    }
     var todayGames: [GameWithTeams] = []
     var upcomingGames: [GameWithTeams] = []
     var recentGames: [GameWithTeams] = []
@@ -37,6 +40,9 @@ class SportBrowseViewModel {
     private(set) var leagues: [Leagues] = []
     /// Resolved rows per day, filled on first view of that day.
     @ObservationIgnored private var resolvedDays: [Date: [GameWithTeams]] = [:]
+    /// `GameViewModel.dayContentRevision` when `fetchedGames` was copied from it; nil when
+    /// this page fetched its own schedule.
+    @ObservationIgnored private var snapshotRevision: Int?
     /// Day-strip dots per league filter (nil key = all leagues).
     @ObservationIgnored private var datesCache: [Leagues?: Set<DateComponents>] = [:]
     @ObservationIgnored private var seasonsCache: [Leagues?: [SeasonSpan]] = [:]
@@ -53,10 +59,6 @@ class SportBrowseViewModel {
         isLoading = true
         errorMessage = nil
 
-        // Live games from existing snapshot (already fetched for all sports)
-        let live = viewModel.liveEventsForSport(sport)
-        liveGames = live.compactMap { viewModel.resolveGameWithTeams($0) }
-
         // Reuse games already in viewModel if the sport was fetched by getInfo(). Football
         // without college switched on came down without college games, and racing without a
         // series beyond F1 came down F1-only, yet Browse lists both — fetch those instead (the
@@ -65,6 +67,7 @@ class SportBrowseViewModel {
         let missingSeries = sport == .racing && !NetworkHandler.wantsMotorsportSeries
         if !missingCollege, !missingSeries, let cached = viewModel.gamesDict[sport], !cached.isEmpty {
             fetchedGames = cached
+            snapshotRevision = viewModel.dayContentRevision
             categorizeIfNeeded(cached)
         } else {
             // Sport not in enabled list — fetch from network
@@ -188,19 +191,35 @@ class SportBrowseViewModel {
             ?? today
     }
 
-    /// One day's games, resolved with teams and sorted by start time. Games that are live
-    /// right now are left out; the page shows those in its Live section.
+    /// One day's games, resolved with teams and sorted by start time. On today, games that
+    /// are live right now are left out; the page shows those in its Live section.
     func games(on day: Date) -> [GameWithTeams] {
         let day = Calendar.current.startOfDay(for: day)
-        if let cached = resolvedDays[day] { return cached }
-        // By fixture, not id: live games carry ESPN ids, schedule rows TheSportsDB ones.
-        let live = LiveFixtureIndex(live: liveGames.map(\.game))
-        let resolved = (gamesByDay[day] ?? [])
-            .filter { !live.contains($0) }
-            .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
-            .compactMap { viewModel.resolveGameWithTeams($0) }
-        resolvedDays[day] = resolved
-        return resolved
+        let resolved: [GameWithTeams]
+        if let cached = resolvedDays[day] {
+            resolved = cached
+        } else {
+            resolved = (gamesByDay[day] ?? [])
+                .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
+                .compactMap { viewModel.resolveGameWithTeams($0) }
+            resolvedDays[day] = resolved
+        }
+        // Outside the cache, since the live set changes every tick. By fixture, not id:
+        // live games carry ESPN ids, schedule rows TheSportsDB ones.
+        guard Calendar.current.isDateInToday(day) else { return resolved }
+        let live = LiveFixtureIndex(live: liveGames.map(\.game), schedule: resolved.map(\.game))
+        return live.isEmpty ? resolved : resolved.filter { !live.contains($0.game) }
+    }
+
+    /// Picks up score and status changes the app has merged into its schedule since this
+    /// page took its copy — for a page returned to after a while. Only for sports read
+    /// from the app's own schedule; a page that fetched its own keeps it.
+    func refreshIfStale() {
+        guard let snapshotRevision, snapshotRevision != viewModel.dayContentRevision,
+              let cached = viewModel.gamesDict[sport], !cached.isEmpty else { return }
+        fetchedGames = cached
+        self.snapshotRevision = viewModel.dayContentRevision
+        categorizeIfNeeded(cached)
     }
 
     private func categorize(_ games: [Game]) {
@@ -221,12 +240,11 @@ class SportBrowseViewModel {
         var upcoming: [GameWithTeams] = []
         var recent: [GameWithTeams] = []
 
-        // Collect IDs of live games to avoid duplicates
-        let liveIDs = Set(liveGames.map { $0.game.idEvent })
+        // Skip the schedule copies of live games; they're in the live section.
+        let live = LiveFixtureIndex(live: liveGames.map(\.game), schedule: valid)
 
         for game in valid {
-            // Skip if already in live section
-            if let eventID = game.idEvent, liveIDs.contains(eventID) { continue }
+            if live.contains(game) { continue }
 
             guard let gwt = viewModel.resolveGameWithTeams(game) else { continue }
             // Race weekends span multiple days; bucket them by race day (last session)

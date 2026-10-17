@@ -1161,6 +1161,14 @@ extension Game {
         return league.isTennis && idHomeTeam != nil && idAwayTeam != nil
     }
 
+    /// The one-row stand-in for a tennis tournament whose draw isn't out yet
+    /// ("Tournament vs TBD", no participant ids). It belongs in the schedule, never on
+    /// the live scoreboard.
+    public var isTennisDrawPlaceholder: Bool {
+        guard let id = idLeague, let leagueID = Int(id), let league = Leagues(rawValue: leagueID) else { return false }
+        return league.isTennis && idHomeTeam == nil && idAwayTeam == nil && strAwayTeam == "TBD"
+    }
+
     /// Whether this game represents an individual sport (golf/tennis/racing tournament) rather than a team head-to-head
     public var isIndividualSport: Bool {
         if let id = idLeague, let leagueID = Int(id), let league = Leagues(rawValue: leagueID) {

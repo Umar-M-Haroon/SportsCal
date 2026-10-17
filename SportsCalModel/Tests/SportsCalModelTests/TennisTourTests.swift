@@ -183,9 +183,11 @@ final class TennisTourTests: XCTestCase {
         XCTAssertEqual(entry.idEvent, "189-2026")
         XCTAssertEqual(entry.tournamentName, "US Open")
         XCTAssertFalse(entry.isTennisMatch)
+        XCTAssertTrue(entry.isTennisDrawPlaceholder)
 
         let drawn = try XCTUnwrap(LiveEvent(events: try scoreboard(slug: "atp", draws: [("mens-singles", ["101"])]), league: .atp))
         XCTAssertEqual(drawn.events.map(\.idEvent), ["101"])
+        XCTAssertFalse(drawn.events[0].isTennisDrawPlaceholder)
     }
 
     // MARK: - Fixture

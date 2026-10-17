@@ -137,7 +137,9 @@ private struct TeamLeagueHub: View {
         let live = viewModel.liveEventsForSport(sport).filter { $0.idLeague == leagueID }
         let liveIDs = Set(live.compactMap(\.idEvent))
         liveEventIDs = liveIDs
-        resolved = (live + games.filter { !liveIDs.contains($0.idEvent ?? "") })
+        // By fixture, not id: live games carry ESPN ids, schedule rows TheSportsDB ones.
+        let liveCopies = LiveFixtureIndex(live: live, schedule: games)
+        resolved = (live + games.filter { !liveCopies.contains($0) })
             .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
             .compactMap { viewModel.resolveGameWithTeams($0) }
 

@@ -10,36 +10,48 @@ import Foundation
 
 /// The live feed and the schedule describe the same game under different ids: live games
 /// come from ESPN (`401898409`), schedule rows from TheSportsDB (`2548865`). Matching on
-/// `Game.id` alone misses them, and the game is listed twice. This also matches on league,
-/// both team names and a kickoff within three hours — the window the server's schedule
-/// merge uses.
+/// `Game.id` alone misses them, and the game is listed twice.
+///
+/// A schedule row is the live game's copy when the ids match, or else when league and
+/// both team names match and the kickoff is within three hours — the window the server's
+/// schedule merge uses. Each live game claims only its nearest such row, so the other
+/// half of a doubleheader stays listed.
 public struct LiveFixtureIndex: Sendable {
-    private let ids: Set<String>
-    private let kickoffs: [String: [Date]]
+    private let claimed: Set<String>
 
     private static let window: TimeInterval = 3 * 60 * 60
 
-    public init(live: [Game]) {
-        var ids = Set<String>()
-        var kickoffs: [String: [Date]] = [:]
-        for game in live {
-            ids.insert(game.id)
-            if let key = Self.key(game), let date = Self.kickoff(game) {
-                kickoffs[key, default: []].append(date)
+    /// - Parameters:
+    ///   - live: the games shown as live.
+    ///   - schedule: the rows that may hold their copies — the list about to be filtered.
+    public init(live: [Game], schedule: [Game]) {
+        guard !live.isEmpty else { claimed = []; return }
+        let liveIDs = Set(live.map(\.id))
+        var claimed = Set(schedule.lazy.map(\.id).filter(liveIDs.contains))
+
+        var rows: [String: [(id: String, kickoff: Date)]] = [:]
+        for game in schedule where !claimed.contains(game.id) {
+            if let key = Self.key(game), let kickoff = Self.kickoff(game) {
+                rows[key, default: []].append((game.id, kickoff))
             }
         }
-        self.ids = ids
-        self.kickoffs = kickoffs
+        for game in live where !claimed.contains(game.id) {
+            guard let key = Self.key(game), let kickoff = Self.kickoff(game) else { continue }
+            let nearest = rows[key]?
+                .filter { !claimed.contains($0.id) }
+                .map { (id: $0.id, gap: abs($0.kickoff.timeIntervalSince(kickoff))) }
+                .filter { $0.gap <= Self.window }
+                .min { $0.gap < $1.gap }
+            if let nearest { claimed.insert(nearest.id) }
+        }
+        self.claimed = claimed
     }
 
-    public var isEmpty: Bool { ids.isEmpty }
+    public var isEmpty: Bool { claimed.isEmpty }
 
-    /// Whether `game` is one of the live games, by id or by fixture.
+    /// Whether `game` is the schedule copy of a live game.
     public func contains(_ game: Game) -> Bool {
-        if ids.contains(game.id) { return true }
-        guard let key = Self.key(game), let date = Self.kickoff(game),
-              let candidates = kickoffs[key] else { return false }
-        return candidates.contains { abs($0.timeIntervalSince(date)) <= Self.window }
+        claimed.contains(game.id)
     }
 
     private static func kickoff(_ game: Game) -> Date? {

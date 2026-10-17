@@ -103,7 +103,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 let ordered = boards.keys.sorted { $0.rawValue < $1.rawValue }.flatMap { league in
                     boards[league].flatMap { LiveEvent(events: $0, league: league)?.events } ?? []
                 }
-                return LiveEvent(events: Self.dedupedByEventID(ordered))
+                // Draw placeholders are schedule-only; on the live feed they'd show as a live card.
+                return LiveEvent(events: Self.dedupedByEventID(ordered.filter { !$0.isTennisDrawPlaceholder }))
             }
 
         Self.logger.info("Fetching ESPN live scores", metadata: [

@@ -444,8 +444,11 @@ struct BrowseSportView: View {
             }
         }
         .task {
-            // Coming back from a pushed detail keeps the page as it was left.
-            guard browseVM == nil else { return }
+            // Coming back from a pushed detail keeps the page as it was left, with fresh scores.
+            if let browseVM {
+                browseVM.refreshIfStale()
+                return
+            }
             restoreChip()
             let vm = SportBrowseViewModel(sport: sport, viewModel: viewModel)
             browseVM = vm

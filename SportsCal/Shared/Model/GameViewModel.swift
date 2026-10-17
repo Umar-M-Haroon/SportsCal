@@ -386,7 +386,7 @@ public class GameViewModel: NSObject {
         let computedTodayGamesWithTeams = computedTodayGames.compactMap { makeGameWithTeams($0) }
         let computedTodayFavorites = computedTodayGamesWithTeams.filter { favorites.contains($0.game) }
         let computedTodayOther = computeTodayOtherGamesBySport(todayGamesWithTeams: computedTodayGamesWithTeams)
-        let live = LiveFixtureIndex(live: computedLiveEvents)
+        let live = LiveFixtureIndex(live: computedLiveEvents, schedule: computedTodayGames)
         let computedTodayAll = computeTodayAllGamesBySport(todayGamesWithTeams: computedTodayGamesWithTeams, live: live)
 
         // Batch-assign all stored properties — SwiftUI coalesces into one update

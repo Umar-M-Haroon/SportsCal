@@ -303,7 +303,7 @@ struct DayPage: View {
     /// carry ESPN ids and schedule rows TheSportsDB ones. Applied outside the `dayData`
     /// cache because the live set changes on every WebSocket push.
     private var liveSection: LiveFixtureIndex {
-        LiveFixtureIndex(live: filteredLiveEvents.map(\.game))
+        LiveFixtureIndex(live: filteredLiveEvents.map(\.game), schedule: dayData.allGames.map(\.game))
     }
 
     private var filteredFavorites: [GameWithTeams] {
@@ -379,7 +379,7 @@ struct DayPage: View {
         return storage.enabledSports.compactMap { sport -> BoardColumn? in
             let sportGames = grouped[sport] ?? []
             let liveForSport = live.filter { $0.game.sportType == sport }
-            let liveForSportIndex = LiveFixtureIndex(live: liveForSport.map(\.game))
+            let liveForSportIndex = LiveFixtureIndex(live: liveForSport.map(\.game), schedule: sportGames.map(\.game))
 
             let other = sportGames
                 .filter { !liveForSportIndex.contains($0.game) }
