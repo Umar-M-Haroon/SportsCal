@@ -337,7 +337,12 @@ public class GameViewModel: NSObject {
         let filterHash: Int
     }
     /// Cache for gamesWithTeams(for:) results, keyed by (day, filterHash).
-    private var gamesWithTeamsDateCache: [DateCacheKey: [GameWithTeams]] = [:]
+    private var gamesWithTeamsDateCache: [DateCacheKey: [GameWithTeams]] = [:] {
+        // Every path that clears this has changed the games; the day dots follow.
+        didSet { if gamesWithTeamsDateCache.isEmpty { datesWithGamesCache = nil } }
+    }
+    /// `datesWithGames()` for one filter state — a pass over every game, so built once.
+    @ObservationIgnored private var datesWithGamesCache: (filterHash: Int, dates: Set<DateComponents>)?
     /// Bumped whenever the per-day `[GameWithTeams]` contents change in place — a live
     /// merge patching scores, or a full rebuild. Views that memoize a day's partition
     /// key on this; count + first/last ID alone can't see a score change, which froze
@@ -2924,16 +2929,22 @@ public class GameViewModel: NSObject {
         return sportCountsByDate[key] ?? [:]
     }
 
-    /// Returns the set of dates that have sport-preference-filtered games.
-    /// Uses getGamesFromUserPreferences() so past games within a day are included.
+    /// Returns the set of dates that have sport-preference-filtered games — the same games
+    /// `gamesWithTeams(for:)` shows on a day. Not `filteredGames`: that applies the
+    /// hide-past window, which marked today and every past day "no games" in the day strip
+    /// (dots and VoiceOver) while the pages themselves still listed their games.
     func datesWithGames() -> Set<DateComponents> {
+        if let cached = datesWithGamesCache, cached.filterHash == currentFilterStateHash {
+            return cached.dates
+        }
         let calendar = Calendar.current
         var dates = Set<DateComponents>()
-        for game in filteredGames ?? [] {
+        for game in getGamesFromUserPreferences() {
             guard let gameDate = game.standardDate else { continue }
             let dc = calendar.dateComponents([.day, .month, .year], from: gameDate)
             dates.insert(dc)
         }
+        datesWithGamesCache = (currentFilterStateHash, dates)
         return dates
     }
 

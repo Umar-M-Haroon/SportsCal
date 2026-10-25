@@ -1592,6 +1592,35 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 }
             }
 
+            // Fallback: one club's id on the same side. ESPN can name the *other* club
+            // differently enough to defeat every name key above ("FC Cologne" ≡ "Köln",
+            // "Czechia" ≡ "Czech Republic"), and when that club's ESPN id was never mapped
+            // to TheSportsDB's the full id key misses too — the fixture was then appended
+            // and listed twice. A club can't play two games in one league inside the
+            // kickoff window, so one matching id plus league, day and kickoff is enough.
+            // Dated candidates only: `closestByKickoff` accepts an undated one blind.
+            if espnMatch == nil, !scheduleGame.isIndividualSport {
+                func sameID(_ a: String?, _ b: String?) -> Bool {
+                    guard let a, let b, !a.isEmpty else { return false }
+                    return a.lowercased() == b.lowercased()
+                }
+                let candidates = (espnByLeagueDay["\(scheduleGame.idLeague ?? "-")|\(day)"] ?? []).filter {
+                    ($0.isoDate ?? $0.getDate()) != nil
+                        && (sameID(scheduleGame.idHomeTeam, $0.idHomeTeam) || sameID(scheduleGame.idAwayTeam, $0.idAwayTeam))
+                }
+                if let idMatch = closest(candidates) {
+                    Self.logger.warning("one-id dedup: collapsed ESPN game", metadata: [
+                        "espnHome": "\(idMatch.strHomeTeam)",
+                        "espnAway": "\(idMatch.strAwayTeam)",
+                        "scheduleHome": "\(scheduleGame.strHomeTeam)",
+                        "scheduleAway": "\(scheduleGame.strAwayTeam)",
+                        "league": "\(scheduleGame.idLeague ?? "-")",
+                        "day": "\(day)"
+                    ])
+                    espnMatch = idMatch
+                }
+            }
+
             // Individual sports: match by event/tournament name (golf/F1 only — see build above).
             if espnMatch == nil && scheduleGame.isIndividualSport && !scheduleGame.isTennisMatch {
                 espnMatch = espnByEventName["\(scheduleGame.idLeague ?? "-")|\(scheduleGame.strHomeTeam.lowercased())"]

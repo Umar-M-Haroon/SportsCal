@@ -292,6 +292,50 @@ final class ScheduleMergeTests: XCTestCase {
         XCTAssertTrue(merged.contains(where: { $0.idEvent == "401777" }))
     }
 
+    /// ESPN's "FC Cologne" (unmapped id 122) vs TheSportsDB's "Köln": no name key can
+    /// match, but Frankfurt's id does — one fixture, not two.
+    func testOneSideTeamIDMatchesWhenTheOtherClubIsNamedDifferently() {
+        let schedule = TestGameFactory.make(
+            idEvent: "2508382", idLeague: "4331", idHomeTeam: "133814", idAwayTeam: "133654",
+            strHomeTeam: "Eintracht Frankfurt", strAwayTeam: "Köln",
+            isoDate: date("2026-10-16T18:30:00Z")
+        )
+        let espn = TestGameFactory.make(
+            idEvent: "401884770", idLeague: "4331", idHomeTeam: "133814", idAwayTeam: "122",
+            strHomeTeam: "Eintracht Frankfurt", strAwayTeam: "FC Cologne",
+            intHomeScore: "1", intAwayScore: "0", strStatus: "post",
+            isoDate: date("2026-10-16T18:30:00Z")
+        )
+
+        let merged = merge(schedule: [schedule], espn: [espn])
+
+        XCTAssertEqual(merged.map(\.idEvent), ["2508382"])
+        XCTAssertEqual(merged.first?.intHomeScore, "1")
+    }
+
+    /// One shared id is not enough across leagues or outside the kickoff window.
+    func testOneSideTeamIDNeedsSameLeagueAndKickoff() {
+        let schedule = TestGameFactory.make(
+            idEvent: "TSDB1", idLeague: "4331", idHomeTeam: "133814", idAwayTeam: "133654",
+            strHomeTeam: "Eintracht Frankfurt", strAwayTeam: "Köln",
+            isoDate: date("2026-10-16T12:00:00Z")
+        )
+        let otherLeague = TestGameFactory.make(
+            idEvent: "401001", idLeague: "4480", idHomeTeam: "133814", idAwayTeam: "999",
+            strHomeTeam: "Eintracht Frankfurt", strAwayTeam: "Napoli",
+            isoDate: date("2026-10-16T12:00:00Z")
+        )
+        let later = TestGameFactory.make(
+            idEvent: "401002", idLeague: "4331", idHomeTeam: "133814", idAwayTeam: "998",
+            strHomeTeam: "Eintracht Frankfurt", strAwayTeam: "Mainz",
+            isoDate: date("2026-10-16T19:00:00Z")
+        )
+
+        let merged = merge(schedule: [schedule], espn: [otherLeague, later])
+
+        XCTAssertEqual(Set(merged.compactMap(\.idEvent)), ["TSDB1", "401001", "401002"])
+    }
+
     func testUnmatchedESPNGameDroppedWhenScheduleHasSwappedHomeAway() {
         // Merge matching is order-sensitive, but append dedup indexes both
         // orders — a home/away swap must not produce a duplicate row.
