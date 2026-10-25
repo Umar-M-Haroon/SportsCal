@@ -1457,6 +1457,24 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return encodeResult(res: detail)
     }
 
+    //MARK: - Poll rankings
+    // College polls (AP, Coaches, CFP…). No query: the latest week. `type` + `week`
+    // (from the response's `weeks`): an earlier week of the same season.
+    routes.get("rankings", ":leagueID") { req async throws -> String in
+        guard let leagueID = req.parameters.get("leagueID").flatMap(Int.init),
+              let league = Leagues(rawValue: leagueID), league.hasPollRankings else {
+            throw Abort(.notFound)
+        }
+        let isDebug = req.application.environment == .development
+        let seasonType = req.query[Int.self, at: "type"]
+        let week = req.query[Int.self, at: "week"]
+        if let seasonType, let week, (1...3).contains(seasonType), (1...30).contains(week) {
+            return try await PollRankingsService.week(league: league, seasonType: seasonType, week: week,
+                                                      app: req.application, isDebug: isDebug)
+        }
+        return try await PollRankingsService.latest(league: league, app: req.application, isDebug: isDebug)
+    }
+
     //MARK: - Standings
     // ESPN is called at most once per league per 10 minutes (cached in Redis, debug-
     // aware key); when ESPN fails the last good copy (kept 24h) is served instead.

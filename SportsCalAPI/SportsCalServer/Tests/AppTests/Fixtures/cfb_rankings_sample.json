@@ -1,0 +1,4488 @@
+{
+  "sports": [
+    {
+      "$ref": "http://sports.core.api.espn.pvt/v2/sports/football?lang=en&region=us",
+      "id": "20",
+      "guid": "60459870-f8fc-3b3a-a6b9-d8af4bf19223",
+      "uid": "s:20",
+      "name": "Football",
+      "displayName": "Football",
+      "slug": "football",
+      "logos": [
+        {
+          "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-football-college.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+            "full",
+            "default"
+          ],
+          "lastUpdated": "2026-10-19T07:11Z"
+        },
+        {
+          "href": "https://a.espncdn.com/guid/60459870-f8fc-3b3a-a6b9-d8af4bf19223/logos/default-dark.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+            "full",
+            "dark"
+          ]
+        }
+      ]
+    }
+  ],
+  "leagues": [
+    {
+      "$ref": "http://sports.core.api.espn.pvt/v2/sports/football/leagues/college-football?lang=en&region=us",
+      "id": "23",
+      "uid": "s:20~l:23",
+      "name": "NCAA - Football",
+      "abbreviation": "NCAAF",
+      "shortName": "NCAA Football",
+      "midsizeName": "NCAA Football"
+    }
+  ],
+  "rankings": [
+    {
+      "$ref": "http://sports.core.api.espn.pvt/v2/sports/football/leagues/college-football/seasons/2026/types/2/weeks/8/rankings/1?lang=en&region=us",
+      "id": "1",
+      "name": "AP Top 25",
+      "shortName": "AP Poll",
+      "type": "ap",
+      "occurrence": {
+        "number": 8,
+        "type": "week",
+        "last": false,
+        "value": "8",
+        "displayValue": "Week 8"
+      },
+      "date": "2026-10-18T07:00Z",
+      "headline": "2026 NCAA Football Rankings - AP Poll Week 8",
+      "shortHeadline": "2026 AP Poll: Week 8",
+      "season": {
+        "year": 2026,
+        "startDate": "2026-02-01T08:00Z",
+        "endDate": "2027-01-28T07:59Z",
+        "displayName": "2026",
+        "type": {
+          "type": 2,
+          "name": "Regular Season",
+          "abbreviation": "reg"
+        },
+        "athletes": {
+          "$ref": "http://sports.core.api.espn.pvt/v2/sports/football/leagues/college-football/seasons/2026/athletes?lang=en&region=us"
+        },
+        "futures": {
+          "$ref": "http://sports.core.api.espn.pvt/v2/sports/football/leagues/college-football/seasons/2026/futures?lang=en&region=us"
+        },
+        "leaders": {
+          "$ref": "http://sports.core.api.espn.pvt/v2/sports/football/leagues/college-football/seasons/2026/types/2/leaders?lang=en&region=us"
+        }
+      },
+      "lastUpdated": "2026-10-18T21:15Z",
+      "ranks": [
+        {
+          "current": 1,
+          "previous": 3,
+          "points": 1697.0,
+          "firstPlaceVotes": 40,
+          "trend": "+2",
+          "team": {
+            "id": "2390",
+            "uid": "s:20~l:23~t:2390",
+            "location": "Miami",
+            "name": "Hurricanes",
+            "nickname": "Miami",
+            "abbreviation": "MIA",
+            "color": "f47423",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2390.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T22:33Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2390.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T22:35Z"
+              }
+            ],
+            "groups": {
+              "id": "1",
+              "shortName": "ACC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2390.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-0"
+        },
+        {
+          "current": 2,
+          "previous": 8,
+          "points": 1675.0,
+          "firstPlaceVotes": 20,
+          "trend": "+6",
+          "team": {
+            "id": "252",
+            "uid": "s:20~l:23~t:252",
+            "location": "BYU",
+            "name": "Cougars",
+            "nickname": "BYU",
+            "abbreviation": "BYU",
+            "color": "0047ba",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/252.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/252.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/252.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-0"
+        },
+        {
+          "current": 3,
+          "previous": 4,
+          "points": 1649.0,
+          "firstPlaceVotes": 9,
+          "trend": "+1",
+          "team": {
+            "id": "194",
+            "uid": "s:20~l:23~t:194",
+            "location": "Ohio State",
+            "name": "Buckeyes",
+            "nickname": "Ohio State",
+            "abbreviation": "OSU",
+            "color": "ba0c2f",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/194.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/194.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/194.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 4,
+          "previous": 2,
+          "points": 1395.0,
+          "firstPlaceVotes": 0,
+          "trend": "-2",
+          "team": {
+            "id": "87",
+            "uid": "s:20~l:23~t:87",
+            "location": "Notre Dame",
+            "name": "Fighting Irish",
+            "nickname": "Notre Dame",
+            "abbreviation": "ND",
+            "color": "062340",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/87.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T22:33Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/87.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T22:35Z"
+              }
+            ],
+            "groups": {
+              "id": "18",
+              "shortName": "FBS Indep.",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/87.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 5,
+          "previous": 1,
+          "points": 1382.0,
+          "firstPlaceVotes": 0,
+          "trend": "-4",
+          "team": {
+            "id": "61",
+            "uid": "s:20~l:23~t:61",
+            "location": "Georgia",
+            "name": "Bulldogs",
+            "nickname": "Georgia",
+            "abbreviation": "UGA",
+            "color": "ba0c2f",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/61.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/61.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/61.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 6,
+          "previous": 5,
+          "points": 1370.0,
+          "firstPlaceVotes": 0,
+          "trend": "-1",
+          "team": {
+            "id": "84",
+            "uid": "s:20~l:23~t:84",
+            "location": "Indiana",
+            "name": "Hoosiers",
+            "nickname": "Indiana",
+            "abbreviation": "IU",
+            "color": "970310",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/84.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/84.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-30T19:45Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/84.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 7,
+          "previous": 9,
+          "points": 1360.0,
+          "firstPlaceVotes": 0,
+          "trend": "+2",
+          "team": {
+            "id": "145",
+            "uid": "s:20~l:23~t:145",
+            "location": "Ole Miss",
+            "name": "Rebels",
+            "nickname": "Ole Miss",
+            "abbreviation": "MISS",
+            "color": "13294b",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/145.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/145.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/145.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "5-1"
+        },
+        {
+          "current": 8,
+          "previous": 10,
+          "points": 1336.0,
+          "firstPlaceVotes": 1,
+          "trend": "+2",
+          "team": {
+            "id": "2641",
+            "uid": "s:20~l:23~t:2641",
+            "location": "Texas Tech",
+            "name": "Red Raiders",
+            "nickname": "Texas Tech",
+            "abbreviation": "TTU",
+            "color": "da291c",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2641.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2026-07-01T04:35Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2641.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-07-01T04:34Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2641.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-0"
+        },
+        {
+          "current": 9,
+          "previous": 12,
+          "points": 1159.0,
+          "firstPlaceVotes": 0,
+          "trend": "+3",
+          "team": {
+            "id": "26",
+            "uid": "s:20~l:23~t:26",
+            "location": "UCLA",
+            "name": "Bruins",
+            "nickname": "UCLA",
+            "abbreviation": "UCLA",
+            "color": "2774ae",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/26.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/26.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/26.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-0"
+        },
+        {
+          "current": 10,
+          "previous": 11,
+          "points": 1153.0,
+          "firstPlaceVotes": 0,
+          "trend": "+1",
+          "team": {
+            "id": "254",
+            "uid": "s:20~l:23~t:254",
+            "location": "Utah",
+            "name": "Utes",
+            "nickname": "Utah",
+            "abbreviation": "UTAH",
+            "color": "be0000",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/254.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/254.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-01-05T20:06Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/254.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-0"
+        },
+        {
+          "current": 11,
+          "previous": 14,
+          "points": 1151.0,
+          "firstPlaceVotes": 0,
+          "trend": "+3",
+          "team": {
+            "id": "2633",
+            "uid": "s:20~l:23~t:2633",
+            "location": "Tennessee",
+            "name": "Volunteers",
+            "nickname": "Tennessee",
+            "abbreviation": "TENN",
+            "color": "ff8200",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2633.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2633.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-01-05T20:06Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2633.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 12,
+          "previous": 15,
+          "points": 932.0,
+          "firstPlaceVotes": 0,
+          "trend": "+3",
+          "team": {
+            "id": "96",
+            "uid": "s:20~l:23~t:96",
+            "location": "Kentucky",
+            "name": "Wildcats",
+            "nickname": "Kentucky",
+            "abbreviation": "UK",
+            "color": "0033a0",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/96.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/96.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/96.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 13,
+          "previous": 6,
+          "points": 870.0,
+          "firstPlaceVotes": 0,
+          "trend": "-7",
+          "team": {
+            "id": "333",
+            "uid": "s:20~l:23~t:333",
+            "location": "Alabama",
+            "name": "Crimson Tide",
+            "nickname": "Alabama",
+            "abbreviation": "ALA",
+            "color": "9e1b32",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/333.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/333.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/333.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "5-2"
+        },
+        {
+          "current": 14,
+          "previous": 20,
+          "points": 785.0,
+          "firstPlaceVotes": 0,
+          "trend": "+6",
+          "team": {
+            "id": "248",
+            "uid": "s:20~l:23~t:248",
+            "location": "Houston",
+            "name": "Cougars",
+            "nickname": "Houston",
+            "abbreviation": "HOU",
+            "color": "c8102e",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/248.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/248.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/248.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 15,
+          "previous": 17,
+          "points": 747.0,
+          "firstPlaceVotes": 0,
+          "trend": "+2",
+          "team": {
+            "id": "2294",
+            "uid": "s:20~l:23~t:2294",
+            "location": "Iowa",
+            "name": "Hawkeyes",
+            "nickname": "Iowa",
+            "abbreviation": "IOWA",
+            "color": "231f20",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2294.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2294.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2294.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "5-1"
+        },
+        {
+          "current": 16,
+          "previous": 19,
+          "points": 592.0,
+          "firstPlaceVotes": 0,
+          "trend": "+3",
+          "team": {
+            "id": "30",
+            "uid": "s:20~l:23~t:30",
+            "location": "USC",
+            "name": "Trojans",
+            "nickname": "USC",
+            "abbreviation": "USC",
+            "color": "9d2235",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/30.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/30.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/30.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 17,
+          "previous": 21,
+          "points": 574.0,
+          "firstPlaceVotes": 0,
+          "trend": "+4",
+          "team": {
+            "id": "154",
+            "uid": "s:20~l:23~t:154",
+            "location": "Wake Forest",
+            "name": "Demon Deacons",
+            "nickname": "Wake Forest",
+            "abbreviation": "WAKE",
+            "color": "ceb888",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/154.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T22:33Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/154.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T22:35Z"
+              }
+            ],
+            "groups": {
+              "id": "1",
+              "shortName": "ACC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/154.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 18,
+          "previous": 22,
+          "points": 529.0,
+          "firstPlaceVotes": 0,
+          "trend": "+4",
+          "team": {
+            "id": "99",
+            "uid": "s:20~l:23~t:99",
+            "location": "LSU",
+            "name": "Tigers",
+            "nickname": "LSU",
+            "abbreviation": "LSU",
+            "color": "461d76",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/99.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/99.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/99.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "5-2"
+        },
+        {
+          "current": 19,
+          "previous": 7,
+          "points": 440.0,
+          "firstPlaceVotes": 0,
+          "trend": "-12",
+          "team": {
+            "id": "251",
+            "uid": "s:20~l:23~t:251",
+            "location": "Texas",
+            "name": "Longhorns",
+            "nickname": "Texas",
+            "abbreviation": "TEX",
+            "color": "af5c37",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/251.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/251.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/251.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "4-2"
+        },
+        {
+          "current": 20,
+          "previous": 0,
+          "points": 355.0,
+          "firstPlaceVotes": 0,
+          "trend": "+6",
+          "team": {
+            "id": "57",
+            "uid": "s:20~l:23~t:57",
+            "location": "Florida",
+            "name": "Gators",
+            "nickname": "Florida",
+            "abbreviation": "FLA",
+            "color": "0021a5",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/57.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/57.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/57.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "5-2"
+        },
+        {
+          "current": 21,
+          "previous": 23,
+          "points": 295.0,
+          "firstPlaceVotes": 0,
+          "trend": "+2",
+          "team": {
+            "id": "68",
+            "uid": "s:20~l:23~t:68",
+            "location": "Boise State",
+            "name": "Broncos",
+            "nickname": "Boise St",
+            "abbreviation": "BOIS",
+            "color": "0033a0",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/68.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2026-07-01T04:35Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/68.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-07-01T04:34Z"
+              }
+            ],
+            "groups": {
+              "id": "9",
+              "shortName": "Pac-12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/68.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "5-1"
+        },
+        {
+          "current": 22,
+          "previous": 13,
+          "points": 290.0,
+          "firstPlaceVotes": 0,
+          "trend": "-9",
+          "team": {
+            "id": "142",
+            "uid": "s:20~l:23~t:142",
+            "location": "Missouri",
+            "name": "Tigers",
+            "nickname": "Missouri",
+            "abbreviation": "MIZ",
+            "color": "f1b82d",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/142.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/142.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/142.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "5-2"
+        },
+        {
+          "current": 23,
+          "previous": 24,
+          "points": 265.0,
+          "firstPlaceVotes": 0,
+          "trend": "+1",
+          "team": {
+            "id": "2567",
+            "uid": "s:20~l:23~t:2567",
+            "location": "SMU",
+            "name": "Mustangs",
+            "nickname": "SMU",
+            "abbreviation": "SMU",
+            "color": "a80000",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2567.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T22:33Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2567.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T22:35Z"
+              }
+            ],
+            "groups": {
+              "id": "1",
+              "shortName": "ACC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2567.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "5-1"
+        },
+        {
+          "current": 24,
+          "previous": 25,
+          "points": 254.0,
+          "firstPlaceVotes": 0,
+          "trend": "+1",
+          "team": {
+            "id": "77",
+            "uid": "s:20~l:23~t:77",
+            "location": "Northwestern",
+            "name": "Wildcats",
+            "nickname": "Northwestern",
+            "abbreviation": "NU",
+            "color": "492f92",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/77.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2026-07-01T04:35Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/77.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-07-01T04:34Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/77.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "5-1"
+        },
+        {
+          "current": 25,
+          "previous": 0,
+          "points": 136.0,
+          "firstPlaceVotes": 0,
+          "trend": "+1",
+          "team": {
+            "id": "12",
+            "uid": "s:20~l:23~t:12",
+            "location": "Arizona",
+            "name": "Wildcats",
+            "nickname": "Arizona",
+            "abbreviation": "ARIZ",
+            "color": "cc0033",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/12.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/12.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/12.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "5-1"
+        }
+      ],
+      "others": [
+        {
+          "current": 0,
+          "previous": 18,
+          "points": 128.0,
+          "firstPlaceVotes": 0,
+          "trend": "+18",
+          "team": {
+            "id": "197",
+            "uid": "s:20~l:23~t:197",
+            "location": "Oklahoma State",
+            "name": "Cowboys",
+            "nickname": "Oklahoma St",
+            "abbreviation": "OKST",
+            "color": "fe5c00",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/197.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-01-05T21:47Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 79.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "2483",
+            "uid": "s:20~l:23~t:2483",
+            "location": "Oregon",
+            "name": "Ducks",
+            "nickname": "Oregon",
+            "abbreviation": "ORE",
+            "color": "00934b",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2483.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2483.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2483.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 61.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "2",
+            "uid": "s:20~l:23~t:2",
+            "location": "Auburn",
+            "name": "Tigers",
+            "nickname": "Auburn",
+            "abbreviation": "AUB",
+            "color": "002b5c",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 52.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "256",
+            "uid": "s:20~l:23~t:256",
+            "location": "James Madison",
+            "name": "Dukes",
+            "nickname": "James Madison",
+            "abbreviation": "JMU",
+            "color": "450084",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/256.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-24T20:19Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/256.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-24T20:18Z"
+              }
+            ],
+            "groups": {
+              "id": "167",
+              "shortName": "Sun Belt - East",
+              "parent": {
+                "id": "37",
+                "shortName": "Sun Belt",
+                "isConference": true
+              },
+              "isConference": false
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/256.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 16,
+          "points": 30.0,
+          "firstPlaceVotes": 0,
+          "trend": "+16",
+          "team": {
+            "id": "344",
+            "uid": "s:20~l:23~t:344",
+            "location": "Mississippi State",
+            "name": "Bulldogs",
+            "nickname": "Mississippi St",
+            "abbreviation": "MSST",
+            "color": "5d1725",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/344.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2026-08-26T13:55Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/344.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-08-26T13:55Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/344.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 6.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "167",
+            "uid": "s:20~l:23~t:167",
+            "location": "New Mexico",
+            "name": "Lobos",
+            "nickname": "New Mexico",
+            "abbreviation": "UNM",
+            "color": "ba0c2f",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/167.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-24T20:19Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/167.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-24T20:18Z"
+              }
+            ],
+            "groups": {
+              "id": "17",
+              "shortName": "Mountain West",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/167.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 3.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "204",
+            "uid": "s:20~l:23~t:204",
+            "location": "Oregon State",
+            "name": "Beavers",
+            "nickname": "Oregon St",
+            "abbreviation": "ORST",
+            "color": "dc4405",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/204.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-24T20:19Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/204.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-24T20:18Z"
+              }
+            ],
+            "groups": {
+              "id": "9",
+              "shortName": "Pac-12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/204.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "0-0"
+        }
+      ],
+      "droppedOut": [
+        {
+          "current": 0,
+          "previous": 16,
+          "points": 30.0,
+          "firstPlaceVotes": 0,
+          "trend": "+16",
+          "team": {
+            "id": "344",
+            "uid": "s:20~l:23~t:344",
+            "location": "Mississippi State",
+            "name": "Bulldogs",
+            "nickname": "Mississippi St",
+            "abbreviation": "MSST",
+            "color": "5d1725",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/344.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2026-08-26T13:55Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/344.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-08-26T13:55Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/344.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 18,
+          "points": 128.0,
+          "firstPlaceVotes": 0,
+          "trend": "+18",
+          "team": {
+            "id": "197",
+            "uid": "s:20~l:23~t:197",
+            "location": "Oklahoma State",
+            "name": "Cowboys",
+            "nickname": "Oklahoma St",
+            "abbreviation": "OKST",
+            "color": "fe5c00",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/197.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-01-05T21:47Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T21:15Z",
+          "recordSummary": "0-0"
+        }
+      ],
+      "availability": {},
+      "showConferences": false,
+      "firstOccurrence": {
+        "type": "week",
+        "value": "1"
+      }
+    },
+    {
+      "$ref": "http://sports.core.api.espn.pvt/v2/sports/football/leagues/college-football/seasons/2026/types/2/weeks/8/rankings/2?lang=en&region=us",
+      "id": "2",
+      "name": "AFCA Coaches Poll",
+      "shortName": "AFCA Coaches Poll",
+      "type": "usa",
+      "occurrence": {
+        "number": 8,
+        "type": "week",
+        "last": false,
+        "value": "8",
+        "displayValue": "Week 8"
+      },
+      "date": "2026-10-18T07:00Z",
+      "headline": "2026 NCAA Football Rankings - AFCA Coaches Poll Week 8",
+      "shortHeadline": "2026 AFCA Coaches Poll: Week 8",
+      "season": {
+        "year": 2026,
+        "startDate": "2026-02-01T08:00Z",
+        "endDate": "2027-01-28T07:59Z",
+        "displayName": "2026",
+        "type": {
+          "type": 2,
+          "name": "Regular Season",
+          "abbreviation": "reg"
+        },
+        "athletes": {
+          "$ref": "http://sports.core.api.espn.pvt/v2/sports/football/leagues/college-football/seasons/2026/athletes?lang=en&region=us"
+        },
+        "futures": {
+          "$ref": "http://sports.core.api.espn.pvt/v2/sports/football/leagues/college-football/seasons/2026/futures?lang=en&region=us"
+        },
+        "leaders": {
+          "$ref": "http://sports.core.api.espn.pvt/v2/sports/football/leagues/college-football/seasons/2026/types/2/leaders?lang=en&region=us"
+        }
+      },
+      "lastUpdated": "2026-10-18T20:00Z",
+      "ranks": [
+        {
+          "current": 1,
+          "previous": 3,
+          "points": 1791.0,
+          "firstPlaceVotes": 50,
+          "trend": "+2",
+          "team": {
+            "id": "2390",
+            "uid": "s:20~l:23~t:2390",
+            "location": "Miami",
+            "name": "Hurricanes",
+            "nickname": "Miami",
+            "abbreviation": "MIA",
+            "color": "f47423",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2390.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T22:33Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2390.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T22:35Z"
+              }
+            ],
+            "groups": {
+              "id": "1",
+              "shortName": "ACC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2390.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-0"
+        },
+        {
+          "current": 2,
+          "previous": 5,
+          "points": 1725.0,
+          "firstPlaceVotes": 13,
+          "trend": "+3",
+          "team": {
+            "id": "194",
+            "uid": "s:20~l:23~t:194",
+            "location": "Ohio State",
+            "name": "Buckeyes",
+            "nickname": "Ohio State",
+            "abbreviation": "OSU",
+            "color": "ba0c2f",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/194.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/194.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/194.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 3,
+          "previous": 8,
+          "points": 1698.0,
+          "firstPlaceVotes": 10,
+          "trend": "+5",
+          "team": {
+            "id": "252",
+            "uid": "s:20~l:23~t:252",
+            "location": "BYU",
+            "name": "Cougars",
+            "nickname": "BYU",
+            "abbreviation": "BYU",
+            "color": "0047ba",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/252.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/252.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/252.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-0"
+        },
+        {
+          "current": 4,
+          "previous": 1,
+          "points": 1469.0,
+          "firstPlaceVotes": 0,
+          "trend": "-3",
+          "team": {
+            "id": "61",
+            "uid": "s:20~l:23~t:61",
+            "location": "Georgia",
+            "name": "Bulldogs",
+            "nickname": "Georgia",
+            "abbreviation": "UGA",
+            "color": "ba0c2f",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/61.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/61.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/61.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 5,
+          "previous": 9,
+          "points": 1414.0,
+          "firstPlaceVotes": 0,
+          "trend": "+4",
+          "team": {
+            "id": "2641",
+            "uid": "s:20~l:23~t:2641",
+            "location": "Texas Tech",
+            "name": "Red Raiders",
+            "nickname": "Texas Tech",
+            "abbreviation": "TTU",
+            "color": "da291c",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2641.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2026-07-01T04:35Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2641.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-07-01T04:34Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2641.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-0"
+        },
+        {
+          "current": 6,
+          "previous": 4,
+          "points": 1378.0,
+          "firstPlaceVotes": 0,
+          "trend": "-2",
+          "team": {
+            "id": "84",
+            "uid": "s:20~l:23~t:84",
+            "location": "Indiana",
+            "name": "Hoosiers",
+            "nickname": "Indiana",
+            "abbreviation": "IU",
+            "color": "970310",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/84.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/84.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-30T19:45Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/84.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 7,
+          "previous": 10,
+          "points": 1371.0,
+          "firstPlaceVotes": 0,
+          "trend": "+3",
+          "team": {
+            "id": "145",
+            "uid": "s:20~l:23~t:145",
+            "location": "Ole Miss",
+            "name": "Rebels",
+            "nickname": "Ole Miss",
+            "abbreviation": "MISS",
+            "color": "13294b",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/145.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/145.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/145.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "5-1"
+        },
+        {
+          "current": 8,
+          "previous": 2,
+          "points": 1332.0,
+          "firstPlaceVotes": 0,
+          "trend": "-6",
+          "team": {
+            "id": "87",
+            "uid": "s:20~l:23~t:87",
+            "location": "Notre Dame",
+            "name": "Fighting Irish",
+            "nickname": "Notre Dame",
+            "abbreviation": "ND",
+            "color": "062340",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/87.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T22:33Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/87.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T22:35Z"
+              }
+            ],
+            "groups": {
+              "id": "18",
+              "shortName": "FBS Indep.",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/87.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 9,
+          "previous": 11,
+          "points": 1222.0,
+          "firstPlaceVotes": 0,
+          "trend": "+2",
+          "team": {
+            "id": "254",
+            "uid": "s:20~l:23~t:254",
+            "location": "Utah",
+            "name": "Utes",
+            "nickname": "Utah",
+            "abbreviation": "UTAH",
+            "color": "be0000",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/254.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/254.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-01-05T20:06Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/254.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-0"
+        },
+        {
+          "current": 10,
+          "previous": 12,
+          "points": 1206.0,
+          "firstPlaceVotes": 0,
+          "trend": "+2",
+          "team": {
+            "id": "26",
+            "uid": "s:20~l:23~t:26",
+            "location": "UCLA",
+            "name": "Bruins",
+            "nickname": "UCLA",
+            "abbreviation": "UCLA",
+            "color": "2774ae",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/26.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/26.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/26.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-0"
+        },
+        {
+          "current": 11,
+          "previous": 14,
+          "points": 1193.0,
+          "firstPlaceVotes": 0,
+          "trend": "+3",
+          "team": {
+            "id": "2633",
+            "uid": "s:20~l:23~t:2633",
+            "location": "Tennessee",
+            "name": "Volunteers",
+            "nickname": "Tennessee",
+            "abbreviation": "TENN",
+            "color": "ff8200",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2633.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2633.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-01-05T20:06Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2633.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 12,
+          "previous": 17,
+          "points": 979.0,
+          "firstPlaceVotes": 0,
+          "trend": "+5",
+          "team": {
+            "id": "96",
+            "uid": "s:20~l:23~t:96",
+            "location": "Kentucky",
+            "name": "Wildcats",
+            "nickname": "Kentucky",
+            "abbreviation": "UK",
+            "color": "0033a0",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/96.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/96.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/96.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 13,
+          "previous": 7,
+          "points": 813.0,
+          "firstPlaceVotes": 0,
+          "trend": "-6",
+          "team": {
+            "id": "333",
+            "uid": "s:20~l:23~t:333",
+            "location": "Alabama",
+            "name": "Crimson Tide",
+            "nickname": "Alabama",
+            "abbreviation": "ALA",
+            "color": "9e1b32",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/333.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/333.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/333.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "5-2"
+        },
+        {
+          "current": 14,
+          "previous": 16,
+          "points": 807.0,
+          "firstPlaceVotes": 0,
+          "trend": "+2",
+          "team": {
+            "id": "2294",
+            "uid": "s:20~l:23~t:2294",
+            "location": "Iowa",
+            "name": "Hawkeyes",
+            "nickname": "Iowa",
+            "abbreviation": "IOWA",
+            "color": "231f20",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2294.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2294.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2294.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "5-1"
+        },
+        {
+          "current": 15,
+          "previous": 15,
+          "points": 796.0,
+          "firstPlaceVotes": 0,
+          "trend": "-",
+          "team": {
+            "id": "30",
+            "uid": "s:20~l:23~t:30",
+            "location": "USC",
+            "name": "Trojans",
+            "nickname": "USC",
+            "abbreviation": "USC",
+            "color": "9d2235",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/30.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/30.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/30.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 16,
+          "previous": 18,
+          "points": 730.0,
+          "firstPlaceVotes": 0,
+          "trend": "+2",
+          "team": {
+            "id": "248",
+            "uid": "s:20~l:23~t:248",
+            "location": "Houston",
+            "name": "Cougars",
+            "nickname": "Houston",
+            "abbreviation": "HOU",
+            "color": "c8102e",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/248.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/248.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/248.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 17,
+          "previous": 21,
+          "points": 569.0,
+          "firstPlaceVotes": 0,
+          "trend": "+4",
+          "team": {
+            "id": "99",
+            "uid": "s:20~l:23~t:99",
+            "location": "LSU",
+            "name": "Tigers",
+            "nickname": "LSU",
+            "abbreviation": "LSU",
+            "color": "461d76",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/99.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/99.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/99.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "5-2"
+        },
+        {
+          "current": 18,
+          "previous": 6,
+          "points": 520.0,
+          "firstPlaceVotes": 0,
+          "trend": "-12",
+          "team": {
+            "id": "251",
+            "uid": "s:20~l:23~t:251",
+            "location": "Texas",
+            "name": "Longhorns",
+            "nickname": "Texas",
+            "abbreviation": "TEX",
+            "color": "af5c37",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/251.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/251.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/251.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "4-2"
+        },
+        {
+          "current": 19,
+          "previous": 23,
+          "points": 514.0,
+          "firstPlaceVotes": 0,
+          "trend": "+4",
+          "team": {
+            "id": "154",
+            "uid": "s:20~l:23~t:154",
+            "location": "Wake Forest",
+            "name": "Demon Deacons",
+            "nickname": "Wake Forest",
+            "abbreviation": "WAKE",
+            "color": "ceb888",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/154.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T22:33Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/154.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T22:35Z"
+              }
+            ],
+            "groups": {
+              "id": "1",
+              "shortName": "ACC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/154.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "6-1"
+        },
+        {
+          "current": 20,
+          "previous": 22,
+          "points": 458.0,
+          "firstPlaceVotes": 0,
+          "trend": "+2",
+          "team": {
+            "id": "2567",
+            "uid": "s:20~l:23~t:2567",
+            "location": "SMU",
+            "name": "Mustangs",
+            "nickname": "SMU",
+            "abbreviation": "SMU",
+            "color": "a80000",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2567.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T22:33Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2567.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T22:35Z"
+              }
+            ],
+            "groups": {
+              "id": "1",
+              "shortName": "ACC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2567.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "5-1"
+        },
+        {
+          "current": 21,
+          "previous": 13,
+          "points": 274.0,
+          "firstPlaceVotes": 0,
+          "trend": "-8",
+          "team": {
+            "id": "142",
+            "uid": "s:20~l:23~t:142",
+            "location": "Missouri",
+            "name": "Tigers",
+            "nickname": "Missouri",
+            "abbreviation": "MIZ",
+            "color": "f1b82d",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/142.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/142.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/142.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "5-2"
+        },
+        {
+          "current": 22,
+          "previous": 24,
+          "points": 266.0,
+          "firstPlaceVotes": 0,
+          "trend": "+2",
+          "team": {
+            "id": "68",
+            "uid": "s:20~l:23~t:68",
+            "location": "Boise State",
+            "name": "Broncos",
+            "nickname": "Boise St",
+            "abbreviation": "BOIS",
+            "color": "0033a0",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/68.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2026-07-01T04:35Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/68.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-07-01T04:34Z"
+              }
+            ],
+            "groups": {
+              "id": "9",
+              "shortName": "Pac-12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/68.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "5-1"
+        },
+        {
+          "current": 23,
+          "previous": 0,
+          "points": 256.0,
+          "firstPlaceVotes": 0,
+          "trend": "+3",
+          "team": {
+            "id": "77",
+            "uid": "s:20~l:23~t:77",
+            "location": "Northwestern",
+            "name": "Wildcats",
+            "nickname": "Northwestern",
+            "abbreviation": "NU",
+            "color": "492f92",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/77.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2026-07-01T04:35Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/77.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-07-01T04:34Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/77.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "5-1"
+        },
+        {
+          "current": 24,
+          "previous": 0,
+          "points": 250.0,
+          "firstPlaceVotes": 0,
+          "trend": "+2",
+          "team": {
+            "id": "57",
+            "uid": "s:20~l:23~t:57",
+            "location": "Florida",
+            "name": "Gators",
+            "nickname": "Florida",
+            "abbreviation": "FLA",
+            "color": "0021a5",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/57.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/57.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/57.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "5-2"
+        },
+        {
+          "current": 25,
+          "previous": 25,
+          "points": 189.0,
+          "firstPlaceVotes": 0,
+          "trend": "-",
+          "team": {
+            "id": "2483",
+            "uid": "s:20~l:23~t:2483",
+            "location": "Oregon",
+            "name": "Ducks",
+            "nickname": "Oregon",
+            "abbreviation": "ORE",
+            "color": "00934b",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2483.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2483.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2483.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "4-2"
+        }
+      ],
+      "others": [
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 141.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "12",
+            "uid": "s:20~l:23~t:12",
+            "location": "Arizona",
+            "name": "Wildcats",
+            "nickname": "Arizona",
+            "abbreviation": "ARIZ",
+            "color": "cc0033",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/12.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/12.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/12.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 20,
+          "points": 87.0,
+          "firstPlaceVotes": 0,
+          "trend": "+20",
+          "team": {
+            "id": "197",
+            "uid": "s:20~l:23~t:197",
+            "location": "Oklahoma State",
+            "name": "Cowboys",
+            "nickname": "Oklahoma St",
+            "abbreviation": "OKST",
+            "color": "fe5c00",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/197.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-01-05T21:47Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 80.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "256",
+            "uid": "s:20~l:23~t:256",
+            "location": "James Madison",
+            "name": "Dukes",
+            "nickname": "James Madison",
+            "abbreviation": "JMU",
+            "color": "450084",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/256.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-24T20:19Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/256.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-24T20:18Z"
+              }
+            ],
+            "groups": {
+              "id": "167",
+              "shortName": "Sun Belt - East",
+              "parent": {
+                "id": "37",
+                "shortName": "Sun Belt",
+                "isConference": true
+              },
+              "isConference": false
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/256.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 55.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "2",
+            "uid": "s:20~l:23~t:2",
+            "location": "Auburn",
+            "name": "Tigers",
+            "nickname": "Auburn",
+            "abbreviation": "AUB",
+            "color": "002b5c",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T23:48Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T23:47Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 19,
+          "points": 32.0,
+          "firstPlaceVotes": 0,
+          "trend": "+19",
+          "team": {
+            "id": "344",
+            "uid": "s:20~l:23~t:344",
+            "location": "Mississippi State",
+            "name": "Bulldogs",
+            "nickname": "Mississippi St",
+            "abbreviation": "MSST",
+            "color": "5d1725",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/344.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2026-08-26T13:55Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/344.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-08-26T13:55Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/344.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 19.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "158",
+            "uid": "s:20~l:23~t:158",
+            "location": "Nebraska",
+            "name": "Cornhuskers",
+            "nickname": "Nebraska",
+            "abbreviation": "NEB",
+            "color": "e31937",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/158.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/158.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/158.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 17.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "204",
+            "uid": "s:20~l:23~t:204",
+            "location": "Oregon State",
+            "name": "Beavers",
+            "nickname": "Oregon St",
+            "abbreviation": "ORST",
+            "color": "dc4405",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/204.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-24T20:19Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/204.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-24T20:18Z"
+              }
+            ],
+            "groups": {
+              "id": "9",
+              "shortName": "Pac-12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/204.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 16.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "167",
+            "uid": "s:20~l:23~t:167",
+            "location": "New Mexico",
+            "name": "Lobos",
+            "nickname": "New Mexico",
+            "abbreviation": "UNM",
+            "color": "ba0c2f",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/167.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-24T20:19Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/167.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-24T20:18Z"
+              }
+            ],
+            "groups": {
+              "id": "17",
+              "shortName": "Mountain West",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/167.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 13.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "2636",
+            "uid": "s:20~l:23~t:2636",
+            "location": "UTSA",
+            "name": "Roadrunners",
+            "nickname": "UTSA",
+            "abbreviation": "UTSA",
+            "color": "0c2340",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2636.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T22:08Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2636.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T22:08Z"
+              }
+            ],
+            "groups": {
+              "id": "151",
+              "shortName": "American",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2636.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 10.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "130",
+            "uid": "s:20~l:23~t:130",
+            "location": "Michigan",
+            "name": "Wolverines",
+            "nickname": "Michigan",
+            "abbreviation": "MICH",
+            "color": "00274c",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/130.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2026-01-08T23:30Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/130.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/130.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 8.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "2449",
+            "uid": "s:20~l:23~t:2449",
+            "location": "North Dakota State",
+            "name": "Bison",
+            "nickname": "N Dakota St",
+            "abbreviation": "NDSU",
+            "color": "01402A",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2449.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2023-01-20T22:36Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2449.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2023-01-20T22:35Z"
+              }
+            ],
+            "groups": {
+              "id": "17",
+              "shortName": "Mountain West",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2449.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 7.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "275",
+            "uid": "s:20~l:23~t:275",
+            "location": "Wisconsin",
+            "name": "Badgers",
+            "nickname": "Wisconsin",
+            "abbreviation": "WIS",
+            "color": "a00000",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/275.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2026-07-01T04:35Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/275.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-07-01T04:34Z"
+              }
+            ],
+            "groups": {
+              "id": "5",
+              "shortName": "Big Ten",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/275.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 7.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "150",
+            "uid": "s:20~l:23~t:150",
+            "location": "Duke",
+            "name": "Blue Devils",
+            "nickname": "Duke",
+            "abbreviation": "DUKE",
+            "color": "00539b",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/150.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T22:33Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/150.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-01-05T20:04Z"
+              }
+            ],
+            "groups": {
+              "id": "1",
+              "shortName": "ACC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/150.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 5.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "153",
+            "uid": "s:20~l:23~t:153",
+            "location": "North Carolina",
+            "name": "Tar Heels",
+            "nickname": "North Carolina",
+            "abbreviation": "UNC",
+            "color": "7bafd4",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/153.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T22:33Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/153.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-01-05T20:06Z"
+              }
+            ],
+            "groups": {
+              "id": "1",
+              "shortName": "ACC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/153.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 4.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "221",
+            "uid": "s:20~l:23~t:221",
+            "location": "Pittsburgh",
+            "name": "Panthers",
+            "nickname": "Pitt",
+            "abbreviation": "PITT",
+            "color": "003594",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/221.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-19T22:33Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/221.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-19T22:35Z"
+              }
+            ],
+            "groups": {
+              "id": "1",
+              "shortName": "ACC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/221.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 3.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "2005",
+            "uid": "s:20~l:23~t:2005",
+            "location": "Air Force",
+            "name": "Falcons",
+            "nickname": "Air Force",
+            "abbreviation": "AFA",
+            "color": "003594",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2005.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-24T20:19Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/2005.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2025-12-24T20:18Z"
+              }
+            ],
+            "groups": {
+              "id": "17",
+              "shortName": "Mountain West",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2005.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 0,
+          "points": 1.0,
+          "firstPlaceVotes": 0,
+          "trend": "+26",
+          "team": {
+            "id": "249",
+            "uid": "s:20~l:23~t:249",
+            "location": "North Texas",
+            "name": "Mean Green",
+            "nickname": "North Texas",
+            "abbreviation": "UNT",
+            "color": "068f33",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/249.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T22:08Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/249.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-01-05T21:17Z"
+              }
+            ],
+            "groups": {
+              "id": "151",
+              "shortName": "American",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/249.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        }
+      ],
+      "droppedOut": [
+        {
+          "current": 0,
+          "previous": 19,
+          "points": 32.0,
+          "firstPlaceVotes": 0,
+          "trend": "+19",
+          "team": {
+            "id": "344",
+            "uid": "s:20~l:23~t:344",
+            "location": "Mississippi State",
+            "name": "Bulldogs",
+            "nickname": "Mississippi St",
+            "abbreviation": "MSST",
+            "color": "5d1725",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/344.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2026-08-26T13:55Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/344.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-08-26T13:55Z"
+              }
+            ],
+            "groups": {
+              "id": "8",
+              "shortName": "SEC",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/344.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        },
+        {
+          "current": 0,
+          "previous": 20,
+          "points": 87.0,
+          "firstPlaceVotes": 0,
+          "trend": "+20",
+          "team": {
+            "id": "197",
+            "uid": "s:20~l:23~t:197",
+            "location": "Oklahoma State",
+            "name": "Cowboys",
+            "nickname": "Oklahoma St",
+            "abbreviation": "OKST",
+            "color": "fe5c00",
+            "logos": [
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "default"
+                ],
+                "lastUpdated": "2025-12-23T01:44Z"
+              },
+              {
+                "href": "https://a.espncdn.com/i/teamlogos/ncaa/500-dark/197.png",
+                "width": 500,
+                "height": 500,
+                "alt": "",
+                "rel": [
+                  "full",
+                  "dark"
+                ],
+                "lastUpdated": "2026-01-05T21:47Z"
+              }
+            ],
+            "groups": {
+              "id": "4",
+              "shortName": "Big 12",
+              "parent": {
+                "id": "80",
+                "shortName": "FBS",
+                "isConference": false
+              },
+              "isConference": true
+            },
+            "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"
+          },
+          "date": "2026-10-18T07:00Z",
+          "lastUpdated": "2026-10-18T20:00Z",
+          "recordSummary": "0-0"
+        }
+      ],
+      "availability": {},
+      "showConferences": false,
+      "firstOccurrence": {
+        "type": "week",
+        "value": "1"
+      }
+    }
+  ],
+  "latestSeason": {
+    "year": 2026,
+    "startDate": "2026-02-01T08:00Z",
+    "endDate": "2027-01-28T07:59Z",
+    "type": {
+      "id": "2",
+      "type": 2,
+      "name": "Regular Season",
+      "abbreviation": "reg"
+    }
+  },
+  "latestWeek": {
+    "number": 8,
+    "type": "week",
+    "last": false,
+    "value": "8",
+    "displayValue": "Week 8"
+  },
+  "weekCounts": [
+    {
+      "type": "1",
+      "weekCount": 1
+    },
+    {
+      "type": "2",
+      "weekCount": 8
+    }
+  ],
+  "weeks": [
+    {
+      "display": "Preseason",
+      "week": "1",
+      "type": "1"
+    },
+    {
+      "display": "Week 1",
+      "week": "1",
+      "type": "2"
+    },
+    {
+      "display": "Week 2",
+      "week": "2",
+      "type": "2"
+    },
+    {
+      "display": "Week 3",
+      "week": "3",
+      "type": "2"
+    },
+    {
+      "display": "Week 4",
+      "week": "4",
+      "type": "2"
+    },
+    {
+      "display": "Week 5",
+      "week": "5",
+      "type": "2"
+    },
+    {
+      "display": "Week 6",
+      "week": "6",
+      "type": "2"
+    },
+    {
+      "display": "Week 7",
+      "week": "7",
+      "type": "2"
+    },
+    {
+      "display": "Week 8",
+      "week": "8",
+      "type": "2"
+    }
+  ],
+  "requestedSeason": {
+    "year": 2026,
+    "displayName": "2026",
+    "type": {
+      "type": 2,
+      "name": "Regular Season"
+    },
+    "week": {
+      "number": 8,
+      "type": "week",
+      "last": false,
+      "value": "8",
+      "displayValue": "Week 8"
+    }
+  },
+  "availableRankings": [
+    {
+      "id": "1",
+      "name": "AP Top 25",
+      "shortName": "AP Poll",
+      "week": "8",
+      "seasonType": 2
+    },
+    {
+      "id": "2",
+      "name": "AFCA Coaches Poll",
+      "shortName": "AFCA Coaches Poll",
+      "week": "8",
+      "seasonType": 2
+    },
+    {
+      "id": "20",
+      "name": "FCS Coaches Poll",
+      "shortName": "FCS Coaches Poll",
+      "week": "8",
+      "seasonType": 2
+    },
+    {
+      "id": "11",
+      "name": "AFCA Division II Coaches Poll",
+      "shortName": "AFCA Div II",
+      "week": "8",
+      "seasonType": 2
+    },
+    {
+      "id": "12",
+      "name": "AFCA Division III Coaches Poll",
+      "shortName": "AFCA Div III",
+      "week": "8",
+      "seasonType": 2
+    }
+  ]
+}

@@ -1143,6 +1143,19 @@ struct NetworkHandler {
         return try decoder.decode(Standing.self, from: data)
     }
 
+    /// College polls for `league`: the latest week, or an earlier one from its `weeks`.
+    static func getPollRankings(league: Leagues, week: PollRankings.Week? = nil) async throws -> PollRankings {
+        var urlString = "\(baseURL())/rankings/\(league.rawValue)"
+        if let week {
+            urlString += "?type=\(week.seasonType)&week=\(week.number)"
+        }
+        let (data, response) = try await performAuthorized(url: URL(string: urlString)!)
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+        }
+        return try Self.sharedDecoder.decode(PollRankings.self, from: data)
+    }
+
     struct StandingsHistoryDay: Codable, Identifiable {
         var id: String { date }
         let date: String

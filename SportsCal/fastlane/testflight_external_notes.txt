@@ -5,5 +5,6 @@ New in 3.3 — please try:
 • Tennis & golf coverage: pick Grand Slams/majors only, big events, or everything.
 • More golf tours: DP World, LPGA, LIV, Champions and Korn Ferry.
 • Soccer match centre: lineups, shots, momentum and commentary on match pages.
+• College rankings: AP, Coaches and lower-division polls, week by week. Browse › Football › College Football › the league card › Rankings.
 
 Tell us about anything that looks wrong, is slow, or crashes (shake or screenshot to send feedback).

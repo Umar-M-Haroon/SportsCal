@@ -3,7 +3,7 @@
 //  SportsCal (iOS)
 //
 //  One league's home, opened from its Browse chip: the standings (conferences,
-//  divisions) and its schedule by matchday. Soccer competitions keep their richer
+//  divisions), college polls, and its schedule by matchday. Soccer competitions keep their richer
 //  hub (zones, form, top scorers) — `LeagueHubView` hands those to
 //  `SoccerCompetitionHubView`.
 //
@@ -53,7 +53,8 @@ struct LeagueHubLink: View {
                     .foregroundStyle(Color.app(sport))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(league.leagueName).font(.headline)
-                    Text(league.isSoccer ? "Table · Matches · Top Scorers" : "Standings · Schedule")
+                    Text(league.isSoccer ? "Table · Matches · Top Scorers"
+                         : league.hasPollRankings ? "Rankings · Standings · Schedule" : "Standings · Schedule")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -68,7 +69,7 @@ private struct TeamLeagueHub: View {
     @Environment(GameViewModel.self) private var viewModel
     @Environment(Favorites.self) private var favorites
 
-    @State private var tab: Tab = .standings
+    @State private var tab: Tab
     @State private var standing: Standing?
     @State private var didLoadStandings = false
     @State private var showsResults = false
@@ -80,10 +81,21 @@ private struct TeamLeagueHub: View {
     /// Matchdays shown per direction; the day strip in Browse reaches the rest.
     private static let matchdayLimit = 14
 
+    init(league: Leagues, games: [Game]) {
+        self.league = league
+        self.games = games
+        _tab = State(initialValue: league.hasPollRankings ? .rankings : .standings)
+    }
+
     private enum Tab: String, CaseIterable, Identifiable {
+        case rankings = "Rankings"
         case standings = "Standings"
         case schedule = "Schedule"
         var id: String { rawValue }
+    }
+
+    private var tabs: [Tab] {
+        league.hasPollRankings ? Tab.allCases : [.standings, .schedule]
     }
 
     private var sport: SportType { SportType(league: league) }
@@ -92,12 +104,15 @@ private struct TeamLeagueHub: View {
         ScrollView {
             VStack(alignment: .leading, spacing: .appSpace4) {
                 Picker("Section", selection: $tab) {
-                    ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(tabs) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
 
                 switch tab {
+                case .rankings:
+                    PollRankingsView(league: league)
+                        .environment(favorites)
                 case .standings: standings
                 case .schedule: schedule
                 }

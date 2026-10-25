@@ -1,0 +1,842 @@
+{
+  "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/weeks/5/rankings/1?lang=en&region=us",
+  "id": "1",
+  "name": "AP Top 25",
+  "shortName": "AP Poll",
+  "type": "ap",
+  "occurrence": {
+    "number": 5,
+    "type": "week",
+    "last": false,
+    "value": "5",
+    "displayValue": "Week 5"
+  },
+  "date": "2026-09-27T07:00Z",
+  "headline": "2026 NCAA Football Rankings - AP Poll Week 5",
+  "shortHeadline": "2026 AP Poll: Week 5",
+  "season": {
+    "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026?lang=en&region=us",
+    "year": 2026,
+    "startDate": "2026-02-01T08:00Z",
+    "endDate": "2027-01-28T07:59Z",
+    "displayName": "2026",
+    "type": {
+      "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2?lang=en&region=us",
+      "id": "2",
+      "type": 2,
+      "name": "Regular Season",
+      "abbreviation": "reg",
+      "year": 2026,
+      "startDate": "2026-08-22T07:00Z",
+      "endDate": "2026-12-13T07:59Z",
+      "hasGroups": false,
+      "hasStandings": true,
+      "hasLegs": false,
+      "groups": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/groups?lang=en&region=us"
+      },
+      "week": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/weeks/8?lang=en&region=us",
+        "number": 8,
+        "startDate": "2026-10-19T07:00Z",
+        "endDate": "2026-10-26T06:59Z",
+        "text": "Week 8",
+        "rankings": {
+          "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/weeks/8/rankings?lang=en&region=us"
+        }
+      },
+      "weeks": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/weeks?lang=en&region=us"
+      },
+      "leaders": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/leaders?lang=en&region=us"
+      },
+      "slug": "regular-season"
+    },
+    "types": {
+      "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types?lang=en&region=us",
+      "count": 4,
+      "pageIndex": 1,
+      "pageSize": 4,
+      "pageCount": 1,
+      "items": [
+        {
+          "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/1?lang=en&region=us",
+          "id": "1",
+          "type": 1,
+          "name": "Preseason",
+          "abbreviation": "pre",
+          "year": 2026,
+          "startDate": "2026-02-01T08:00Z",
+          "endDate": "2026-08-22T06:59Z",
+          "hasGroups": false,
+          "hasStandings": false,
+          "hasLegs": false,
+          "groups": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/1/groups?lang=en&region=us"
+          },
+          "weeks": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/1/weeks?lang=en&region=us"
+          },
+          "slug": "preseason"
+        },
+        {
+          "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2?lang=en&region=us",
+          "id": "2",
+          "type": 2,
+          "name": "Regular Season",
+          "abbreviation": "reg",
+          "year": 2026,
+          "startDate": "2026-08-22T07:00Z",
+          "endDate": "2026-12-13T07:59Z",
+          "hasGroups": false,
+          "hasStandings": true,
+          "hasLegs": false,
+          "groups": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/groups?lang=en&region=us"
+          },
+          "week": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/weeks/8?lang=en&region=us",
+            "number": 8,
+            "startDate": "2026-10-19T07:00Z",
+            "endDate": "2026-10-26T06:59Z",
+            "text": "Week 8",
+            "rankings": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/weeks/8/rankings?lang=en&region=us"
+            }
+          },
+          "weeks": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/weeks?lang=en&region=us"
+          },
+          "leaders": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/leaders?lang=en&region=us"
+          },
+          "slug": "regular-season"
+        },
+        {
+          "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/3?lang=en&region=us",
+          "id": "3",
+          "type": 3,
+          "name": "Postseason",
+          "abbreviation": "post",
+          "year": 2026,
+          "startDate": "2026-12-13T08:00Z",
+          "endDate": "2027-01-28T07:59Z",
+          "hasGroups": false,
+          "hasStandings": true,
+          "hasLegs": false,
+          "groups": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/3/groups?lang=en&region=us"
+          },
+          "weeks": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/3/weeks?lang=en&region=us"
+          },
+          "leaders": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/3/leaders?lang=en&region=us"
+          },
+          "slug": "post-season"
+        },
+        {
+          "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/4?lang=en&region=us",
+          "id": "4",
+          "type": 4,
+          "name": "Off Season",
+          "abbreviation": "off",
+          "year": 2026,
+          "startDate": "2027-01-28T08:00Z",
+          "endDate": "2027-02-01T07:59Z",
+          "hasGroups": false,
+          "hasStandings": false,
+          "hasLegs": false,
+          "groups": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/4/groups?lang=en&region=us"
+          },
+          "weeks": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/4/weeks?lang=en&region=us"
+          },
+          "slug": "off-season"
+        }
+      ]
+    },
+    "rankings": {
+      "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/rankings?lang=en&region=us"
+    },
+    "athletes": {
+      "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/athletes?lang=en&region=us"
+    },
+    "futures": {
+      "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/futures?lang=en&region=us"
+    },
+    "leaders": {
+      "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/leaders?lang=en&region=us"
+    }
+  },
+  "lastUpdated": "2026-09-27T21:32Z",
+  "ranks": [
+    {
+      "current": 1,
+      "previous": 1,
+      "points": 1737.0,
+      "firstPlaceVotes": 62,
+      "trend": "-",
+      "record": {
+        "summary": "4-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/251?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 2,
+      "previous": 2,
+      "points": 1646.0,
+      "firstPlaceVotes": 6,
+      "trend": "-",
+      "record": {
+        "summary": "4-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/61?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 3,
+      "previous": 3,
+      "points": 1581.0,
+      "firstPlaceVotes": 0,
+      "trend": "-",
+      "record": {
+        "summary": "4-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/87?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 4,
+      "previous": 6,
+      "points": 1501.0,
+      "firstPlaceVotes": 1,
+      "trend": "+2",
+      "record": {
+        "summary": "4-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/2390?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 5,
+      "previous": 7,
+      "points": 1465.0,
+      "firstPlaceVotes": 0,
+      "trend": "+2",
+      "record": {
+        "summary": "3-1"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/194?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 6,
+      "previous": 5,
+      "points": 1408.0,
+      "firstPlaceVotes": 1,
+      "trend": "-1",
+      "record": {
+        "summary": "4-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/84?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 7,
+      "previous": 8,
+      "points": 1305.0,
+      "firstPlaceVotes": 0,
+      "trend": "+1",
+      "record": {
+        "summary": "4-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/333?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 8,
+      "previous": 21,
+      "points": 1272.0,
+      "firstPlaceVotes": 0,
+      "trend": "+13",
+      "record": {
+        "summary": "4-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/57?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 9,
+      "previous": 4,
+      "points": 1089.0,
+      "firstPlaceVotes": 0,
+      "trend": "-5",
+      "record": {
+        "summary": "3-1"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/145?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 10,
+      "previous": 9,
+      "points": 1078.0,
+      "firstPlaceVotes": 0,
+      "trend": "-1",
+      "record": {
+        "summary": "3-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/252?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 11,
+      "previous": 10,
+      "points": 1073.0,
+      "firstPlaceVotes": 0,
+      "trend": "-1",
+      "record": {
+        "summary": "3-1"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/99?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 12,
+      "previous": 11,
+      "points": 1053.0,
+      "firstPlaceVotes": 0,
+      "trend": "-1",
+      "record": {
+        "summary": "4-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/2641?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 13,
+      "previous": 15,
+      "points": 903.0,
+      "firstPlaceVotes": 0,
+      "trend": "+2",
+      "record": {
+        "summary": "4-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/254?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 14,
+      "previous": 17,
+      "points": 856.0,
+      "firstPlaceVotes": 0,
+      "trend": "+3",
+      "record": {
+        "summary": "4-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/2294?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 15,
+      "previous": 20,
+      "points": 725.0,
+      "firstPlaceVotes": 0,
+      "trend": "+5",
+      "record": {
+        "summary": "3-1"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/2483?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 16,
+      "previous": 24,
+      "points": 715.0,
+      "firstPlaceVotes": 0,
+      "trend": "+8",
+      "record": {
+        "summary": "4-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/344?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 17,
+      "previous": 14,
+      "points": 663.0,
+      "firstPlaceVotes": 0,
+      "trend": "-3",
+      "record": {
+        "summary": "3-1"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/2633?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 18,
+      "previous": 12,
+      "points": 410.0,
+      "firstPlaceVotes": 0,
+      "trend": "-6",
+      "record": {
+        "summary": "4-1"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/30?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 19,
+      "previous": 0,
+      "points": 345.0,
+      "firstPlaceVotes": 0,
+      "trend": "+7",
+      "record": {
+        "summary": "3-1"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/197?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 20,
+      "previous": 25,
+      "points": 278.0,
+      "firstPlaceVotes": 0,
+      "trend": "+5",
+      "record": {
+        "summary": "3-1"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/248?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 21,
+      "previous": 22,
+      "points": 246.0,
+      "firstPlaceVotes": 0,
+      "trend": "+1",
+      "record": {
+        "summary": "3-1"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/2567?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 22,
+      "previous": 0,
+      "points": 221.0,
+      "firstPlaceVotes": 0,
+      "trend": "+4",
+      "record": {
+        "summary": "3-1"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/68?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 23,
+      "previous": 0,
+      "points": 218.0,
+      "firstPlaceVotes": 0,
+      "trend": "+3",
+      "record": {
+        "summary": "4-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/26?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 24,
+      "previous": 0,
+      "points": 150.0,
+      "firstPlaceVotes": 0,
+      "trend": "+2",
+      "record": {
+        "summary": "3-1"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/96?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 25,
+      "previous": 19,
+      "points": 118.0,
+      "firstPlaceVotes": 0,
+      "trend": "-6",
+      "record": {
+        "summary": "3-1"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/142?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    }
+  ],
+  "others": [
+    {
+      "current": 0,
+      "previous": 0,
+      "points": 102.0,
+      "firstPlaceVotes": 0,
+      "trend": "+26",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/275?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 0,
+      "points": 101.0,
+      "firstPlaceVotes": 0,
+      "trend": "+26",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/150?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 13,
+      "points": 98.0,
+      "firstPlaceVotes": 0,
+      "trend": "+13",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/213?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 0,
+      "points": 88.0,
+      "firstPlaceVotes": 0,
+      "trend": "+26",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/154?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 0,
+      "points": 86.0,
+      "firstPlaceVotes": 0,
+      "trend": "+26",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/259?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 18,
+      "points": 54.0,
+      "firstPlaceVotes": 0,
+      "trend": "+18",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/130?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 0,
+      "points": 52.0,
+      "firstPlaceVotes": 0,
+      "trend": "+26",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/221?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 0,
+      "points": 36.0,
+      "firstPlaceVotes": 0,
+      "trend": "+26",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/158?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 16,
+      "points": 25.0,
+      "firstPlaceVotes": 0,
+      "trend": "+16",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/97?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 0,
+      "points": 20.0,
+      "firstPlaceVotes": 0,
+      "trend": "+26",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/2132?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 0,
+      "points": 10.0,
+      "firstPlaceVotes": 0,
+      "trend": "+26",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/256?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 0,
+      "points": 8.0,
+      "firstPlaceVotes": 0,
+      "trend": "+26",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/12?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 0,
+      "points": 7.0,
+      "firstPlaceVotes": 0,
+      "trend": "+26",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/135?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 0,
+      "points": 6.0,
+      "firstPlaceVotes": 0,
+      "trend": "+26",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/2449?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 0,
+      "points": 1.0,
+      "firstPlaceVotes": 0,
+      "trend": "+26",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/77?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    }
+  ],
+  "droppedOut": [
+    {
+      "current": 0,
+      "previous": 13,
+      "points": 98.0,
+      "firstPlaceVotes": 0,
+      "trend": "+13",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/213?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 16,
+      "points": 25.0,
+      "firstPlaceVotes": 0,
+      "trend": "+16",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/97?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 18,
+      "points": 54.0,
+      "firstPlaceVotes": 0,
+      "trend": "+18",
+      "record": {
+        "summary": "0-0"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/130?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    },
+    {
+      "current": 0,
+      "previous": 23,
+      "points": 0.0,
+      "firstPlaceVotes": 0,
+      "trend": "+23",
+      "record": {
+        "summary": "2-1"
+      },
+      "team": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/teams/245?lang=en&region=us"
+      },
+      "date": "2026-09-27T07:00Z",
+      "lastUpdated": "2026-09-27T21:32Z"
+    }
+  ],
+  "availability": {}
+}
