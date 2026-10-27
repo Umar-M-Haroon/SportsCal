@@ -352,6 +352,7 @@
 		EE00B00FF00000000000000B /* PlayoffPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00B00FF00000000000000A /* PlayoffPill.swift */; };
 		EFA0020100000001 /* EFRemixTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFA0010100000001 /* EFRemixTheme.swift */; };
 		F3F3D11B781A5234A2539E60 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C1E2EF7E405289CC653CE178 /* Foundation.framework */; };
+		F5252664C33BD40E08D30F26 /* AdaptiveLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA0FAB18CA9AC06E7D51EFBD /* AdaptiveLayoutTests.swift */; };
 		FAC419D238E640E4802E1D64 /* ScheduleFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D905CEEF684D5CB7178662 /* ScheduleFilterTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -611,6 +612,7 @@
 		1DE4EBBA2F3AF17800CAC2E8 /* SportPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SportPickerSheet.swift; sourceTree = "<group>"; };
 		1DE4EBBC2F3C7EBD00CAC2E8 /* BrowsePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowsePage.swift; sourceTree = "<group>"; };
 		E514235289FB20CABC7710D8 /* LeagueHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeagueHubView.swift; sourceTree = "<group>"; };
+		EA0FAB18CA9AC06E7D51EFBD /* AdaptiveLayoutTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AdaptiveLayoutTests.swift; sourceTree = "<group>"; };
 		ACAED57C6B5A6A51A5CD718B /* PollRankingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollRankingsView.swift; sourceTree = "<group>"; };
 		3B839117E0EA41EA254D29D9 /* BrowseComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseComponents.swift; sourceTree = "<group>"; };
 		41D1F46E0A6A7DD0C0B7E263 /* SceneEnvironment.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SceneEnvironment.swift; sourceTree = "<group>"; };
@@ -932,6 +934,7 @@
 				1D9218D1304F8BFB00100861 /* AttestTokenSharingTests.swift */,
 				4A2441523C698CE02569B8D8 /* WhatsNewPolicyTests.swift */,
 				D29DF4B5ABF1373A3CCD29A4 /* ScheduleSliceSyncTests.swift */,
+				EA0FAB18CA9AC06E7D51EFBD /* AdaptiveLayoutTests.swift */,
 			);
 			path = SportsCalTests;
 			sourceTree = "<group>";
@@ -1709,6 +1712,7 @@
 				AF8BCEA59ACEADEA61BEF064 /* WhatsNewPolicyTests.swift in Sources */,
 				6FDB7DDE77ED71A2C3F6977F /* ScheduleSliceSyncTests.swift in Sources */,
 				D2B31945BD4AAE2E2216CB20 /* LiveSituationSnapshotTests.swift in Sources */,
+				F5252664C33BD40E08D30F26 /* AdaptiveLayoutTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
