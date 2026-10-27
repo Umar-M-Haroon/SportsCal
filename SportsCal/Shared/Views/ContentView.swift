@@ -259,28 +259,44 @@ struct ContentView: View {
                 viewModel.updateLiveData()
             }
             .onAppear {
-                WidgetCenter.shared.reloadAllTimelines()
-                // Post-update notes take the launch (no rating prompt on top of
-                // them); fresh installs get onboarding instead. Marked seen on
-                // show so a force-quit doesn't bring it back.
-                if let whatsNew = WhatsNewStore.releaseForLaunch(
-                    isFreshInstall: viewModel.appStorage.shouldShowOnboarding
-                ) {
-                    WhatsNewStore.markSeen()
-                    MonetizationTelemetry.whatsNewShown(version: whatsNew.version)
-                    sheetType = .whatsNew(whatsNew)
-                } else {
-                    requestReviewIfEligible()
-                    if viewModel.appStorage.shouldShowOnboarding {
-                        sheetType = .onboarding
+                // The launch flow belongs to the first window only; a second
+                // window (Split View, a popped-out game) opens straight to content.
+                LaunchOnce.run("launchFlow") {
+                    WidgetCenter.shared.reloadAllTimelines()
+                    // Post-update notes take the launch (no rating prompt on top of
+                    // them); fresh installs get onboarding instead. Marked seen on
+                    // show so a force-quit doesn't bring it back.
+                    if let whatsNew = WhatsNewStore.releaseForLaunch(
+                        isFreshInstall: viewModel.appStorage.shouldShowOnboarding
+                    ) {
+                        WhatsNewStore.markSeen()
+                        MonetizationTelemetry.whatsNewShown(version: whatsNew.version)
+                        sheetType = .whatsNew(whatsNew)
+                    } else {
+                        requestReviewIfEligible()
+                        if viewModel.appStorage.shouldShowOnboarding {
+                            sheetType = .onboarding
+                        }
                     }
+                    // Check if launched via OpenSportIntent
+                    checkIntentOpenSport()
                 }
-                // Check if launched via OpenSportIntent
-                checkIntentOpenSport()
             }
+            // Explicit upgrade taps from deeply nested surfaces (the ad card)
+            // present the paywall in this window only.
+            .environment(\.requestPaywall, RequestPaywallAction { sheetType = .paywall })
+            #if os(macOS)
             .onReceive(NotificationCenter.default.publisher(for: .requestPaywall)) { _ in
-                // Explicit upgrade tap from a deeply-nested surface (e.g. ad card).
+                // The menu bar extra has no window of its own to present from.
                 sheetType = .paywall
+            }
+            #endif
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenGameFromNotification"))) { note in
+                // A tapped game notification opens that game, in one window only.
+                guard let eventID = note.userInfo?["eventID"] as? String,
+                      SceneEventClaim.claim(note.userInfo?["token"] as? String ?? eventID) else { return }
+                spotlightGameID = eventID
+                selectedTab = 0
             }
             .onReceive(NotificationCenter.default.publisher(for: .favoritesDidChange)) { _ in
                 // One-time activation signal — emitted here (app target) rather
@@ -378,7 +394,7 @@ struct ContentView: View {
                                 Image(systemName: calendarShowFavoritesOnly ? "star.fill" : "star")
                                     .foregroundColor(calendarShowFavoritesOnly ? .yellow : .gray)
                             }
-                            .popoverTip(CalendarFavoritesTip())
+                            .accessibilityLabel(calendarShowFavoritesOnly ? "Show all teams" : "Show favorites only")
                         }
                     }
             }

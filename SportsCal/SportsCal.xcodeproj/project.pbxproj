@@ -223,6 +223,7 @@
 		1DE4EBB62F3ACECB00CAC2E8 /* RaceScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB52F3ACECB00CAC2E8 /* RaceScoreView.swift */; };
 		1DE4EBB72F3ACECB00CAC2E8 /* RaceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB42F3ACECB00CAC2E8 /* RaceDetailView.swift */; };
 		4642C4709D1CD7E8DA134ACC /* NASCARViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17048B99499D52C53BCE56D5 /* NASCARViews.swift */; };
+		50E6B030264AF24F78FB8977 /* SceneEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41D1F46E0A6A7DD0C0B7E263 /* SceneEnvironment.swift */; };
 		1DE4EBB92F3AE86000CAC2E8 /* CalendarPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBB82F3AE86000CAC2E8 /* CalendarPage.swift */; };
 		1DE4EBBB2F3AF17800CAC2E8 /* SportPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBBA2F3AF17800CAC2E8 /* SportPickerSheet.swift */; };
 		1DE4EBBD2F3C7EBD00CAC2E8 /* BrowsePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE4EBBC2F3C7EBD00CAC2E8 /* BrowsePage.swift */; };
@@ -610,6 +611,7 @@
 		E514235289FB20CABC7710D8 /* LeagueHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeagueHubView.swift; sourceTree = "<group>"; };
 		ACAED57C6B5A6A51A5CD718B /* PollRankingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollRankingsView.swift; sourceTree = "<group>"; };
 		3B839117E0EA41EA254D29D9 /* BrowseComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseComponents.swift; sourceTree = "<group>"; };
+		41D1F46E0A6A7DD0C0B7E263 /* SceneEnvironment.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SceneEnvironment.swift; sourceTree = "<group>"; };
 		1DE897CA2F3DB6FA006657FF /* LocalServerDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalServerDiscovery.swift; sourceTree = "<group>"; };
 		1DE897CD2F3DBE55006657FF /* AutoFollowButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFollowButton.swift; sourceTree = "<group>"; };
 		1DE897CF2F3DBE80006657FF /* SearchToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchToken.swift; sourceTree = "<group>"; };
@@ -1022,6 +1024,7 @@
 				1DEBC59330707B3F00310FA1 /* F1LapChartView.swift */,
 				1DEBC59530707D1A00310FA1 /* F1DriverView.swift */,
 				5404DC5C8ECD21F802DD4230 /* Soccer */,
+				41D1F46E0A6A7DD0C0B7E263 /* SceneEnvironment.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2028,6 +2031,7 @@
 				C19E04A166EF88DF5C632BDB /* WhatsNewSheet.swift in Sources */,
 				90D4888459392C9368FDF745 /* LiveSituationViews.swift in Sources */,
 				5BAFAD69FC818E5BEA430859 /* GameInsightsViews.swift in Sources */,
+				50E6B030264AF24F78FB8977 /* SceneEnvironment.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

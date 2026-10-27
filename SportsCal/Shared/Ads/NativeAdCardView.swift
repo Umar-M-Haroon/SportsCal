@@ -14,16 +14,17 @@ import GoogleMobileAds
 /// The card scales dynamically based on the ad's media content.
 struct NativeAdCardView: View {
     let nativeAd: NativeAd
+    @Environment(\.requestPaywall) private var requestPaywall
 
     var body: some View {
         VStack(spacing: 4) {
             NativeAdRepresentable(nativeAd: nativeAd)
             // The ad slot doubles as a clean upgrade surface — only free users
             // ever see it. An explicit tap goes straight to the paywall (not
-            // throttled) via a notification ContentView observes.
+            // throttled), in this window only.
             Button {
                 MonetizationTelemetry.adUpsellTapped()
-                NotificationCenter.default.post(name: .requestPaywall, object: nil)
+                requestPaywall()
             } label: {
                 Text("Remove ads with Pro")
                     .font(.caption2)
@@ -158,7 +159,9 @@ private struct NativeAdRepresentable: UIViewRepresentable {
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: NativeAdView, context: Context) -> CGSize? {
-        let width = proposal.width ?? UIScreen.main.bounds.width
+        // Size to the proposal, falling back to the view's own window. Never
+        // UIScreen.main: in Split View or on a foldable it's the wrong width.
+        let width = proposal.width ?? uiView.window?.bounds.width ?? 320
         let fittingSize = uiView.systemLayoutSizeFitting(
             CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
             withHorizontalFittingPriority: .required,

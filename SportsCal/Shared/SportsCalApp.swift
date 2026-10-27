@@ -35,9 +35,6 @@ struct SportsCalApp: App {
     @State private var engagementTracker = EngagementTracker()
     @State private var serverDiscovery = LocalServerDiscovery()
     @State private var subscriptionManager = SubscriptionManager.shared
-    #if os(iOS)
-    @State private var adManager = NativeAdManager()
-    #endif
     @State private var viewModel: GameViewModel
 
     init() {
@@ -78,6 +75,32 @@ struct SportsCalApp: App {
         #endif
     }
 
+    /// Once-per-process launch work, run from the first window's onAppear.
+    private func onLaunch() {
+        appStorage.launches += 1
+        MonetizationTelemetry.appActive()
+        NetworkHandler.currentEnvironment = appStorage.serverEnvironment
+        Task { await NetworkHandler.refreshEnvironment() }
+        TeamsManager.shared.refreshIfStale()
+        #if os(iOS)
+        // Index whatever teams are already cached on disk; the
+        // teamsManagerDidUpdate hook re-indexes after a network refresh.
+        let cachedTeams = TeamsManager.shared.teams
+        let currentFavorites = favorites.teams
+        if !cachedTeams.isEmpty {
+            Task.detached(priority: .utility) {
+                SpotlightIndexer.indexAllTeams(cachedTeams, favorites: currentFavorites)
+            }
+        }
+        #endif
+        if isTestFlight {
+            appStorage.debugMode = true
+        }
+        if appStorage.debugMode {
+            serverDiscovery.start()
+        }
+    }
+
     var isTestFlight: Bool {
         guard let path = Bundle.main.appStoreReceiptURL?.path else {
             return false
@@ -87,61 +110,18 @@ struct SportsCalApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(subscriptionManager)
                 #if os(iOS)
-                .environment(adManager)
+                .modifier(WindowAdScope())
                 #endif
+                .environment(subscriptionManager)
                 .environment(appStorage)
                 .environment(favorites)
                 .environment(viewModel)
                 .environment(engagementTracker)
                 .onAppear {
-                    appStorage.launches += 1
-                    MonetizationTelemetry.appActive()
-                    NetworkHandler.currentEnvironment = appStorage.serverEnvironment
-                    Task { await NetworkHandler.refreshEnvironment() }
-                    TeamsManager.shared.refreshIfStale()
-                    #if os(iOS)
-                    // Index whatever teams are already cached on disk; the
-                    // teamsManagerDidUpdate hook re-indexes after a network refresh.
-                    let cachedTeams = TeamsManager.shared.teams
-                    let currentFavorites = favorites.teams
-                    if !cachedTeams.isEmpty {
-                        Task.detached(priority: .utility) {
-                            SpotlightIndexer.indexAllTeams(cachedTeams, favorites: currentFavorites)
-                        }
-                    }
-                    #endif
-                    if isTestFlight {
-                        appStorage.debugMode = true
-                    }
-                    if appStorage.debugMode {
-                        serverDiscovery.start()
-                    }
-                    #if os(iOS)
-                    if !subscriptionManager.isPro && AdConfiguration.isEnabled {
-                        // Defer ad preloading off the launch-critical window. Each
-                        // native ad warms a GoogleMobileAds WKWebView (its own
-                        // WebContent/GPU/Networking helper processes); kicking off
-                        // a batch during the first frames is the dominant launch
-                        // jank. Wait for the UI to settle, then warm a small batch —
-                        // the feed's own `refreshOnAppear(target:)` tops it up later.
-                        Task {
-                            try? await Task.sleep(for: .seconds(1))
-                            adManager.preloadAds(count: 2)
-                        }
-                    }
-                    #endif
+                    // Every window runs onAppear; launch bookkeeping runs once.
+                    LaunchOnce.run("appLaunch") { onLaunch() }
                 }
-                #if os(iOS)
-                .onChange(of: subscriptionManager.isPro) { _, newValue in
-                    if !newValue && AdConfiguration.isEnabled {
-                        // Match the feed's refresh target; a feed never renders
-                        // more than `maxAdsPerScreen`, so don't over-request.
-                        adManager.preloadAds(count: AdConfiguration.maxAdsPerScreen + 1)
-                    }
-                }
-                #endif
                 .onChange(of: appStorage.debugMode) { _, newValue in
                     if newValue {
                         serverDiscovery.start()
@@ -343,10 +323,15 @@ struct SportsCalApp: App {
         }
         .windowResizability(.contentSize)
         .defaultPosition(.center)
+        #endif
 
-        // Detail-in-its-own-window — opened via "Open in New Window" on any game.
+        // Detail-in-its-own-window — opened via "Open in New Window" on any game
+        // (Mac, iPad, and the unfolded iPhone Duo).
         WindowGroup(id: "game-detail", for: String.self) { $gameID in
-            MacGameDetailWindow(gameID: gameID)
+            GameDetailWindow(gameID: gameID)
+                #if os(iOS)
+                .modifier(WindowAdScope())
+                #endif
                 .environment(viewModel)
                 .environment(favorites)
                 .environment(appStorage)
@@ -355,6 +340,7 @@ struct SportsCalApp: App {
                 .environment(engagementTracker)
                 .environment(subscriptionManager)
         }
+        #if os(macOS)
         .defaultSize(width: 460, height: 660)
         #endif
     }
@@ -433,6 +419,39 @@ extension Scene {
             }
 #endif
         }
+    }
+}
+#endif
+
+#if os(iOS)
+/// Gives each window its own `NativeAdManager`. A Google native ad can be
+/// registered to only one view, so two windows (Split View on iPad or the iPhone
+/// Duo) sharing one manager would hand the same creative to both.
+private struct WindowAdScope: ViewModifier {
+    @Environment(SubscriptionManager.self) private var subscriptionManager
+    @State private var adManager = NativeAdManager()
+
+    func body(content: Content) -> some View {
+        content
+            .environment(adManager)
+            .task {
+                guard !subscriptionManager.isPro, AdConfiguration.isEnabled else { return }
+                // Defer ad preloading off the launch-critical window. Each
+                // native ad warms a GoogleMobileAds WKWebView (its own
+                // WebContent/GPU/Networking helper processes); kicking off
+                // a batch during the first frames is the dominant launch
+                // jank. Wait for the UI to settle, then warm a small batch —
+                // the feed's own `refreshOnAppear(target:)` tops it up later.
+                try? await Task.sleep(for: .seconds(1))
+                adManager.preloadAds(count: 2)
+            }
+            .onChange(of: subscriptionManager.isPro) { _, newValue in
+                if !newValue && AdConfiguration.isEnabled {
+                    // Match the feed's refresh target; a feed never renders
+                    // more than `maxAdsPerScreen`, so don't over-request.
+                    adManager.preloadAds(count: AdConfiguration.maxAdsPerScreen + 1)
+                }
+            }
     }
 }
 #endif
