@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scoreline on iPhone Duo</title>
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #ffffff; --ink: #1c1c1e; --muted: #6b6b70; --line: #e4e4e2;
+  --p0: #c4352b; --p0-bg: #fdeceb; --p1: #b26a00; --p1-bg: #fff4e0; --p2: #3a6fb0; --p2-bg: #eaf1fb;
+  --ok: #2f7d4f; --ok-bg: #e8f5ed; --opp: #6d4bb5; --opp-bg: #f1ecfb; --code: #f3f3f1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111113; --panel: #1b1b1e; --ink: #ececee; --muted: #9a9aa2; --line: #2c2c31;
+    --p0: #ff6b5f; --p0-bg: #3a1714; --p1: #f0a640; --p1-bg: #35260f; --p2: #79a8e8; --p2-bg: #16243a;
+    --ok: #5cc98a; --ok-bg: #12291c; --opp: #a98bec; --opp-bg: #241b38; --code: #232327;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111113; --panel: #1b1b1e; --ink: #ececee; --muted: #9a9aa2; --line: #2c2c31;
+  --p0: #ff6b5f; --p0-bg: #3a1714; --p1: #f0a640; --p1-bg: #35260f; --p2: #79a8e8; --p2-bg: #16243a;
+  --ok: #5cc98a; --ok-bg: #12291c; --opp: #a98bec; --opp-bg: #241b38; --code: #232327;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+main { max-width: 1080px; margin: 0 auto; padding: 40px 16px 80px; }
+h1 { font-size: 32px; line-height: 1.15; margin: 0 0 6px; letter-spacing: -0.02em; }
+h2 { font-size: 22px; margin: 48px 0 12px; letter-spacing: -0.01em; }
+h3 { font-size: 17px; margin: 0 0 6px; }
+p { margin: 0 0 12px; }
+.sub { color: var(--muted); margin-bottom: 24px; }
+code { font: 13px ui-monospace, "SF Mono", Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 5px; }
+a { color: var(--p2); }
+.verdict { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+.verdict ul { margin: 8px 0 0; padding-left: 20px; }
+.verdict li { margin: 4px 0; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 16px 0 0; }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.kpi b { display: block; font-size: 24px; letter-spacing: -0.02em; }
+.kpi span { color: var(--muted); font-size: 13px; }
+table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+.scroll { overflow-x: auto; }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.p0 { color: var(--p0); background: var(--p0-bg); }
+.p1 { color: var(--p1); background: var(--p1-bg); }
+.p2 { color: var(--p2); background: var(--p2-bg); }
+.ok { color: var(--ok); background: var(--ok-bg); }
+.opp { color: var(--opp); background: var(--opp-bg); }
+.na { color: var(--muted); background: var(--code); }
+.finding { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin: 14px 0; }
+.finding .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+.finding .where { color: var(--muted); font-size: 13px; }
+.finding dl { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; margin: 10px 0 0; }
+.finding dt { color: var(--muted); font-size: 13px; }
+.finding dd { margin: 0; }
+.shots { display: flex; gap: 10px; overflow-x: auto; padding: 12px 0 4px; }
+figure { margin: 0; flex: 0 0 auto; }
+figure img { display: block; height: 260px; width: auto; border-radius: 10px; border: 1px solid var(--line); cursor: zoom-in; }
+figure.wide img { height: 220px; }
+figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; max-width: 360px; }
+.gallery h3 { margin-top: 24px; }
+.phase { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin: 14px 0; }
+.phase ol { margin: 8px 0 0; padding-left: 20px; }
+.phase li { margin: 6px 0; }
+.phase .why { color: var(--muted); font-size: 14px; }
+.note { border-left: 3px solid var(--line); padding: 4px 0 4px 14px; color: var(--muted); font-size: 14px; }
+dialog { border: 0; padding: 0; background: transparent; max-width: 96vw; max-height: 96vh; }
+dialog img { max-width: 96vw; max-height: 92vh; border-radius: 12px; display: block; }
+dialog::backdrop { background: rgba(0,0,0,.8); }
+@media (max-width: 600px) {
+  h1 { font-size: 26px; }
+  .finding dl { grid-template-columns: 1fr; }
+  figure img { height: 200px; }
+}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Scoreline on iPhone Duo</h1>
+<p class="sub">Device audit · 25 Oct 2026 · <code>main</code> @ 8652b7e · iPhone Duo simulator, iOS 27.1 (24A94425), Xcode 27.2 RC · dark mode, live data</p>
+
+<div class="verdict">
+  <h3>Verdict</h3>
+  <p>The app launches and works in every posture: no crashes, no letterboxing, and none of the platform blockers (no <code>UIRequiresFullScreen</code>, no Face ID strings, scene lifecycle already in place). But it isn't Duo-ready yet. One visual bug covers live scores in three of the four postures, and the unfolded screen falls back to an iPad layout that drops search and ads. It also uses none of the space the Duo adds.</p>
+  <ul>
+    <li><b>Ship-blocker:</b> a large frosted "glass blob" covers half the Games screen whenever iOS moves the toolbar to the side, which is every posture except unfolded-portrait. <b>Root cause confirmed</b> by experiment, and the fix is one line.</li>
+    <li><b>Biggest structural gap:</b> unfolded, the Games tab switches to the iPad "board" (fixed 300pt sport columns). It has no search and no native ads, ignores the sport filter, and wraps scores in narrow cards.</li>
+    <li><b>Biggest opportunity:</b> a nearly square 951×669pt canvas, while game detail, calendar and match centre all stay single-column. List + detail side by side is the obvious Duo experience, and it's mostly a layout change.</li>
+  </ul>
+  <div class="kpis">
+    <div class="kpi"><b>4</b><span>postures captured</span></div>
+    <div class="kpi"><b>26</b><span>screens captured</span></div>
+    <div class="kpi"><b>2</b><span>P0 issues</span></div>
+    <div class="kpi"><b>7</b><span>P1 issues</span></div>
+    <div class="kpi"><b>6</b><span>Duo opportunities</span></div>
+  </div>
+</div>
+
+<h2 id="fixed">Fixed on <code>duo-support</code></h2>
+<p>Branch <code>duo-support</code> (from <code>main</code> 8652b7e, uncommitted). Builds for iOS and macOS and has been re-verified on the iPhone Duo simulator in all four postures. Screens below are from the fixed build.</p>
+<div class="scroll">
+<table>
+  <tr><th>Finding</th><th>Status</th><th>What changed</th></tr>
+  <tr><td>Glass blob over scores</td><td><span class="pill ok">fixed</span></td><td>Filter menu uses a plain <code>Label</code>. "Today" has a symbol. <code>visibilityPriority</code> on iOS 27 keeps the filter when the rail runs out of room.</td></tr>
+  <tr><td>Unfolded = iPad board</td><td><span class="pill ok">fixed</span></td><td>Layout follows measured width (<code>GamesLayout</code>): list below 720pt, list + game detail from 720pt to 1100pt, board above that. The board now has search, a lead ad, and honours the sport filter. Its columns fit whole and snap.</td></tr>
+  <tr><td>Folding loses your game</td><td><span class="pill ok">fixed</span></td><td>Folding pushes the selected game full screen; unfolding moves a pushed game back into the detail column.</td></tr>
+  <tr><td>Calendar sheet re-appears / leaks across tabs</td><td><span class="pill ok">fixed</span></td><td><b>Real bug, every iPhone:</b> <code>updateUIView</code> re-presented the day sheet on every SwiftUI update (live ticks) once a day had been tapped. The sheet now opens only on a tap and is scoped to the Calendar tab.</td></tr>
+  <tr><td>Calendar island / tip covering grid</td><td><span class="pill ok">fixed</span></td><td>From 720pt wide the month sits beside the selected day's live list. Both tips are inline above the month instead of popovers on the rail.</td></tr>
+  <tr><td>Detail screens stretched</td><td><span class="pill ok">fixed</span></td><td><code>PinnedDetailLayout</code>: from 760pt the scoreboard pins in its own column beside the sections. Race/tennis/golf/series detail are capped at a readable width; pitch at 420pt, shot map at 560pt.</td></tr>
+  <tr><td>League hub picker</td><td><span class="pill ok">fixed</span></td><td>Wide: "Standings &amp; Schedule" side by side.</td></tr>
+  <tr><td>Multi-window assumptions</td><td><span class="pill ok">fixed</span></td><td>One <code>NativeAdManager</code> per window. The paywall is a scene-local environment action. Launch counter, What's New, onboarding and the rating prompt run once per process. Tapped game notifications now open the game (previously unobserved), in one window.</td></tr>
+  <tr><td>Open in New Window</td><td><span class="pill ok">added</span></td><td><code>GameDetailWindow</code> scene on iOS too, in team-game context menus where a second window can open (regular width).</td></tr>
+  <tr><td>Half-folded stand mode</td><td><span class="pill p1">built, untested</span></td><td><code>FoldReader</code> (<code>UIHingeInteraction</code> + <code>reservedRegions(kind: .division)</code>, iOS 27.1) puts the scoreboard above the fold. <code>ArrangementView</code> isn't in the 27.2 SDK; this uses the UIKit APIs that are. DeviceHub's half-fold wasn't exercised.</td></tr>
+  <tr><td>minHeight 500 / UIScreen.main / chips under rail</td><td><span class="pill ok">fixed</span></td><td>Mac-only frames, window-based ad width, clipped chip strip.</td></tr>
+  <tr><td>Back button has no label</td><td><span class="pill na">system</span></td><td>The system back button in the rail; nothing to change in app code.</td></tr>
+  <tr><td>Live Activity tint / StandBy</td><td><span class="pill na">deferred</span></td><td>A tint would restyle the Lock Screen on every iPhone, and StandBy can't run in the Duo simulator.</td></tr>
+</table>
+</div>
+<p class="note">Tests: new <code>AdaptiveLayoutTests</code> (layout breakpoints, fold state, calendar day grouping) all pass. <code>ScheduleFilterTests.testFilterShowsAllSportsWhenAllEnabled</code> fails on this branch <b>and identically on <code>main</code></b>, so it predates this work.</p>
+<div class="shots">
+  <figure class="wide"><img src="img/after_inner_land_01_games.jpg" alt=""><figcaption>Unfolded landscape: list + selected game, no blob</figcaption></figure>
+  <figure class="wide"><img src="img/after_inner_land_04_calendar.jpg" alt=""><figcaption>Month beside today's games</figcaption></figure>
+  <figure class="wide"><img src="img/after_inner_land_10_hub_basketball.jpg" alt=""><figcaption>NBA hub: standings + schedule</figcaption></figure>
+  <figure><img src="img/after_inner_port_01_games.jpg" alt=""><figcaption>Unfolded portrait: full list with search + ad</figcaption></figure>
+  <figure><img src="img/after_inner_port_04_calendar.jpg" alt=""><figcaption>Unfolded portrait calendar</figcaption></figure>
+  <figure><img src="img/after_outer_01_games.jpg" alt=""><figcaption>Folded: clean rail, no blob</figcaption></figure>
+</div>
+
+<h2>How the Duo presents the app</h2>
+<div class="scroll">
+<table>
+  <tr><th>Posture</th><th>Canvas (pt)</th><th>Size class (w/h)</th><th>Toolbar / tab bar</th><th>Games layout we render</th></tr>
+  <tr><td>Folded · outer portrait</td><td>466 × 678</td><td>compact / regular</td><td>Vertical rail on the right: clock, gear, actions, tabs</td><td>List</td></tr>
+  <tr><td>Folded · outer landscape</td><td>678 × 466</td><td>compact / compact</td><td>Vertical rail on the right</td><td>List</td></tr>
+  <tr><td>Unfolded · inner landscape (natural)</td><td>951 × 669</td><td>regular / regular</td><td>Vertical rail on the right</td><td>iPad board (3 × 300pt columns)</td></tr>
+  <tr><td>Unfolded · inner portrait</td><td>669 × 951</td><td>regular / regular</td><td>Horizontal top bar + floating bottom tab bar</td><td>iPad board (~2.2 columns visible)</td></tr>
+</table>
+</div>
+<p class="note" style="margin-top:12px">The inner display ignores <code>XCUIDevice.orientation</code> and the app's supported orientations, as Apple's notes say, so posture can only be changed in DeviceHub. Half-folded and Split View were not exercised (see <a href="#gaps">Not covered</a>).</p>
+
+<h2>Screen × posture matrix</h2>
+<div class="scroll">
+<table>
+  <tr><th>Screen</th><th>Outer portrait</th><th>Outer landscape</th><th>Inner landscape</th><th>Inner portrait</th></tr>
+  <tr><td>Games</td><td><span class="pill p0">blob over scores</span></td><td><span class="pill ok">ok after fix</span></td><td><span class="pill p0">blob + board</span></td><td><span class="pill p1">board, wrapped scores</span></td></tr>
+  <tr><td>Game detail</td><td><span class="pill ok">ok</span></td><td><span class="pill na">not captured</span></td><td><span class="pill opp">stretched 1-col</span></td><td><span class="pill opp">stretched 1-col</span></td></tr>
+  <tr><td>Settings (sheet)</td><td><span class="pill ok">ok</span></td><td><span class="pill na">—</span></td><td><span class="pill ok">ok</span></td><td><span class="pill ok">ok</span></td></tr>
+  <tr><td>Calendar</td><td><span class="pill p1">tip blocks grid + tabs</span></td><td><span class="pill na">—</span></td><td><span class="pill opp">250pt island</span></td><td><span class="pill na">—</span></td></tr>
+  <tr><td>Calendar day</td><td><span class="pill ok">ok</span></td><td><span class="pill na">—</span></td><td><span class="pill p1">sheet leaks across tabs?</span></td><td><span class="pill na">—</span></td></tr>
+  <tr><td>Browse</td><td><span class="pill ok">ok</span></td><td><span class="pill na">—</span></td><td><span class="pill ok">ok (4-col grid)</span></td><td><span class="pill na">—</span></td></tr>
+  <tr><td>Browse › Soccer</td><td><span class="pill p2">chips under rail</span></td><td><span class="pill na">—</span></td><td><span class="pill ok">ok</span></td><td><span class="pill na">—</span></td></tr>
+  <tr><td>What's New / Onboarding</td><td><span class="pill ok">ok</span></td><td><span class="pill p1">minHeight 500 &gt; 466 (code)</span></td><td><span class="pill na">—</span></td><td><span class="pill na">—</span></td></tr>
+</table>
+</div>
+
+<h2>Findings</h2>
+
+<div class="finding">
+  <div class="meta"><span class="pill p0">P0</span><h3>Frosted glass blob covers live scores whenever the toolbar goes vertical</h3></div>
+  <div class="where"><code>SportsCal/Shared/Views/DayPage.swift:1266-1278</code> (sport-filter <code>Menu</code> label) · toolbar at <code>DayPage.swift:487-511</code></div>
+  <dl>
+    <dt>What</dt><dd>A rounded Liquid Glass shape, about 300pt wide, sits over the right half of the Games screen and hides clocks, scores and the whole Soccer column. It's there on a clean launch with no automation, so it's real. It shows on the outer display in both orientations and on the inner display in landscape. It does <i>not</i> show in inner portrait, the only posture where iOS keeps toolbars horizontal.</dd>
+    <dt>Cause</dt><dd>The filter menu's label is a custom <code>HStack</code> (icon + red <code>Text</code> capsule for the live count). The vertical toolbar can't lay it out, so its glass container grows across the content. <b>Verified:</b> swapping the label for <code>Label("Filter", systemImage:)</code> removes the blob, and the item renders correctly in the side rail (last screenshot).</dd>
+    <dt>Fix</dt><dd>Use a standard <code>Label</code>, and move the live count to the system toolbar badge (<code>.badge(totalLiveCount)</code> on the <code>ToolbarItem</code>, behind <code>#available(iOS 26, *)</code>). Show it in the menu header on older iOS.</dd>
+  </dl>
+  <div class="shots">
+    <figure><img src="img/outer_portrait_01_games.jpg" alt=""><figcaption>Outer portrait: blob over LAL/IND clocks</figcaption></figure>
+    <figure><img src="img/outer_blob_clean_launch.jpg" alt=""><figcaption>Clean relaunch, no automation: blob still there</figcaption></figure>
+    <figure class="wide"><img src="img/inner_land_01_games.jpg" alt=""><figcaption>Inner landscape: Soccer + Hockey columns hidden</figcaption></figure>
+    <figure class="wide"><img src="img/experiment_outer_land_fixed.jpg" alt=""><figcaption>Experiment build (plain Label): no blob, filter + manage in one glass group</figcaption></figure>
+  </div>
+</div>
+
+<div class="finding">
+  <div class="meta"><span class="pill p0">P0</span><h3>Unfolded, Games falls back to the iPad board, which drops search, ads and filtering</h3></div>
+  <div class="where"><code>DayPage.swift:360-362</code> <code>isBoardLayout = sizeClass == .regular</code> · <code>GameBoardLayout.swift:61-83</code> fixed 300pt columns · search only on <code>listBody</code> (<code>DayPage.swift:789</code>) · ads only in list paths (<code>:862</code>, <code>:1495</code>)</div>
+  <dl>
+    <dt>What</dt><dd>The inner display reports regular/regular in both orientations, so every unfolded user gets the iPad board. On iOS the board has <b>no search field</b>, <b>no native ads</b> (free users earn nothing on the Games tab), and no "peek hidden games". Its columns ignore the sport filter. Fixed 300pt columns give 3 columns in landscape, with the third running under the rail, and about 2.2 in portrait, where card text wraps ("120" breaks into "12 / 0") and clocks truncate.</dd>
+    <dt>Also</dt><dd>Unfolding or folding swaps list ↔ board, so scroll position and any search in progress are lost at the moment the user opens the phone.</dd>
+    <dt>Fix</dt><dd>Choose the layout from <b>available width</b> (<code>onGeometryChange</code>), not size class. Keep the list (or a two-pane, see the plan) below roughly 900pt, and carry search, ads and the filter into whichever layout renders. Hide empty columns on iOS and let columns flex from a 260pt minimum.</dd>
+  </dl>
+  <div class="shots">
+    <figure class="wide"><img src="img/inner_land_02_games_scrolled.jpg" alt=""><figcaption>Inner landscape board: 3rd column clipped by rail, no search</figcaption></figure>
+    <figure><img src="img/inner_port_01_games.jpg" alt=""><figcaption>Inner portrait board: 2.2 cramped columns, truncated clocks</figcaption></figure>
+  </div>
+</div>
+
+<div class="finding">
+  <div class="meta"><span class="pill p1">P1</span><h3>Text-only "Today" button disappears from the vertical rail</h3></div>
+  <div class="where"><code>DayPage.swift:498-509</code></div>
+  <dl>
+    <dt>What</dt><dd>The rail fits symbols, and the <code>Text("Today")</code> item is simply dropped (it's missing in every vertical posture). Toolbar overflow also has no priority, so the system picks which item survives.</dd>
+    <dt>Fix</dt><dd><code>Label("Today", systemImage: "calendar.badge.clock")</code>, plus <code>ToolbarItemVisibilityPriority</code> on iOS 27.1 (filter &gt; today &gt; manage).</dd>
+  </dl>
+</div>
+
+<div class="finding">
+  <div class="meta"><span class="pill p1">P1</span><h3>"Filter by Sport" tip covers the calendar and blocks the tab bar</h3></div>
+  <div class="where">TipKit tip on <code>CalendarPage</code> (anchored to the rail's filter button)</div>
+  <dl>
+    <dt>What</dt><dd>On the 466pt outer display the tip popover covers rows 2–5 of the month grid, and until it's dismissed nothing behind it is hittable, including the Games and Browse tabs. On a phone that pops up whenever you fold it, this is the first thing many users will see.</dd>
+    <dt>Fix</dt><dd>Show it inline (<code>TipView</code> above the grid) on compact width, or anchor it to the grid instead of the rail item.</dd>
+  </dl>
+  <div class="shots"><figure><img src="img/outer_portrait_05_calendar.jpg" alt=""><figcaption>Outer calendar (tip dismissed by harness; it originally covered rows 2–5)</figcaption></figure></div>
+</div>
+
+<div class="finding">
+  <div class="meta"><span class="pill p1">P1</span><h3>Multi-window is on by default, and the app assumes one window</h3></div>
+  <div class="where">Built Info.plist <code>UIApplicationSupportsMultipleScenes = true</code> (manifest generation, <code>project.pbxproj:2610</code>) · <code>SportsCalApp.swift:98-99</code> · <code>ContentView.swift:261-281</code> · <code>NativeAdManager.swift:93-96</code></div>
+  <dl>
+    <dt>What</dt><dd>Split View and second windows arrive on iPhone with the Duo, and our scene manifest opts us in. Each window bumps <code>launches</code> (inflating the review prompt and onboarding), reruns onboarding and the review request, and receives every <code>.requestPaywall</code> broadcast (a paywall in each window). All windows get the <i>same</i> <code>NativeAd</code>, and a native ad can only register to one view.</dd>
+    <dt>Fix</dt><dd>Count launches once per process. Route paywall and onboarding through scene-local state or <code>openWindow</code>. Assign ads per scene. (Or set multiple scenes to NO until those fixes land, but that gives up a Duo feature.)</dd>
+  </dl>
+</div>
+
+<div class="finding">
+  <div class="meta"><span class="pill p1">P1</span><h3>Unfolded calendar day sheet may follow you to other tabs</h3></div>
+  <div class="where"><code>CalendarViewRepresentable.swift:124</code> → <code>.listDetail</code> sheet presented from <code>ContentView.swift:197-233</code></div>
+  <dl>
+    <dt>What</dt><dd>In inner landscape the "10/26/26" day sheet showed up over Browse › Soccer after the test had switched tabs. The sheet is presented from the root view, not from the Calendar tab. <b>Needs a manual check</b>: it could be a test artifact (the harness's swipe-to-dismiss), but the root-level presentation makes the leak plausible.</dd>
+  </dl>
+  <div class="shots">
+    <figure class="wide"><img src="img/inner_land_07_calendar_day.jpg" alt=""><figcaption>Day sheet on Calendar</figcaption></figure>
+    <figure class="wide"><img src="img/inner_land_09_browse_soccer.jpg" alt=""><figcaption>Same sheet over Browse › Soccer</figcaption></figure>
+  </div>
+</div>
+
+<div class="finding">
+  <div class="meta"><span class="pill p1">P1</span><h3>Fixed minimum heights overflow the outer display in landscape</h3></div>
+  <div class="where"><code>OnboardingPage.swift:61</code>, <code>WhatsNewSheet.swift:57</code> <code>.frame(minWidth: 400, minHeight: 500)</code> (no macOS guard)</div>
+  <dl>
+    <dt>What</dt><dd>The outer display in landscape is 466pt tall, which is less than the 500pt minimum. The first sheets a new or updating user sees will clip. (What's New rendered fine in outer portrait, first screenshot below.)</dd>
+    <dt>Fix</dt><dd>Wrap in <code>#if os(macOS)</code>, as <code>SubscriptionSheet.swift:24</code> already does.</dd>
+  </dl>
+  <div class="shots"><figure><img src="img/outer_whatsnew.jpg" alt=""><figcaption>What's New, outer portrait. Note the status rail on the right.</figcaption></figure></div>
+</div>
+
+<div class="finding">
+  <div class="meta"><span class="pill p1">P1</span><h3>Native ad width falls back to <code>UIScreen.main</code></h3></div>
+  <div class="where"><code>NativeAdCardView.swift:161</code> <code>proposal.width ?? UIScreen.main.bounds.width</code></div>
+  <dl><dt>What</dt><dd>In Split View or a narrow window this sizes the ad to the full screen. Apple specifically warns against <code>UIScreen.main</code> on the Duo. Use the proposal, or the window scene's bounds.</dd></dl>
+</div>
+
+<div class="finding">
+  <div class="meta"><span class="pill p1">P1</span><h3>Back button in the side rail has no accessibility label</h3></div>
+  <div class="where">System back button: identifier <code>BackButton</code>, empty label, in every vertical-rail posture</div>
+  <dl><dt>What</dt><dd>Captured in the accessibility tree on game detail. It's likely a system issue (we don't customize back buttons), but VoiceOver users hear an unlabeled button. Verify on device and file Feedback; set <code>navigationTitle</code> on parents so the system has a title to use.</dd></dl>
+</div>
+
+<div class="finding">
+  <div class="meta"><span class="pill p2">P2</span><h3>League chips scroll under the status rail</h3></div>
+  <div class="where">Browse › Soccer chip row</div>
+  <dl><dt>What</dt><dd>The horizontal chip row runs to the screen edge under the right-side status rail, so the last chip is cut off beneath the clock. Respect the trailing safe area (Duo insets are asymmetric) with <code>.contentMargins(.horizontal, …, for: .scrollContent)</code>.</dd></dl>
+  <div class="shots"><figure><img src="img/outer_portrait_08_browse_soccer.jpg" alt=""><figcaption>Chips under the clock column</figcaption></figure></div>
+</div>
+
+<div class="finding">
+  <div class="meta"><span class="pill p2">P2</span><h3>Detail screens stretch edge-to-edge on 951pt</h3></div>
+  <div class="where"><code>GameDetailView.swift:139-153</code>, <code>SoccerMatchCentreView.swift:41-60</code>, <code>LeagueHubView.swift:104-120</code> · <code>SoccerPitchView.swift:26,52</code></div>
+  <dl><dt>What</dt><dd>Single-column scroll views with no readable-width cap. Team names sit about 600pt apart and pickers stretch. The vertical soccer pitch (68:105 aspect, <code>.fit</code>) would be about 1,470pt tall at 951pt wide, more than two screens. Short term: cap width at about 700pt and the pitch at about 420pt. Long term: see the plan.</dd></dl>
+  <div class="shots">
+    <figure class="wide"><img src="img/inner_land_03_game_detail.jpg" alt=""><figcaption>Inner landscape game detail</figcaption></figure>
+    <figure><img src="img/inner_port_03_game_detail.jpg" alt=""><figcaption>Inner portrait game detail</figcaption></figure>
+  </div>
+</div>
+
+<h3 style="margin-top:28px">What already works</h3>
+<table>
+  <tr><td><span class="pill ok">ok</span></td><td>No <code>UIRequiresFullScreen</code>, scene lifecycle, no idiom/orientation/<code>UIScreen</code> layout checks apart from the ad above. The app resizes across fold/unfold without letterboxing.</td></tr>
+  <tr><td><span class="pill ok">ok</span></td><td>No Face ID / <code>LAContext</code> usage, so nothing breaks on Touch ID.</td></tr>
+  <tr><td><span class="pill ok">ok</span></td><td>Outer display uses the list layout and looks right once the blob is fixed. Game detail, Settings and Browse all adapt to 466pt.</td></tr>
+  <tr><td><span class="pill ok">ok</span></td><td>Browse's adaptive 160pt grid scales from 2 columns (outer) to 4 (inner). Sheets render as proper form sheets unfolded.</td></tr>
+  <tr><td><span class="pill ok">ok</span></td><td>All widgets use <code>containerBackground(for: .widget)</code>, so StandBy on either display can strip backgrounds correctly.</td></tr>
+</table>
+
+<h2 id="plan">Plan of action</h2>
+<p>The plan is ordered so each phase can ship on its own: <b>stop the bleeding</b>, then <b>fit the canvas</b>, then <b>use the Duo</b>.</p>
+
+<div class="phase">
+  <h3><span class="pill p0">Phase 0</span> Hotfix: ship as 3.3.1 (≈ 1 day)</h3>
+  <p class="why">Each item is small, self-contained, verified or mechanical, and fixes something every Duo owner hits on first launch.</p>
+  <ol>
+    <li><b>Blob:</b> filter menu label becomes <code>Label</code>; live count moves to <code>.badge()</code> on iOS 26+ (<code>DayPage.swift:1266</code>).</li>
+    <li><b>Today button:</b> <code>Label</code> with a symbol; add <code>ToolbarItemVisibilityPriority</code> under <code>#available(iOS 27.1, *)</code>.</li>
+    <li><b>macOS-only minimum frames:</b> guard OnboardingPage / WhatsNewSheet <code>minHeight: 500</code>.</li>
+    <li><b>Ad width:</b> drop the <code>UIScreen.main</code> fallback in <code>NativeAdCardView</code>.</li>
+    <li><b>Launch counting:</b> count once per process, not per window <code>onAppear</code>.</li>
+    <li>Re-run <code>testDuoTour</code> in all 4 postures as the regression gate.</li>
+  </ol>
+</div>
+
+<div class="phase">
+  <h3><span class="pill p1">Phase 1</span> Fit the canvas (≈ 1 week)</h3>
+  <p class="why">Make the unfolded experience at least as good as the phone one. Nothing Duo-specific yet; it all also improves iPad and Mac windows.</p>
+  <ol>
+    <li><b>Width-driven Games layout:</b> replace <code>sizeClass == .regular</code> with a measured-width breakpoint; list (or Phase 2 split) below about 900pt.</li>
+    <li><b>Board parity:</b> search, native ads, sport filter and hidden-games peek in the board path; flexible columns from 260pt; hide empty columns on iOS.</li>
+    <li><b>Readable width:</b> about 700pt cap on game detail, match centre, league hub and tournament/race detail; pitch and shot map capped.</li>
+    <li><b>Calendar tip:</b> inline <code>TipView</code> on compact width; keep the day sheet scoped to the Calendar tab (and verify the leak).</li>
+    <li><b>Safe areas:</b> trailing content margins on horizontal chip rows (asymmetric insets).</li>
+    <li><b>Multi-window hygiene:</b> per-scene paywall/onboarding routing, one ad per scene, and the unobserved <code>OpenGameFromNotification</code> wired up while we're in there.</li>
+  </ol>
+</div>
+
+<div class="phase">
+  <h3><span class="pill opp">Phase 2</span> Use the Duo (≈ 2–3 weeks)</h3>
+  <p class="why">This is where "works on Duo" becomes "best on Duo". The inner display is a near-square second canvas, and sports is a list-of-games-plus-one-game app, which suits split layouts.</p>
+  <ol>
+    <li><b>Games: list + live detail side by side.</b> When unfolded, the game list sits on the left and the selected game's detail on the right (<code>NavigationSplitView</code>, or extend the existing macOS <code>.inspector</code> path at <code>DayPage.swift:739</code> to iOS regular width). Fold the phone and the selected game keeps going full screen on the outer display (selection in <code>@SceneStorage</code>).</li>
+    <li><b>Calendar: month + day side by side.</b> <code>UICalendarView</code> on one side and the day's <code>ListDetailView</code> on the other, instead of a sheet. That fills the 70% of the screen that's empty today.</li>
+    <li><b>Match centre in two columns:</b> timeline/momentum/commentary next to pitch lineups/stats.</li>
+    <li><b>Half-folded "stand" mode</b> (<code>ArrangementView</code>, iOS 27.1): scoreboard and clock on the top half, play-by-play / box score / commentary on the bottom half. The phone on a table as a second screen during a game is a feature competitors don't have yet.</li>
+    <li><b>Adopt the <code>Tab</code> API with <code>.sidebarAdaptable</code></b> so the inner display gets the system sidebar or rail, and set <code>toolbarVerticalBehavior</code> deliberately rather than inheriting defaults.</li>
+    <li><b>League hub:</b> standings next to schedule instead of a segmented picker.</li>
+  </ol>
+</div>
+
+<div class="phase">
+  <h3><span class="pill p2">Phase 3</span> Multi-window, StandBy and the Store (ongoing)</h3>
+  <ol>
+    <li><b>"Pop out live game":</b> bring the macOS-only <code>WindowGroup(id: "game-detail")</code> and "Open in New Window" to iOS 27.1, so two live games can run in Split View. New windows only open on the inner display; handle the refusal on the outer one.</li>
+    <li><b>StandBy on either display:</b> add <code>supplementalActivityFamilies([.small])</code> and <code>activityBackgroundTint</code> to the Live Activity, and check the Dynamic Island rendering now that the island sits on the side.</li>
+    <li><b>App Store:</b> Duo screenshots become mandatory in April 2027 (inner 2007×2853, outer 1398×2034). <code>testDuoTour</code> + <code>run_tour.sh</code> already produce correctly sized captures from live data; they need a store-ready variant (light mode, curated games).</li>
+  </ol>
+</div>
+
+<h2 id="gaps">Not covered (yet)</h2>
+<table>
+  <tr><td><span class="pill na">gap</span></td><td><b>Half-folded posture and the folding reserved region:</b> needs DeviceHub fold controls and an iOS 27.1 build with <code>reservedRegions</code> instrumentation.</td></tr>
+  <tr><td><span class="pill na">gap</span></td><td><b>Split View / second window:</b> multitasking wasn't driven; the multi-window findings come from the code audit.</td></tr>
+  <tr><td><span class="pill na">gap</span></td><td><b>Widgets, Live Activities, StandBy:</b> StandBy isn't available in the Duo simulator runtime; most app extensions don't run there either (Apple's known beta limitation). Needs a device.</td></tr>
+  <tr><td><span class="pill na">gap</span></td><td><b>Light mode, outer-landscape full tour, match centre and league hub drill-downs:</b> the harness supports them; just more runs.</td></tr>
+  <tr><td><span class="pill na">gap</span></td><td><b>Fold/unfold transition itself</b> (state loss when list ↔ board swaps): inferred from code, not filmed.</td></tr>
+</table>
+
+<h2>How to reproduce</h2>
+<p>Everything lives on branch <code>duo-audit</code> (uncommitted). The harness is <code>SportsCalUITests.testDuoTour</code>: an XCUITest tour that pauses at each step while the host captures the right panel with <code>simctl io screenshot</code>, because XCUITest's own screenshots only see the inner panel. Set the posture in DeviceHub, then run:</p>
+<p><code>docs/duo/run_tour.sh &lt;tag&gt; &lt;outer|inner&gt;</code></p>
+<p class="note">Setup gotchas: the Duo needs the iOS <b>27.1 (24A94425)</b> runtime; the 27.2 runtime lists the Duo (<code>iPhone19,4</code>) as unsupported. Display UUIDs change on every boot (the script resolves them by resolution). idb taps don't work with Xcode 27 (SimulatorKit moved). Don't power panels off with <code>screenConfig</code>: it wedges capture until the next reboot.</p>
+
+<h2>All captures</h2>
+<div class="gallery">
+  <h3>Folded · outer portrait (466 × 678)</h3>
+  <div class="shots">
+    <figure><img src="img/outer_portrait_01_games.jpg" alt=""><figcaption>Games</figcaption></figure>
+    <figure><img src="img/outer_portrait_02_games_scrolled.jpg" alt=""><figcaption>Games, scrolled</figcaption></figure>
+    <figure><img src="img/outer_portrait_03_game_detail.jpg" alt=""><figcaption>Game detail</figcaption></figure>
+    <figure><img src="img/outer_portrait_04_game_detail_scrolled.jpg" alt=""><figcaption>Game detail, scrolled</figcaption></figure>
+    <figure><img src="img/outer_portrait_05_calendar.jpg" alt=""><figcaption>Calendar</figcaption></figure>
+    <figure><img src="img/outer_portrait_06_calendar_day.jpg" alt=""><figcaption>Calendar day</figcaption></figure>
+    <figure><img src="img/outer_portrait_07_browse.jpg" alt=""><figcaption>Browse</figcaption></figure>
+    <figure><img src="img/outer_portrait_08_browse_soccer.jpg" alt=""><figcaption>Browse › Soccer</figcaption></figure>
+    <figure><img src="img/outer_portrait_09_hub_soccer.jpg" alt=""><figcaption>Soccer, scrolled (ad card)</figcaption></figure>
+  </div>
+  <h3>Folded · outer landscape (678 × 466), experiment build</h3>
+  <div class="shots"><figure class="wide"><img src="img/experiment_outer_land_fixed.jpg" alt=""><figcaption>Games with the label fix</figcaption></figure></div>
+  <h3>Unfolded · inner landscape (951 × 669)</h3>
+  <div class="shots">
+    <figure class="wide"><img src="img/inner_land_01_games.jpg" alt=""><figcaption>Games (board)</figcaption></figure>
+    <figure class="wide"><img src="img/inner_land_02_games_scrolled.jpg" alt=""><figcaption>Games, scrolled</figcaption></figure>
+    <figure class="wide"><img src="img/inner_land_03_game_detail.jpg" alt=""><figcaption>Game detail</figcaption></figure>
+    <figure class="wide"><img src="img/inner_land_04_game_detail_scrolled.jpg" alt=""><figcaption>Game detail, scrolled</figcaption></figure>
+    <figure class="wide"><img src="img/inner_land_05_settings.jpg" alt=""><figcaption>Settings</figcaption></figure>
+    <figure class="wide"><img src="img/inner_land_06_calendar.jpg" alt=""><figcaption>Calendar</figcaption></figure>
+    <figure class="wide"><img src="img/inner_land_07_calendar_day.jpg" alt=""><figcaption>Calendar day</figcaption></figure>
+    <figure class="wide"><img src="img/inner_land_08_browse.jpg" alt=""><figcaption>Browse</figcaption></figure>
+    <figure class="wide"><img src="img/inner_land_09_browse_soccer.jpg" alt=""><figcaption>Browse › Soccer (+ leaked day sheet?)</figcaption></figure>
+  </div>
+  <h3>Unfolded · inner portrait (669 × 951)</h3>
+  <div class="shots">
+    <figure><img src="img/inner_port_01_games.jpg" alt=""><figcaption>Games (board)</figcaption></figure>
+    <figure><img src="img/inner_port_02_games_scrolled.jpg" alt=""><figcaption>Games, scrolled</figcaption></figure>
+    <figure><img src="img/inner_port_03_game_detail.jpg" alt=""><figcaption>Game detail</figcaption></figure>
+    <figure><img src="img/inner_port_04_game_detail_scrolled.jpg" alt=""><figcaption>Game detail, scrolled</figcaption></figure>
+    <figure><img src="img/inner_port_05_settings.jpg" alt=""><figcaption>Settings</figcaption></figure>
+  </div>
+</div>
+
+<dialog id="zoom"><img alt=""></dialog>
+</main>
+<script>
+  const dlg = document.getElementById('zoom');
+  const big = dlg.querySelector('img');
+  document.querySelectorAll('figure img').forEach(img => {
+    img.addEventListener('click', () => { big.src = img.src; dlg.showModal(); });
+  });
+  dlg.addEventListener('click', () => dlg.close());
+</script>
+</body>
+</html>
