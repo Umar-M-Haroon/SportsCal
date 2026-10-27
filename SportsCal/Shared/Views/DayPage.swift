@@ -114,6 +114,9 @@ struct DayPage: View {
     /// is restored automatically by the window's state restoration.)
     @AppStorage("board.inspector.visible") private var boardInspectorVisible: Bool = true
     @Environment(\.openWindow) private var openWindow
+    /// Width the page is laid out in. Drives list / split / board on iOS, where
+    /// the size class alone can't tell an unfolded iPhone Duo from an iPad.
+    @State private var layoutWidth: CGFloat = 0
 
     // Memoization for `dayData`. A plain reference-type box held by @State keeps a
     // stable identity across renders without SwiftUI observing its mutations — so
@@ -357,8 +360,57 @@ struct DayPage: View {
         )
     }
 
+    /// List, list + detail, or board. Decided by measured width on iOS: the
+    /// unfolded iPhone Duo is "regular" in both size classes at only 669–951pt,
+    /// which is too narrow for sport columns but ideal for a list beside a game.
+    private var gamesLayout: GamesLayout {
+        #if os(macOS)
+        return sizeClass == .regular ? .board : .list
+        #else
+        return GamesLayout(width: layoutWidth)
+        #endif
+    }
+
     private var isBoardLayout: Bool {
-        sizeClass == .regular
+        gamesLayout == .board
+    }
+
+    private var isSplitLayout: Bool {
+        gamesLayout == .split
+    }
+
+    /// The game shown beside the list in the split layout: the user's pick, or
+    /// the first game in list order (live, your teams, suggested, the rest) so
+    /// the detail pane is never empty when the phone is unfolded.
+    private var splitGame: GameWithTeams? {
+        if let id = boardSelectedGameID, let picked = selectableGame(byID: id) {
+            return picked
+        }
+        return filteredLiveEvents.first
+            ?? filteredFavorites.first
+            ?? (storage.showSuggestedForYou ? filteredSuggested.first : nil)
+            ?? filteredOtherBySport.first?.games.first
+    }
+
+    /// The row drawn with a selection ring: the inspector's game on macOS, the
+    /// detail pane's game in the iOS split layout.
+    private var highlightedGameID: String? {
+        #if os(macOS)
+        return boardSelectedGameID
+        #else
+        return isSplitLayout ? splitGame?.id : nil
+        #endif
+    }
+
+    private func selectableGame(byID id: String) -> GameWithTeams? {
+        if let match = allDayGamesWithTeams.first(where: { $0.id == id }) {
+            return match
+        }
+        #if os(macOS)
+        return boardGameWithTeams(byID: id)
+        #else
+        return nil
+        #endif
     }
 
     private var boardColumns: [BoardColumn] {
@@ -377,6 +429,8 @@ struct DayPage: View {
         }
 
         return storage.enabledSports.compactMap { sport -> BoardColumn? in
+            // The toolbar's sport filter narrows the board too, not just the list.
+            if case .sport(let filtered) = sportFilter, filtered != sport { return nil }
             let sportGames = grouped[sport] ?? []
             let liveForSport = live.filter { $0.game.sportType == sport }
             let liveForSportIndex = LiveFixtureIndex(live: liveForSport.map(\.game), schedule: sportGames.map(\.game))
@@ -392,8 +446,13 @@ struct DayPage: View {
 
             let isEmpty = sportGames.isEmpty && liveForSport.isEmpty
             // In a focused scope (a single sport/team/live/favorites), don't show
-            // a wall of empty sport columns — only the ones with content.
+            // a wall of empty sport columns — only the ones with content. On iOS
+            // there's no room to spare for empty columns at all.
+            #if os(iOS)
+            if isEmpty { return nil }
+            #else
             if isEmpty, dayScope != .all { return nil }
+            #endif
 
             let nextDate: Date? = isEmpty
                 ? viewModel.nextGame(for: sport, after: selectedDate)?.standardDate
@@ -425,6 +484,19 @@ struct DayPage: View {
                 listBody
             }
         }
+        #if os(iOS)
+        // Split layout: the selected game's detail in a trailing column.
+        .inspector(isPresented: .constant(isSplitLayout)) {
+            splitDetail
+                .inspectorColumnWidth(min: 320, ideal: splitDetailIdealWidth, max: 620)
+        }
+        .onChange(of: gamesLayout) { oldLayout, newLayout in
+            handOffSelection(from: oldLayout, to: newLayout)
+        }
+        #endif
+        // Measured outside the inspector, so opening it doesn't shrink the width
+        // that decided to open it.
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { layoutWidth = $0 }
         #if os(iOS)
         .onAppear {
             if !subscriptionManager.isPro && AdConfiguration.isEnabled {
@@ -484,31 +556,7 @@ struct DayPage: View {
                 .environment(storage)
                 .environment(favorites)
         }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                sportFilterMenu
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showSportPicker = true
-                } label: {
-                    Label("Manage Sports", systemImage: "slider.horizontal.3")
-                }
-            }
-            ToolbarItem(placement: .primaryAction) {
-                if !calendar.isDateInToday(selectedDate) {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedDate = calendar.startOfDay(for: Date())
-                        }
-                    } label: {
-                        Text("Today")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                    }
-                }
-            }
-        }
+        .apply { withDayToolbar($0) }
         .onChange(of: storage.enabledSports) { oldValue, newValue in
             if case .sport(let sport) = sportFilter, !newValue.contains(sport) {
                 sportFilter = .all
@@ -609,16 +657,73 @@ struct DayPage: View {
     }
     #endif
 
-    /// Tapping a board cell shows its detail: inline in the inspector on macOS,
-    /// pushed full-screen elsewhere.
+    /// Tapping a board cell shows its detail: inline in the inspector on macOS and
+    /// in the iOS split layout, pushed full-screen elsewhere.
     private func selectBoardGame(_ gwt: GameWithTeams) {
         #if os(macOS)
         boardSelectedGameID = gwt.id
         boardInspectorVisible = true
         #else
-        boardNavigationTarget = gwt
+        if isSplitLayout {
+            boardSelectedGameID = gwt.id
+        } else {
+            boardNavigationTarget = gwt
+        }
         #endif
     }
+
+    #if os(iOS)
+    /// Detail column width: half the window, within readable limits, so the list
+    /// keeps room for full game rows.
+    private var splitDetailIdealWidth: CGFloat {
+        min(max(layoutWidth * 0.5, 320), 520)
+    }
+
+    /// The split layout's trailing column. It has its own navigation stack, so
+    /// links inside a game (teams, players) push within the column.
+    @ViewBuilder
+    private var splitDetail: some View {
+        NavigationStack {
+            Group {
+                if let gwt = splitGame {
+                    boardDetailView(for: gwt)
+                        .id(gwt.id)   // rebuild section loaders when the selection changes
+                        .environment(\.isEmbeddedDetail, true)
+                } else {
+                    ContentUnavailableView(
+                        "No Games",
+                        systemImage: "sportscourt",
+                        description: Text("Pick a day with games to see one here.")
+                    )
+                }
+            }
+            .navigationDestination(for: Team.self) { team in
+                TeamDetailView(team: team)
+                    .environment(viewModel)
+                    .environment(favorites)
+            }
+        }
+    }
+
+    /// Keeps the user on their game across a fold. Folding (split → list) pushes
+    /// the game they picked; unfolding (list → split) moves a pushed game back
+    /// into the detail column beside the list.
+    private func handOffSelection(from oldLayout: GamesLayout, to newLayout: GamesLayout) {
+        switch (oldLayout, newLayout) {
+        case (.split, .list):
+            if let id = boardSelectedGameID, let gwt = selectableGame(byID: id) {
+                boardNavigationTarget = gwt
+            }
+        case (.list, .split):
+            if let pushed = boardNavigationTarget {
+                boardSelectedGameID = pushed.id
+                boardNavigationTarget = nil
+            }
+        default:
+            break
+        }
+    }
+    #endif
 
     // MARK: - Board Layout (iPad/Mac)
 
@@ -667,7 +772,20 @@ struct DayPage: View {
                 }
                 .frame(maxWidth: .infinity)
                 Spacer()
+            } else if isSearchActive {
+                // Search answers with a list, the same as the iPhone layout.
+                List { searchResultsContent }
             } else if !viewModel.sortedGamesWithTeams.isEmpty || !viewModel.liveEventsWithTeams.isEmpty {
+                #if os(iOS)
+                // The board's one ad: a lead card above the columns, as the list has.
+                if let slot = classicAdPlan.slot(region: "lead", row: 0), let ad = adManager.adForSlot(slot) {
+                    NativeAdCardView(nativeAd: ad)
+                        .frame(maxWidth: 480)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
+                }
+                #endif
                 GameBoardLayout(
                     columns: boardColumns,
                     favorites: favorites,
@@ -706,6 +824,9 @@ struct DayPage: View {
         return macBoardChrome(board)
         #else
         return board
+            .searchable(text: $searchString, tokens: $searchTokens, suggestedTokens: .constant(suggestedSearchTokens), placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search games...") { token in
+                token.label
+            }
         #endif
     }
 
@@ -1055,8 +1176,14 @@ struct DayPage: View {
 
     @ViewBuilder
     private func gameRow(for gameWithTeams: GameWithTeams, isLive: Bool) -> some View {
-        gameRowContent(for: gameWithTeams, isLive: isLive)
-            .gameCard(game: gameWithTeams.game, isLive: isLive)
+        if isSplitLayout {
+            // Beside the detail column, a tap selects instead of pushing.
+            boardGameRow(for: gameWithTeams, isLive: isLive)
+                .gameCard(game: gameWithTeams.game, isLive: isLive)
+        } else {
+            gameRowContent(for: gameWithTeams, isLive: isLive)
+                .gameCard(game: gameWithTeams.game, isLive: isLive)
+        }
     }
 
     @ViewBuilder
@@ -1193,9 +1320,9 @@ struct DayPage: View {
         .buttonStyle(.plain)
         .contentShape(Rectangle())
         .overlay {
-            // Keyboard-selection ring (macOS ⌥↑/⌥↓). `boardSelectedGameID` is
-            // only ever set on macOS, so this is inert elsewhere.
-            if boardSelectedGameID == game.id {
+            // Selection ring: the macOS inspector's game (⌥↑/⌥↓ moves it) or the
+            // game in the iOS split layout's detail column.
+            if highlightedGameID == game.id {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(Color.accentColor, lineWidth: 2)
             }
@@ -1222,6 +1349,52 @@ struct DayPage: View {
             AdaptiveGameDetail(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
                 .environment(viewModel)
                 .environment(favorites)
+        }
+    }
+
+    // MARK: - Toolbar
+
+    /// Every item is a plain symbol `Label`. On the iPhone Duo (and any iOS 27.1
+    /// device that moves toolbars to a vertical rail) a custom label view can't
+    /// be laid out vertically, and its glass container spread across the games.
+    /// When the rail runs out of room, the filter outlasts Manage Sports.
+    @ViewBuilder
+    private func withDayToolbar(_ content: some View) -> some View {
+        if #available(iOS 27.0, macOS 26.1, *) {
+            content.toolbar {
+                ToolbarItem(placement: .primaryAction) { sportFilterMenu }
+                    .visibilityPriority(.high)
+                ToolbarItem(placement: .primaryAction) { todayButton }
+                ToolbarItem(placement: .primaryAction) { manageSportsButton }
+                    .visibilityPriority(.low)
+            }
+        } else {
+            content.toolbar {
+                ToolbarItem(placement: .primaryAction) { sportFilterMenu }
+                ToolbarItem(placement: .primaryAction) { todayButton }
+                ToolbarItem(placement: .primaryAction) { manageSportsButton }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var todayButton: some View {
+        if !calendar.isDateInToday(selectedDate) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    selectedDate = calendar.startOfDay(for: Date())
+                }
+            } label: {
+                Label("Today", systemImage: "calendar.badge.clock")
+            }
+        }
+    }
+
+    private var manageSportsButton: some View {
+        Button {
+            showSportPicker = true
+        } label: {
+            Label("Manage Sports", systemImage: "slider.horizontal.3")
         }
     }
 
@@ -1264,18 +1437,10 @@ struct DayPage: View {
                 }
             }
         } label: {
-            HStack(spacing: 2) {
-                Image(systemName: sportFilterIcon)
-                if totalLiveCount > 0 {
-                    Text("\(totalLiveCount)")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(Color.red, in: Capsule())
-                }
-            }
+            // A plain Label: the vertical toolbar rail can't lay out a custom
+            // HStack (the old icon + red count capsule). Live counts are in the menu.
+            Label("Filter", systemImage: sportFilterIcon)
+                .accessibilityValue(totalLiveCount > 0 ? "\(totalLiveCount) live" : "")
         }
     }
 

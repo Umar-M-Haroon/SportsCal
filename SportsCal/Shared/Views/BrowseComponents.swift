@@ -140,6 +140,9 @@ struct BrowseChipStrip: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
             }
+            // Keep chips inside the safe area: on the iPhone Duo the status bar is
+            // a column on the trailing edge, and chips scrolled under its clock.
+            .clipped()
             .onAppear {
                 if let selectedID { proxy.scrollTo(selectedID, anchor: .center) }
             }

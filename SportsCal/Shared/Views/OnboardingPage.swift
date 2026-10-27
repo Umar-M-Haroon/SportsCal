@@ -58,7 +58,11 @@ struct OnboardingPage: View {
             }
             .navigationTitle("Welcome to Scoreline!")
         }
+        // A floor for the Mac sheet only. On iPhone the sheet already fills the
+        // screen, and the iPhone Duo's outer display is 466pt tall in landscape.
+        #if os(macOS)
         .frame(minWidth: 400, minHeight: 500)
+        #endif
     }
 
     private var pickSportPage: some View {

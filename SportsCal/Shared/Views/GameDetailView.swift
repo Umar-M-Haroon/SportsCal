@@ -136,23 +136,23 @@ struct GameDetailView: View {
     }
 
     private var classicBody: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                gameHeader
-                gameInfo
-                actionsRow
-                GameDetailSections(
-                    game: game,
-                    homeTeam: homeTeam,
-                    awayTeam: awayTeam,
-                    league: league,
-                    sportType: sportType,
-                    model: sectionsModel
-                )
-            }
-            .padding()
+        // The scoreboard pins beside (wide) or above (half-folded Duo) the
+        // sections; on a phone it's the same single scroll as before.
+        PinnedDetailLayout {
+            gameHeader
+            gameInfo
+            actionsRow
+        } details: {
+            GameDetailSections(
+                game: game,
+                homeTeam: homeTeam,
+                awayTeam: awayTeam,
+                league: league,
+                sportType: sportType,
+                model: sectionsModel
+            )
         }
-        .navigationTitle(league?.leagueName ?? "Game Details")
+        .detailNavigationTitle(league?.leagueName ?? "Game Details")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

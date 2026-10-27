@@ -59,8 +59,9 @@ struct TournamentDetailView: View {
                 courseDifficultySection
             }
             .padding()
+            .readableWidth()
         }
-        .navigationTitle(league?.leagueName ?? "Tournament")
+        .detailNavigationTitle(league?.leagueName ?? "Tournament")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

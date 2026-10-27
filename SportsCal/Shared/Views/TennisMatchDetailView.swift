@@ -55,8 +55,9 @@ struct TennisMatchDetailView: View {
                 headToHeadSection
             }
             .padding()
+            .readableWidth()
         }
-        .navigationTitle(league?.leagueName ?? "Match Details")
+        .detailNavigationTitle(league?.leagueName ?? "Match Details")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

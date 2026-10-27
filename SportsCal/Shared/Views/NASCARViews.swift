@@ -236,8 +236,9 @@ struct MotorsportRaceDetailView<Actions: View>: View {
                 weekendSchedule
             }
             .padding()
+            .readableWidth()
         }
-        .navigationTitle(seriesName)
+        .detailNavigationTitle(seriesName)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
