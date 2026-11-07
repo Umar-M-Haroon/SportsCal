@@ -194,8 +194,11 @@ extension TeamStatComparison.Spec {
 
 public struct ESPNSummaryBoxscore: Codable {
     public var teams: [Team]?
+    /// Per-player stat tables, one entry per team. See `PlayerBoxScore`.
+    public var players: [PlayerTeam]?
 
     public struct Team: Codable {
+        public var team: TeamRef?
         public var homeAway: String?
         public var statistics: [Stat]?
 
@@ -218,10 +221,11 @@ public struct ESPNSummaryBoxscore: Codable {
             return out
         }
 
-        enum CodingKeys: String, CodingKey { case homeAway, statistics }
+        enum CodingKeys: String, CodingKey { case team, homeAway, statistics }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
+            team = try? c.decodeIfPresent(TeamRef.self, forKey: .team)
             homeAway = try? c.decodeIfPresent(String.self, forKey: .homeAway)
             statistics = try? c.decodeIfPresent([Stat].self, forKey: .statistics)
         }
@@ -243,10 +247,11 @@ public struct ESPNSummaryBoxscore: Codable {
         }
     }
 
-    enum CodingKeys: String, CodingKey { case teams }
+    enum CodingKeys: String, CodingKey { case teams, players }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         teams = try? c.decodeIfPresent([Team].self, forKey: .teams)
+        players = try? c.decodeIfPresent([PlayerTeam].self, forKey: .players)
     }
 }
