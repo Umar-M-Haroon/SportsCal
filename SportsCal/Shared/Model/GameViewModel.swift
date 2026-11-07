@@ -1951,7 +1951,9 @@ public class GameViewModel: NSObject {
                 isCompleted: live.isCompleted ?? scheduled.isCompleted,
                 isoDate: scheduled.isoDate,
                 leaderboardEntries: live.leaderboardEntries ?? scheduled.leaderboardEntries,
-                sessions: live.sessions ?? scheduled.sessions,
+                // Keep the schedule's F1 enrichment (teams, gaps, Q1–Q3, race distance)
+                // that a live tick's ESPN-only sessions don't carry.
+                sessions: live.sessions?.carryingEnrichment(from: scheduled.sessions) ?? scheduled.sessions,
                 venueName: live.venueName ?? scheduled.venueName,
                 circuitInfo: live.circuitInfo ?? scheduled.circuitInfo,
                 // College ranks come only from ESPN: a team that drops out of the
@@ -3316,7 +3318,7 @@ extension GameViewModel {
         // Races: the "away team" is the leader when you tap Follow; label the activity
         // with the series ("Formula 1") instead of freezing that driver into its attributes.
         let awayTeamName = game.isRace ? LiveSportActivityAttributes.raceSubtitle(for: game) : rawAwayTeamName
-        let homeShort = game.isRace ? (game.isNASCAR ? "CUP" : "F1") : homeTeam.strTeamShort
+        let homeShort = game.isRace ? LiveActivityRace.seriesCode(for: game) : homeTeam.strTeamShort
         let awayShort = game.isRace ? nil : awayTeam.strTeamShort
 
         // Download and cache badge images independently (don't require both to succeed)

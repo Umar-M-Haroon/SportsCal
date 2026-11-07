@@ -26,7 +26,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
         }
     }
 
-    public init?(events: Scoreboard, league: Leagues, constructorMap: [String: String] = [:], timingMap: [String: [String: String]] = [:]) {
+    /// `raceLaps`: F1 race distance in laps by ESPN event id (from its circuit), so a
+    /// live race reads "Lap 23/57"; ESPN's scoreboard only carries the lap count so far.
+    public init?(events: Scoreboard, league: Leagues, constructorMap: [String: String] = [:], timingMap: [String: [String: String]] = [:], raceLaps: [String: Int] = [:]) {
         guard let slug = events.leagues.first?.slug,
               let league = Leagues(slug: slug) else { return nil }
         let sportType = SportType(league: league)
@@ -284,22 +286,14 @@ public struct LiveEvent: Codable, Equatable, Hashable {
 
             // 3) Racing: create ONE game per event (Grand Prix weekend) with all sessions
             if league.isRacing, let competitions = event.competitions, !competitions.isEmpty {
-                // Session priority: Race > Sprint > Qual > FP3 > FP2 > FP1
-                let sessionPriority = ["Race": 6, "Sprint": 5, "Qual": 4, "FP3": 3, "FP2": 2, "FP1": 1]
-
                 // Build EventSession array from all competitions
                 let eventSessions: [EventSession] = competitions.map { competition in
                     let sessionType = competition.type?.abbreviation ?? ""
-                    let sessionName: String
-                    switch sessionType {
-                    case "FP1": sessionName = "Free Practice 1"
-                    case "FP2": sessionName = "Free Practice 2"
-                    case "FP3": sessionName = "Free Practice 3"
-                    case "Qual": sessionName = "Qualifying"
-                    case "Sprint": sessionName = "Sprint"
-                    case "Race": sessionName = "Race"
-                    default: sessionName = sessionType.isEmpty ? "Session" : sessionType
-                    }
+                    // ESPN sends sprint weekends as bare "SS"/"SR" codes; the shared
+                    // session table names them (and every other code) properly.
+                    let sessionName = sessionType.isEmpty
+                        ? "Session"
+                        : EventSession(sessionType: sessionType, sessionName: sessionType).displayName
                     let competitionTiming = timingMap[competition.id]
                     let sessionLeaderboard: [LeaderboardEntry] = (competition.competitors ?? []).map { competitor in
                         let name = competitor.athlete?.displayName ?? "TBD"
@@ -327,12 +321,29 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         )
                     }
                     let sessionState = competition.status?.type.state
+                    let probe = EventSession(sessionType: sessionType, sessionName: sessionName)
+                    // ESPN's status.period is laps completed. For a race or sprint, keep it
+                    // as a RaceState (with the distance for the Grand Prix) so the detail
+                    // header and Live Activity can say "Lap 23/57".
+                    let lapsRun = competition.status?.period ?? 0
+                    let hasRun = sessionState == "in" || sessionState == "post"
+                    var raceState: RaceState?
+                    if hasRun, !probe.isTimedLapSession, lapsRun > 0 {
+                        let distance = probe.importance == 6 ? (raceLaps[event.id] ?? 0) : 0
+                        let flag: RaceState.Flag = sessionState == "post" ? .checkered : .none
+                        raceState = RaceState(lap: lapsRun, totalLaps: distance, flag: flag)
+                    }
+                    var progress = sessionState == "pre" ? nil : competition.status?.type.shortDetail
+                    if sessionState == "in", let raceState, progress?.lowercased().contains("lap") != true {
+                        progress = raceState.totalLaps > 0 ? raceState.lapLabel : "Lap \(raceState.lap)"
+                    }
                     return EventSession(
                         sessionType: sessionType, sessionName: sessionName,
                         status: sessionState,
-                        progress: sessionState == "pre" ? nil : competition.status?.type.shortDetail,
+                        progress: progress,
                         date: competition.date,
-                        leaderboard: sessionLeaderboard
+                        leaderboard: sessionLeaderboard,
+                        raceState: raceState
                     )
                 }
 
@@ -343,9 +354,10 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 } else {
                     let completedSessions = eventSessions.filter { $0.status == "post" }
                     if !completedSessions.isEmpty {
-                        primarySession = completedSessions.max(by: {
-                            (sessionPriority[$0.sessionType] ?? 0) < (sessionPriority[$1.sessionType] ?? 0)
-                        }) ?? eventSessions.last!
+                        // Rank by EventSession.importance so a sprint weekend's
+                        // "SR"/"SS" outrank FP1 (they were missing from a local table).
+                        primarySession = completedSessions.max(by: { $0.importance < $1.importance })
+                            ?? eventSessions.last!
                     } else {
                         primarySession = eventSessions.last!
                     }

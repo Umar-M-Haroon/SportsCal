@@ -26,8 +26,11 @@ public struct LeaderboardEntry: Codable, Equatable, Hashable {
     /// Stock-car detail (NASCAR). All optional, so F1/golf/tennis rows and older payloads
     /// decode unchanged; `constructor` holds the race team for these rows.
     public var stockCar: StockCarDetail?
+    /// F1 qualifying: the driver's best time in each part reached, Q1 first
+    /// (["1:17.341", "1:16.953", "1:16.514"]). From Jolpica; nil elsewhere.
+    public var qualifyingTimes: [String]?
 
-    public init(name: String, score: String, position: Int, headshot: String? = nil, thruHole: String? = nil, rounds: [String] = [], constructor: String? = nil, gap: String? = nil, isCut: Bool? = nil, movement: Int? = nil, flagURL: String? = nil, flagAlt: String? = nil, teeTime: String? = nil, roundDetails: [GolfRoundDetail]? = nil, stockCar: StockCarDetail? = nil) {
+    public init(name: String, score: String, position: Int, headshot: String? = nil, thruHole: String? = nil, rounds: [String] = [], constructor: String? = nil, gap: String? = nil, isCut: Bool? = nil, movement: Int? = nil, flagURL: String? = nil, flagAlt: String? = nil, teeTime: String? = nil, roundDetails: [GolfRoundDetail]? = nil, stockCar: StockCarDetail? = nil, qualifyingTimes: [String]? = nil) {
         self.name = name
         self.score = score
         self.position = position
@@ -43,6 +46,19 @@ public struct LeaderboardEntry: Codable, Equatable, Hashable {
         self.teeTime = teeTime
         self.roundDetails = roundDetails
         self.stockCar = stockCar
+        self.qualifyingTimes = qualifyingTimes
+    }
+
+    /// A copy with the team and gap filled where they're missing, and qualifying times
+    /// set when given. Never overwrites what the live feed already sent.
+    public func filling(constructor: String?, gap: String?, qualifyingTimes: [String]? = nil) -> LeaderboardEntry {
+        var copy = LeaderboardEntry(
+            name: name, score: score, position: position, headshot: headshot, thruHole: thruHole, rounds: rounds,
+            constructor: self.constructor ?? constructor, gap: self.gap ?? gap, isCut: isCut, movement: movement,
+            flagURL: flagURL, flagAlt: flagAlt, teeTime: teeTime, roundDetails: roundDetails, stockCar: stockCar
+        )
+        copy.qualifyingTimes = qualifyingTimes ?? self.qualifyingTimes
+        return copy
     }
 }
 
@@ -78,8 +94,11 @@ public struct StockCarDetail: Codable, Equatable, Hashable {
     public var classPosition: Int?
     public var vehicle: String?
     public var drivers: [String]?
+    /// Endurance racing: the gap to the leader of the car's class ("+12.345",
+    /// "+3 Laps"); `LeaderboardEntry.gap` is to the overall leader.
+    public var classGap: String?
 
-    public init(carNumber: String, manufacturer: String? = nil, startPosition: Int? = nil, lapsCompleted: Int? = nil, lapsLed: Int? = nil, pitStops: Int? = nil, bestLapTime: Double? = nil, bestLapSpeed: Double? = nil, status: String? = nil, points: Int? = nil, playoffPoints: Int? = nil, inPlayoffs: Bool? = nil, sponsor: String? = nil, lapsDown: Int? = nil, vehicleClass: String? = nil, classPosition: Int? = nil, vehicle: String? = nil, drivers: [String]? = nil) {
+    public init(carNumber: String, manufacturer: String? = nil, startPosition: Int? = nil, lapsCompleted: Int? = nil, lapsLed: Int? = nil, pitStops: Int? = nil, bestLapTime: Double? = nil, bestLapSpeed: Double? = nil, status: String? = nil, points: Int? = nil, playoffPoints: Int? = nil, inPlayoffs: Bool? = nil, sponsor: String? = nil, lapsDown: Int? = nil, vehicleClass: String? = nil, classPosition: Int? = nil, vehicle: String? = nil, drivers: [String]? = nil, classGap: String? = nil) {
         self.carNumber = carNumber
         self.manufacturer = manufacturer
         self.startPosition = startPosition
@@ -98,6 +117,7 @@ public struct StockCarDetail: Codable, Equatable, Hashable {
         self.classPosition = classPosition
         self.vehicle = vehicle
         self.drivers = drivers
+        self.classGap = classGap
     }
 
     /// Places gained (+) or lost (−) from the start.
