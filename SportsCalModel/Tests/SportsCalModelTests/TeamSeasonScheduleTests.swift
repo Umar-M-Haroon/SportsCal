@@ -124,4 +124,30 @@ final class TeamSeasonScheduleTests: XCTestCase {
         let group = TeamSeasonSchedule(games: games, now: now).seasons[0].phases[0]
         XCTAssertEqual(group.record(forTeamID: nil, teamNames: ["Celtics"]), "1–1–1")
     }
+
+    /// NHL standings count overtime and shootout losses apart (W–L–OTL); counting them
+    /// as plain losses turned a 30–15–5 team into 30–20.
+    func testNHLRecordCountsOvertimeAndShootoutLossesAsOTL() {
+        let games = [
+            game("w", -6, league: .nhl, status: "FT", score: ("4", "2")),
+            game("l", -5, league: .nhl, status: "FT", score: ("1", "3")),
+            game("ot", -4, league: .nhl, status: "AOT", score: ("2", "3")),
+            game("so", -3, league: .nhl, status: "post", score: ("3", "4"), progress: "Final/SO"),
+            game("otWin", -2, league: .nhl, status: "post", score: ("5", "4"), progress: "Final/OT"),
+        ]
+        let group = TeamSeasonSchedule(games: games, now: now).seasons[0].phases[0]
+        XCTAssertEqual(group.record(forTeamID: nil, teamNames: ["Celtics"]), "2–1–2")
+        // A team with no OT losses still reads three columns.
+        let plain = TeamSeasonSchedule(games: [games[0]], now: now).seasons[0].phases[0]
+        XCTAssertEqual(plain.record(forTeamID: nil, teamNames: ["Celtics"]), "1–0–0")
+    }
+
+    func testEndedPastRegulationFallsBackToPeriodCount() {
+        var overtime = game("x", -1, league: .nhl, status: "post", score: ("2", "3"))
+        XCTAssertFalse(overtime.endedPastRegulation)
+        overtime = Game(idEvent: "x", idLeague: "\(Leagues.nhl.rawValue)", strHomeTeam: "A", strAwayTeam: "B",
+                        intHomeScore: "2", intAwayScore: "3", strStatus: "post",
+                        homeLinescores: [1, 1, 0, 0], awayLinescores: [1, 0, 1, 1], isoDate: now)
+        XCTAssertTrue(overtime.endedPastRegulation)
+    }
 }
