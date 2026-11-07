@@ -154,6 +154,77 @@ struct WinProbabilityLabel: View {
     }
 }
 
+// MARK: - Football
+
+/// The RED ZONE pill. A text style rather than a point size, so it grows with
+/// Dynamic Type like the line it sits in.
+struct RedZonePill: View {
+    var font: Font = .caption2.weight(.heavy)
+
+    var body: some View {
+        Text("RED ZONE")
+            .font(font)
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(Color.red, in: Capsule())
+            .accessibilityLabel("Red zone")
+    }
+}
+
+/// The ball and who has it, read as "Chiefs ball" by VoiceOver.
+struct PossessionLabel: View {
+    var name: String
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "football.fill").imageScale(.small)
+            Text(name)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name) ball")
+    }
+}
+
+extension GameSituation {
+    /// "at KC 12" — the field-position part of ESPN's "3rd & 4 at KC 12".
+    var fieldPositionText: String? {
+        guard let text = downDistanceText, let range = text.range(of: " at ") else { return nil }
+        let spot = text[range.upperBound...].trimmingCharacters(in: .whitespaces)
+        return spot.isEmpty ? nil : "at \(spot)"
+    }
+
+    /// Baseball, between half-innings: the side batting next ("Mid 5th" → home).
+    var dueUpSide: Side? {
+        switch inningHalf {
+        case .middle: return .home
+        case .end: return .away
+        default: return nil
+        }
+    }
+
+    /// One VoiceOver phrase for the live state: "2 outs, runner on second" or
+    /// "Chiefs ball, 3rd & 4 at KC 12, red zone". Nil when there's nothing to say.
+    func accessibilityPhrase(sport: SportType?, homeName: String, awayName: String) -> String? {
+        func name(_ side: Side) -> String { side == .home ? homeName : awayName }
+        var parts: [String] = []
+        if sport == .mlb, hasBaseballState {
+            if let next = dueUpSide {
+                parts.append("\(name(next)) due up")
+            } else {
+                if let outs { parts.append("\(outs) out\(outs == 1 ? "" : "s")") }
+                parts.append(BaseDiamond.accessibilityText(first: onFirst == true, second: onSecond == true, third: onThird == true))
+            }
+        } else if sport == .nfl, hasFootballState {
+            if let side = possession { parts.append("\(name(side)) ball") }
+            if let text = downDistanceText ?? shortDownDistanceText { parts.append(text) }
+            if isRedZone == true { parts.append("red zone") }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
+}
+
 // MARK: - Strip
 
 /// One line of live game state for a list row: runners, outs and the count in
@@ -190,35 +261,48 @@ struct GameStateStrip: View {
             || situation.homeWinProbability != nil
     }
 
+    private func name(_ side: GameSituation.Side) -> String {
+        side == .home ? homeName : awayName
+    }
+
     @ViewBuilder
     private var baseball: some View {
-        BaseDiamond(first: situation.onFirst == true, second: situation.onSecond == true,
-                    third: situation.onThird == true, size: 20, tint: tint)
-        if let outs = situation.outs {
-            OutsIndicator(outs: outs, tint: tint)
+        if let next = situation.dueUpSide {
+            // Between half-innings the last half's three outs and runners are stale.
+            Text("\(name(next)) due up").lineLimit(1)
+        } else {
+            if let batting = situation.inningHalf?.battingSide {
+                HStack(spacing: 3) {
+                    Image(systemName: "figure.baseball").imageScale(.small)
+                    Text(name(batting))
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(name(batting)) batting")
+            }
+            BaseDiamond(first: situation.onFirst == true, second: situation.onSecond == true,
+                        third: situation.onThird == true, size: 20, tint: tint)
+            if let outs = situation.outs {
+                OutsIndicator(outs: outs, tint: tint)
+            }
         }
     }
 
     @ViewBuilder
     private var football: some View {
         if let side = situation.possession {
-            HStack(spacing: 3) {
-                Image(systemName: "football.fill").imageScale(.small)
-                Text(side == .home ? homeName : awayName)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(side == .home ? homeName : awayName) ball")
+            PossessionLabel(name: name(side))
         }
-        if let text = situation.shortDownDistanceText ?? situation.downDistanceText {
+        if let short = situation.shortDownDistanceText {
+            // "3rd & 4 at KC 12" where it fits, "3rd & 4" where it doesn't.
+            ViewThatFits(in: .horizontal) {
+                Text(situation.fieldPositionText.map { "\(short) \($0)" } ?? short).lineLimit(1)
+                Text(short).lineLimit(1)
+            }
+        } else if let text = situation.downDistanceText {
             Text(text).lineLimit(1)
         }
         if situation.isRedZone == true {
-            Text("RED ZONE")
-                .font(.system(size: 9, weight: .heavy))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 1)
-                .background(Color.red, in: Capsule())
+            RedZonePill()
         }
     }
 }
@@ -242,21 +326,13 @@ struct LiveActivitySituationStrip: View {
                 }
             }
             if let side = situation.possession {
-                HStack(spacing: 3) {
-                    Image(systemName: "football.fill").imageScale(.small)
-                    Text(side == .home ? homeName : awayName)
-                }
+                PossessionLabel(name: side == .home ? homeName : awayName)
             }
             if let text = situation.downDistance {
                 Text(text).lineLimit(1)
             }
             if situation.redZone == true {
-                Text("RED ZONE")
-                    .font(.system(size: 8, weight: .heavy))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(Color.red, in: Capsule())
+                RedZonePill()
             }
             if let percent = situation.homeWinPct {
                 WinProbabilityLabel(home: Double(percent) / 100, homeName: homeName, awayName: awayName, showsIcon: true)

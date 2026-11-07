@@ -80,7 +80,7 @@ struct CompactGameRowView: View {
     private func teamLine(team: Team, score: Int?, winning: Bool, seed: Int?) -> some View {
         HStack(spacing: 6) {
             badge(team.strTeamBadge)
-            Text(seed != nil ? "(\(seed!)) \(label(team))" : label(team))
+            SeededName.text(label(team), seed: seed, isRank: game.isCollegeFootball)
                 .font(.subheadline)
                 .fontWeight(winning ? .semibold : .regular)
                 .foregroundStyle(hasScores && !winning ? .secondary : .primary)
@@ -98,6 +98,21 @@ struct CompactGameRowView: View {
     private var trailing: some View {
         VStack(alignment: .trailing, spacing: 2) {
             status
+            if isLive, let situation = game.situation {
+                compactSituation(situation)
+            } else if !isLive, !hasScores, let network = game.broadcasts?.first {
+                Text(network)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            if let number = game.doubleheaderGame {
+                Text("Game \(number)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
             if game.isPreseason {
                 Text("Preseason")
                     .font(.caption2)
@@ -106,6 +121,44 @@ struct CompactGameRowView: View {
                     .minimumScaleFactor(0.8)
             }
         }
+    }
+
+    /// The live state in a few points: bases and outs, who has the ball and the down,
+    /// or who's due up between half-innings.
+    @ViewBuilder
+    private func compactSituation(_ situation: GameSituation) -> some View {
+        Group {
+            if game.sportType == .mlb, situation.hasBaseballState {
+                if let next = situation.dueUpSide {
+                    Text("\(label(next == .home ? homeTeam : awayTeam)) up")
+                } else {
+                    HStack(spacing: 4) {
+                        BaseDiamond(first: situation.onFirst == true, second: situation.onSecond == true,
+                                    third: situation.onThird == true, size: 13, tint: .secondary)
+                        if let outs = situation.outs {
+                            OutsIndicator(outs: outs, dotSize: 4, tint: .secondary)
+                        }
+                    }
+                }
+            } else if game.sportType == .nfl, situation.hasFootballState {
+                HStack(spacing: 2) {
+                    if let side = situation.possession {
+                        Image(systemName: "football.fill").imageScale(.small)
+                            .foregroundStyle(situation.isRedZone == true ? Color.red : Color.secondary)
+                        Text(label(side == .home ? homeTeam : awayTeam))
+                    }
+                    if let short = situation.shortDownDistanceText {
+                        Text(short)
+                    }
+                }
+            }
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+        // Spoken by the row's combined label.
+        .accessibilityHidden(true)
     }
 
     @ViewBuilder

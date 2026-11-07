@@ -40,7 +40,7 @@ enum GameRowAccessibility {
         isLive: Bool,
         now: Date
     ) -> String {
-        let status = game.displayStatus
+        let status = spokenStatus(game)
         let matchup = "\(awayName) vs \(homeName)"
         var score: String?
         if let awayScore, let homeScore {
@@ -48,7 +48,10 @@ enum GameRowAccessibility {
         }
 
         if isLive {
-            return ["Live", score ?? matchup, status].compactMap { $0 }.joined(separator: ", ")
+            // The row's diamond and field strip are folded into this one label, so
+            // say what they show: outs and runners, the ball and the spot.
+            let situation = game.situation?.accessibilityPhrase(sport: game.sportType, homeName: homeName, awayName: awayName)
+            return ["Live", score ?? matchup, status, situation].compactMap { $0 }.joined(separator: ", ")
         }
         if game.isFinalStatus {
             return "\(score ?? matchup), \(status?.lowercased() ?? "final")"
@@ -61,6 +64,18 @@ enum GameRowAccessibility {
         if let status { return "\(matchup), \(status)" }
         if let date = game.standardDate { return "\(matchup), \(when(date, now: now))" }
         return matchup
+    }
+
+    /// The status as it should be spoken: "Bot 9th" → "Bottom 9th", plus "game 2" on
+    /// a doubleheader.
+    private static func spokenStatus(_ game: Game) -> String? {
+        var status = game.displayStatus
+        if game.sportType == .mlb, let text = status {
+            if text.hasPrefix("Bot ") { status = "Bottom " + text.dropFirst(4) }
+            if text.hasPrefix("Mid ") { status = "Middle " + text.dropFirst(4) }
+        }
+        guard let number = game.doubleheaderGame else { return status }
+        return [status, "game \(number) of a doubleheader"].compactMap { $0 }.joined(separator: ", ")
     }
 
     /// "7:30 PM" today, "Oct 5, 2026 at 7:30 PM" on other days.
@@ -116,6 +131,11 @@ struct GameScoreView: View {
             }
         }
 
+        // Baseball finals: the pitchers of record lead.
+        if game.hasDoneStatus, let pitchers = game.featuredPitchers, !pitchers.isEmpty {
+            snippets.append(InfoSnippet(id: "pitchers", icon: "baseball.fill", text: Self.pitchersLine(pitchers)))
+        }
+
         // Leaders paired by category (up to 3)
         for pair in leaderPairsByCategory().prefix(3) {
             let away = "\(abbreviatedName(pair.away.playerName)) \(pair.away.displayValue)"
@@ -131,6 +151,15 @@ struct GameScoreView: View {
         }
 
         return snippets
+    }
+
+    /// "W: J. Berrios (6-4) · L: R. Ray (9-4) · S: Y. Rodriguez (3)"
+    static func pitchersLine(_ pitchers: [FeaturedPitcher]) -> String {
+        pitchers.map { pitcher in
+            let role = pitcher.role == .save ? "S" : pitcher.role.rawValue
+            return ["\(role): \(pitcher.name)", pitcher.line].compactMap { $0 }.joined(separator: " ")
+        }
+        .joined(separator: " · ")
     }
 
     private func leaderPairsByCategory() -> [(category: String, home: GameLeader, away: GameLeader)] {
@@ -196,7 +225,7 @@ struct GameScoreView: View {
                             .padding(.horizontal, 4)
                             .background(.orange, in: RoundedRectangle(cornerRadius: 4))
                     }
-                    IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: awayScore, isWinning: awayScore > homeScore, isAway: true, record: game.awayRecord, seed: game.awaySeed)
+                    IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: awayScore, isWinning: awayScore > homeScore, isAway: true, record: game.awayRecord, seed: game.awaySeed, seedIsRank: game.isCollegeFootball)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     VStack(spacing: 4) {
                         HStack(spacing: 4) {
@@ -210,6 +239,11 @@ struct GameScoreView: View {
                                     .foregroundColor(isLive ? .red : .secondary)
                             }
                         }
+                        if let number = game.doubleheaderGame {
+                            Text("Game \(number)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                         if let agg = game.aggregateScore {
                             Text(agg)
                                 .font(.caption2)
@@ -221,7 +255,7 @@ struct GameScoreView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
-                    IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: homeScore, isWinning: homeScore > awayScore, isAway: false, record: game.homeRecord, seed: game.homeSeed)
+                    IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: homeScore, isWinning: homeScore > awayScore, isAway: false, record: game.homeRecord, seed: game.homeSeed, seedIsRank: game.isCollegeFootball)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
 
