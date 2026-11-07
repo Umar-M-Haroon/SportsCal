@@ -284,7 +284,9 @@ final class LiveSituationTests: XCTestCase {
         XCTAssertEqual(Leagues.nba.periodName(6), "2OT")
         XCTAssertEqual(Leagues.ncaaMBBTournament.periodName(2), "H2")
         XCTAssertEqual(Leagues.ncaaMBBTournament.periodName(3), "OT")
-        XCTAssertEqual(Leagues.nhl.periodName(5), "2OT")
+        // A regular-season fifth period is the shootout; in the playoffs it is 2OT.
+        XCTAssertEqual(Leagues.nhl.periodName(5), "SO")
+        XCTAssertEqual(Leagues.nhl.periodName(5, phase: .postseason), "2OT")
         XCTAssertEqual(Leagues.mlb.periodName(11), "11th")
     }
 

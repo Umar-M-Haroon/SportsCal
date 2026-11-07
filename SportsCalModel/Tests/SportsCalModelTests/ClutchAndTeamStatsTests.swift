@@ -99,7 +99,7 @@ final class ClutchMomentEdgeTests: XCTestCase {
         XCTAssertEqual(ClutchMoment.defaultLeague(for: .hockey), .nhl)
         XCTAssertNil(ClutchMoment.defaultLeague(for: .soccer))
         XCTAssertNil(Leagues.English_Premier_League.regulationPeriods)
-        XCTAssertEqual(Leagues.English_Premier_League.periodName(2), "2")
+        XCTAssertEqual(Leagues.English_Premier_League.periodName(2), "2H")
     }
 }
 
