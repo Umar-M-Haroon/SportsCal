@@ -1973,7 +1973,7 @@ public class GameViewModel: NSObject {
                 // playoff game back to "Regular Season" for the duration of the game.
                 season: scheduled.season ?? live.season,
                 seasonPhase: live.seasonPhase ?? scheduled.seasonPhase,
-                // Football's week, for the hub's and team page's week grouping.
+                // Football's week and soccer's matchday, for the hubs' round grouping.
                 sportsDBRound: scheduled.sportsDBRound ?? live.sportsDBRound,
                 // Live-only: the live copy's or none, never a stale scheduled one.
                 situation: live.situation,

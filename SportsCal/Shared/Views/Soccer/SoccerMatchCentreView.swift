@@ -8,7 +8,8 @@
 //  head-to-head record, and live commentary. Data is fetched on demand from
 //  `/soccer/match/:eventID` (see GameDetailSectionsModel.loadSoccerMatch).
 //
-//  Layout follows the rest of GameDetailView: away on the left, home on the right.
+//  Layout follows the detail hero in soccer's order: home on the left, away on the
+//  right (`Game.displaysHomeFirst`).
 //  `style` switches the card chrome between the Classic and Modern detail screens.
 //
 
@@ -40,7 +41,7 @@ struct SoccerMatchCentreView: View {
 
     var body: some View {
         VStack(spacing: spacing) {
-            if !match.events.isEmpty {
+            if !match.events.isEmpty || game.shootoutScore != nil {
                 eventsCard
             }
             if !match.momentum.isEmpty {
@@ -96,28 +97,85 @@ struct SoccerMatchCentreView: View {
 
     // MARK: - Match events timeline
 
+    /// Events in match order with HT / 90' / FT dividers, the score after each goal,
+    /// and the shootout's kicks grouped at the end (they come from the scoreboard:
+    /// ESPN's summary only says a shootout started).
+    private var timelineRows: [SoccerTimelineRow] {
+        let status = match.status
+        var finalScore: SoccerScore?
+        if let home = status?.homeScore, let away = status?.awayScore {
+            finalScore = SoccerScore(home: home, away: away)
+        } else if let home = Int(game.intHomeScore ?? ""), let away = Int(game.intAwayScore ?? "") {
+            finalScore = SoccerScore(home: home, away: away)
+        }
+        let isFinished = status.map { $0.state == "post" && $0.completed != false } ?? game.hasDoneStatus
+        var period = game.soccerClockPeriod
+        if status?.isHalfTime == true { period = max(period ?? 2, 2) }
+        return SoccerTimeline.rows(
+            events: match.events,
+            shootoutDetails: game.soccerDetails ?? [],
+            finalScore: finalScore,
+            isFinished: isFinished,
+            currentPeriod: period
+        )
+    }
+
     private var eventsCard: some View {
         card("Match Events") {
             VStack(spacing: 10) {
-                ForEach(match.events) { event in
-                    eventRow(event)
+                ForEach(timelineRows) { row in
+                    switch row {
+                    case .event(let event, let score):
+                        eventRow(event, score: score)
+                    case .divider(let label, let score):
+                        timelineDivider(label, score: score)
+                    case .shootoutHeader(let score):
+                        timelineDivider("Penalties", score: score)
+                    case .shootoutKick(let kick, let tally):
+                        shootoutKickRow(kick, tally: tally)
+                    }
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private func eventRow(_ event: SoccerMatchEvent) -> some View {
-        let isHome = event.side == .home
+    private func timelineDivider(_ label: String, score: SoccerScore?) -> some View {
+        HStack(spacing: 8) {
+            Rectangle().fill(Color.secondary.opacity(0.25)).frame(height: 1)
+            Text([label, score?.text(for: game)].compactMap { $0 }.joined(separator: "  "))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .fixedSize()
+            Rectangle().fill(Color.secondary.opacity(0.25)).frame(height: 1)
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Home on the left, away on the right, around a minute / icon spine.
+    private func sideColumns<Content: View>(isHome: Bool, @ViewBuilder detail: () -> Content,
+                                            @ViewBuilder spine: () -> some View) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            // Away column (left)
             Group {
-                if !isHome { eventDetail(event, alignment: .leading) }
-                else { Color.clear.frame(height: 1) }
+                if isHome { detail() } else { Color.clear.frame(height: 1) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            spine()
+                .frame(width: 44)
+            Group {
+                if !isHome { detail() } else { Color.clear.frame(height: 1) }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
 
-            // Minute + icon spine
+    @ViewBuilder
+    private func eventRow(_ event: SoccerMatchEvent, score: SoccerScore?) -> some View {
+        let isHome = event.side == .home
+        sideColumns(isHome: isHome) {
+            eventDetail(event, alignment: isHome ? .leading : .trailing)
+        } spine: {
             VStack(spacing: 2) {
                 Image(systemName: eventIcon(event.type))
                     .font(.caption)
@@ -128,16 +186,36 @@ struct SoccerMatchCentreView: View {
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                 }
+                // The score after a goal.
+                if let score {
+                    Text(score.text(for: game))
+                        .font(.caption2.weight(.bold))
+                        .monospacedDigit()
+                }
             }
-            .frame(width: 44)
-
-            // Home column (right)
-            Group {
-                if isHome { eventDetail(event, alignment: .trailing) }
-                else { Color.clear.frame(height: 1) }
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
         }
+    }
+
+    private func shootoutKickRow(_ kick: SoccerShootoutKick, tally: SoccerScore) -> some View {
+        let isHome = kick.side == .home
+        return sideColumns(isHome: isHome) {
+            Text(kick.player ?? (kick.scored ? "Scored" : "Missed"))
+                .font(.subheadline)
+                .foregroundStyle(kick.scored ? .primary : .secondary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: isHome ? .leading : .trailing)
+        } spine: {
+            VStack(spacing: 2) {
+                Image(systemName: kick.scored ? "checkmark.circle.fill" : "xmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(kick.scored ? Color.green : Color.red)
+                Text(tally.text(for: game))
+                    .font(.caption2.weight(.bold))
+                    .monospacedDigit()
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(kick.player ?? "Penalty") \(kick.scored ? "scores" : "misses"), \(tally.text(for: game))")
     }
 
     @ViewBuilder
@@ -260,9 +338,9 @@ struct SoccerMatchCentreView: View {
                 )
                 substitutesColumns
             } else {
-                teamLineup(match.away, accent: awayColor, fallbackName: game.strAwayTeam)
-                Divider()
                 teamLineup(match.home, accent: homeColor, fallbackName: game.strHomeTeam)
+                Divider()
+                teamLineup(match.away, accent: awayColor, fallbackName: game.strAwayTeam)
             }
         }
     }
@@ -278,15 +356,15 @@ struct SoccerMatchCentreView: View {
         }
     }
 
-    /// Both benches side by side under the pitch: away left, home right.
+    /// Both benches side by side under the pitch: home left, away right.
     private var substitutesColumns: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Substitutes")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack(alignment: .top, spacing: 12) {
-                benchColumn(match.away)
                 benchColumn(match.home)
+                benchColumn(match.away)
             }
         }
         .padding(.top, 4)
@@ -448,7 +526,7 @@ struct SoccerMatchCentreView: View {
     private func teamStatRow(_ stat: SoccerTeamStat) -> some View {
         VStack(spacing: 4) {
             HStack {
-                Text(stat.awayDisplay)
+                Text(stat.homeDisplay)
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .monospacedDigit()
@@ -457,7 +535,7 @@ struct SoccerMatchCentreView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(stat.homeDisplay)
+                Text(stat.awayDisplay)
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .monospacedDigit()
@@ -474,10 +552,10 @@ struct SoccerMatchCentreView: View {
         GeometryReader { geo in
             HStack(spacing: 2) {
                 Capsule()
-                    .fill(awayColor)
-                    .frame(width: total > 0 ? geo.size.width * CGFloat(a / total) : geo.size.width / 2)
-                Capsule()
                     .fill(homeColor)
+                    .frame(width: total > 0 ? geo.size.width * CGFloat(h / total) : geo.size.width / 2)
+                Capsule()
+                    .fill(awayColor)
             }
         }
         .frame(height: 5)
@@ -488,8 +566,8 @@ struct SoccerMatchCentreView: View {
     private var formCard: some View {
         card("Form") {
             VStack(spacing: 12) {
-                formRow(match.away, fallbackName: game.strAwayTeam)
                 formRow(match.home, fallbackName: game.strHomeTeam)
+                formRow(match.away, fallbackName: game.strAwayTeam)
             }
             Text("Last five matches, most recent on the right")
                 .font(.caption2)

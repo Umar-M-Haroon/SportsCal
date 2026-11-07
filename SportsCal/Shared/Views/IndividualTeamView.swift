@@ -48,6 +48,8 @@ struct IndividualTeamView: View {
     var seed: Int? = nil
     /// The seed is a college poll rank (see `SeededName`).
     var seedIsRank: Bool = false
+    /// Soccer red cards, drawn as a card glyph beside the name.
+    var redCards: Int = 0
     var data: Data? = nil
     /// Score / fallback-code sizes track Dynamic Type; 24pt / 14pt at the default size.
     @ScaledMetric(relativeTo: .title2) private var scoreSize: CGFloat = 24
@@ -162,18 +164,16 @@ struct IndividualTeamView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
-            if let shortName {
-                SeededName.text(shortName, seed: seed, isRank: seedIsRank)
-                    .font(.headline)
-                    .fontWeight(isWinning ? .bold : .regular)
-                    .foregroundColor(isWinning ? .primary : .secondary)
-            .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
-            } else if let longName {
-                SeededName.text(longName, seed: seed, isRank: seedIsRank)
-                    .foregroundColor(isWinning ? .primary : .secondary)
-                    .font(.headline)
-                    .fontWeight(isWinning ? .bold : .regular)
-            .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
+            if let name = shortName ?? longName {
+                HStack(spacing: 4) {
+                    if !isAway { redCardMark }
+                    SeededName.text(name, seed: seed, isRank: seedIsRank)
+                        .font(.headline)
+                        .fontWeight(isWinning ? .bold : .regular)
+                        .foregroundColor(isWinning ? .primary : .secondary)
+                    if isAway { redCardMark }
+                }
+                .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             }
             if let record {
                 Text(record)
@@ -182,6 +182,35 @@ struct IndividualTeamView: View {
                     .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             }
         }
+    }
+}
+
+extension IndividualTeamView {
+    @ViewBuilder
+    fileprivate var redCardMark: some View {
+        if redCards > 0 {
+            SoccerRedCardMark(count: redCards)
+        }
+    }
+}
+
+/// A red card, with a count past one. Sits beside a team's name on rows.
+struct SoccerRedCardMark: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 1) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(Color.red)
+                .frame(width: 7, height: 10)
+            if count > 1 {
+                Text("\(count)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.red)
+            }
+        }
+        .accessibilityElement()
+        .accessibilityLabel(count == 1 ? "1 red card" : "\(count) red cards")
     }
 }
 

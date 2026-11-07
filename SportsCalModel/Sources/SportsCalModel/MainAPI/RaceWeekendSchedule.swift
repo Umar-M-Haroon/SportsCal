@@ -30,7 +30,7 @@ public extension Game {
 
     /// Reminder / calendar title. Race weekends read "Dutch Grand Prix — Race";
     /// tournaments use their name (a golf leader is not an opponent); head-to-head
-    /// games keep "Away @ Home".
+    /// games use ``matchupTitle`` ("Away @ Home", home first for soccer).
     func eventTitle(session: EventSession? = nil) -> String {
         if isRace {
             guard let session = session ?? headlineSession else { return strHomeTeam }
@@ -39,7 +39,7 @@ public extension Game {
         if isIndividualSport && !isTennisMatch {
             return tournamentName ?? strHomeTeam
         }
-        return "\(strAwayTeam) @ \(strHomeTeam)"
+        return matchupTitle
     }
 
     /// When a reminder or calendar entry should start: the given session, else the

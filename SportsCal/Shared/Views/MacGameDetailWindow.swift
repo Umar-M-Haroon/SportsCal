@@ -46,7 +46,7 @@ struct MacGameDetailWindow: View {
             }
         }
         .frame(minWidth: 380, idealWidth: 460, minHeight: 480, idealHeight: 660)
-        .navigationTitle(game.map { "\($0.strAwayTeam) @ \($0.strHomeTeam)" } ?? "Game")
+        .navigationTitle(game.map { $0.matchupTitle } ?? "Game")
     }
 }
 #endif

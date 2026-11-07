@@ -39,13 +39,18 @@ public struct ScoreboardExtras: Codable, Equatable, Hashable, Sendable {
     public var featuredPitchers: [FeaturedPitcher]?
     /// Baseball doubleheaders: 1 or 2, from ESPN's "Doubleheader - Game 2" note.
     public var doubleheaderGame: Int?
+    /// Soccer two-leg aggregate goals, by side. `Game.aggregateScore` carries the same
+    /// as text, away first, for app versions that predate these.
+    public var homeAggregate: Int?
+    public var awayAggregate: Int?
 
     public init(homeWinner: Bool? = nil, awayWinner: Bool? = nil,
                 homeShootoutScore: Int? = nil, awayShootoutScore: Int? = nil,
                 homeHits: Int? = nil, awayHits: Int? = nil, homeErrors: Int? = nil, awayErrors: Int? = nil,
                 homeProbable: ProbablePitcher? = nil, awayProbable: ProbablePitcher? = nil,
                 soccerDetails: [MatchIncident]? = nil, broadcasts: [String]? = nil,
-                featuredPitchers: [FeaturedPitcher]? = nil, doubleheaderGame: Int? = nil) {
+                featuredPitchers: [FeaturedPitcher]? = nil, doubleheaderGame: Int? = nil,
+                homeAggregate: Int? = nil, awayAggregate: Int? = nil) {
         self.homeWinner = homeWinner
         self.awayWinner = awayWinner
         self.homeShootoutScore = homeShootoutScore
@@ -60,6 +65,8 @@ public struct ScoreboardExtras: Codable, Equatable, Hashable, Sendable {
         self.broadcasts = broadcasts
         self.featuredPitchers = featuredPitchers
         self.doubleheaderGame = doubleheaderGame
+        self.homeAggregate = homeAggregate
+        self.awayAggregate = awayAggregate
     }
 
     /// Nothing to carry.
@@ -173,6 +180,12 @@ extension ScoreboardExtras {
         if sport == .soccer {
             let incidents = (competition.details ?? []).compactMap { MatchIncident(espn: $0, side: side) }
             extras.soccerDetails = incidents.isEmpty ? nil : incidents
+            if let series = competition.series?.competitors, series.count == 2,
+               let homeAggregate = series.first(where: { $0.id == homeTeamID })?.aggregateScore,
+               let awayAggregate = series.first(where: { $0.id == away.team?.id })?.aggregateScore {
+                extras.homeAggregate = Int(homeAggregate)
+                extras.awayAggregate = Int(awayAggregate)
+            }
         }
         guard !extras.isEmpty else { return nil }
         self = extras

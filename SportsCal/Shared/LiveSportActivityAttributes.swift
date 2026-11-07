@@ -24,6 +24,8 @@ struct LiveSportActivityAttributes: ActivityAttributes {
         var situation: LiveActivitySituation? = nil
         /// F1: session + top three. Optional for the same reasons as `situation`.
         var race: LiveActivityRace? = nil
+        /// Soccer: red cards and the latest goal. Optional for the same reasons.
+        var soccer: LiveActivitySoccer? = nil
 
         /// The state for `game` as the app sees it. Mirrors the server's APNS state so a
         /// foreground update and a push agree (and the state diff doesn't flap).
@@ -35,7 +37,8 @@ struct LiveSportActivityAttributes: ActivityAttributes {
                 progress: game.strProgress,
                 lastPlay: nil,
                 situation: LiveActivitySituation(game.situation),
-                race: game.isRace ? LiveActivityRace(game: game, standings: standings) : nil
+                race: game.isRace ? LiveActivityRace(game: game, standings: standings) : nil,
+                soccer: LiveActivitySoccer(game: game)
             )
         }
     }

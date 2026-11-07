@@ -902,7 +902,8 @@ public struct Game: Identifiable, Equatable, Hashable {
     public var seasonPhase: SeasonPhase?
     /// TheSportsDB `intRound`, decoded on ingest so ``SeasonPhase/assignPhases(_:league:)``
     /// can derive `seasonPhase`. ESPN-built football rows put the regular-season week
-    /// here too. Encoded only for football, where it's the week (read ``footballWeek``).
+    /// here too. Encoded for football (the week, read ``footballWeek``) and soccer (the
+    /// matchday) only.
     public let sportsDBRound: Int?
 
     /// Live state beyond the score — count and runners, down and distance, win
@@ -959,7 +960,8 @@ extension Game: Codable {
         case strSeason, seasonPhase
         case situation, excitement
         case scoreboardExtras = "extras"
-        // TheSportsDB schedule round — encoded for football only (the week)
+        // TheSportsDB schedule round — decoded on ingest, encoded for football (the
+        // week) and soccer (the competition hub's matchdays) only
         case intRound
         // Computed properties - decoded for backward compatibility, not encoded
         case strSport, strLeague
@@ -1107,9 +1109,9 @@ extension Game: Codable {
             try container.encodeIfPresent(situation, forKey: .situation)
         }
         try container.encodeIfPresent(excitement, forKey: .excitement)
-        // The week, for grouping a football schedule. Other leagues' rounds stay off the
-        // wire to keep the schedule small.
-        if let sportsDBRound, isFootballLeague {
+        // Football's round is its week, soccer's its matchday. Other leagues' rounds only
+        // feed `seasonPhase` and stay off the wire to keep the schedule small.
+        if let sportsDBRound, isFootballLeague || sportType == .soccer {
             try container.encode(sportsDBRound, forKey: .intRound)
         }
         if let scoreboardExtras, !scoreboardExtras.isEmpty {

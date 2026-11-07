@@ -169,8 +169,8 @@ struct GameDetailView: View {
             if let id = game.idEvent, let url = DeepLink.url(for: .game(idEvent: id)) {
                 ShareLink(
                     item: url,
-                    subject: Text("\(game.strAwayTeam) @ \(game.strHomeTeam)"),
-                    message: Text("Follow \(game.strAwayTeam) @ \(game.strHomeTeam) live on Scoreline")
+                    subject: Text(game.matchupTitle),
+                    message: Text("Follow \(game.matchupTitle) live on Scoreline")
                 ) {
                     Image(systemName: "square.and.arrow.up")
                 }
@@ -251,11 +251,15 @@ struct GameDetailView: View {
     }
 
     // MARK: - Classic hero
+    /// The hero's left and right teams: away then home, home then away for soccer.
+    private var heroFirst: Team { game.displaysHomeFirst ? homeTeam : awayTeam }
+    private var heroSecond: Team { game.displaysHomeFirst ? awayTeam : homeTeam }
+
     private var gameHeader: some View {
         VStack(spacing: 12) {
             HStack(alignment: .top) {
-                teamLink(awayTeam) {
-                    teamBadge(url: awayTeam.strTeamBadge, name: awayTeam.strTeamShort ?? awayTeam.strTeam, size: 60)
+                teamLink(heroFirst) {
+                    teamBadge(url: heroFirst.strTeamBadge, name: heroFirst.strTeamShort ?? heroFirst.strTeam, size: 60)
                 }
                 Spacer()
                 VStack(spacing: 4) {
@@ -263,18 +267,18 @@ struct GameDetailView: View {
                     HeroShotsOnGoalLine(sport: sportType, stats: sectionsModel.teamStats, awayName: awayTeam.strTeamShort ?? game.strAwayTeam, homeName: homeTeam.strTeamShort ?? game.strHomeTeam)
                 }
                 Spacer()
-                teamLink(homeTeam) {
-                    teamBadge(url: homeTeam.strTeamBadge, name: homeTeam.strTeamShort ?? homeTeam.strTeam, size: 60)
+                teamLink(heroSecond) {
+                    teamBadge(url: heroSecond.strTeamBadge, name: heroSecond.strTeamShort ?? heroSecond.strTeam, size: 60)
                 }
             }
 
             HStack(alignment: .top) {
-                teamLink(awayTeam) {
-                    heroTeamName(awayTeam.strTeam ?? "Away", seed: game.awaySeed, record: game.awayRecord, side: .away)
+                teamLink(heroFirst) {
+                    heroTeamName(heroFirst, side: game.displayedSides.first)
                 }
                 Spacer()
-                teamLink(homeTeam) {
-                    heroTeamName(homeTeam.strTeam ?? "Home", seed: game.homeSeed, record: game.homeRecord, side: .home)
+                teamLink(heroSecond) {
+                    heroTeamName(heroSecond, side: game.displayedSides.second)
                 }
             }
 
@@ -306,8 +310,14 @@ struct GameDetailView: View {
         .cornerRadius(12)
     }
 
-    /// A hero team name with its rank or seed, record, and the ball when it has it.
-    private func heroTeamName(_ name: String, seed: Int?, record: String?, side: GameSituation.Side) -> some View {
+    /// A hero team name with its rank or seed, record, the ball when it has it, and
+    /// soccer red cards.
+    private func heroTeamName(_ team: Team, side: GameSituation.Side) -> some View {
+        let isHome = side == .home
+        let name = team.strTeam ?? (isHome ? "Home" : "Away")
+        let seed = isHome ? game.homeSeed : game.awaySeed
+        let record = isHome ? game.homeRecord : game.awayRecord
+        let redCards = game.redCards(side)
         let hasBall = game.strStatus == "in" && game.situation?.possession == side
         return VStack(spacing: 2) {
             HStack(spacing: 4) {
@@ -320,6 +330,9 @@ struct GameDetailView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .multilineTextAlignment(.center)
+                if redCards > 0 {
+                    SoccerRedCardMark(count: redCards)
+                }
             }
             if let record, !game.isIndividualSport {
                 Text(record)
@@ -333,7 +346,8 @@ struct GameDetailView: View {
         .accessibilityLabel([
             SeededName.spoken(name, seed: seed, isRank: game.isCollegeFootball),
             record,
-            hasBall ? "has the ball" : nil
+            hasBall ? "has the ball" : nil,
+            redCards > 0 ? (redCards == 1 ? "1 red card" : "\(redCards) red cards") : nil
         ].compactMap { $0 }.joined(separator: ", "))
     }
 
@@ -347,24 +361,29 @@ struct GameDetailView: View {
     @ViewBuilder
     private var scoreOrTime: some View {
         if let scores = heroScores {
-            let home = scores.home, away = scores.away
+            // Bold the winner by ESPN's call, so a shootout winner reads on a level score.
+            let winner = game.winningSide
+            let sides = game.displayedSides
+            let first = sides.first == .home ? scores.home : scores.away
+            let second = sides.first == .home ? scores.away : scores.home
             VStack(spacing: 4) {
                 HStack(spacing: 16) {
-                    Text("\(away)")
-                        .font(.system(size: 36, weight: away > home ? .heavy : .regular))
-                        .foregroundColor(away > home ? .primary : .secondary)
+                    Text("\(first)")
+                        .font(.system(size: 36, weight: winner == sides.first ? .heavy : .regular))
+                        .foregroundColor(winner == sides.first ? .primary : .secondary)
                     Text("-")
                         .font(.system(size: 28, weight: .light))
                         .foregroundColor(.secondary)
-                    Text("\(home)")
-                        .font(.system(size: 36, weight: home > away ? .heavy : .regular))
-                        .foregroundColor(home > away ? .primary : .secondary)
+                    Text("\(second)")
+                        .font(.system(size: 36, weight: winner == sides.second ? .heavy : .regular))
+                        .foregroundColor(winner == sides.second ? .primary : .secondary)
                 }
                 if let statusText = game.displayStatus {
                     Text(statusText)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                SoccerScoreNotes(game: game)
             }
         } else if let date = game.standardDate {
             VStack(spacing: 4) {
@@ -563,8 +582,7 @@ struct GameDetailView: View {
     private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         let event = EKEvent(eventStore: eventStore)
-        let separator = (game.playoff?.isNeutralSite == true) ? " vs " : " @ "
-        event.title = "\(game.strAwayTeam)\(separator)\(game.strHomeTeam)"
+        event.title = game.matchupTitle
         if let gameDate = game.standardDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 2)
@@ -572,6 +590,24 @@ struct GameDetailView: View {
         return CalendarRepresentable(eventStore: eventStore, event: event)
     }
     #endif
+}
+
+/// "(4–3 pens)" and "Agg 3–2" under a soccer hero score. Empty for other sports.
+struct SoccerScoreNotes: View {
+    let game: Game
+
+    var body: some View {
+        if let pens = game.shootoutLine {
+            Text("(\(pens))")
+                .font(.caption.weight(.medium))
+                .foregroundColor(.secondary)
+        }
+        if let aggregate = game.aggregateLine {
+            Text(aggregate)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
 }
 
 // MARK: - GameDetailSections
@@ -634,6 +670,11 @@ struct GameDetailSections: View {
             Task { await reloadPlays() }
             Task { await reloadSoccerMatch() }
         }
+        // Soccer's lastPlay rarely changes; a goal, a card or the clock moving does.
+        .onChange(of: soccerLiveKey) { _, _ in
+            Task { await reloadSoccerMatch() }
+        }
+        .task(id: soccerPollID) { await pollSoccerMatchWhileLive() }
         .onChange(of: model.plays) { _, newPlays in
             let newAvailable = Set(newPlays.compactMap { $0.period?.number })
             if let current = model.selectedPeriod, newAvailable.contains(current) {
@@ -1580,10 +1621,48 @@ struct GameDetailSections: View {
         await model.loadSoccerMatch(game: game, leagueSlug: league?.espnSlug)
     }
 
+    /// Changes with the score, the clock and red cards of a live soccer match.
+    private var soccerLiveKey: String {
+        guard isSoccer, game.strStatus == "in" else { return "" }
+        return [game.intHomeScore ?? "", game.intAwayScore ?? "", game.strProgress ?? "",
+                "\(game.redCards(.home))", "\(game.redCards(.away))"].joined(separator: "|")
+    }
+
+    private var soccerPollID: String { "\(game.idEvent ?? "")|\(game.strStatus ?? "")" }
+
+    /// The match centre is live while its own status says so (it's fresher than a game
+    /// copy that a non-live list handed over), or the game's when it has none yet.
+    private var soccerMatchIsLive: Bool {
+        if let state = model.soccerMatch?.status?.state { return state == "in" }
+        return game.strStatus == "in"
+    }
+
+    /// Refetch while the match is live: every 45s, a little over the server's 30s
+    /// cache, so a screen opened from a list that doesn't tick still moves.
+    private func pollSoccerMatchWhileLive() async {
+        guard isSoccer, game.idEvent != nil else { return }
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(45))
+            guard !Task.isCancelled, soccerMatchIsLive else { return }
+            await reloadSoccerMatch()
+        }
+    }
+
     @ViewBuilder
     private var soccerMatchSection: some View {
         if isSoccer, let match = model.soccerMatch, !match.isEmpty {
             SoccerMatchCentreView(match: match, game: game)
+        } else if isSoccer, model.soccerMatchLoading, game.idEvent != nil {
+            HStack(spacing: 10) {
+                ProgressView()
+                Text("Loading match centre…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.secondaryGroupedBackground)
+            .cornerRadius(12)
         }
     }
 

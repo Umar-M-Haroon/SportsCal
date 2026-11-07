@@ -291,12 +291,15 @@ struct WorldCupBracketView: View {
         let previousRoundSize = previousRoundSize(for: match)
         let homeProj = homeName == nil ? projectedQualifier(homePlaceholder) : nil
         let awayProj = awayName == nil ? projectedQualifier(awayPlaceholder) : nil
+        // A bracket cached before the server read ESPN's winner has none for a
+        // shootout; the game's own copy knows.
+        let winner = match.winner ?? finishedWinner(game)
 
         let home = WorldCupBracketMatchCell.Side(
             name: homeName ?? homeProj?.name ?? friendlyPlaceholder(homePlaceholder, previousRoundSize: previousRoundSize) ?? "TBD",
             badge: match.homeTeamBadge ?? homeProj?.badge,
             score: match.homeScore,
-            isWinner: match.winner == .home,
+            isWinner: winner == .home,
             isResolved: homeName != nil,
             isProjected: homeName == nil && homeProj != nil
         )
@@ -304,20 +307,20 @@ struct WorldCupBracketView: View {
             name: awayName ?? awayProj?.name ?? friendlyPlaceholder(awayPlaceholder, previousRoundSize: previousRoundSize) ?? "TBD",
             badge: match.awayTeamBadge ?? awayProj?.badge,
             score: match.awayScore,
-            isWinner: match.winner == .away,
+            isWinner: winner == .away,
             isResolved: awayName != nil,
             isProjected: awayName == nil && awayProj != nil
         )
 
         let isLive = game?.strStatus == "in"
-        let isFinished = game?.strStatus == "post" || game?.isCompleted == true || match.winner != nil
+        let isFinished = game?.strStatus == "post" || game?.isCompleted == true || winner != nil
         let kickoff = match.date ?? game?.standardDate
 
         let status: WorldCupBracketMatchCell.Status
         if isLive {
             status = .live(game?.strProgress ?? "LIVE")
         } else if isFinished {
-            status = .final(match.aggregateScore)
+            status = .final(match.aggregateScore ?? game?.shootoutLine)
         } else if let kickoff {
             status = .upcoming(kickoff)
         } else {
@@ -325,6 +328,11 @@ struct WorldCupBracketView: View {
         }
 
         return WorldCupBracketMatchCell.Model(home: home, away: away, status: status, venue: game?.venueName, number: number)
+    }
+
+    private func finishedWinner(_ game: Game?) -> BracketSide? {
+        guard let game, game.strStatus == "post" || game.isCompleted == true else { return nil }
+        return game.winningSide.map { $0 == .home ? .home : .away }
     }
 
     /// Size of the round feeding this match's round (bounds-checks placeholder
