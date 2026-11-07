@@ -199,9 +199,31 @@ struct BrowsePage: View {
                 let date = sport == .golf ? (game.eventDaySpan?.first ?? start) : start
                 let when = date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
                 result[sport] = sport.isEventSport ? "\(game.strHomeTeam) · \(when)" : "Next: \(when)"
+            } else {
+                result[sport] = offseasonSummary(for: sport, after: endOfToday)
             }
         }
         return result
+    }
+
+    /// The card line for a sport with nothing inside the user's schedule window — the
+    /// offseason. `filteredGames` stops at the "show games up to" setting, so in November
+    /// baseball's next game (spring training, Feb 19) was outside it and the card went
+    /// blank. Looks past the window, in the full schedule.
+    private func offseasonSummary(for sport: SportType, after endOfToday: Date) -> String {
+        var next: Game?
+        for game in viewModel.gamesDict[sport] ?? [] {
+            guard let date = game.standardDate, date >= endOfToday else { continue }
+            if let best = next?.standardDate, best <= date { continue }
+            next = game
+        }
+        guard let next, let start = next.standardDate else { return "Offseason" }
+        let when = start.formatted(.dateTime.month(.abbreviated).day())
+        if start.timeIntervalSinceNow < 14 * 86_400 {
+            return "Next: \(start.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))"
+        }
+        guard next.isPreseason else { return "Season starts \(when)" }
+        return sport == .mlb ? "Spring training starts \(when)" : "Preseason starts \(when)"
     }
 }
 
