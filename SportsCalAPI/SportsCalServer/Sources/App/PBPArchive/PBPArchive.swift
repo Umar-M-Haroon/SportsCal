@@ -204,9 +204,7 @@ actor PBPArchive {
             plays: plays,
             isFinal: isFinal,
             fetchedAt: Date(timeIntervalSince1970: TimeInterval(fetchedSeconds)),
-            winProbability: extras?.winProbability,
-            teamStats: extras?.teamStats,
-            excitement: extras?.excitement
+            extras: extras
         )
     }
 }

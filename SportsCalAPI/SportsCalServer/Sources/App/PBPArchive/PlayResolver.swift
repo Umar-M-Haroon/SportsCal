@@ -146,8 +146,7 @@ enum PlayResolver {
                 plays: plays,
                 isFinal: false,
                 fetchedAt: Date(),
-                winProbability: extras.winProbability,
-                teamStats: extras.teamStats
+                extras: extras
             )
             // Write under the client-facing key so subsequent requests hit cache. TTL'd:
             // nothing else ever deletes an on-demand key (the archive path only clears
