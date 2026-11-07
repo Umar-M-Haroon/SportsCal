@@ -167,9 +167,16 @@ enum LiveMerge {
             // keeps the rest of ESPN's — game lines, win probability. One without keeps
             // ESPN's from the last full fetch, minus the clock if the score just moved:
             // that clock predates the basket, and the clutch rules read it.
+            //
+            // "Whole" stops at what ESPN's scoreboard never carries: basketball fouls and
+            // runs (from the play-by-play pass) and hockey strength (the NHL feed) are
+            // carried over while they still hold, or every ESPN tick would blank them.
             if let fresh = f.situation {
                 if freshSituationIsComplete {
-                    merged.situation = fresh
+                    merged.situation = fresh.carryingSupplementalState(
+                        from: game.situation, sport: game.sportType,
+                        oldScore: scorePair(game), newScore: scorePair(f)
+                    )
                 } else {
                     merged.situation = game.situation.map { $0.overlaying(fresh) } ?? fresh
                 }
@@ -181,6 +188,43 @@ enum LiveMerge {
             return merged
         }
         return OverlayPass(events: merged, changed: changed, observed: observed, behind: behind)
+    }
+
+    /// Home and away score as integers (0 when missing), for the situation carry-over.
+    static func scorePair(_ game: Game) -> (home: Int, away: Int) {
+        (game.intHomeScore.flatMap { Int($0) } ?? 0, game.intAwayScore.flatMap { Int($0) } ?? 0)
+    }
+
+    /// `rebuilt` (a full ESPN rebuild) with the supplemental live state of each
+    /// in-progress basketball and hockey game carried over from `previous`, the snapshot
+    /// it replaces. See `GameSituation.carryingSupplementalState`. Matched by `idEvent`.
+    static func carryingSupplementalState(into rebuilt: LiveScore, from previous: LiveScore?) -> LiveScore {
+        guard let previous else { return rebuilt }
+        var result = rebuilt
+        let buckets: [WritableKeyPath<LiveScore, LiveEvent?>] = [\.nba, \.nhl]
+        for keyPath in buckets {
+            guard let events = result[keyPath: keyPath]?.events else { continue }
+            var before: [String: Game] = [:]
+            for game in previous[keyPath: keyPath]?.events ?? [] {
+                if let id = game.idEvent { before[id] = game }
+            }
+            var touched = false
+            let carried = events.map { game -> Game in
+                guard game.strStatus == "in", let situation = game.situation,
+                      let id = game.idEvent, let old = before[id], let oldSituation = old.situation else { return game }
+                let merged = situation.carryingSupplementalState(
+                    from: oldSituation, sport: game.sportType,
+                    oldScore: scorePair(old), newScore: scorePair(game)
+                )
+                guard merged != situation else { return game }
+                touched = true
+                var updated = game
+                updated.situation = merged
+                return updated
+            }
+            if touched { result[keyPath: keyPath] = LiveEvent(events: carried) }
+        }
+        return result
     }
 
     // MARK: - Racing sources

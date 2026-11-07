@@ -157,6 +157,11 @@ struct ESPNFetchJob: AsyncScheduledJob {
             newResult = result
         }
 
+        // The rebuild is ESPN's scoreboard, which never has basketball fouls and runs or
+        // hockey strength: carry them over from the snapshot it replaces (this tick's
+        // play-by-play pass then refreshes the basketball ones).
+        newResult = newResult.map { LiveMerge.carryingSupplementalState(into: $0, from: latestLiveResult) }
+
         // The schedule bridges ESPN event IDs to TheSportsDB ones for play-by-play keys,
         // and is the base the forward-window merge writes onto. Decoded once here; the
         // final write reuses it unless another job wrote the schedule in between.
@@ -174,17 +179,22 @@ struct ESPNFetchJob: AsyncScheduledJob {
         for league in [Leagues.ncaaMBBTournament, .wnba] where active?.contains(league) ?? true {
             guard let scoreboard = try? await Integrator.getESPNScoreboard(for: league, context.application.client),
                   let liveEvent = LiveEvent(events: scoreboard, league: league) else { continue }
-            espnOnlyBasketball.append(liveEvent)
+            let carried = LiveMerge.carryingSupplementalState(into: LiveScore(nba: liveEvent), from: latestLiveResult)
+            espnOnlyBasketball.append(carried.nba ?? liveEvent)
         }
+        //
+        // Live basketball games also get their fouls, timeouts and current run, counted
+        // from those plays (ESPN's scoreboard has none of them).
         if let current = newResult {
-            let excitement = await enrichWithPlays(
+            let enrichment = await enrichWithPlays(
                 from: current, extraBasketball: espnOnlyBasketball.flatMap(\.events),
                 schedule: scheduleSnapshot?.schedule, context: context, isDebug: isDebug
             )
-            if !excitement.isEmpty {
-                newResult = Self.applyingExcitement(excitement, to: current)
+            if !enrichment.excitement.isEmpty || !enrichment.tallies.isEmpty {
+                newResult = Self.applyingTallies(enrichment.tallies, to: Self.applyingExcitement(enrichment.excitement, to: current))
                 espnOnlyBasketball = espnOnlyBasketball.map { event in
-                    Self.applyingExcitement(excitement, to: LiveScore(nba: event)).nba ?? event
+                    let score = Self.applyingExcitement(enrichment.excitement, to: LiveScore(nba: event))
+                    return Self.applyingTallies(enrichment.tallies, to: score).nba ?? event
                 }
             }
         }
@@ -350,14 +360,25 @@ struct ESPNFetchJob: AsyncScheduledJob {
     ///
     /// Conditional on `lastPlay.id` from the scoreboard — if the cached ID already matches,
     /// we skip the ESPN call entirely. Bounded at 6 concurrent fetches to keep ESPN load low.
-    @discardableResult
+    /// What one play-by-play pass hands back, by ESPN event ID.
+    struct PBPEnrichment {
+        var excitement: [String: Int] = [:]
+        var tallies: [String: BasketballPlayTally] = [:]
+
+        mutating func record(_ scored: ScoredEvent?) {
+            guard let scored else { return }
+            if let score = scored.score { excitement[scored.eventID] = score }
+            if let tally = scored.tally { tallies[scored.eventID] = tally }
+        }
+    }
+
     private func enrichWithPlays(
         from liveScore: LiveScore,
         extraBasketball: [Game] = [],
         schedule: LiveScore?,
         context: Queues.QueueContext,
         isDebug: Bool
-    ) async -> [String: Int] {
+    ) async -> PBPEnrichment {
         // The iOS client carries TheSportsDB event IDs after the schedule merge, while
         // espnResult carries ESPN IDs. The caller's schedule bridges them.
 
@@ -431,12 +452,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
         candidates += collegeGrant.granted
 
         // Games that needed nothing still report their excitement.
-        var excitementByEvent: [String: Int] = [:]
+        var enrichment = PBPEnrichment()
         for case .skipped(let scored?) in collegeSkips.values {
-            excitementByEvent[scored.eventID] = scored.score
+            enrichment.record(scored)
         }
 
-        guard !candidates.isEmpty else { return excitementByEvent }
+        guard !candidates.isEmpty else { return enrichment }
 
         // Merge new [tsdbID → espnID/sport/league] into the persistent ESPN-Event-Map so the
         // /plays/:eventID on-demand path can resolve a client-supplied TSDB ID back to ESPN.
@@ -466,10 +487,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 switch result {
                 case .fetched(let scored):
                     fetched += 1
-                    if let scored { excitementByEvent[scored.eventID] = scored.score }
+                    enrichment.record(scored)
                 case .skipped(let scored):
                     skipped += 1
-                    if let scored { excitementByEvent[scored.eventID] = scored.score }
+                    enrichment.record(scored)
                 case .failed:
                     failed += 1
                 }
@@ -487,7 +508,23 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 "deferred": "\(collegeGrant.deferred)",
             ])
         }
-        return excitementByEvent
+        return enrichment
+    }
+
+    /// Stamps each live basketball game's play-by-play tally (fouls, timeouts, run) onto
+    /// its situation, by ESPN event ID.
+    static func applyingTallies(_ tallies: [String: BasketballPlayTally], to liveScore: LiveScore) -> LiveScore {
+        guard !tallies.isEmpty, let events = liveScore.nba?.events else { return liveScore }
+        var result = liveScore
+        result.nba = LiveEvent(events: events.map { game in
+            guard game.strStatus == "in", let id = game.idEvent, let tally = tallies[id],
+                  var situation = game.situation else { return game }
+            tally.apply(to: &situation)
+            var stamped = game
+            stamped.situation = situation
+            return stamped
+        })
+        return result
     }
 
     /// Stamps each game's excitement score onto the snapshot, by ESPN event ID.
@@ -521,10 +558,11 @@ struct ESPNFetchJob: AsyncScheduledJob {
         return false
     }
 
-    /// An excitement score for one event, by its ESPN ID.
-    private struct ScoredEvent {
+    /// An excitement score (finals) or a basketball tally (live) for one event, by its ESPN ID.
+    struct ScoredEvent {
         let eventID: String
-        let score: Int
+        let score: Int?
+        var tally: BasketballPlayTally? = nil
     }
 
     private enum PBPResult {
@@ -609,8 +647,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
         }
         let cached = try? await context.application.redis.get(primaryKey, asJSON: CachedPlays.self)
         let isFinal = (candidate.game.strStatus == "post" && candidate.game.isCompleted == true)
-        func scored(_ score: Int?) -> ScoredEvent? {
-            score.map { ScoredEvent(eventID: espnEventID, score: $0) }
+        func scored(_ score: Int?, tally: BasketballPlayTally? = nil) -> ScoredEvent? {
+            guard score != nil || tally != nil else { return nil }
+            return ScoredEvent(eventID: espnEventID, score: score, tally: tally)
         }
 
         // The cached snapshot matches the current scoreboard lastPlay.id AND its finality
@@ -620,7 +659,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
            let currentLastPlayID = candidate.game.lastPlayScoreboardID,
            cached.lastPlayId == currentLastPlayID,
            cached.isFinal == isFinal {
-            return .skipped(scored(cached.excitement))
+            return .skipped(scored(cached.excitement, tally: isFinal ? nil : cached.basketballTally))
         }
 
         // A final game is moved to the archive and dropped from Redis, so the check above
@@ -656,8 +695,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
         }
 
         let isFinal = (candidate.game.strStatus == "post" && candidate.game.isCompleted == true)
-        func scored(_ score: Int?) -> ScoredEvent? {
-            score.map { ScoredEvent(eventID: espnEventID, score: $0) }
+        func scored(_ score: Int?, tally: BasketballPlayTally? = nil) -> ScoredEvent? {
+            guard score != nil || tally != nil else { return nil }
+            return ScoredEvent(eventID: espnEventID, score: score, tally: tally)
         }
 
         do {
@@ -673,7 +713,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             let clientFacingID = candidate.tsdbEventID ?? espnEventID
             let league = candidate.game.idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))
             let extras = summary.extras(league: league, isFinal: isFinal)
-            let payload = CachedPlays(
+            var payload = CachedPlays(
                 eventID: clientFacingID,
                 // The skip check compares this to the scoreboard's lastPlay.id. Drive play
                 // IDs aren't guaranteed to share that format, so for football record the
@@ -688,6 +728,15 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 teamStats: extras.teamStats,
                 excitement: extras.excitement
             )
+            // Fouls and timeouts need each play's team, which the cached plays don't keep;
+            // count them now (ESPN team IDs: this runs before the TheSportsDB translation).
+            if candidate.sport == "basketball", !isFinal {
+                payload.basketballTally = BasketballPlayTally(
+                    plays: plays, teamIDs: summary.playTeamIDs ?? [],
+                    homeTeamID: candidate.game.idHomeTeam, awayTeamID: candidate.game.idAwayTeam,
+                    league: league
+                )
+            }
             if isFinal {
                 // Final state: persist to the SQLite archive (durable, no TTL) and flush the
                 // hot Redis keys so we don't double-store the same blob. Falls back to a Redis
@@ -736,7 +785,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                     )
                 }
             }
-            return .fetched(scored(extras.excitement))
+            return .fetched(scored(extras.excitement, tally: payload.basketballTally))
         } catch {
             Self.logger.debug("PBP fetch failed", metadata: [
                 "sport": "\(candidate.sport)",

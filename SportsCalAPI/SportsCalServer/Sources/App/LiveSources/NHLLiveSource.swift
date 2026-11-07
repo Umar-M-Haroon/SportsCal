@@ -46,9 +46,14 @@ struct NHLDate: Content {
 struct NHLGame: Content {
     let id: Int?
     let gameState: String?       // FUT/PRE/LIVE/CRIT/FINAL/OFF
+    let gameType: Int?           // 1 preseason, 2 regular season, 3 playoffs
     let startTimeUTC: String?
     let period: Int?
+    let periodDescriptor: NHLPeriodDescriptor?
     let clock: NHLClock?
+    /// Skater strength while play is on. The four-digit code's shape is confirmed from
+    /// api-web's play-by-play ("1451"); that the scoreboard carries it live is not yet.
+    let situation: NHLSituation?
     let homeTeam: NHLTeam?
     let awayTeam: NHLTeam?
 
@@ -65,15 +70,7 @@ struct NHLGame: Content {
         default: return nil   // FUT / PRE → not a live update
         }
 
-        var progress: String? = nil
-        if strStatus == "in" {
-            if clock?.inIntermission == true {
-                progress = period.map { "INT P\($0)" }
-            } else if let p = period, let rem = clock?.timeRemaining {
-                progress = "P\(p) \(rem)"
-            }
-        }
-
+        let live = strStatus == "in"
         return Game(
             idEvent: id.map { "nhl-\($0)" },
             idLeague: "\(Leagues.nhl.rawValue)",
@@ -82,18 +79,122 @@ struct NHLGame: Content {
             intHomeScore: home.score.map(String.init),
             intAwayScore: away.score.map(String.init),
             strStatus: strStatus,
-            strProgress: progress,
+            strProgress: live ? progress : nil,
             strTimestamp: startTimeUTC,
             isCompleted: completed,
-            isoDate: nil
+            isoDate: nil,
+            situation: live ? liveSituation : nil
         )
     }
+
+    private var periodNumber: Int? { periodDescriptor?.number ?? period }
+
+    private var periodType: String {
+        if let type = periodDescriptor?.periodType { return type }
+        guard let number = periodNumber else { return "REG" }
+        return number <= 3 ? "REG" : (gameType == 3 || number == 4 ? "OT" : "SO")
+    }
+
+    /// The period as ESPN's hockey status names it: "2nd", "OT", "2OT", "SO".
+    private var periodName: String? {
+        guard let number = periodNumber else { return nil }
+        switch periodType {
+        case "OT":
+            let overtime = number - (periodDescriptor?.maxRegulationPeriods ?? 3)
+            return overtime > 1 ? "\(overtime)OT" : "OT"
+        case "SO":
+            return "SO"
+        default:
+            switch number {
+            case 1: return "1st"
+            case 2: return "2nd"
+            case 3: return "3rd"
+            default: return "\(number)th"
+            }
+        }
+    }
+
+    /// ESPN's short status format — "12:34 - 2nd", "End of 2nd", "SO" — so a game
+    /// doesn't flip between two formats as the sources trade wins.
+    var progress: String? {
+        guard let name = periodName else { return nil }
+        if periodType == "SO" { return name }
+        if clock?.inIntermission == true { return "End of \(name)" }
+        guard let remaining = clock?.timeRemaining else { return name }
+        return "\(Self.espnClock(remaining)) - \(name)"
+    }
+
+    /// "08:12" → "8:12", as ESPN writes the clock.
+    static func espnClock(_ clock: String) -> String {
+        guard clock.count > 4, clock.hasPrefix("0") else { return clock }
+        return String(clock.dropFirst())
+    }
+
+    /// Period, clock and skater strength. Without a situation block (or at an
+    /// intermission) the teams are at even strength: 3-on-3 in regular-season overtime.
+    var liveSituation: GameSituation? {
+        guard let number = periodNumber else { return nil }
+        var situation = GameSituation(period: number, clock: clock?.secondsRemaining.map(Double.init))
+        guard periodType != "SO" else { return situation }
+        let evenSkaters = periodType == "OT" && gameType != 3 ? 3 : 5
+        if clock?.inIntermission == true {
+            situation.setEvenStrength(skaters: evenSkaters)
+        } else if let code = self.situation?.situationCode, situation.applyNHLSituationCode(code) {
+            if situation.powerPlaySide != nil {
+                situation.powerPlayClock = self.situation?.secondsRemaining.map(Double.init)
+                    ?? self.situation?.timeRemaining.flatMap(Self.seconds)
+            }
+        } else {
+            situation.setEvenStrength(skaters: evenSkaters)
+        }
+        return situation
+    }
+
+    /// "01:42" → 102.
+    static func seconds(_ clock: String) -> Double? {
+        let parts = clock.split(separator: ":").compactMap { Int($0) }
+        guard parts.count == 2 else { return nil }
+        return Double(parts[0] * 60 + parts[1])
+    }
+}
+
+struct NHLPeriodDescriptor: Content {
+    let number: Int?
+    let periodType: String?      // REG / OT / SO
+    let maxRegulationPeriods: Int?
 }
 
 struct NHLClock: Content {
     let timeRemaining: String?
+    let secondsRemaining: Int?
     let running: Bool?
     let inIntermission: Bool?
+}
+
+struct NHLSituation: Content {
+    /// Away goalie, away skaters, home skaters, home goalie: "1451" is a home power play.
+    let situationCode: String?
+    /// Time left on the power play.
+    let timeRemaining: String?
+    let secondsRemaining: Int?
+
+    enum CodingKeys: String, CodingKey { case situationCode, timeRemaining, secondsRemaining }
+
+    /// Unverified live shape, so nothing here may throw: a surprise must cost the power
+    /// play, never the scoreboard.
+    init(from decoder: Decoder) throws {
+        let c = try? decoder.container(keyedBy: CodingKeys.self)
+        if let code = try? c?.decodeIfPresent(String.self, forKey: .situationCode) {
+            situationCode = code
+        } else if let code = try? c?.decodeIfPresent(Int.self, forKey: .situationCode) {
+            // A bare number drops the leading zero of a pulled away goalie: 651 is "0651".
+            situationCode = String(format: "%04d", code)
+        } else {
+            situationCode = nil
+        }
+        timeRemaining = (try? c?.decodeIfPresent(String.self, forKey: .timeRemaining)) ?? nil
+        secondsRemaining = (try? c?.decodeIfPresent(Int.self, forKey: .secondsRemaining)) ?? nil
+    }
 }
 
 struct NHLTeam: Content {
