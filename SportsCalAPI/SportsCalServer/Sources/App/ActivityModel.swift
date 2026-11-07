@@ -20,10 +20,13 @@ public struct ContentState: Codable, Hashable {
     /// Outs and runners, down and distance, win probability. Optional so builds that
     /// predate it decode the payload fine; they just don't show the strip.
     var situation: LiveActivitySituation? = nil
-    /// F1: session + top three. Optional for the same reason as `situation`.
+    /// F1: session + top three; golf: round + top three (+ the followed player).
+    /// Optional for the same reason as `situation`.
     var race: LiveActivityRace? = nil
     /// Soccer: red cards and the latest goal. Optional for the same reason.
     var soccer: LiveActivitySoccer? = nil
+    /// Tennis: games per set, tiebreaks, serve. `homeScore`/`awayScore` carry sets won.
+    var tennis: LiveActivityTennis? = nil
 
     /// Deterministic content hash, safe to share across processes. Swift's
     /// `Hashable.hashValue` uses a per-process random seed and cannot be used

@@ -43,6 +43,8 @@ public struct ScoreboardExtras: Codable, Equatable, Hashable, Sendable {
     /// as text, away first, for app versions that predate these.
     public var homeAggregate: Int?
     public var awayAggregate: Int?
+    /// Tennis: per-set tiebreaks and winners, who's serving, the court. See ``TennisMatchExtras``.
+    public var tennis: TennisMatchExtras?
 
     public init(homeWinner: Bool? = nil, awayWinner: Bool? = nil,
                 homeShootoutScore: Int? = nil, awayShootoutScore: Int? = nil,
@@ -50,7 +52,7 @@ public struct ScoreboardExtras: Codable, Equatable, Hashable, Sendable {
                 homeProbable: ProbablePitcher? = nil, awayProbable: ProbablePitcher? = nil,
                 soccerDetails: [MatchIncident]? = nil, broadcasts: [String]? = nil,
                 featuredPitchers: [FeaturedPitcher]? = nil, doubleheaderGame: Int? = nil,
-                homeAggregate: Int? = nil, awayAggregate: Int? = nil) {
+                homeAggregate: Int? = nil, awayAggregate: Int? = nil, tennis: TennisMatchExtras? = nil) {
         self.homeWinner = homeWinner
         self.awayWinner = awayWinner
         self.homeShootoutScore = homeShootoutScore
@@ -67,6 +69,7 @@ public struct ScoreboardExtras: Codable, Equatable, Hashable, Sendable {
         self.doubleheaderGame = doubleheaderGame
         self.homeAggregate = homeAggregate
         self.awayAggregate = awayAggregate
+        self.tennis = tennis
     }
 
     /// Nothing to carry.
@@ -314,6 +317,7 @@ public extension Game {
     var featuredPitchers: [FeaturedPitcher]? { scoreboardExtras?.featuredPitchers }
     /// 1 or 2 for a baseball doubleheader; nil for a single game.
     var doubleheaderGame: Int? { scoreboardExtras?.doubleheaderGame }
+    var tennisExtras: TennisMatchExtras? { scoreboardExtras?.tennis }
 
     /// A rank or bracket seed after a merge. For college (where ESPN's curated rank is
     /// the only source) a fresh copy is final even when it's nil — a team that falls out

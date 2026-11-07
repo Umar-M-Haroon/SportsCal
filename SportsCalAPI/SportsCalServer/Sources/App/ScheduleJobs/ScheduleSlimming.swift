@@ -58,14 +58,20 @@ enum ScheduleSlimming {
     static func slimmedGolf(_ game: Game) -> Game {
         guard ScheduleCalendarVersion.state(of: game) == .final,
               let entries = game.leaderboardEntries,
-              entries.count > finishedGolfRows || entries.contains(where: { $0.roundDetails != nil }) else {
+              entries.count > finishedGolfRows
+                || entries.contains(where: { $0.roundDetails?.contains(where: { $0.holeScores != nil }) ?? false }) else {
             return game
         }
+        // The top five keep their per-round stats (birdies, bogeys, FIR/GIR, putts: a few
+        // numbers a round); only the hole-by-hole scorecards go.
         let top = entries.prefix(finishedGolfRows).map { entry in
-            LeaderboardEntry(name: entry.name, score: entry.score, position: entry.position, headshot: entry.headshot,
-                             thruHole: entry.thruHole, rounds: entry.rounds, constructor: entry.constructor, gap: entry.gap,
-                             isCut: entry.isCut, movement: entry.movement, flagURL: entry.flagURL, flagAlt: entry.flagAlt,
-                             teeTime: entry.teeTime, roundDetails: nil, stockCar: entry.stockCar)
+            var slim = entry
+            slim.roundDetails = entry.roundDetails?.map { detail in
+                var round = detail
+                round.holeScores = nil
+                return round
+            }
+            return slim
         }
         var slim = game
         slim.leaderboardEntries = Array(top)

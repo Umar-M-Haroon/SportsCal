@@ -1929,7 +1929,11 @@ public class GameViewModel: NSObject {
                // the scheduled one), so an unchanged game isn't rebuilt every tick.
                scheduled.homeLinescores == (live.homeLinescores ?? scheduled.homeLinescores) &&
                scheduled.awayLinescores == (live.awayLinescores ?? scheduled.awayLinescores) &&
-               scheduled.situation == live.situation { continue }
+               scheduled.situation == live.situation &&
+               // Tennis serve / tiebreak points, and a golf board below an unchanged
+               // leader, move nothing above either.
+               scheduled.scoreboardExtras == (live.scoreboardExtras ?? scheduled.scoreboardExtras) &&
+               scheduled.leaderboardEntries == (live.leaderboardEntries ?? scheduled.leaderboardEntries) { continue }
 
             games[i] = Game(
                 idLiveScore: scheduled.idLiveScore, idEvent: scheduled.idEvent,
@@ -1956,6 +1960,9 @@ public class GameViewModel: NSObject {
                 sessions: live.sessions?.carryingEnrichment(from: scheduled.sessions) ?? scheduled.sessions,
                 venueName: live.venueName ?? scheduled.venueName,
                 circuitInfo: live.circuitInfo ?? scheduled.circuitInfo,
+                // Par and hole pars come with the live board; purse / cut only with
+                // the schedule's enrichment.
+                golfCourseInfo: live.golfCourseInfo?.withContext(from: scheduled.golfCourseInfo) ?? scheduled.golfCourseInfo,
                 // College ranks come only from ESPN: a team that drops out of the
                 // Top 25 must lose its number, not keep the schedule's stale one.
                 homeSeed: Game.mergedSeed(fresh: live.homeSeed, stale: scheduled.homeSeed, idLeague: scheduled.idLeague),
@@ -3221,8 +3228,12 @@ public class GameViewModel: NSObject {
             filteredGames = filteredGames?
                 .filter({ game in
                     if game.isIndividualSport {
+                        // Anyone in the field, not just the leader in strAwayTeam; tennis
+                        // and golf also match the tournament name.
                         return game.strHomeTeam.localizedCaseInsensitiveContains(searchString) ||
-                            game.strAwayTeam.localizedCaseInsensitiveContains(searchString)
+                            game.strAwayTeam.localizedCaseInsensitiveContains(searchString) ||
+                            (game.tournamentName ?? "").localizedCaseInsensitiveContains(searchString) ||
+                            (game.leaderboardEntries ?? []).contains { $0.name.localizedCaseInsensitiveContains(searchString) }
                     }
                     guard let (homeTeam, awayTeam) = getTeams(for: game) else { return false }
                     return (homeTeam.strTeamShort ?? "").localizedCaseInsensitiveContains(searchString) ||
@@ -3317,11 +3328,17 @@ extension GameViewModel {
         // team names like "Philadelphia Flyers" are unique and disambiguate cleanly.
         guard let homeTeamName = homeTeam.strTeam ?? homeTeam.strTeamShort,
               let rawAwayTeamName = awayTeam.strTeam ?? awayTeam.strTeamShort else { throw ModelErrors.unknownTeam(game) }
-        // Races: the "away team" is the leader when you tap Follow; label the activity
-        // with the series ("Formula 1") instead of freezing that driver into its attributes.
-        let awayTeamName = game.isRace ? LiveSportActivityAttributes.raceSubtitle(for: game) : rawAwayTeamName
-        let homeShort = game.isRace ? LiveActivityRace.seriesCode(for: game) : homeTeam.strTeamShort
-        let awayShort = game.isRace ? nil : awayTeam.strTeamShort
+        // Races and golf: the "away team" is the leader when you tap Follow; label the
+        // activity with the series ("Formula 1") instead of freezing that driver into its
+        // attributes. Golf follows a favourite player in the field by name instead, so the
+        // activity (and the server's pushes, which read it back) carries their line.
+        let favoriteGolfer = game.golfTour == nil ? nil : (game.leaderboardEntries ?? [])
+            .first { favorites.containsPlayer($0.name) }?.name
+        let awayTeamName = game.usesLeaderboardActivity
+            ? (favoriteGolfer ?? LiveSportActivityAttributes.raceSubtitle(for: game)) : rawAwayTeamName
+        let homeShort = game.usesLeaderboardActivity
+            ? (game.golfTour != nil ? "GOLF" : LiveActivityRace.seriesCode(for: game)) : homeTeam.strTeamShort
+        let awayShort = game.usesLeaderboardActivity ? nil : awayTeam.strTeamShort
 
         // Download and cache badge images independently (don't require both to succeed)
         if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") {
@@ -3334,7 +3351,7 @@ extension GameViewModel {
             }
         }
 
-        let initialContentState = LiveSportActivityAttributes.ContentState.make(for: game, standings: f1Standings)
+        let initialContentState = LiveSportActivityAttributes.ContentState.make(for: game, standings: f1Standings, following: awayTeamName)
         let activityAttributes = LiveSportActivityAttributes(
             homeTeam: homeTeamName,
             awayTeam: awayTeamName,

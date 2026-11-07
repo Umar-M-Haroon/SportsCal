@@ -50,6 +50,7 @@ struct FavoriteGamesView: View {
                                 .environment(favorites)
                         } label: {
                             TennisMatchScoreView(game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: false)
+                                .environment(\.tennisRowShowsTournament, true)
                                 .environment(viewModel)
                                 .environment(favorites)
                         }

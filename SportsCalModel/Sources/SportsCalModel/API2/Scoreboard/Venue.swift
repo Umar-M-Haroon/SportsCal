@@ -12,6 +12,8 @@ public struct Venue: Codable {
     public var address: Address?
     public var capacity: Int?
     public var indoor: Bool?
+    /// Tennis: the court ("Court Central"). Empty until the order of play is set.
+    public var court: String?
 
     public init(id: String? = nil, fullName: String? = nil, address: Address? = nil, capacity: Int? = nil, indoor: Bool? = nil) {
         self.id = id

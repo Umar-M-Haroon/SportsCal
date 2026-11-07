@@ -814,6 +814,53 @@ class ESPNNetworking {
         }
     }
 
+    // MARK: - Golf Leaderboard (tournament context)
+
+    /// ESPN's web leaderboard for one golf event: purse, defending champion, rounds,
+    /// the (projected) cut, and the host course's par and yardage by hole. The site
+    /// `summary` endpoint answers 404 "Summary not supported for sport 'golf'".
+    static func getGolfLeaderboard(req: some Client, eventId: String, tour: Leagues = .pga) async throws -> GolfLeaderboardResponse {
+        let slug = tour.isGolf ? (tour.espnSlug ?? "pga") : "pga"
+        let uri = URI(string: "https://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard?league=\(slug)&event=\(eventId)")
+        return try await performGet(req, uri).content.decode(GolfLeaderboardResponse.self)
+    }
+
+    struct GolfLeaderboardResponse: Codable {
+        var events: [GolfLeaderboardEvent]?
+    }
+
+    struct GolfLeaderboardEvent: Codable {
+        var id: String?
+        var displayPurse: String?
+        var tournament: GolfLeaderboardTournament?
+        var defendingChampion: GolfLeaderboardChampion?
+        var courses: [GolfLeaderboardCourse]?
+    }
+
+    struct GolfLeaderboardTournament: Codable {
+        var numberOfRounds: Int?
+        var cutRound: Int?
+        var cutScore: Int?
+        var cutCount: Int?
+    }
+
+    struct GolfLeaderboardChampion: Codable {
+        struct Athlete: Codable { var displayName: String? }
+        var athlete: Athlete?
+    }
+
+    struct GolfLeaderboardCourse: Codable {
+        struct Hole: Codable {
+            var number: Int
+            var shotsToPar: Int?
+        }
+        var name: String?
+        var shotsToPar: Int?
+        var totalYards: Int?
+        var host: Bool?
+        var holes: [Hole]?
+    }
+
     // MARK: - Golf Summary Response Models
 
     struct GolfSummaryResponse: Codable {

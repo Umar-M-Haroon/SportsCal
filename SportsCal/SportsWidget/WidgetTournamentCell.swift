@@ -24,6 +24,9 @@ struct WidgetTournamentCell: View {
                 .frame(width: compact ? 12 : 14)
                 .padding(.top, 2)
 
+            if game.isTennisMatch {
+                tennisMatch
+            } else {
             VStack(alignment: .leading, spacing: 2) {
                 // Event name
                 Text(game.strHomeTeam)
@@ -32,13 +35,15 @@ struct WidgetTournamentCell: View {
                     .foregroundStyle(WidgetTokens.ink)
 
                 // Top 3 leaderboard
-                let entries = game.resolvedLeaderboard.prefix(3)
+                let board = game.resolvedLeaderboard
+                let entries = board.prefix(3)
+                let positions = sportType == .golf ? board.golfPositionLabels() : []
                 if entries.isEmpty {
                     statusView
                 } else {
                     ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
                         HStack(spacing: 2) {
-                            Text("\(index + 1).")
+                            Text(index < positions.count ? positions[index] : "\(index + 1).")
                                 .font(.system(size: compact ? 8 : 9, design: .monospaced).weight(.bold))
                                 .foregroundStyle(accent)
                             Text(entry.name)
@@ -57,6 +62,7 @@ struct WidgetTournamentCell: View {
                     statusView
                 }
             }
+            }
         }
         .padding(compact ? 4 : 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -68,6 +74,41 @@ struct WidgetTournamentCell: View {
                 .frame(width: 2)
                 .clipShape(RoundedRectangle(cornerRadius: compact ? WidgetTokens.radiusSM : WidgetTokens.radiusMD, style: .continuous))
                 .allowsHitTesting(false)
+        }
+    }
+
+    /// A followed player's match: both players, the sets, who's serving.
+    private var tennisMatch: some View {
+        let sets = game.tennisSets
+        let winner = game.tennisMatchWinner
+        return VStack(alignment: .leading, spacing: 2) {
+            if let tournament = game.tournamentName {
+                Text([tournament, game.shortRoundLabel].compactMap { $0 }.joined(separator: " · "))
+                    .font(.system(size: compact ? 8 : 9, design: .rounded).weight(.semibold))
+                    .foregroundStyle(WidgetTokens.inkSoft)
+                    .lineLimit(1)
+            }
+            tennisSide(.home, name: game.strHomeTeam, sets: sets, isWinner: winner == .home)
+            tennisSide(.away, name: game.strAwayTeam, sets: sets, isWinner: winner == .away)
+            statusView
+        }
+    }
+
+    private func tennisSide(_ side: GameSituation.Side, name: String, sets: [TennisSet], isWinner: Bool) -> some View {
+        HStack(spacing: 2) {
+            if game.tennisServer == side {
+                Circle().fill(WidgetTokens.live).frame(width: 4, height: 4)
+            }
+            Text(name)
+                .font(.system(size: compact ? 8 : 9, design: .rounded).weight(isWinner ? .bold : .regular))
+                .foregroundStyle(WidgetTokens.ink)
+                .lineLimit(1)
+            Spacer(minLength: 2)
+            ForEach(Array(sets.enumerated()), id: \.offset) { _, set in
+                Text(set.text(for: side))
+                    .font(.system(size: compact ? 8 : 9, design: .monospaced).weight(set.winner == side ? .bold : .regular))
+                    .foregroundStyle(set.winner == nil || set.winner == side ? WidgetTokens.ink : WidgetTokens.inkSoft)
+            }
         }
     }
 

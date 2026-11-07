@@ -27,6 +27,8 @@ public struct Competition: Codable {
     public var round: CompetitionRound?
     /// Goals, cards and shootout kicks (soccer), in match order.
     public var details: [ESPNCompetitionDetail]?
+    /// Tennis: play was suspended at some point (rain, darkness).
+    public var wasSuspended: Bool?
 
     public init(id: String, uid: String, date: String, attendance: Int? = nil, type: CompetitionType? = nil, timeValid: Bool? = nil, neutralSite: Bool? = nil, conferenceCompetition: Bool? = nil, recent: Bool? = nil, venue: Venue? = nil, competitors: [Competitor]? = nil, situation: Situation? = nil, status: Status? = nil, broadcasts: [Broadcast]? = nil, format: Format? = nil, startDate: String? = nil, geoBroadcasts: [GeoBroadcast]? = nil, tickets: [Ticket]? = nil, leg: CompetitionLeg? = nil, series: CompetitionSeries? = nil, notes: [CompetitionNote]? = nil, round: CompetitionRound? = nil) {
         self.id = id

@@ -19,6 +19,8 @@ struct TennisMatchDetailView: View {
     @Environment(Favorites.self) private var favorites
     @State private var shouldShowSportsCalProAlert = false
     @State private var sheetType: SheetType?
+    @ScaledMetric(relativeTo: .caption) private var setColumnWidth: CGFloat = 36
+    @ScaledMetric(relativeTo: .caption) private var nameColumnWidth: CGFloat = 110
 
     private var league: Leagues? {
         guard let id = game.idLeague, let intID = Int(id) else { return nil }
@@ -34,14 +36,11 @@ struct TennisMatchDetailView: View {
         game.strStatus == "in"
     }
 
-    private var homeWinsSets: Int {
-        guard let hLs = game.homeLinescores, let aLs = game.awayLinescores else { return 0 }
-        return zip(hLs, aLs).filter { $0.0 > $0.1 }.count
-    }
+    /// Finished sets only — the set in play isn't anyone's yet.
+    private var setsWon: (home: Int, away: Int) { game.tennisSetsWon }
 
-    private var awayWinsSets: Int {
-        guard let hLs = game.homeLinescores, let aLs = game.awayLinescores else { return 0 }
-        return zip(hLs, aLs).filter { $0.1 > $0.0 }.count
+    private var emphasizedSide: GameSituation.Side? {
+        TennisMatchPresentation.emphasizedSide(game)
     }
 
     // MARK: - Body
@@ -56,7 +55,7 @@ struct TennisMatchDetailView: View {
             }
             .padding()
         }
-        .navigationTitle(league?.leagueName ?? "Match Details")
+        .navigationTitle(game.tournamentName ?? league?.leagueName ?? "Match Details")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -85,6 +84,11 @@ struct TennisMatchDetailView: View {
                         .font(.title2)
                         .foregroundColor(sport.color)
                 }
+                if let round = game.round {
+                    Text(round)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 if isLive {
                     Text("LIVE")
@@ -100,46 +104,34 @@ struct TennisMatchDetailView: View {
 
             // Player names and sets-won score
             HStack(alignment: .center) {
-                VStack(spacing: 4) {
-                    Text(game.strHomeTeam)
-                        .font(.title3)
-                        .fontWeight(homeWinsSets >= awayWinsSets ? .bold : .regular)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
+                playerHeader(side: .home, name: game.strHomeTeam, seed: game.tennisHomeSeed)
 
                 VStack(spacing: 4) {
                     HStack(spacing: 12) {
-                        Text("\(homeWinsSets)")
-                            .font(.system(size: 32, weight: homeWinsSets > awayWinsSets ? .heavy : .regular))
-                            .foregroundColor(homeWinsSets > awayWinsSets ? .primary : .secondary)
+                        Text("\(setsWon.home)")
+                            .font(.largeTitle.weight(emphasizedSide == .home ? .heavy : .regular))
+                            .foregroundColor(emphasizedSide == .away ? .secondary : .primary)
                         Text("-")
-                            .font(.system(size: 24, weight: .light))
+                            .font(.title.weight(.light))
                             .foregroundColor(.secondary)
-                        Text("\(awayWinsSets)")
-                            .font(.system(size: 32, weight: awayWinsSets > homeWinsSets ? .heavy : .regular))
-                            .foregroundColor(awayWinsSets > homeWinsSets ? .primary : .secondary)
+                        Text("\(setsWon.away)")
+                            .font(.largeTitle.weight(emphasizedSide == .away ? .heavy : .regular))
+                            .foregroundColor(emphasizedSide == .home ? .secondary : .primary)
                     }
-                    if let statusText = game.displayStatus {
+                    .monospacedDigit()
+                    // The status once, under the score.
+                    if let stoppage = game.tennisStoppageText {
+                        TennisStoppageBadge(text: stoppage)
+                    } else if let statusText = game.displayStatus {
                         Text(statusText)
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(TennisMatchPresentation.spokenScore(game).joined(separator: ", "))
 
-                VStack(spacing: 4) {
-                    Text(game.strAwayTeam)
-                        .font(.title3)
-                        .fontWeight(awayWinsSets >= homeWinsSets ? .bold : .regular)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-            }
-
-            if let progress = game.displayStatus {
-                Text(progress)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                playerHeader(side: .away, name: game.strAwayTeam, seed: game.tennisAwaySeed)
             }
         }
         .padding()
@@ -147,26 +139,88 @@ struct TennisMatchDetailView: View {
         .cornerRadius(12)
     }
 
+    private func playerHeader(side: GameSituation.Side, name: String, seed: Int?) -> some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 4) {
+                if game.tennisServer == side {
+                    TennisServeDot()
+                }
+                Text(name)
+                    .font(.title3)
+                    .fontWeight(emphasizedSide == side ? .bold : .regular)
+                    .multilineTextAlignment(.center)
+            }
+            if let seed {
+                Text("Seed \(seed)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if game.tennisMatchWinner == side, let marker = game.tennisResultMarker {
+                Text(marker)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+
     // MARK: - Game Info
     private var gameInfo: some View {
-        HStack(spacing: 12) {
-            if let sport = sportType {
-                Image(systemName: sport.systemImage)
-                    .foregroundColor(sport.color)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                if let sport = sportType {
+                    Image(systemName: sport.systemImage)
+                        .foregroundColor(sport.color)
+                }
+                if let tournament = game.tournamentName {
+                    hubLink(tournament: tournament)
+                } else if let leagueName = league?.leagueName {
+                    Text(leagueName)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                if let date = game.standardDate {
+                    GameTimeLabel(date: date, includeDate: true)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
-            if let leagueName = league?.leagueName {
-                Text(leagueName)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-            if let date = game.standardDate {
-                GameTimeLabel(date: date, includeDate: true)
+            if let court = game.tennisCourt {
+                Label(court, systemImage: "mappin.and.ellipse")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 4)
+    }
+
+    /// The tournament, linking to its hub (draw by day and round).
+    private func hubLink(tournament: String) -> some View {
+        NavigationLink {
+            TournamentHubView(
+                tournamentName: tournament,
+                games: hubGames(tournament: tournament),
+                shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
+                sheetType: $sheetType
+            )
+            .environment(viewModel)
+            .environment(favorites)
+        } label: {
+            HStack(spacing: 4) {
+                Text(tournament)
+                    .font(.subheadline.weight(.medium))
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+            }
+        }
+        .accessibilityHint("Opens the tournament")
+    }
+
+    private func hubGames(tournament: String) -> [Game] {
+        (viewModel.gamesDict[.tennis] ?? viewModel.totalGames ?? [])
+            .filter { $0.isTennisMatch && $0.tournamentName == tournament }
     }
 
     // MARK: - Actions Row
@@ -227,11 +281,8 @@ struct TennisMatchDetailView: View {
     // MARK: - Set Scores
     @ViewBuilder
     private var setScoresSection: some View {
-        if let homeLs = game.homeLinescores, let awayLs = game.awayLinescores,
-           !homeLs.isEmpty, !awayLs.isEmpty {
-            let setCount = max(homeLs.count, awayLs.count)
-            let labels = (1...setCount).map { "S\($0)" }
-
+        let sets = game.tennisSets
+        if !sets.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Set Scores")
                     .font(.headline)
@@ -240,58 +291,22 @@ struct TennisMatchDetailView: View {
                     // Header row
                     HStack(spacing: 0) {
                         Text("")
-                            .frame(width: 100, alignment: .leading)
-                        ForEach(Array(labels.enumerated()), id: \.offset) { _, label in
-                            Text(label)
-                                .frame(width: 36, alignment: .center)
+                            .frame(width: nameColumnWidth, alignment: .leading)
+                        ForEach(1...sets.count, id: \.self) { index in
+                            Text("S\(index)")
+                                .frame(width: setColumnWidth, alignment: .center)
                         }
                         Text("Sets")
-                            .frame(width: 40, alignment: .center)
+                            .frame(width: setColumnWidth + 4, alignment: .center)
                     }
                     .font(.caption2)
                     .foregroundColor(.secondary)
+                    .accessibilityHidden(true)
 
                     Divider()
 
-                    // Home player row
-                    HStack(spacing: 0) {
-                        Text(abbreviatedName(game.strHomeTeam))
-                            .frame(width: 100, alignment: .leading)
-                            .lineLimit(1)
-                        ForEach(0..<setCount, id: \.self) { i in
-                            let score = i < homeLs.count ? homeLs[i] : nil
-                            let opScore = i < awayLs.count ? awayLs[i] : nil
-                            let wonSet = score != nil && opScore != nil && score! > opScore!
-                            Text(score.map { formatScore($0) } ?? "-")
-                                .fontWeight(wonSet ? .bold : .regular)
-                                .foregroundColor(wonSet ? .primary : .secondary)
-                                .frame(width: 36, alignment: .center)
-                        }
-                        Text("\(homeWinsSets)")
-                            .fontWeight(homeWinsSets > awayWinsSets ? .bold : .regular)
-                            .frame(width: 40, alignment: .center)
-                    }
-                    .font(.caption)
-
-                    // Away player row
-                    HStack(spacing: 0) {
-                        Text(abbreviatedName(game.strAwayTeam))
-                            .frame(width: 100, alignment: .leading)
-                            .lineLimit(1)
-                        ForEach(0..<setCount, id: \.self) { i in
-                            let score = i < awayLs.count ? awayLs[i] : nil
-                            let opScore = i < homeLs.count ? homeLs[i] : nil
-                            let wonSet = score != nil && opScore != nil && score! > opScore!
-                            Text(score.map { formatScore($0) } ?? "-")
-                                .fontWeight(wonSet ? .bold : .regular)
-                                .foregroundColor(wonSet ? .primary : .secondary)
-                                .frame(width: 36, alignment: .center)
-                        }
-                        Text("\(awayWinsSets)")
-                            .fontWeight(awayWinsSets > homeWinsSets ? .bold : .regular)
-                            .frame(width: 40, alignment: .center)
-                    }
-                    .font(.caption)
+                    setRow(side: .home, name: game.strHomeTeam, sets: sets, won: setsWon.home)
+                    setRow(side: .away, name: game.strAwayTeam, sets: sets, won: setsWon.away)
                 }
                 .padding(.horizontal, 4)
             }
@@ -301,20 +316,43 @@ struct TennisMatchDetailView: View {
         }
     }
 
-    // MARK: - Head-to-Head
-    private var headToHeadSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Head-to-Head")
-                .font(.headline)
+    private func setRow(side: GameSituation.Side, name: String, sets: [TennisSet], won: Int) -> some View {
+        HStack(spacing: 0) {
+            HStack(spacing: 4) {
+                Text(abbreviatedName(name))
+                    .lineLimit(1)
+                if game.tennisServer == side {
+                    TennisServeDot()
+                }
+            }
+            .frame(width: nameColumnWidth, alignment: .leading)
+            ForEach(Array(sets.enumerated()), id: \.offset) { _, set in
+                let wonSet = set.winner == side
+                Text(set.text(for: side))
+                    .fontWeight(wonSet ? .bold : .regular)
+                    .foregroundColor(wonSet || !set.isComplete ? .primary : .secondary)
+                    .frame(width: setColumnWidth, alignment: .center)
+            }
+            Text("\(won)")
+                .fontWeight(emphasizedSide == side ? .bold : .regular)
+                .frame(width: setColumnWidth + 4, alignment: .center)
+        }
+        .font(.caption.monospacedDigit())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name), \(won) \(won == 1 ? "set" : "sets"), \(sets.map { $0.text(for: side) }.joined(separator: ", "))")
+    }
 
-            let matchups = previousMatchups
-            if matchups.isEmpty {
-                Text("No previous matchups found")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 8)
-            } else {
+    // MARK: - Head-to-Head
+    /// Earlier meetings in the schedule the app holds (about a month of results). Hidden
+    /// when there are none, rather than claiming they've never met.
+    @ViewBuilder
+    private var headToHeadSection: some View {
+        let matchups = previousMatchups
+        if !matchups.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Recent Meetings")
+                    .font(.headline)
+
                 let record = computeRecord(matchups: matchups)
                 HStack {
                     Text(abbreviatedName(game.strHomeTeam))
@@ -329,52 +367,73 @@ struct TennisMatchDetailView: View {
                 }
                 .font(.subheadline)
                 .padding(.horizontal, 4)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(game.strHomeTeam) \(record.homeWins), \(game.strAwayTeam) \(record.awayWins)")
 
                 ForEach(matchups.prefix(10), id: \.id) { m in
-                    HStack {
-                        if let date = m.standardDate {
-                            Text(date.formatted(.dateTime.month(.abbreviated).day().year()))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .frame(width: 100, alignment: .leading)
-                        }
-                        Spacer()
-                        Text(abbreviatedName(m.strHomeTeam))
-                            .font(.caption)
-                            .lineLimit(1)
-                        Text("\(m.intHomeScore ?? "-")")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .frame(width: 24)
-                        Text("-")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("\(m.intAwayScore ?? "-")")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .frame(width: 24)
-                        Text(abbreviatedName(m.strAwayTeam))
-                            .font(.caption)
-                            .lineLimit(1)
-                        Spacer()
-                    }
+                    meetingRow(m)
                 }
             }
+            .padding()
+            .background(Color.secondaryGroupedBackground)
+            .cornerRadius(12)
         }
-        .padding()
-        .background(Color.secondaryGroupedBackground)
-        .cornerRadius(12)
+    }
+
+    private func meetingRow(_ m: Game) -> some View {
+        let sets = m.tennisSets
+        let won = m.tennisSetsWon
+        let winner = m.tennisMatchWinner
+        return HStack {
+            VStack(alignment: .leading, spacing: 1) {
+                if let date = m.standardDate {
+                    Text(date.formatted(.dateTime.month(.abbreviated).day().year()))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                if let tournament = m.tournamentName {
+                    Text([tournament, m.shortRoundLabel].compactMap { $0 }.joined(separator: " · "))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(width: 120, alignment: .leading)
+            Spacer()
+            Text(abbreviatedName(m.strHomeTeam))
+                .font(.caption)
+                .fontWeight(winner == .home ? .semibold : .regular)
+                .lineLimit(1)
+            Text("\(won.home)-\(won.away)")
+                .font(.caption.monospacedDigit())
+                .fontWeight(.semibold)
+            Text(abbreviatedName(m.strAwayTeam))
+                .font(.caption)
+                .fontWeight(winner == .away ? .semibold : .regular)
+                .lineLimit(1)
+            Spacer()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(meetingLabel(m, sets: sets))
+    }
+
+    private func meetingLabel(_ m: Game, sets: [TennisSet]) -> String {
+        let winnerName = m.tennisMatchWinner.map { $0 == .home ? m.strHomeTeam : m.strAwayTeam }
+        let date = m.standardDate?.formatted(date: .abbreviated, time: .omitted) ?? ""
+        return [date, m.tournamentName, winnerName.map { "\($0) won" }, sets.map(\.spokenText).joined(separator: ", ")]
+            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
     // MARK: - Helpers
 
+    /// Finished meetings between the two, newest first. Tennis has no `intHomeScore`,
+    /// so a result is read from its sets (or ESPN's winner, for a retirement).
     private var previousMatchups: [Game] {
         guard let allGames = viewModel.totalGames else { return [] }
         let home = game.strHomeTeam
         let away = game.strAwayTeam
         return allGames.filter { g in
-            g.id != game.id &&
-            g.intHomeScore != nil && g.intAwayScore != nil &&
+            g.id != game.id && g.isTennisMatch && g.isTennisMatchOver && g.tennisMatchWinner != nil &&
             ((g.strHomeTeam == home && g.strAwayTeam == away) ||
              (g.strHomeTeam == away && g.strAwayTeam == home))
         }
@@ -387,31 +446,30 @@ struct TennisMatchDetailView: View {
         var homeWins = 0, awayWins = 0
         let home = game.strHomeTeam
         for m in matchups {
-            guard let hs = Int(m.intHomeScore ?? ""), let as_ = Int(m.intAwayScore ?? "") else { continue }
-            if (m.strHomeTeam == home && hs > as_) || (m.strAwayTeam == home && as_ > hs) {
-                homeWins += 1
-            } else if hs != as_ {
-                awayWins += 1
-            }
+            guard let winner = m.tennisMatchWinner else { continue }
+            let winnerName = winner == .home ? m.strHomeTeam : m.strAwayTeam
+            if winnerName == home { homeWins += 1 } else { awayWins += 1 }
         }
         return Record(homeWins: homeWins, awayWins: awayWins)
     }
 
     private func abbreviatedName(_ fullName: String) -> String {
+        // Doubles pairs ("A. Name / B. Name") are already short.
+        guard !fullName.contains("/") else { return fullName }
         let parts = fullName.components(separatedBy: " ")
         guard parts.count >= 2, let first = parts.first?.first else { return fullName }
         return "\(first). \(parts.dropFirst().joined(separator: " "))"
-    }
-
-    private func formatScore(_ value: Double) -> String {
-        value.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(value))" : "\(value)"
     }
 
     #if os(iOS)
     private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         let event = EKEvent(eventStore: eventStore)
-        event.title = "\(game.strHomeTeam) vs \(game.strAwayTeam)"
+        let matchup = "\(game.strHomeTeam) vs \(game.strAwayTeam)"
+        // "Sinner vs Alcaraz · Wimbledon QF"
+        let context = [game.tournamentName, game.shortRoundLabel].compactMap { $0 }.joined(separator: " ")
+        event.title = context.isEmpty ? matchup : "\(matchup) · \(context)"
+        event.location = game.tennisCourt
         if let gameDate = game.standardDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 3)
