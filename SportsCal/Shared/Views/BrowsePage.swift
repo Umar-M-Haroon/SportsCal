@@ -163,15 +163,22 @@ struct BrowsePage: View {
         let eventGames = (viewModel.gamesDict[.golf] ?? []) + (viewModel.gamesDict[.tennis] ?? [])
         let teamGames = (viewModel.filteredGames ?? []).filter { $0.sportType != .golf && $0.sportType != .tennis }
         var laterTodayCounts: [SportType: Int] = [:]
+        // A race weekend files under race day (`summaryDate`), not FP1: the São Paulo
+        // weekend's practice ran Friday, so on Saturday the card skipped it and named
+        // Las Vegas, two weeks out, as the next race.
         for game in teamGames + eventGames {
-            guard let date = game.standardDate, date < endOfToday, let sport = game.sportType else { continue }
+            guard let date = game.isRace ? game.summaryDate : game.standardDate,
+                  date < endOfToday, let sport = game.sportType else { continue }
             if calendar.isDateInToday(date) { todayCounts[sport, default: 0] += 1 }
             guard date > now else { continue }
             laterTodayCounts[sport, default: 0] += 1
         }
         for game in teamGames + eventGames {
-            guard let date = game.standardDate, date >= endOfToday, let sport = game.sportType else { continue }
-            if let best = next[sport]?.standardDate, best <= date { continue }
+            guard let date = game.isRace ? game.summaryDate : game.standardDate,
+                  date >= endOfToday, let sport = game.sportType else { continue }
+            if let current = next[sport],
+               let best = current.isRace ? current.summaryDate : current.standardDate,
+               best <= date { continue }
             next[sport] = game
         }
         var result: [SportType: String] = [:]

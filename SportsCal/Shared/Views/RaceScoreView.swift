@@ -160,7 +160,7 @@ struct RaceScoreView: View {
                                         .lineLimit(1)
                                 }
                                 Spacer()
-                                Text(index == 0 ? (game.displayStatus == "Final" ? "Winner" : "Leader") : (entry.gap ?? entry.score))
+                                Text(index == 0 ? game.raceTopLabel : (entry.gap ?? entry.score))
                                     .font(.subheadline)
                                     .fontWeight(index == 0 ? .semibold : .regular)
                                     .foregroundColor(index == 0 ? .primary : .secondary)
@@ -191,8 +191,9 @@ struct RaceScoreView: View {
             if let sessions = game.sessions, !sessions.isEmpty {
                 SessionIndicatorStrip(
                     sessions: sessions,
-                    focusedSessionType: game.liveSessionEntry?.sessionType
-                        ?? game.nextUpcomingSession?.sessionType
+                    // Live, or next within the weekend under way — a future weekend's
+                    // FP1 used to get the same "current" pill as this weekend's.
+                    focusedSessionType: game.focusedRaceSession()?.sessionType
                 )
             }
 
@@ -233,20 +234,14 @@ struct SessionIndicatorStrip: View {
     @ScaledMetric(relativeTo: .caption2) private var checkmarkSize: CGFloat = 8
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(Array(sessions.enumerated()), id: \.offset) { _, session in
-                    pill(for: session)
-                }
+        // Wraps onto a second line rather than scrolling: inside a tappable list row the
+        // horizontal scroll didn't scroll, so the faded edge just cut pills off ("Race Ve…").
+        SessionPillFlow(spacing: 6) {
+            ForEach(Array(sessions.enumerated()), id: \.offset) { _, session in
+                pill(for: session)
             }
         }
-        // Fade the trailing edge so pills that run past the card read as scrollable, not cut off.
-        .mask {
-            LinearGradient(stops: [.init(color: .black, location: 0),
-                                   .init(color: .black, location: 0.9),
-                                   .init(color: .clear, location: 1)],
-                           startPoint: .leading, endPoint: .trailing)
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -273,6 +268,7 @@ struct SessionIndicatorStrip: View {
                     .lineLimit(1)
             }
         }
+        .fixedSize()
         .foregroundStyle(isDone && !isFocused ? Color.secondary : Color.primary)
         .padding(.horizontal, 7)
         .padding(.vertical, 3)
@@ -321,5 +317,43 @@ struct SessionIndicatorStrip: View {
         default:
             return nil
         }
+    }
+}
+
+/// Left-to-right rows that wrap, each pill at its natural width.
+private struct SessionPillFlow: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(width: proposal.width ?? .infinity, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrange(width: bounds.width, subviews: subviews)
+        for (index, point) in result.positions.enumerated() {
+            subviews[index].place(at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y),
+                                  proposal: .unspecified)
+        }
+    }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
+        var positions: [CGPoint] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var widest: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            positions.append(CGPoint(x: x, y: y))
+            rowHeight = max(rowHeight, size.height)
+            x += size.width + spacing
+            widest = max(widest, x - spacing)
+        }
+        return (CGSize(width: widest, height: y + rowHeight), positions)
     }
 }

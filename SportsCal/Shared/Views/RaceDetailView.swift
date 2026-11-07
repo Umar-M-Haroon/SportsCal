@@ -183,12 +183,15 @@ struct RaceDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            // Leader highlight
-            if let leader = game.resolvedLeaderboard.first {
+            // Leader highlight — the winner once the race is run. A finished weekend's
+            // top-level leaderboard can be whatever session ESPN sent last, so prefer the
+            // race session's own result.
+            if let leader = (game.isRaceFinished ? game.raceSession?.leaderboard.first : nil)
+                ?? game.resolvedLeaderboard.first {
                 HStack(spacing: 8) {
                     HeadshotView(url: leader.headshot, size: 32)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Leader")
+                        Text(game.raceTopLabel)
                             .font(.caption2)
                             .foregroundColor(.secondary)
                         HStack(spacing: 4) {
@@ -231,7 +234,8 @@ struct RaceDetailView: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             Spacer()
-            if let date = game.standardDate {
+            // The race's own start, not the weekend's (`standardDate` is FP1).
+            if let date = game.raceStartDate ?? game.standardDate {
                 GameTimeLabel(date: date, includeDate: true)
                     .font(.caption)
                     .foregroundColor(.secondary)
