@@ -1201,11 +1201,12 @@ struct GameDetailSections: View {
                         Spacer()
                     }
                     .padding(.vertical, 8)
-                } else if let children = model.standing?.standings.children, !children.isEmpty {
-                    ForEach(Array(children.enumerated()), id: \.offset) { _, child in
-                        if let entries = child.standings?.entries, !entries.isEmpty {
-                            standingsGroup(name: child.name, entries: entries)
-                        }
+                } else if let groups = model.standing?.groups, !groups.isEmpty {
+                    // Just the group(s) the two teams are in — every NCAA conference
+                    // is far too much under one game.
+                    let own = groups.filter { $0.entries.contains(where: isTeamInGame(entry:)) }
+                    ForEach(Array((own.isEmpty ? groups : own).enumerated()), id: \.offset) { _, group in
+                        standingsGroup(name: group.name, entries: group.entries)
                     }
                 } else {
                     VStack(spacing: 8) {
@@ -1237,8 +1238,8 @@ struct GameDetailSections: View {
     }
 
     private func standingsGroup(name: String?, entries: [Entry]) -> some View {
-        LeagueStandingsTable(name: name, entries: entries, isSoccer: league?.isSoccer == true,
-                           isHighlighted: isTeamInGame(entry:))
+        LeagueStandingsTable(name: name, entries: entries, league: league,
+                             isHighlighted: isTeamInGame(entry:))
     }
 
     private func isTeamInGame(entry: Entry) -> Bool {
@@ -1435,15 +1436,29 @@ struct GameDetailSections: View {
 
 // MARK: - Standings table
 
-/// One standings group (a conference, division or league table). Shared by the game
-/// detail and the team page; `isHighlighted` bolds the rows being looked at.
+/// One standings group (a conference, division or league table), ranked and with the
+/// columns its sport reads by (see `StandingsStyle`). Shared by the game detail, the
+/// team page and the league hub; `isHighlighted` bolds the rows being looked at.
 struct LeagueStandingsTable: View {
     let name: String?
     let entries: [Entry]
-    let isSoccer: Bool
+    let style: StandingsStyle
     var isHighlighted: (Entry) -> Bool = { _ in false }
 
+    @ScaledMetric(relativeTo: .caption) private var rankWidth: CGFloat = 24
+    @ScaledMetric(relativeTo: .caption) private var statWidth: CGFloat = 30
+    @ScaledMetric(relativeTo: .caption) private var wideStatWidth: CGFloat = 40
+
+    init(name: String?, entries: [Entry], league: Leagues?, isHighlighted: @escaping (Entry) -> Bool = { _ in false }) {
+        self.name = name
+        self.entries = entries
+        self.style = league.map(StandingsStyle.init(league:)) ?? .basketball
+        self.isHighlighted = isHighlighted
+    }
+
     var body: some View {
+        let rows = style.ranked(entries)
+        let columns = style.columns(for: entries)
         VStack(alignment: .leading, spacing: 6) {
             if let name {
                 Text(name)
@@ -1451,56 +1466,96 @@ struct LeagueStandingsTable: View {
                     .fontWeight(.semibold)
                     .foregroundColor(.secondary)
             }
-
-            HStack(spacing: 0) {
-                Text("#")
-                    .frame(width: 24, alignment: .leading)
-                Text("Team")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("W")
-                    .frame(width: 32, alignment: .center)
-                Text("L")
-                    .frame(width: 32, alignment: .center)
-                if isSoccer {
-                    Text("D")
-                        .frame(width: 32, alignment: .center)
-                    Text("Pts")
-                        .frame(width: 36, alignment: .center)
+            // The streak column only when the table still fits with it.
+            if let extra = style.optionalColumn, entries.contains(where: { $0.streak != nil }) {
+                ViewThatFits(in: .horizontal) {
+                    table(rows: rows, columns: columns + [extra])
+                    table(rows: rows, columns: columns)
                 }
-            }
-            .font(.caption2)
-            .foregroundColor(.secondary)
-
-            ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
-                let highlighted = isHighlighted(entry)
-                HStack(spacing: 0) {
-                    Text("\(index + 1)")
-                        .frame(width: 24, alignment: .leading)
-                    Text(entry.team?.shortDisplayName ?? entry.team?.displayName ?? "-")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .lineLimit(1)
-                    Text(Self.statValue(entry: entry, name: "wins"))
-                        .frame(width: 32, alignment: .center)
-                    Text(Self.statValue(entry: entry, name: "losses"))
-                        .frame(width: 32, alignment: .center)
-                    if isSoccer {
-                        Text(Self.statValue(entry: entry, name: "ties"))
-                            .frame(width: 32, alignment: .center)
-                        Text(Self.statValue(entry: entry, name: "points"))
-                            .frame(width: 36, alignment: .center)
-                    }
-                }
-                .font(.caption)
-                .fontWeight(highlighted ? .bold : .regular)
-                .foregroundColor(highlighted ? .primary : .secondary)
+            } else {
+                table(rows: rows, columns: columns)
             }
         }
         .padding(.vertical, 4)
     }
 
-    static func statValue(entry: Entry, name: String) -> String {
-        guard let stats = entry.stats,
-              let stat = stats.first(where: { $0.name == name }) else { return "-" }
-        return stat.displayValue ?? (stat.value.map { "\(Int($0))" } ?? "-")
+    private func table(rows: [RankedStandingsEntry], columns: [StandingsColumn]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 0) {
+                Text("#")
+                    .frame(width: rankWidth, alignment: .leading)
+                Text("Team")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                ForEach(columns, id: \.self) { column in
+                    Text(column.title)
+                        .frame(width: width(column), alignment: .center)
+                }
+            }
+            .font(.caption2)
+            .foregroundColor(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .accessibilityHidden(true)
+
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                standingsRow(row, columns: columns)
+            }
+        }
+    }
+
+    private func standingsRow(_ row: RankedStandingsEntry, columns: [StandingsColumn]) -> some View {
+        let entry = row.entry
+        let highlighted = isHighlighted(entry)
+        let teamName = entry.team?.shortDisplayName ?? entry.team?.displayName ?? "-"
+        return HStack(spacing: 0) {
+            Text("\(row.rank)")
+                .frame(width: rankWidth, alignment: .leading)
+            HStack(spacing: 2) {
+                Text(teamName)
+                    .lineLimit(1)
+                if let marker = entry.clinchMarker {
+                    Text(marker)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            ForEach(columns, id: \.self) { column in
+                Text(column.value(for: entry))
+                    .frame(width: width(column), alignment: .center)
+                    .fontWeight(column == .points ? .semibold : nil)
+            }
+        }
+        .font(.caption)
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .fontWeight(highlighted ? .bold : .regular)
+        .foregroundColor(highlighted ? .primary : .secondary)
+        .overlay(alignment: .leading) {
+            // Soccer qualification / relegation zone, from ESPN's note colour.
+            if style.isSoccer, let color = Color(hex: entry.note?.color) {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(color)
+                    .frame(width: 3)
+                    .offset(x: -6)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel(row, teamName: teamName, columns: columns))
+    }
+
+    private func width(_ column: StandingsColumn) -> CGFloat {
+        column.isWide ? wideStatWidth : statWidth
+    }
+
+    private func accessibilityLabel(_ row: RankedStandingsEntry, teamName: String, columns: [StandingsColumn]) -> String {
+        var parts = ["\(row.rank). \(teamName)"]
+        for column in columns {
+            let value = column.value(for: row.entry)
+            if value != "-" { parts.append("\(value) \(column.spokenName)") }
+        }
+        if let zone = row.entry.note?.description, style.isSoccer { parts.append(zone) }
+        return parts.joined(separator: ", ")
     }
 }

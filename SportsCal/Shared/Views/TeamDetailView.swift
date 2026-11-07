@@ -429,7 +429,7 @@ struct TeamDetailView: View {
                         LeagueStandingsTable(
                             name: group.name,
                             entries: group.entries,
-                            isSoccer: league.isSoccer,
+                            league: league,
                             isHighlighted: isThisTeam
                         )
                     }
@@ -467,10 +467,7 @@ struct TeamDetailView: View {
     }
 
     private var standingGroups: [(name: String?, entries: [Entry])]? {
-        standing?.standings.children?.compactMap { child in
-            guard let entries = child.standings?.entries, !entries.isEmpty else { return nil }
-            return (child.name, entries)
-        }
+        standing?.groups
     }
 
     /// Whether a standings row (ESPN naming) is this team (TheSportsDB naming).

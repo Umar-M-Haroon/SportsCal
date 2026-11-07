@@ -168,10 +168,7 @@ private struct TeamLeagueHub: View {
 
     @ViewBuilder
     private var standings: some View {
-        let groups = (standing?.standings.children ?? []).compactMap { child -> (name: String?, entries: [Entry])? in
-            guard let entries = child.standings?.entries, !entries.isEmpty else { return nil }
-            return (child.name, ranked(entries))
-        }
+        let groups = standing?.groups ?? []
         if !didLoadStandings {
             ProgressView()
                 .frame(maxWidth: .infinity)
@@ -181,28 +178,11 @@ private struct TeamLeagueHub: View {
                                    description: Text("\(league.leagueName) standings aren't available right now."))
         } else {
             ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
-                LeagueStandingsTable(name: group.name, entries: group.entries, isSoccer: false,
+                LeagueStandingsTable(name: group.name, entries: group.entries, league: league,
                                      isHighlighted: isFollowed)
                     .appCard()
             }
         }
-    }
-
-    /// Best first. ESPN's league-level order isn't by record (MLB lists division seeds and
-    /// then the rest), and the table numbers rows as given. Hockey ranks by points (overtime
-    /// losses count), everything else by win percentage; wins break ties.
-    private func ranked(_ entries: [Entry]) -> [Entry] {
-        func stat(_ entry: Entry, _ name: String) -> Double {
-            entry.stats?.first { $0.name == name }?.value ?? -1
-        }
-        let key = sport == .hockey ? "points" : "winPercent"
-        // ESPN's order breaks remaining ties, so a league missing both stats keeps it.
-        return entries.enumerated().sorted {
-            let a = stat($0.element, key), b = stat($1.element, key)
-            if a != b { return a > b }
-            let winsA = stat($0.element, "wins"), winsB = stat($1.element, "wins")
-            return winsA != winsB ? winsA > winsB : $0.offset < $1.offset
-        }.map(\.element)
     }
 
     /// Bolds the rows of teams the user follows.
