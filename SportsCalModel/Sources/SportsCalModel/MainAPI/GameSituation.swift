@@ -66,8 +66,35 @@ public struct GameSituation: Codable, Equatable, Hashable, Sendable {
     public var shortDownDistanceText: String?
     public var possession: Side?
     public var isRedZone: Bool?
+    /// Timeouts left. Football from ESPN's situation; basketball (NBA) counted from the
+    /// play-by-play, see `BasketballPlayTally`.
     public var homeTimeouts: Int?
     public var awayTimeouts: Int?
+
+    // MARK: Basketball (see GameSituation+HoopsHockey.swift)
+
+    /// Team fouls in the current period (half, in college), counted from the play-by-play.
+    /// Not in ESPN's scoreboard situation; stamped on by the server's play-by-play pass.
+    public var homeFouls: Int?
+    public var awayFouls: Int?
+    /// The side with the ball, inferred from the last play (a rebound, a basket, a
+    /// turnover). Nil when the last play doesn't say.
+    public var ballSide: Side?
+    /// The current unanswered scoring run: who's on it and how many points ("12-0").
+    public var runSide: Side?
+    public var runPoints: Int?
+
+    // MARK: Hockey (see GameSituation+HoopsHockey.swift)
+
+    /// Skaters on the ice for each side, goalies not counted, from the NHL's situation
+    /// code. Both set or both nil; set means the strength is known (5 and 5 is even).
+    public var homeSkaters: Int?
+    public var awaySkaters: Int?
+    /// Whether the side's goalie is pulled for an extra attacker (its net is empty).
+    public var homeGoaliePulled: Bool?
+    public var awayGoaliePulled: Bool?
+    /// Seconds left on the power play in progress.
+    public var powerPlayClock: Double?
 
     // MARK: Any sport
 
@@ -203,6 +230,9 @@ public extension GameSituation {
                 awayTimeouts = situation.awayTimeouts
             }
             lastPlaySide = side(situation.lastPlay?.team?.id)
+            if sport == .basketball, let lastPlaySide, let play = situation.lastPlay {
+                ballSide = Self.basketballBallSide(afterPlay: play.type.text, scoreValue: play.scoreValue, by: lastPlaySide)
+            }
             if let probability = situation.lastPlay?.probability,
                let home = probability.homeWinPercentage {
                 homeWinProbability = Self.rounded(home)
@@ -253,6 +283,10 @@ public struct LiveActivitySituation: Codable, Hashable, Sendable {
     public var redZone: Bool?
     /// Home win probability, 0...100.
     public var homeWinPct: Int?
+    /// Hockey: the side on the power play, and the side whose goalie is pulled. No clock:
+    /// it ticks every second, and every change here is a push.
+    public var powerPlay: GameSituation.Side?
+    public var emptyNet: GameSituation.Side?
 
     public init(outs: Int? = nil, bases: Int? = nil, downDistance: String? = nil,
                 possession: GameSituation.Side? = nil, redZone: Bool? = nil, homeWinPct: Int? = nil) {
@@ -278,7 +312,10 @@ public struct LiveActivitySituation: Codable, Hashable, Sendable {
             redZone = s.isRedZone == true ? true : nil
         }
         homeWinPct = s.homeWinProbability.map { Int(($0 * 100).rounded()) }
-        if outs == nil, bases == nil, downDistance == nil, possession == nil, homeWinPct == nil { return nil }
+        powerPlay = s.powerPlaySide
+        emptyNet = s.emptyNetSide
+        if outs == nil, bases == nil, downDistance == nil, possession == nil, homeWinPct == nil,
+           powerPlay == nil, emptyNet == nil { return nil }
     }
 
     public var onFirst: Bool { (bases ?? 0) & 1 != 0 }
@@ -326,6 +363,7 @@ public extension GameSituation {
         merged.lastPlaySide = fresh.lastPlaySide ?? lastPlaySide
         merged.homeWinProbability = fresh.homeWinProbability ?? homeWinProbability
         merged.tieProbability = fresh.tieProbability ?? tieProbability
+        merged.takeHoopsHockeyState(from: fresh)
         return merged
     }
 }

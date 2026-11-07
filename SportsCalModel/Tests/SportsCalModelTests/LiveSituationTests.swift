@@ -251,8 +251,45 @@ final class LiveSituationTests: XCTestCase {
 
     func testHockeyFinalMinutesOneGoal() {
         XCTAssertEqual(detect(.hockey, GameSituation(period: 3, clock: 100), home: 2, away: 3)?.kind, .finalMinutesOneGoal)
-        XCTAssertNil(detect(.hockey, GameSituation(period: 3, clock: 100), home: 2, away: 2))
         XCTAssertNil(detect(.hockey, GameSituation(period: 2, clock: 100), home: 2, away: 3))
+    }
+
+    func testHockeyLateTieOvertimeAndShootout() {
+        let lateTie = detect(.hockey, GameSituation(period: 3, clock: 280), home: 2, away: 2)
+        XCTAssertEqual(lateTie?.kind, .tiedLate)
+        XCTAssertEqual(lateTie?.title, "Tied late in the 3rd")
+        XCTAssertNil(detect(.hockey, GameSituation(period: 3, clock: 301), home: 2, away: 2))
+        XCTAssertNil(detect(.hockey, GameSituation(period: 2, clock: 100), home: 2, away: 2))
+
+        let ot = detect(.hockey, GameSituation(period: 4, clock: 300), home: 2, away: 2)
+        XCTAssertEqual(ot?.kind, .suddenDeathOvertime)
+        XCTAssertEqual(ot?.key, detect(.hockey, GameSituation(period: 4, clock: 120), home: 2, away: 2)?.key,
+                       "one alert per overtime period")
+
+        XCTAssertEqual(detect(.hockey, GameSituation(period: 5), home: 2, away: 2)?.kind, .shootout)
+        // Playoff overtimes run on: the 5th period is a second overtime, not a shootout.
+        XCTAssertEqual(ClutchMoment.detect(sport: .hockey, phase: .postseason, situation: GameSituation(period: 5, clock: 900),
+                                           previous: nil, homeScore: 1, awayScore: 1, homeName: "H", awayName: "A")?.kind,
+                       .suddenDeathOvertime)
+    }
+
+    func testHockeyGoaliePulledByTheTrailingSide() {
+        var s = GameSituation(period: 3, clock: 90)
+        s.applyNHLSituationCode("0651")
+        let pulled = detect(.hockey, s, home: 3, away: 2)
+        XCTAssertEqual(pulled?.kind, .goaliePulled)
+        XCTAssertEqual(pulled?.title, "Away pull the goalie")
+        XCTAssertEqual(detect(.hockey, s, home: 2, away: 3)?.kind, .finalMinutesOneGoal, "the leader's empty net isn't the moment")
+    }
+
+    func testBasketballRunMakesItAGame() {
+        var s = GameSituation(period: 4, clock: 400)
+        s.runSide = .away
+        s.runPoints = 12
+        XCTAssertEqual(detect(.basketball, s, home: 90, away: 86)?.title, "Away on a 12-0 run")
+        XCTAssertNil(detect(.basketball, s, home: 100, away: 86), "still down 14")
+        s.period = 2
+        XCTAssertNil(detect(.basketball, s, home: 90, away: 86))
     }
 
     func testLateFavoriteFlip() {

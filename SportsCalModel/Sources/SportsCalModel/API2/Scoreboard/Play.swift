@@ -66,6 +66,22 @@ public struct ESPNSummaryResponse: Codable {
     public let boxscore: ESPNSummaryBoxscore?
     /// Football groups its plays by drive and sends no top-level `plays`.
     public let drives: Drives?
+    /// The ESPN team ID of each top-level play, index for index. Read only to count team
+    /// fouls and timeouts (`BasketballPlayTally`); kept off `Play` so the cached and
+    /// served play-by-play doesn't grow by a team per play.
+    public var playTeamIDs: [String?]? = nil
+
+    private struct PlayTeamRef: Decodable {
+        let teamID: String?
+
+        enum CodingKeys: String, CodingKey { case team }
+        struct TeamID: Decodable { let id: String? }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            teamID = (try? c.decodeIfPresent(TeamID.self, forKey: .team))?.id
+        }
+    }
 
     public struct Drives: Codable {
         public var previous: [Drive]?
@@ -109,6 +125,7 @@ public struct ESPNSummaryResponse: Codable {
         winprobability = try? c.decodeIfPresent([ESPNWinProbabilityEntry].self, forKey: .winprobability)
         boxscore = try? c.decodeIfPresent(ESPNSummaryBoxscore.self, forKey: .boxscore)
         drives = try? c.decodeIfPresent(Drives.self, forKey: .drives)
+        playTeamIDs = (try? c.decodeIfPresent([PlayTeamRef].self, forKey: .plays))?.map(\.teamID)
     }
 }
 
@@ -140,6 +157,9 @@ public struct CachedPlays: Codable, Equatable {
     public var teamStats: TeamStatComparison?
     /// "Worth watching" score, 0...100, once the game is final. See `ExcitementIndex`.
     public var excitement: Int?
+    /// Basketball, while live: team fouls, timeouts and the current run, counted from
+    /// the plays when they were fetched. The live job stamps it onto the game's situation.
+    public var basketballTally: BasketballPlayTally?
 
     public init(
         eventID: String, lastPlayId: String, plays: [Play], isFinal: Bool, fetchedAt: Date,
