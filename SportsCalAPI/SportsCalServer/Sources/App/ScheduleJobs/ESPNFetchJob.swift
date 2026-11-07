@@ -166,12 +166,26 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // merged in) BEFORE team ID translation strips `lastPlayScoreboardID` off rebuilt games.
         // Writes to SQLite / Redis under PBP-{id}, and hands back the excitement score of each
         // finished game so the schedule can carry it.
+        //
+        // The ESPN-only basketball leagues (NCAA Tournament, WNBA) are fetched here so their
+        // games get play-by-play under their own ESPN slug, but only join the basketball
+        // bucket after ID translation (below). Their excitement is stamped on directly.
+        var espnOnlyBasketball: [LiveEvent] = []
+        for league in [Leagues.ncaaMBBTournament, .wnba] where active?.contains(league) ?? true {
+            guard let scoreboard = try? await Integrator.getESPNScoreboard(for: league, context.application.client),
+                  let liveEvent = LiveEvent(events: scoreboard, league: league) else { continue }
+            espnOnlyBasketball.append(liveEvent)
+        }
         if let current = newResult {
             let excitement = await enrichWithPlays(
-                from: current, schedule: scheduleSnapshot?.schedule, context: context, isDebug: isDebug
+                from: current, extraBasketball: espnOnlyBasketball.flatMap(\.events),
+                schedule: scheduleSnapshot?.schedule, context: context, isDebug: isDebug
             )
             if !excitement.isEmpty {
                 newResult = Self.applyingExcitement(excitement, to: current)
+                espnOnlyBasketball = espnOnlyBasketball.map { event in
+                    Self.applyingExcitement(excitement, to: LiveScore(nba: event)).nba ?? event
+                }
             }
         }
 
@@ -185,9 +199,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // Merge the ESPN-only basketball leagues (NCAA Tournament, WNBA) into the
         // basketball bucket AFTER ID translation to avoid their ESPN IDs being
         // incorrectly mapped to NBA TheSportsDB IDs.
-        for league in [Leagues.ncaaMBBTournament, .wnba] where active?.contains(league) ?? true {
-            guard let scoreboard = try? await Integrator.getESPNScoreboard(for: league, context.application.client),
-                  let liveEvent = LiveEvent(events: scoreboard, league: league) else { continue }
+        for liveEvent in espnOnlyBasketball {
             var result = newResult ?? LiveScore()
             result.nba = LiveEvent.merging(result.nba, liveEvent)
             newResult = result
@@ -341,6 +353,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
     @discardableResult
     private func enrichWithPlays(
         from liveScore: LiveScore,
+        extraBasketball: [Game] = [],
         schedule: LiveScore?,
         context: Queues.QueueContext,
         isDebug: Bool
@@ -349,9 +362,11 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // espnResult carries ESPN IDs. The caller's schedule bridges them.
 
         var candidates: [PBPCandidate] = []
-        for game in liveScore.nba?.events ?? [] where shouldEnrichPBP(game) {
+        // Each basketball game is fetched under its own league's slug: a WNBA or NCAA event
+        // ID asked of the "nba" summary comes back empty (or as some other game).
+        for game in (liveScore.nba?.events ?? []) + extraBasketball where shouldEnrichPBP(game) {
             candidates.append(PBPCandidate(
-                game: game, sport: "basketball", league: "nba",
+                game: game, sport: "basketball", league: Self.basketballSlug(for: game),
                 tsdbEventID: findTSDBEventID(for: game, in: schedule?.nba?.events)
             ))
         }
@@ -488,6 +503,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
             })
         }
         return result
+    }
+
+    /// The ESPN league slug for a basketball game: "nba", "wnba" or
+    /// "mens-college-basketball", from its `idLeague`.
+    static func basketballSlug(for game: Game) -> String {
+        game.idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))?.espnSlug ?? "nba"
     }
 
     /// Whether a game should be considered for PBP enrichment.

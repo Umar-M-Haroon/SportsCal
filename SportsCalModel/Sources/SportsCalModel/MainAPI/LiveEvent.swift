@@ -58,7 +58,7 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 // Playoff detection: season.type == 3 is ESPN's authoritative postseason flag.
                 // Fall back to series presence, and to event/notes text matching, so playoff
                 // context still populates when any one signal is missing.
-                let playoffEligibleTeamLeagues: Set<Leagues> = [.nba, .nhl, .mlb, .nfl, .ncaaMBBTournament]
+                let playoffEligibleTeamLeagues: Set<Leagues> = [.nba, .wnba, .nhl, .mlb, .nfl, .ncaaMBBTournament]
                 let namedAsPostseason: Bool = {
                     let short = event.shortName ?? ""
                     let nameHaystack = (event.name + " " + short).lowercased()
@@ -70,7 +70,7 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     let markers = [
                         "playoff", "postseason", "wild card", "wild-card", "divisional",
                         "conference final", "conference semifinal", "conference quarterfinal",
-                        "nba finals", "stanley cup", "world series", "alcs", "nlcs",
+                        "nba finals", "wnba finals", "stanley cup", "world series", "alcs", "nlcs",
                         "division series", "championship series", "super bowl"
                     ]
                     return markers.contains(where: { haystack.contains($0) })
@@ -94,8 +94,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
 
                 // ESPN overloads SeriesCompetitor.aggregateScore: series wins for NBA/NHL/MLB
                 // versus aggregate goals for soccer knockout rounds. Keep the soccer string rendering,
-                // use the integer wins rendering for the playoff context.
-                let winsFormatLeagues: Set<Leagues> = [.nba, .nhl, .mlb]
+                // use the integer wins rendering for the playoff context. WNBA playoff rounds
+                // are series too, so they read "Leads 2-1", not "Agg: 2-1".
+                let winsFormatLeagues: Set<Leagues> = [.nba, .wnba, .nhl, .mlb]
 
                 // Soccer aggregate rendering (unchanged behaviour for UCL etc.)
                 var aggregateScore: String?
