@@ -247,17 +247,31 @@ struct MotorsportRaceDetailView<Actions: View>: View {
                 standings = try? await NetworkHandler.fetchSeriesStandings(series)
             }
         }
-        .task(id: game.idEvent) {
+        .task(id: "\(game.idEvent ?? "")|\(game.strStatus ?? "")") {
             // Always fetched: besides the race story it carries every session's full results.
-            // While the race runs, the server rebuilds the detail every 30s.
+            // While the race runs, the server rebuilds the detail every 30s. Opened before
+            // green, it keeps checking (the fetched sessions say when it goes live) rather
+            // than trusting the `game` snapshot it was opened with.
             repeat {
                 if let fresh = try? await NetworkHandler.fetchRaceDetail(for: game) {
                     detail = fresh
                 }
-                guard isLive else { break }
-                try? await Task.sleep(for: .seconds(30))
+                guard let wait = pollInterval() else { break }
+                try? await Task.sleep(for: .seconds(wait))
             } while !Task.isCancelled
         }
+    }
+
+    /// Seconds until the next detail fetch, or nil to stop: 30 while anything runs, 60
+    /// from 15 minutes before a session is due until it shows as live.
+    private func pollInterval(now: Date = Date()) -> Double? {
+        let current = detail?.sessions ?? game.sessions ?? []
+        if isLive || current.contains(where: { $0.status == "in" }) { return 30 }
+        let due = current.filter { $0.status != "post" && $0.progress != "Canceled" }.compactMap(\.startDate)
+        if let next = due.min(), next.timeIntervalSince(now) < 15 * 60, now.timeIntervalSince(next) < 12 * 3600 {
+            return 60
+        }
+        return nil
     }
 
     private func selectDefaultSession() {
@@ -341,6 +355,25 @@ struct MotorsportRaceDetailView<Actions: View>: View {
         return facts
     }
 
+    /// Same states as the F1 page's schedule: done, live, upcoming.
+    private func scheduleState(_ session: EventSession) -> String {
+        if session.progress == "Canceled" { return "Canceled" }
+        switch session.status {
+        case "post": return "Complete"
+        case "in": return "Live"
+        default: return "Upcoming"
+        }
+    }
+
+    private func scheduleColor(_ session: EventSession) -> Color {
+        if session.progress == "Canceled" { return .gray }
+        switch session.status {
+        case "post": return .green
+        case "in": return .red
+        default: return .gray
+        }
+    }
+
     // MARK: Notes
 
     private func notesCard(_ notes: [NASCARLapNote]) -> some View {
@@ -387,17 +420,24 @@ struct MotorsportRaceDetailView<Actions: View>: View {
                     .font(.headline)
                 ForEach(Array(sessions.enumerated()), id: \.offset) { _, session in
                     HStack {
-                        Text(session.displayName)
-                            .font(.subheadline)
-                        Spacer()
-                        if session.progress == "Canceled" {
-                            Text("Canceled").font(.caption).foregroundStyle(.secondary)
-                        } else if let start = session.startDate {
-                            GameTimeLabel(date: start, includeDate: true)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        Circle()
+                            .fill(scheduleColor(session))
+                            .frame(width: 8, height: 8)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(session.displayName)
+                                .font(.subheadline)
+                            if session.progress != "Canceled", let start = session.startDate {
+                                GameTimeLabel(date: start, includeDate: true)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        Spacer()
+                        Text(scheduleState(session))
+                            .font(.caption)
+                            .foregroundStyle(session.progress == "Canceled" ? Color.secondary : scheduleColor(session))
                     }
+                    .accessibilityElement(children: .combine)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -572,9 +612,15 @@ struct NASCARLeaderboard: View {
             if selectedClass != nil, entry.stockCar?.classPosition == 1 {
                 return session.status == "post" ? "Class winner" : "Class leader"
             }
+            // In a class view, the gap to that class's leader, not the overall one.
+            if selectedClass != nil, let classGap = entry.stockCar?.classGap { return classGap }
             return entry.gap ?? ""
         }
         if entry.position == 1 { return entry.score }
+        if selectedClass != nil {
+            if entry.stockCar?.classPosition == 1 { return entry.score }
+            if let classGap = entry.stockCar?.classGap { return classGap }
+        }
         return entry.gap ?? entry.score
     }
 }

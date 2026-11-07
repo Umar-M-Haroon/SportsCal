@@ -94,8 +94,11 @@ public struct StockCarDetail: Codable, Equatable, Hashable {
     public var classPosition: Int?
     public var vehicle: String?
     public var drivers: [String]?
+    /// Endurance racing: the gap to the leader of the car's class ("+12.345",
+    /// "+3 Laps"); `LeaderboardEntry.gap` is to the overall leader.
+    public var classGap: String?
 
-    public init(carNumber: String, manufacturer: String? = nil, startPosition: Int? = nil, lapsCompleted: Int? = nil, lapsLed: Int? = nil, pitStops: Int? = nil, bestLapTime: Double? = nil, bestLapSpeed: Double? = nil, status: String? = nil, points: Int? = nil, playoffPoints: Int? = nil, inPlayoffs: Bool? = nil, sponsor: String? = nil, lapsDown: Int? = nil, vehicleClass: String? = nil, classPosition: Int? = nil, vehicle: String? = nil, drivers: [String]? = nil) {
+    public init(carNumber: String, manufacturer: String? = nil, startPosition: Int? = nil, lapsCompleted: Int? = nil, lapsLed: Int? = nil, pitStops: Int? = nil, bestLapTime: Double? = nil, bestLapSpeed: Double? = nil, status: String? = nil, points: Int? = nil, playoffPoints: Int? = nil, inPlayoffs: Bool? = nil, sponsor: String? = nil, lapsDown: Int? = nil, vehicleClass: String? = nil, classPosition: Int? = nil, vehicle: String? = nil, drivers: [String]? = nil, classGap: String? = nil) {
         self.carNumber = carNumber
         self.manufacturer = manufacturer
         self.startPosition = startPosition
@@ -114,6 +117,7 @@ public struct StockCarDetail: Codable, Equatable, Hashable {
         self.classPosition = classPosition
         self.vehicle = vehicle
         self.drivers = drivers
+        self.classGap = classGap
     }
 
     /// Places gained (+) or lost (−) from the start.
