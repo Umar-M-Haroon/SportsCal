@@ -13,7 +13,8 @@ import SportsCalModel
 
 struct ESPNLiveSource: LiveSource {
     let name = "espn"
-    /// ESPN's fast-path role is soccer; other sports stay on the 60s pipeline.
+    /// Nominal only: ESPN covers every fast-path league, so the ticker buckets its games
+    /// per league (`Leagues.liveBucket`) instead of reading this.
     let sport: SportType = .soccer
     let matchStrategy: LiveMerge.MatchStrategy = .eventID
 

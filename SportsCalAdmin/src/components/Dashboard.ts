@@ -1,5 +1,6 @@
 import { HealthMonitor } from './HealthMonitor'
 import { LiveGames } from './LiveGames'
+import { LiveSources } from './LiveSources'
 import { LeagueExplorer } from './LeagueExplorer'
 import { DataGaps } from './DataGaps'
 import { RedisViewer } from './RedisViewer'
@@ -22,6 +23,7 @@ export class Dashboard {
     // Initialize components
     this.components.set('health', new HealthMonitor())
     this.components.set('live', new LiveGames())
+    this.components.set('live-sources', new LiveSources())
     this.components.set('leagues', new LeagueExplorer())
     this.components.set('gaps', new DataGaps())
     this.components.set('redis', new RedisViewer())

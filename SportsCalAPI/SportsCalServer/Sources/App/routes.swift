@@ -433,6 +433,7 @@ func routes(_ app: Application) throws {
     let adminRoutes = app.grouped(AdminKeyMiddleware())
     try adminRoutes.register(collection: AdminController())
     try adminRoutes.register(collection: ParityController())
+    try adminRoutes.register(collection: LiveSourcesController())
 
     // MARK: - Attestation Routes (public, self-authenticating)
     // Must sit outside APIKeyMiddleware/JWTMiddleware: these are the routes a

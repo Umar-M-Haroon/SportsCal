@@ -27,6 +27,20 @@ enum LiveMerge {
         /// Games whose live situation (count, runners, down and distance) moved without a
         /// score change. Worth publishing to the socket, not worth a push scan.
         var situationChangedEventIDs: Set<String> = []
+        /// Every in-progress snapshot game this source had a copy of, keyed by snapshot
+        /// `idEvent`, with the source's score key ("away-home"). Feeds LiveSourceStats,
+        /// which needs what each source *saw*, not just what it won.
+        var observedScores: [String: String] = [:]
+        /// Snapshot games where this source's copy was behind the snapshot and was dropped.
+        var behindEventIDs: Set<String> = []
+    }
+
+    /// How the fast path treats a source's copy when several sources race for one game.
+    struct RaceOptions {
+        /// The source the fresh games came from (LiveSource.name).
+        var source: String
+        /// Snapshot `idEvent` → the only source allowed to write that game (admin override).
+        var forcedSources: [String: String] = [:]
     }
 
     /// Back-compat entry point — same-source (ESPN) soccer overlay matched by `idEvent`.
@@ -48,11 +62,22 @@ enum LiveMerge {
     /// identity (incl. the snapshot's own `idEvent`) survive untouched. Every other bucket and
     /// every upcoming game pass through verbatim — per-game play-by-play lives in separate
     /// `PBP-*` keys, so it's structurally safe.
-    static func overlay(cached: LiveScore, sport: SportType, fresh: [Game], strategy: MatchStrategy) -> Result {
+    ///
+    /// With `race`, the overlay is one of several sources for the bucket: a copy that is
+    /// behind the snapshot (see `shouldAccept`) is dropped instead of rolling the game back,
+    /// and a game pinned to another source by an admin override is left alone.
+    static func overlay(
+        cached: LiveScore,
+        sport: SportType,
+        fresh: [Game],
+        strategy: MatchStrategy,
+        race: RaceOptions? = nil
+    ) -> Result {
         guard let bucket = events(in: cached, sport: sport) else {
             return Result(liveScore: cached, changedEventIDs: [])
         }
-        let (merged, changed) = overlayEvents(bucket, fresh: fresh, strategy: strategy)
+        let pass = overlayEventsDetailed(bucket, fresh: fresh, strategy: strategy, race: race)
+        let (merged, changed) = (pass.events, pass.changed)
         // The overlay never adds, drops or reorders games, so old and new line up by index.
         var situationChanged = Set<String>()
         for (old, new) in zip(bucket, merged) where old.situation != new.situation {
@@ -61,23 +86,55 @@ enum LiveMerge {
         return Result(
             liveScore: replacing(cached, sport: sport, with: merged),
             changedEventIDs: changed,
-            situationChangedEventIDs: situationChanged
+            situationChangedEventIDs: situationChanged,
+            observedScores: pass.observed,
+            behindEventIDs: pass.behind
         )
     }
 
     /// Core overlay over a single bucket's events. Returns the merged events and the set of
     /// snapshot `idEvent`s whose score/status changed.
     static func overlayEvents(_ events: [Game], fresh: [Game], strategy: MatchStrategy) -> (events: [Game], changed: Set<String>) {
+        let pass = overlayEventsDetailed(events, fresh: fresh, strategy: strategy, race: nil)
+        return (pass.events, pass.changed)
+    }
+
+    private struct OverlayPass {
+        var events: [Game]
+        var changed: Set<String>
+        var observed: [String: String]
+        var behind: Set<String>
+    }
+
+    private static func overlayEventsDetailed(
+        _ events: [Game],
+        fresh: [Game],
+        strategy: MatchStrategy,
+        race: RaceOptions?
+    ) -> OverlayPass {
         let freshByKey = Dictionary(
             fresh.compactMap { game in matchKey(for: game, strategy: strategy).map { ($0, game) } },
             uniquingKeysWith: { _, new in new }
         )
 
         var changed = Set<String>()
+        var observed: [String: String] = [:]
+        var behind = Set<String>()
         let merged: [Game] = events.map { game in
             guard game.strStatus == "in",
                   let key = matchKey(for: game, strategy: strategy),
                   let f = freshByKey[key] else { return game }
+
+            if let race, let id = game.idEvent {
+                observed[id] = scoreKey(f)
+                if let pinned = race.forcedSources[id] {
+                    // Pinned: the named source writes unconditionally, every other one is ignored.
+                    guard pinned == race.source else { return game }
+                } else if !shouldAccept(f, over: game) {
+                    behind.insert(id)
+                    return game
+                }
+            }
 
             let scoreChanged = f.intHomeScore != game.intHomeScore
                 || f.intAwayScore != game.intAwayScore
@@ -110,7 +167,93 @@ enum LiveMerge {
             if f.strStatus != "in" { merged.situation = nil }
             return merged
         }
-        return (merged, changed)
+        return OverlayPass(events: merged, changed: changed, observed: observed, behind: behind)
+    }
+
+    // MARK: - Racing sources
+
+    /// "away-home" — the score as a source reported it, for cross-source comparison.
+    static func scoreKey(_ game: Game) -> String {
+        "\(game.intAwayScore ?? "-")-\(game.intHomeScore ?? "-")"
+    }
+
+    /// How far along a game is, as far as its live situation says: period, then the phase
+    /// inside it (baseball's half inning), then elapsed time within the period. nil when
+    /// the source gave no period.
+    struct GameProgress: Equatable {
+        var period: Int
+        var phase: Int
+        /// nil when the clock is unknown — the overlay clears a stale clock when the score
+        /// moves — so it must not read as the end of the period.
+        var elapsed: Double?
+
+        init(period: Int, phase: Int = 0, elapsed: Double?) {
+            self.period = period
+            self.phase = phase
+            self.elapsed = elapsed
+        }
+
+        init?(_ game: Game) {
+            guard let situation = game.situation, let period = situation.period else { return nil }
+            self.period = period
+            let league = game.idLeague.flatMap { Int($0) }.flatMap(Leagues.init(rawValue:))
+            if league == .mlb {
+                switch situation.inningHalf {
+                case .top: phase = 0
+                case .middle: phase = 1
+                case .bottom: phase = 2
+                case .end: phase = 3
+                case nil: phase = 0
+                }
+                elapsed = Double(situation.outs ?? 0)
+            } else {
+                phase = 0
+                // Soccer's clock counts up; basketball, football and hockey count down.
+                elapsed = situation.clock.map { league?.isSoccer == true ? $0 : -$0 }
+            }
+        }
+
+        /// -1, 0 or 1. Elapsed time only breaks a period/phase tie when both sides know it.
+        static func order(_ a: GameProgress, _ b: GameProgress) -> Int {
+            if a.period != b.period { return a.period < b.period ? -1 : 1 }
+            if a.phase != b.phase { return a.phase < b.phase ? -1 : 1 }
+            guard let ea = a.elapsed, let eb = b.elapsed, ea != eb else { return 0 }
+            return ea < eb ? -1 : 1
+        }
+    }
+
+    /// Whether a source's fresh copy should replace the snapshot's when several sources
+    /// race for the same game. The rule is "never go backwards in game time":
+    ///
+    /// - A later status wins outright and an earlier one loses (pre < in < post).
+    /// - When both copies carry a period, game progress decides. A copy from later in the
+    ///   game wins even with a lower score — that's a scoring correction, and it must get
+    ///   through. At the same moment, the higher (or equal) total wins.
+    /// - Without progress on both sides, only a strictly higher total wins, unless the
+    ///   snapshot has no progress of its own to protect (a game only that source covers).
+    static func shouldAccept(_ fresh: Game, over current: Game) -> Bool {
+        let (rf, rc) = (statusRank(fresh), statusRank(current))
+        if rf != rc { return rf > rc }
+        let (tf, tc) = (totalScore(fresh), totalScore(current))
+        if let pf = GameProgress(fresh), let pc = GameProgress(current) {
+            let order = GameProgress.order(pf, pc)
+            if order != 0 { return order > 0 }
+            return tf >= tc
+        }
+        if tf != tc { return tf > tc }
+        return GameProgress(current) == nil
+    }
+
+    private static func statusRank(_ game: Game) -> Int {
+        switch game.strStatus {
+        case "post": return 2
+        case "in": return 1
+        default: return game.isCompleted == true ? 2 : 0
+        }
+    }
+
+    private static func totalScore(_ game: Game) -> Int {
+        (game.intHomeScore.flatMap { Int($0) } ?? 0) + (game.intAwayScore.flatMap { Int($0) } ?? 0)
     }
 
     // MARK: - Concurrent-writer reconciliation
@@ -180,19 +323,9 @@ enum LiveMerge {
     /// (pre < in < post); at equal status the higher total score wins; a tie goes to `a`
     /// (the concurrent write, which is at least as recent as the rebuild's cached copy).
     static func isAtLeastAsFarAlong(_ a: Game, as b: Game) -> Bool {
-        func statusRank(_ game: Game) -> Int {
-            switch game.strStatus {
-            case "post": return 2
-            case "in": return 1
-            default: return game.isCompleted == true ? 2 : 0
-            }
-        }
-        func total(_ game: Game) -> Int {
-            (game.intHomeScore.flatMap { Int($0) } ?? 0) + (game.intAwayScore.flatMap { Int($0) } ?? 0)
-        }
         let (ra, rb) = (statusRank(a), statusRank(b))
         if ra != rb { return ra > rb }
-        return total(a) >= total(b)
+        return totalScore(a) >= totalScore(b)
     }
 
     // MARK: - Bucket access by sport

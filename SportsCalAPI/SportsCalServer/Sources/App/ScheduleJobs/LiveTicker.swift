@@ -2,11 +2,12 @@
 //  LiveTicker.swift
 //
 //  Adaptive fast-poll loop that gets in-progress live scores close to real time.
-//  Runs alongside the minutely scheduled jobs: when soccer/World Cup games are
-//  in progress it polls ONLY those leagues every ~15s (vs the 60s scheduled
-//  pipeline), surgically overlays the fresh scores onto `latestLiveInfo` (served
-//  verbatim over /ws), and refreshes `latestSoccerScoreboards` so the next slow
-//  ESPNFetchJob tick inherits — never regresses — the fast data.
+//  Runs alongside the minutely scheduled jobs: while games are in progress it polls
+//  ONLY the live leagues every ~5s (vs the 60s scheduled pipeline) from every source
+//  configured for them, surgically overlays the furthest-along copy of each game onto
+//  `latestLiveInfo` (served verbatim over /ws), and refreshes `latestSoccerScoreboards`
+//  so the next slow ESPNFetchJob tick inherits — never regresses — the fast data.
+//  Which source got each score change first is tallied in LiveSourceStats.
 //
 //  Leader-elected via JobLock so exactly one replica fast-polls. Backs off
 //  automatically when the ESPN circuit breaker is tripped.
@@ -39,13 +40,51 @@ struct LiveTickerLifecycle: LifecycleHandler {
 enum LiveTicker {
     private static let logger = Logger(label: "com.sportscal.live-ticker")
 
-    /// Cadence while in-progress games exist. Far below the 60s scheduled pipeline,
-    /// well within ESPN limits (typically 1-4 leagues live at once).
-    static let fastInterval: TimeInterval = 15
+    /// Cadence while in-progress games exist. ESPN's scoreboards are CDN-cached for 1-10s
+    /// (measured Oct 2026: NFL 7, NBA 10, NHL 8, MLB 3, soccer 3-4, college 1), so 5s picks
+    /// up most changes within one cache lifetime. One request per live league per tick —
+    /// the heavy ones are paced separately (`Paced`).
+    static let fastInterval: TimeInterval = 5
     /// Cadence while nothing is in progress — the slow pipeline owns kickoff transitions.
     static let idleInterval: TimeInterval = 60
     /// Floor for cooldown/error backoff.
     static let minBackoff: TimeInterval = 30
+
+    /// Work that is too heavy for every 5s tick, and the most often it runs.
+    enum Paced: Hashable {
+        /// A league's board. College football's FBS board is ~1 MB on a Saturday.
+        case board(Leagues)
+        /// NASCAR / IndyCar / IMSA / WEC weekend rebuilds.
+        case motorsport
+        /// The fast push pass for sports without score alerts (basketball, baseball): a
+        /// basket every few seconds would otherwise run the install scan on every tick.
+        case quietPush
+
+        var minRefresh: TimeInterval {
+            switch self {
+            case .board(.ncaaf): return 15
+            case .board: return 0
+            case .motorsport: return 15
+            case .quietPush: return 15
+            }
+        }
+    }
+
+    /// When each paced item last ran. In-process: the ticker is leader-elected, and a
+    /// failover just runs everything once on the new leader.
+    actor Pacing {
+        private var lastRun: [Paced: Date] = [:]
+
+        /// Whether `item` may run now; marks it as run when it may.
+        func take(_ item: Paced, now: Date = Date()) -> Bool {
+            // Half a second of slack so a 15s item isn't pushed to the fourth 5s tick by jitter.
+            if let last = lastRun[item], now.timeIntervalSince(last) < item.minRefresh - 0.5 { return false }
+            lastRun[item] = now
+            return true
+        }
+    }
+
+    static let pacing = Pacing()
 
     /// Starts the loop and returns its handle. Caller stores it for shutdown cancel.
     static func start(_ app: Application) -> Task<Void, Never> {
@@ -107,54 +146,73 @@ enum LiveTicker {
         let leagues = inProgressLeagues(in: cached)
         guard !leagues.isEmpty else { return idleInterval }
 
-        // Route each league to its configured source (ESPN by default; FIFA/MLB/NHL/NBA via env).
-        // Fetch everything FIRST, then apply the overlays to a snapshot re-read just before
-        // the write: ESPNFetchJob may have published a full rebuild (new games, other
-        // sports' scores) while these fetches were in flight, and overlaying onto the
-        // pre-fetch copy would roll that back.
+        // Every source configured for a league races for it (ESPN for all of them; FIFA /
+        // MLB / NHL / NBA / paid ones via env). Fetch everything FIRST, then apply the
+        // overlays to a snapshot re-read just before the write: ESPNFetchJob may have
+        // published a full rebuild (new games, other sports' scores) while these fetches
+        // were in flight, and overlaying onto the pre-fetch copy would roll that back.
         let resolver = LiveSourceResolver.fromEnvironment()
-        var overlays: [(sport: SportType, games: [Game], strategy: LiveMerge.MatchStrategy)] = []
+        var overlays: [(sport: SportType, games: [Game], strategy: LiveMerge.MatchStrategy, source: String)] = []
 
         for group in resolver.groups(for: leagues) {
             if let espn = group.source as? ESPNLiveSource {
-                // ESPN's fast-path role is soccer only; other sports stay on the 60s pipeline
-                // unless an explicit override source is configured for them.
-                let soccerLeagues = group.leagues.filter { $0.isSoccer }
-                guard !soccerLeagues.isEmpty else { continue }
-                // Fetch boards so we can also refresh the ESPN-shaped soccer cache the slow
-                // pipeline reads (prevents the next slow tick regressing us).
-                let boards = await espn.fetchBoards(leagues: soccerLeagues, app: app)
+                var due = Set<Leagues>()
+                for league in group.leagues where await pacing.take(.board(league)) { due.insert(league) }
+                guard !due.isEmpty else { continue }
+                let boards = await espn.fetchBoards(leagues: due, app: app)
                 guard !boards.isEmpty else { continue }
-                let games = boards.compactMap { LiveEvent(events: $0.value, league: $0.key) }
-                    .flatMap { $0.events }
-                overlays.append((.soccer, games, espn.matchStrategy))
-                await refreshSoccerScoreboards(boards: boards, app: app, isDebug: isDebug)
+                // One overlay per snapshot bucket: college football rides in the NFL bucket,
+                // WNBA and the NCAA tournament in the basketball one.
+                var byBucket: [SportType: [Game]] = [:]
+                for (league, board) in boards {
+                    guard let bucket = league.liveBucket,
+                          let events = LiveEvent(events: board, league: league)?.events else { continue }
+                    byBucket[bucket, default: []] += events
+                }
+                for (bucket, games) in byBucket {
+                    overlays.append((bucket, games, espn.matchStrategy, espn.name))
+                }
+                // Refresh the ESPN-shaped soccer cache the slow pipeline reads, so its next
+                // tick inherits rather than regresses the fast data.
+                let soccerBoards = boards.filter { $0.key.isSoccer }
+                if !soccerBoards.isEmpty {
+                    await refreshSoccerScoreboards(boards: soccerBoards, app: app, isDebug: isDebug)
+                }
             } else {
-                // Override source (FIFA / MLB / NHL / NBA / paid): overlay its sport's bucket.
-                // A fetch failure degrades silently to the slow ESPN pipeline — this sport
-                // just isn't sped up this tick.
+                // Extra source (FIFA / MLB / NHL / NBA / paid). A fetch failure just leaves the
+                // league to ESPN this tick.
                 let source = group.source
                 guard let games = try? await source.fetchLive(leagues: group.leagues, app: app),
                       !games.isEmpty else { continue }
-                overlays.append((source.sport, games, source.matchStrategy))
+                overlays.append((source.sport, games, source.matchStrategy, source.name))
             }
         }
         // NASCAR owns its games outright (built from NASCAR's feed on both paths), so a
         // live weekend is rebuilt whole rather than overlaid: laps, flags and the running
         // order all live in its sessions, which the overlay doesn't carry.
-        var nascar = leagues.contains(.nascarCup)
-            ? await NASCARService.liveGames(app: app, isDebug: isDebug)
-            : []
-        if leagues.contains(.indycar) {
-            nascar += await IndyCarService.liveGames(app: app, isDebug: isDebug)
-        }
-        // IMSA/WEC results are re-read at most every five minutes (their cache), so the
-        // fast tick costs a Redis read until a new hour's classification is out.
-        for series in AlKamelSeries.allCases where leagues.contains(series.league) {
-            nascar += await AlKamelService.liveGames(series, app: app, isDebug: isDebug)
+        var nascar: [Game] = []
+        if leagues.contains(where: \.isRacing), await pacing.take(.motorsport) {
+            if leagues.contains(.nascarCup) {
+                nascar += await NASCARService.liveGames(app: app, isDebug: isDebug)
+            }
+            if leagues.contains(.indycar) {
+                nascar += await IndyCarService.liveGames(app: app, isDebug: isDebug)
+            }
+            // IMSA/WEC results are re-read at most every five minutes (their cache), so the
+            // fast tick costs a Redis read until a new hour's classification is out.
+            for series in AlKamelSeries.allCases where leagues.contains(series.league) {
+                nascar += await AlKamelService.liveGames(series, app: app, isDebug: isDebug)
+            }
         }
 
         guard !overlays.isEmpty || !nascar.isEmpty else { return fastInterval }
+
+        let forcedSources = (try? await app.kv.getJSON(
+            LiveSourceStats.forcedSourcesKey(isDebug: isDebug), as: [String: String].self
+        )) ?? [:]
+        let statsKey = LiveSourceStats.key(isDebug: isDebug)
+        let now = Date()
+        var stats = (try? await app.kv.getJSON(statsKey, as: LiveSourceStats.self)) ?? LiveSourceStats(since: now)
 
         var working = (try? await app.redis.get(liveKey, asJSON: LiveScore.self)) ?? cached
         var changed = Set<String>()
@@ -169,11 +227,18 @@ enum LiveTicker {
             working.racing = ESPNFetchJob.replacingGames(in: working.racing, with: nascar)
         }
         for overlay in overlays {
-            let r = LiveMerge.overlay(cached: working, sport: overlay.sport, fresh: overlay.games, strategy: overlay.strategy)
+            let r = LiveMerge.overlay(
+                cached: working, sport: overlay.sport, fresh: overlay.games, strategy: overlay.strategy,
+                race: LiveMerge.RaceOptions(source: overlay.source, forcedSources: forcedSources)
+            )
             working = r.liveScore
             changed.formUnion(r.changedEventIDs)
             situationChanged.formUnion(r.situationChangedEventIDs)
+            stats.record(source: overlay.source, observed: r.observedScores, behindCount: r.behindEventIDs.count, now: now)
         }
+        // Small blob (bounded recent list, pruned sightings); a day's TTL so it resets on
+        // its own once nothing is live.
+        try? await app.kv.setJSON(statsKey, value: stats, ttl: 24 * 3600)
 
         guard !changed.isEmpty || !situationChanged.isEmpty else { return fastInterval }
 
@@ -196,9 +261,18 @@ enum LiveTicker {
         guard !changed.isEmpty else { return fastInterval }
 
         // Fast goal-push / Live-Activity pass — only when scores actually changed, so the
-        // install-key scan is paid on real goals (rare), not every tick. APNSJob dedups
-        // each send via atomic claim keys, so overlap with the minutely job can't double-send.
-        await fastPush(app: app, isDebug: isDebug)
+        // install-key scan is paid on real goals, not every tick. A goal, touchdown or
+        // hockey goal (an alerting sport) pushes at once; basketball and baseball scores,
+        // which move constantly, push at most every 15s. APNSJob dedups each send via
+        // atomic claim keys, so overlap with the minutely job can't double-send.
+        let alerting = working.allGamesBySport.contains { sport, games in
+            sport.alertsOnScoreChange && games.contains { $0.idEvent.map(changed.contains) ?? false }
+        }
+        if alerting {
+            await fastPush(app: app, isDebug: isDebug)
+        } else if await pacing.take(.quietPush) {
+            await fastPush(app: app, isDebug: isDebug)
+        }
 
         return fastInterval
     }
