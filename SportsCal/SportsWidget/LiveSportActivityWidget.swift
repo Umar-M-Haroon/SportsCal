@@ -60,27 +60,40 @@ private func teamInitialsView(_ teamName: String, size: CGFloat) -> some View {
 /// growing the Codable schema (which would break active activities).
 enum LiveActivityVariant {
     case live, halftime, final
+    /// A scheduled stop inside the game: a hockey intermission, MLB's "Mid 5th" / "End 5th".
+    case intermission
+    /// Play isn't running and won't on a schedule: delayed, postponed, suspended.
+    case stopped
 }
 
 private func variantFor(progress: String?, status: String?) -> LiveActivityVariant {
-    let p = (progress ?? "").lowercased()
-    let s = (status ?? "").lowercased()
-    if s == "ft" || s == "aet" || s == "final" || p.contains("final") {
+    let p = (progress ?? "").lowercased().trimmingCharacters(in: .whitespaces)
+    let s = (status ?? "").lowercased().trimmingCharacters(in: .whitespaces)
+    // ESPN state "post", soccer FT / AET / penalties, TheSportsDB codes, "Final/OT".
+    let finalStatuses: Set<String> = ["post", "ft", "aet", "ap", "pen", "pens", "final", "match finished"]
+    let finalProgress: Set<String> = ["ft", "aet", "ft-pens", "ft-pen", "pens", "ap"]
+    if finalStatuses.contains(s) || finalProgress.contains(p) || (p.hasPrefix("final") && !p.hasPrefix("final lap")) {
         return .final
     }
-    if p.contains("half") && !p.contains("first") && !p.contains("second") {
-        // "Halftime", "HT", "Half" — but not "First Half" / "Second Half"
+    let stoppedMarkers = ["delay", "postponed", "suspended", "canceled", "cancelled", "abandoned"]
+    let stoppedCodes: Set<String> = ["pst", "susp", "canc", "abd", "int"]
+    if stoppedCodes.contains(s) || stoppedCodes.contains(p) || stoppedMarkers.contains(where: { s.contains($0) || p.contains($0) }) {
+        return .stopped
+    }
+    // Exactly halftime — never "1st Half" / "2nd Half", which are live play.
+    if ["halftime", "half time", "half-time", "ht", "half"].contains(p) || s == "ht" {
         return .halftime
     }
-    if p == "ht" || p == "halftime" {
-        return .halftime
+    // "1st Intermission", "End of 2nd", MLB "Mid 5th" / "End 5th".
+    if p.contains("intermission") || p.hasPrefix("mid ") || p.hasPrefix("end ") || p.hasPrefix("end of") {
+        return .intermission
     }
     return .live
 }
 
 /// Renders the progress label appropriate for the activity variant —
 /// live = pulsing red dot + period, halftime = orange HALF pill,
-/// final = neutral FINAL pill.
+/// intermission / stopped = the status text without the dot, final = neutral FINAL pill.
 @ViewBuilder
 private func progressLabel(for state: LiveSportActivityAttributes.ContentState) -> some View {
     let variant = variantFor(progress: state.progress, status: state.status)
@@ -102,6 +115,15 @@ private func progressLabel(for state: LiveSportActivityAttributes.ContentState) 
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(WidgetTokens.star.opacity(0.18), in: Capsule())
+    case .intermission, .stopped:
+        // Static, no pulse: the clock isn't running.
+        if let formatted = state.progress {
+            Text(formatted)
+                .font(.system(.caption, design: .monospaced).weight(.semibold))
+                .foregroundStyle(variant == .stopped ? WidgetTokens.star : WidgetTokens.inkSoft)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
     case .final:
         Text("FINAL")
             .font(.system(.caption, design: .monospaced).weight(.bold))
@@ -202,7 +224,7 @@ struct LiveSportActivityWidget: Widget {
                     if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.awayTeam) {
                         IndividualTeamView(shortName: context.attributes.awayTeam, longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true, data: try? Data(contentsOf: fileURL))
                     } else {
-                        IndividualTeamView(shortName: context.attributes.awayTeam, longName: context.attributes.awayTeam, score: -1, isWinning: context.state.awayScore > context.state.homeScore, isAway: true)
+                        IndividualTeamView(shortName: context.attributes.awayTeam, longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true)
                     }
                     progressLabel(for: context.state)
                         .frame(maxWidth: .infinity, alignment: .center)
