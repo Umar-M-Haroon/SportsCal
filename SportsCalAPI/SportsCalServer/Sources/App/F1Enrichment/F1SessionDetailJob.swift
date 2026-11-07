@@ -96,10 +96,19 @@ struct F1SessionDetailJob: AsyncScheduledJob {
     /// "Bahrain Grand Prix" at Sakhir and the one in Kuala Lumpur apart.
     static func detail(startingNear start: Date, kv: KeyValueStore, isDebug: Bool) async throws -> F1SessionDetail? {
         guard let index = try await kv.getJSON(indexKey(isDebug: isDebug), as: [IndexEntry].self) else { return nil }
-        let match = index
-            .compactMap { entry in DateParsers.parse(entry.dateStart).map { (entry, abs($0.timeIntervalSince(start))) } }
-            .filter { $0.1 <= 3 * 3600 }
-            .min { $0.1 < $1.1 }?.0
+        // Split into typed steps: as one chained expression the closures' tuple types
+        // took ~900ms to infer, and Linux builds fail slow expressions outright.
+        let window: TimeInterval = 3 * 3600
+        var match: IndexEntry?
+        var bestDistance = TimeInterval.infinity
+        for entry in index {
+            guard let date = DateParsers.parse(entry.dateStart) else { continue }
+            let distance: TimeInterval = abs(date.timeIntervalSince(start))
+            if distance <= window, distance < bestDistance {
+                match = entry
+                bestDistance = distance
+            }
+        }
         guard let match else { return nil }
         return try await kv.getJSON(detailKey(match.sessionKey, isDebug: isDebug), as: F1SessionDetail.self)
     }
