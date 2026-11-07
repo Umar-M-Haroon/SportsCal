@@ -195,6 +195,8 @@ export class MonetizationFunnel {
     return `
       ${this.renderActiveUsers(data)}
 
+      ${this.renderActivation(data)}
+
       <h3 style="margin:0.5rem 0 0.75rem; font-size:0.95rem;">Funnel (events)</h3>
       <div style="max-width:680px; margin-bottom:1.5rem;">${bars}</div>
 
@@ -262,6 +264,79 @@ export class MonetizationFunnel {
               <tbody>${platforms}</tbody>
             </table>`
           : '<p style="color:var(--text-secondary); margin-bottom:1.5rem;">No app_active pings yet for this channel.</p>'
+      }
+    `
+  }
+
+  /**
+   * Install-once activation funnel plus D1/D7/D14/D30 retention per install
+   * week. Both count only installs first seen on a cohort-aware build — legacy
+   * (upgraded) installs never send activation events or join a cohort — so the
+   * top of the funnel is new installs, not MAU. "All" and real channels only.
+   */
+  private renderActivation(data: TelemetryResponse): string {
+    if (this.channel === 'legacy') return ''
+    const u = data.uniqueInstalls?.[this.channel] || {}
+    const funnel = data.activationFunnel || []
+    const installs = u['cohort.installs'] || 0
+    const labels: Record<string, string> = {
+      activation_onboarding_started: 'Onboarding started',
+      activation_onboarding_completed: 'Onboarding completed',
+      activation_first_favorite: 'First favorite',
+      activation_notifications_granted: 'Notifications allowed',
+      activation_notifications_denied: 'Notifications denied',
+      activation_first_reminder_set: 'First reminder set',
+      activation_first_live_activity: 'First Live Activity',
+      activation_widget_installed: 'Widget installed',
+      activation_first_game_detail_opened: 'First game detail opened',
+    }
+    const steps = [{ label: 'New installs', value: installs }].concat(
+      funnel.map((e) => ({ label: labels[e] || e, value: u[`client.${e}`] || 0 }))
+    )
+    const funnelRows = steps
+      .map(
+        (s) => `<tr><td>${s.label}</td><td>${s.value.toLocaleString()}</td><td>${
+          s.label === 'New installs' ? '' : this.pct(s.value, installs)
+        }</td></tr>`
+      )
+      .join('')
+
+    const sportRows = this.breakouts(data, 'activation_onboarding_completed', this.windowDays(data.today))
+      .map(([dim, n]) => `${dim.split('=').slice(1).join('=')}: ${n}`)
+      .join(' · ')
+
+    const marks = ['d1', 'd7', 'd14', 'd30']
+    const weeks = data.retention?.[this.channel] || []
+    const cell = (week: { installs: number; retained: Record<string, number>; complete: Record<string, boolean> }, mark: string) => {
+      if (!(mark in week.retained)) return '<td style="color:var(--text-secondary)">—</td>'
+      const n = week.retained[mark]
+      const pending = week.complete[mark] ? '' : ' <span style="color:var(--text-secondary)" title="still filling in">…</span>'
+      return `<td>${this.pct(n, week.installs)} <span style="color:var(--text-secondary)">(${n})</span>${pending}</td>`
+    }
+    const weekRows = weeks
+      .map((w) => {
+        const date = new Date(w.weekStart * 86_400_000).toISOString().slice(0, 10)
+        return `<tr><td>${date}</td><td>${w.installs.toLocaleString()}</td>${marks.map((m) => cell(w, m)).join('')}</tr>`
+      })
+      .join('')
+
+    return `
+      <h3 style="margin:0.5rem 0 0.75rem; font-size:0.95rem;">Activation (new installs, install-once events, ${data.windowDays}d)</h3>
+      <table style="max-width:520px; margin-bottom:0.5rem;">
+        <thead><tr><th>Step</th><th>Installs</th><th>% of new</th></tr></thead>
+        <tbody>${funnelRows}</tbody>
+      </table>
+      ${sportRows ? `<p style="color:var(--text-secondary); margin-bottom:1rem;">Sports picked at onboarding: ${sportRows}</p>` : ''}
+
+      <h3 style="margin:1rem 0 0.75rem; font-size:0.95rem;">Retention by install week (active exactly N days after install, UTC)</h3>
+      ${
+        weekRows
+          ? `<table style="max-width:680px; margin-bottom:0.5rem;">
+              <thead><tr><th>Week of</th><th>Installs</th><th>D1</th><th>D7</th><th>D14</th><th>D30</th></tr></thead>
+              <tbody>${weekRows}</tbody>
+            </table>
+            <p style="color:var(--text-secondary); margin-bottom:1.5rem;">… = some install days in the week haven't reached that mark yet. Upgraded (legacy) installs are excluded.</p>`
+          : '<p style="color:var(--text-secondary); margin-bottom:1.5rem;">No retention data (server predates cohorts).</p>'
       }
     `
   }

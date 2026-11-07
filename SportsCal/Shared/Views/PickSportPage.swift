@@ -187,6 +187,7 @@ struct PickSportPage: View {
                 Button(action: {
                     appStorage.shouldShowOnboarding = false
                     appStorage.recomputeEnabledSports()
+                    MonetizationTelemetry.onboardingCompleted(sportCount: appStorage.enabledSports.count)
                     viewModel.getInfo()
                     requestNotifications()
                     // Peak-intent moment: offer the Pro trial once (throttled +
@@ -214,6 +215,7 @@ struct PickSportPage: View {
     private func requestNotifications() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
             if granted { MonetizationTelemetry.activationNotificationsEnabled() }
+            MonetizationTelemetry.notificationsResolved(granted: granted)
         }
     }
 }

@@ -3379,6 +3379,9 @@ extension GameViewModel {
                         AutoFollowLogger.shared.log("Live activity started, observing push token updates...", level: .success)
                     }
                     observePushTokenUpdates(for: activity)
+                    // Telemetry lives in the app target only; ContentView turns
+                    // this into the install-once activation event.
+                    NotificationCenter.default.post(name: .liveActivityStartedFromApp, object: nil)
                 }
             } catch {
                 if appStorage.debugMode {
@@ -3989,4 +3992,10 @@ extension GameViewModel {
         filterSports(force: true)
         AutoFollowLogger.shared.log("Cleared all debug fake games", level: .info)
     }
+}
+
+extension Notification.Name {
+    /// The app itself started a Live Activity (Follow tap or a user-armed
+    /// auto-follow) — not a server push-to-start.
+    static let liveActivityStartedFromApp = Notification.Name("liveActivityStartedFromApp")
 }

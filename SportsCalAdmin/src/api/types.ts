@@ -254,6 +254,21 @@ export interface TelemetryResponse {
   activeUsers: Record<string, ActiveUsers>
   /** channel (+ "all") → event → unique installs over windowDays */
   uniqueInstalls: Record<string, Record<string, number>>
+  /** channel (+ "all") → weekly install cohorts, newest first. Absent on older servers. */
+  retention?: Record<string, RetentionWeek[]>
+  /** Install-once activation events in funnel order (counts live in uniqueInstalls). */
+  activationFunnel?: string[]
   windowDays: number
   today: number
+}
+
+/** One Monday-aligned install week of the retention table. */
+export interface RetentionWeek {
+  /** epochDay of the week's Monday */
+  weekStart: number
+  installs: number
+  /** "d1" | "d7" | "d14" | "d30" → installs active exactly N days after install; a mark no day has reached is absent */
+  retained: Record<string, number>
+  /** same keys → true once every install day in the week has passed day N */
+  complete: Record<string, boolean>
 }

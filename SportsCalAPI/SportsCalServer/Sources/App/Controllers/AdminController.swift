@@ -1073,8 +1073,29 @@ struct AdminController: RouteCollection {
         /// `channel` (plus `all`) → `event` → unique installs over the trailing
         /// `windowDays`. Includes a synthetic `client.purchase_or_trial` (union).
         var uniqueInstalls: [String: [String: Int]]
+        /// `channel` (plus `all`) → weekly retention cohorts, newest first.
+        var retention: [String: [RetentionWeek]]
+        /// Event names of the install-once activation funnel, in funnel order
+        /// (their counts are in `uniqueInstalls`, as `client.<event>`). The
+        /// funnel's top is `uniqueInstalls[channel]["cohort.installs"]`.
+        var activationFunnel: [String]
         var windowDays: Int
         var today: Int
+    }
+
+    /// One install week (Monday-aligned UTC epoch days) of the retention table.
+    struct RetentionWeek: Content {
+        /// Epoch day of the Monday that starts the week.
+        var weekStart: Int
+        /// Installs first seen that week.
+        var installs: Int
+        /// `d1`/`d7`/`d14`/`d30` → installs from this week active exactly N days
+        /// after their install day.
+        var retained: [String: Int]
+        /// `dN` → whether every install day in the week has passed day N (so the
+        /// number is final). Absent / false rows are still filling in; a mark no
+        /// install day has reached yet is omitted from `retained` altogether.
+        var complete: [String: Bool]
     }
 
     struct ActiveUserCounts: Content {
@@ -1103,9 +1124,7 @@ struct AdminController: RouteCollection {
         let today = TelemetryKeys.epochDay(req.appClock.now)
 
         // HLL keys are binary strings — skip them; they're read via PFCOUNT below.
-        let keys = try await req.kv.scanKeys(matching: "telemetry:*").filter {
-            !$0.hasPrefix(TelemetryKeys.dauPrefix) && !$0.hasPrefix(TelemetryKeys.uniquePrefix)
-        }
+        let keys = try await req.kv.scanKeys(matching: "telemetry:*").filter { !TelemetryKeys.isHLL($0) }
         var values: [String: Int] = [:]
         for batch in stride(from: 0, to: keys.count, by: 500).map({ Array(keys[$0..<min($0 + 500, keys.count)]) }) {
             let raws = try await req.kv.mget(batch)
@@ -1154,6 +1173,8 @@ struct AdminController: RouteCollection {
 
         var activeUsers: [String: ActiveUsers] = [:]
         var uniqueInstalls: [String: [String: Int]] = [:]
+        var retention: [String: [RetentionWeek]] = [:]
+        let retentionWeekCount = min(max(req.query[Int.self, at: "weeks"] ?? 8, 1), 26)
         let window = (today - windowDays + 1)...today
         let uniqueEvents = ClientTelemetryEvent.uniqueEvents.map { "client.\($0)" }
         for (label, group) in channelNames.map({ ($0, [$0]) }) + [("all", channelNames)] {
@@ -1184,7 +1205,13 @@ struct AdminController: RouteCollection {
             perEvent["client.purchase_or_trial"] = try await kv.hllCount(
                 uniqueKeys(["client.purchase_completed", "client.trial_started"])
             )
+            // Top of the activation funnel: installs whose install day is in the window.
+            let cohortKeys: [String] = window.flatMap { day in
+                group.map { TelemetryKeys.cohort(channel: $0, installDay: day) }
+            }
+            perEvent["cohort.installs"] = try await kv.hllCount(cohortKeys)
             uniqueInstalls[label] = perEvent
+            retention[label] = try await retentionWeeks(kv: kv, channels: group, weeks: retentionWeekCount, today: today)
         }
 
         return TelemetryResponse(
@@ -1193,8 +1220,45 @@ struct AdminController: RouteCollection {
             dimensions: dimensions,
             activeUsers: activeUsers,
             uniqueInstalls: uniqueInstalls,
+            retention: retention,
+            activationFunnel: ClientTelemetryEvent.activationFunnel,
             windowDays: windowDays,
             today: today
         )
+    }
+
+    /// The `weeks` most recent install weeks for `channels` (unioned), newest
+    /// first. Five PFCOUNTs per week, each over at most 7 × channels keys.
+    func retentionWeeks(kv: KeyValueStore, channels: [String], weeks: Int, today: Int) async throws -> [RetentionWeek] {
+        let thisWeek = RetentionCohorts.weekStart(today)
+        var rows: [RetentionWeek] = []
+        for index in 0..<weeks {
+            let start = thisWeek - 7 * index
+            let days = Array(start...(start + 6))
+            var cohortKeys: [String] = []
+            for day in days {
+                for channel in channels {
+                    cohortKeys.append(TelemetryKeys.cohort(channel: channel, installDay: day))
+                }
+            }
+            let installs = try await kv.hllCount(cohortKeys)
+            var retained: [String: Int] = [:]
+            var complete: [String: Bool] = [:]
+            for age in RetentionCohorts.ages {
+                // Skip marks no install day in this week has reached yet.
+                guard start + age <= today else { continue }
+                var keys: [String] = []
+                for day in days {
+                    for channel in channels {
+                        keys.append(TelemetryKeys.retention(channel: channel, installDay: day, age: age))
+                    }
+                }
+                let mark = "d\(age)"
+                retained[mark] = try await kv.hllCount(keys)
+                complete[mark] = start + 6 + age < today
+            }
+            rows.append(RetentionWeek(weekStart: start, installs: installs, retained: retained, complete: complete))
+        }
+        return rows
     }
 }

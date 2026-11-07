@@ -407,6 +407,137 @@ final class RoutesTests: XCTestCase {
         }
     }
 
+    private func postAppActive(install: String, fields: [String: String]) throws {
+        var headers = authed
+        headers.add(name: "X-Install-ID", value: install)
+        var tagged = fields
+        tagged["channel"] = "appstore"
+        tagged["platform"] = "ios"
+        try app.test(.POST, "v2025/telemetry", headers: headers, beforeRequest: { req in
+            try req.content.encode(ClientTelemetryEvent(event: "app_active", fields: tagged))
+        }) { res in
+            XCTAssertEqual(res.status, .ok)
+        }
+    }
+
+    func testTelemetryActivationEventsAreAllowListedAndUnique() async throws {
+        let day = telemetryDay
+        for event in ClientTelemetryEvent.activationFunnel {
+            var headers = authed
+            headers.add(name: "X-Install-ID", value: "new-1")
+            try app.test(.POST, "v2025/telemetry", headers: headers, beforeRequest: { req in
+                try req.content.encode(ClientTelemetryEvent(event: event, fields: [
+                    "channel": "appstore", "platform": "ios", "sports": "3-4",
+                ]))
+            }) { res in
+                XCTAssertEqual(res.status, .ok)
+            }
+            XCTAssertEqual(kv.rawSnapshot["telemetry:client.\(event):appstore:\(day)"], "1", event)
+            let uniques = try await kv.hllCount(["telemetry:uniq:client.\(event):appstore:\(day)"])
+            XCTAssertEqual(uniques, 1, event)
+        }
+        let snapshot = kv.rawSnapshot
+        XCTAssertEqual(snapshot["telemetry:client.activation_onboarding_completed:appstore:sports=3-4:\(day)"], "1",
+                       "the sport-count bucket is an allow-listed breakout")
+        XCTAssertFalse(snapshot.keys.contains { $0.contains("activation_first_favorite:appstore:sports=") },
+                       "only onboarding_completed breaks out by sports")
+    }
+
+    func testTelemetrySportBucketOutsideAllowListIsOther() async throws {
+        try app.test(.POST, "v2025/telemetry", headers: authed, beforeRequest: { req in
+            try req.content.encode(ClientTelemetryEvent(event: "activation_onboarding_completed", fields: [
+                "channel": "appstore", "sports": "NBA,NFL",
+            ]))
+        }) { res in
+            XCTAssertEqual(res.status, .ok)
+        }
+        let snapshot = kv.rawSnapshot
+        XCTAssertEqual(snapshot["telemetry:client.activation_onboarding_completed:appstore:sports=other:\(telemetryDay)"], "1")
+        XCTAssertFalse(snapshot.keys.contains { $0.contains("NBA") })
+    }
+
+    func testAppActiveFilesInstallIntoCohortAndRetentionMarks() async throws {
+        let today = telemetryDay
+        // Fresh install pinging on its install day, a D1 return, a D7 return, a
+        // day-3 ping (no mark), and a retried day-0 ping (idempotent).
+        try postAppActive(install: "n0", fields: ["install_day": String(today)])
+        try postAppActive(install: "n0", fields: ["install_day": String(today)])
+        try postAppActive(install: "n1", fields: ["install_day": String(today - 1)])
+        try postAppActive(install: "n7", fields: ["install_day": String(today - 7)])
+        try postAppActive(install: "n3", fields: ["install_day": String(today - 3)])
+
+        let cohortToday = try await kv.hllCount(["telemetry:cohort:appstore:\(today)"])
+        let cohortYesterday = try await kv.hllCount(["telemetry:cohort:appstore:\(today - 1)"])
+        let d1 = try await kv.hllCount(["telemetry:ret:appstore:\(today - 1):d1"])
+        let d7 = try await kv.hllCount(["telemetry:ret:appstore:\(today - 7):d7"])
+        XCTAssertEqual(cohortToday, 1)
+        XCTAssertEqual(cohortYesterday, 1, "a late first ping still joins its install day's cohort")
+        XCTAssertEqual(d1, 1)
+        XCTAssertEqual(d7, 1)
+        XCTAssertFalse(kv.rawSnapshot.keys.contains { $0.hasPrefix("telemetry:ret:appstore:\(today - 3):") },
+                       "only the d1/d7/d14/d30 marks get keys")
+        XCTAssertFalse(kv.rawSnapshot.keys.contains { $0.hasPrefix("telemetry:ret:appstore:\(today):") })
+    }
+
+    func testLegacyAndInvalidInstallDaysNeverJoinACohort() async throws {
+        let today = telemetryDay
+        try postAppActive(install: "legacy", fields: ["cohort": "legacy"])
+        try postAppActive(install: "legacy2", fields: ["cohort": "legacy", "install_day": String(today - 1)])
+        try postAppActive(install: "old-build", fields: [:])
+        try postAppActive(install: "future", fields: ["install_day": String(today + 2)])
+        try postAppActive(install: "ancient", fields: ["install_day": String(today - 400)])
+        try postAppActive(install: "junk", fields: ["install_day": "yesterday"])
+
+        let snapshot = kv.rawSnapshot
+        XCTAssertFalse(snapshot.keys.contains { $0.hasPrefix(TelemetryKeys.cohortPrefix) },
+                       "legacy, pre-cohort and out-of-range pings must not mint cohort keys")
+        XCTAssertFalse(snapshot.keys.contains { $0.hasPrefix(TelemetryKeys.retentionPrefix) })
+        let dau = try await kv.hllCount(["telemetry:dau:appstore:ios:\(today)"])
+        XCTAssertEqual(dau, 6, "they still count toward DAU")
+    }
+
+    func testAdminTelemetryReportsRetentionWeeksAndActivationFunnel() async throws {
+        let adminKey = "admin-test-key"
+        let adminHash = SHA256.hash(data: Data(adminKey.utf8)).map { String(format: "%02x", $0) }.joined()
+        setenv("ADMIN_API_KEY_HASH", adminHash, 1)
+        defer { unsetenv("ADMIN_API_KEY_HASH") }
+
+        let today = telemetryDay
+        let thisWeek = RetentionCohorts.weekStart(today)
+        let lastWeek = thisWeek - 7
+        // Two installs on last week's Monday; one came back on day 1, and (if the
+        // calendar allows) day 7 lands today or earlier for that cohort.
+        let clock = SystemClock()
+        let counters = ClientTelemetryCounters(kv: kv, clock: clock)
+        for id in ["A", "B"] {
+            try await kv.hllAdd(TelemetryKeys.cohort(channel: "appstore", installDay: lastWeek), element: id, ttl: 3600)
+        }
+        try await kv.hllAdd(TelemetryKeys.retention(channel: "appstore", installDay: lastWeek, age: 1), element: "A", ttl: 3600)
+        try await kv.hllAdd(TelemetryKeys.cohort(channel: "debug", installDay: lastWeek), element: "DEV", ttl: 3600)
+        await counters.record(event: "activation_onboarding_started", channel: "appstore", platform: "ios",
+                              installID: "A", fields: [:])
+
+        try app.test(.GET, "api/admin/telemetry?days=14&weeks=3", headers: ["X-Admin-API-Key": adminKey]) { res in
+            XCTAssertEqual(res.status, .ok)
+            let body = try res.content.decode(AdminController.TelemetryResponse.self)
+            XCTAssertEqual(body.activationFunnel, ClientTelemetryEvent.activationFunnel)
+            XCTAssertEqual(body.uniqueInstalls["appstore"]?["client.activation_onboarding_started"], 1)
+            let rows = try XCTUnwrap(body.retention["appstore"])
+            XCTAssertEqual(rows.map(\.weekStart), [thisWeek, lastWeek, lastWeek - 7], "newest first")
+            let last = rows[1]
+            XCTAssertEqual(last.installs, 2)
+            XCTAssertEqual(last.retained["d1"], 1)
+            XCTAssertNil(last.retained["d30"], "a mark no install day has reached is omitted")
+            XCTAssertEqual(last.complete["d1"], lastWeek + 7 < today)
+            XCTAssertEqual(body.retention["all"]?[1].installs, 3, "all unions every channel")
+            XCTAssertEqual(body.retention["debug"]?[1].installs, 1, "debug stays segregated")
+            if lastWeek >= today - 13 {
+                XCTAssertEqual(body.uniqueInstalls["appstore"]?["cohort.installs"], 2,
+                               "funnel top counts installs whose install day is in the window")
+            }
+        }
+    }
+
     func testTelemetryUnknownEventIsDroppedButStillOK() async throws {
         try app.test(.POST, "v2025/telemetry", headers: authed, beforeRequest: { req in
             try req.content.encode(ClientTelemetryEvent(event: "not_on_the_allow_list", fields: nil))

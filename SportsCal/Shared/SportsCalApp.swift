@@ -45,6 +45,9 @@ struct SportsCalApp: App {
         // before Favorites' init runs — that lets the legacy-shape migration
         // resolve as many name → ID entries as possible on the spot.
         _ = TeamsManager.shared
+        // Decide new-install vs upgraded-legacy before anything below (or the
+        // first onAppear's `launches += 1`) writes the signals it reads.
+        InstallCohort.resolveAtLaunch()
         let storage = UserDefaultStorage()
         let favs = Favorites()
         let tracker = EngagementTracker()
@@ -98,6 +101,7 @@ struct SportsCalApp: App {
                 .onAppear {
                     appStorage.launches += 1
                     MonetizationTelemetry.appActive()
+                    MonetizationTelemetry.observeForegroundActivation()
                     NetworkHandler.currentEnvironment = appStorage.serverEnvironment
                     Task { await NetworkHandler.refreshEnvironment() }
                     TeamsManager.shared.refreshIfStale()
@@ -273,6 +277,7 @@ struct SportsCalApp: App {
                 viewModel.ensureWebSocketConnected()
                 // Daily-active ping (no-op after the first of the UTC day).
                 MonetizationTelemetry.appActive()
+                MonetizationTelemetry.observeForegroundActivation()
                 #if canImport(ActivityKit) && os(iOS)
                 viewModel.reRegisterAllActivityTokens()
                 #endif

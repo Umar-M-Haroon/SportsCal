@@ -158,4 +158,45 @@ final class TelemetryTests: XCTestCase {
         let ttl = try XCTUnwrap(kv.ttl("counter"))
         XCTAssertLessThanOrEqual(ttl, 100, "TTL must not be extended by later increments")
     }
+
+    // MARK: - Retention cohorts
+
+    func testRetentionInstallDayValidation() {
+        let today = 20_400
+        XCTAssertEqual(RetentionCohorts.installDay(from: ["install_day": "20400"], today: today), 20_400)
+        XCTAssertEqual(RetentionCohorts.installDay(from: ["install_day": "20355"], today: today), 20_355, "45 days back is the cap")
+        XCTAssertNil(RetentionCohorts.installDay(from: ["install_day": "20354"], today: today))
+        XCTAssertNil(RetentionCohorts.installDay(from: ["install_day": "20401"], today: today), "no future days")
+        XCTAssertNil(RetentionCohorts.installDay(from: ["install_day": "x"], today: today))
+        XCTAssertNil(RetentionCohorts.installDay(from: [:], today: today))
+        XCTAssertNil(RetentionCohorts.installDay(from: ["install_day": "20400", "cohort": "legacy"], today: today))
+    }
+
+    func testRetentionWeekStartIsMonday() {
+        // Epoch day 4 = Mon 1970-01-05; day 10 = Sun 1970-01-11; day 11 = Mon.
+        XCTAssertEqual(RetentionCohorts.weekStart(4), 4)
+        XCTAssertEqual(RetentionCohorts.weekStart(10), 4)
+        XCTAssertEqual(RetentionCohorts.weekStart(11), 11)
+        // 2026-11-02 (Mon) = epoch day 20759; 2026-11-06 (Fri) = 20763.
+        XCTAssertEqual(RetentionCohorts.weekStart(20_763), 20_759)
+    }
+
+    func testRetentionKeysSchema() {
+        XCTAssertEqual(TelemetryKeys.cohort(channel: "appstore", installDay: 20_400), "telemetry:cohort:appstore:20400")
+        XCTAssertEqual(TelemetryKeys.retention(channel: "appstore", installDay: 20_400, age: 7),
+                       "telemetry:ret:appstore:20400:d7")
+        XCTAssertTrue(TelemetryKeys.isHLL("telemetry:ret:appstore:20400:d7"))
+        XCTAssertFalse(TelemetryKeys.isHLL("telemetry:client.app_active:appstore:20400"))
+    }
+
+    func testRetentionPingDayThirtyMarksD30Only() async throws {
+        let clock = MutableClock()
+        let kv = InMemoryKeyValueStore(clock: clock)
+        let counters = ClientTelemetryCounters(kv: kv, clock: clock)
+        let today = TelemetryKeys.epochDay(clock.now)
+        await counters.record(event: "app_active", channel: "testflight", platform: "ios", installID: "X",
+                              fields: ["install_day": String(today - 30)])
+        let keys = Set(kv.rawSnapshot.keys.filter { $0.hasPrefix(TelemetryKeys.retentionPrefix) })
+        XCTAssertEqual(keys, ["telemetry:ret:testflight:\(today - 30):d30"])
+    }
 }

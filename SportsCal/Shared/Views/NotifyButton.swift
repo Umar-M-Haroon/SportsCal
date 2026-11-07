@@ -164,6 +164,7 @@ struct NotifyButton: View {
 
         NotificationManager.addLocalNotification(date: gameDate, item: game, duration: duration)
         scheduledNotifications.insert(duration)
+        MonetizationTelemetry.firstReminderSet()
         // Spend a free allowance slot for a brand-new game-start reminder.
         if duration == .gameStarting, !subscriptionManager.isPro, let favKey = favoriteTeamKey {
             storage.recordFreeReminderTeam(favKey)
