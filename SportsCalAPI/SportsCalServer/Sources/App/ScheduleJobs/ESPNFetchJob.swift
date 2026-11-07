@@ -663,9 +663,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 plays: plays,
                 isFinal: isFinal,
                 fetchedAt: Date(),
-                winProbability: extras.winProbability,
-                teamStats: extras.teamStats,
-                excitement: extras.excitement
+                extras: extras
             )
             if isFinal {
                 // Final state: persist to the SQLite archive (durable, no TTL) and flush the

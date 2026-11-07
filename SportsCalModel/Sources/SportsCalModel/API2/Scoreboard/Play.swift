@@ -66,6 +66,11 @@ public struct ESPNSummaryResponse: Codable {
     public let boxscore: ESPNSummaryBoxscore?
     /// Football groups its plays by drive and sends no top-level `plays`.
     public let drives: Drives?
+    /// Football's scoring plays, with tidier text than the drive plays.
+    public let scoringPlays: [ScoringPlay]?
+    /// `plays[]` again, read for the fields `Play` leaves out (participants, strength,
+    /// team). Feeds `ScoringSummary`; never encoded.
+    public let detailPlays: [DetailPlay]?
 
     public struct Drives: Codable {
         public var previous: [Drive]?
@@ -81,11 +86,16 @@ public struct ESPNSummaryResponse: Codable {
         }
     }
 
-    public init(plays: [Play]?, winprobability: [ESPNWinProbabilityEntry]? = nil, boxscore: ESPNSummaryBoxscore? = nil, drives: Drives? = nil) {
+    public init(
+        plays: [Play]?, winprobability: [ESPNWinProbabilityEntry]? = nil, boxscore: ESPNSummaryBoxscore? = nil,
+        drives: Drives? = nil, scoringPlays: [ScoringPlay]? = nil, detailPlays: [DetailPlay]? = nil
+    ) {
         self.plays = plays
         self.winprobability = winprobability
         self.boxscore = boxscore
         self.drives = drives
+        self.scoringPlays = scoringPlays
+        self.detailPlays = detailPlays
     }
 
     /// The game's plays, oldest first, wherever ESPN put them: the top-level list for
@@ -100,7 +110,7 @@ public struct ESPNSummaryResponse: Codable {
         (plays?.isEmpty ?? true) && !(drives?.allPlays.isEmpty ?? true)
     }
 
-    enum CodingKeys: String, CodingKey { case plays, winprobability, boxscore, drives }
+    enum CodingKeys: String, CodingKey { case plays, winprobability, boxscore, drives, scoringPlays }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -109,6 +119,14 @@ public struct ESPNSummaryResponse: Codable {
         winprobability = try? c.decodeIfPresent([ESPNWinProbabilityEntry].self, forKey: .winprobability)
         boxscore = try? c.decodeIfPresent(ESPNSummaryBoxscore.self, forKey: .boxscore)
         drives = try? c.decodeIfPresent(Drives.self, forKey: .drives)
+        scoringPlays = (try? c.decodeIfPresent([Lossy<ScoringPlay>].self, forKey: .scoringPlays))?.compactMap(\.value)
+        detailPlays = (try? c.decodeIfPresent([Lossy<DetailPlay>].self, forKey: .plays))?.compactMap(\.value)
+    }
+
+    /// One element of a list that may fail on its own without failing the list.
+    struct Lossy<Value: Decodable>: Decodable {
+        let value: Value?
+        init(from decoder: Decoder) throws { value = try? Value(from: decoder) }
     }
 }
 
@@ -140,10 +158,15 @@ public struct CachedPlays: Codable, Equatable {
     public var teamStats: TeamStatComparison?
     /// "Worth watching" score, 0...100, once the game is final. See `ExcitementIndex`.
     public var excitement: Int?
+    /// Per-player stat lines. Only sent when the request asks (`players=1`).
+    public var players: PlayerBoxScore?
+    /// Scoring plays (football, hockey, baseball). Sent with `players`.
+    public var scoringSummary: ScoringSummary?
 
     public init(
         eventID: String, lastPlayId: String, plays: [Play], isFinal: Bool, fetchedAt: Date,
-        winProbability: WinProbabilitySeries? = nil, teamStats: TeamStatComparison? = nil, excitement: Int? = nil
+        winProbability: WinProbabilitySeries? = nil, teamStats: TeamStatComparison? = nil, excitement: Int? = nil,
+        players: PlayerBoxScore? = nil, scoringSummary: ScoringSummary? = nil
     ) {
         self.eventID = eventID
         self.lastPlayId = lastPlayId
@@ -153,11 +176,32 @@ public struct CachedPlays: Codable, Equatable {
         self.winProbability = winProbability
         self.teamStats = teamStats
         self.excitement = excitement
+        self.players = players
+        self.scoringSummary = scoringSummary
+    }
+
+    public init(eventID: String, lastPlayId: String, plays: [Play], isFinal: Bool, fetchedAt: Date, extras: CachedPlaysExtras?) {
+        self.init(
+            eventID: eventID, lastPlayId: lastPlayId, plays: plays, isFinal: isFinal, fetchedAt: fetchedAt,
+            winProbability: extras?.winProbability, teamStats: extras?.teamStats, excitement: extras?.excitement,
+            players: extras?.players, scoringSummary: extras?.scoringSummary
+        )
     }
 
     /// The parts of a payload stored beside the plays in the server's archive.
     public var extras: CachedPlaysExtras {
-        CachedPlaysExtras(winProbability: winProbability, teamStats: teamStats, excitement: excitement)
+        CachedPlaysExtras(
+            winProbability: winProbability, teamStats: teamStats, excitement: excitement,
+            players: players, scoringSummary: scoringSummary
+        )
+    }
+
+    /// This payload without the opt-in player detail, for callers that didn't ask.
+    public var withoutPlayerDetail: CachedPlays {
+        var copy = self
+        copy.players = nil
+        copy.scoringSummary = nil
+        return copy
     }
 }
 
@@ -166,14 +210,23 @@ public struct CachedPlaysExtras: Codable, Equatable {
     public var winProbability: WinProbabilitySeries?
     public var teamStats: TeamStatComparison?
     public var excitement: Int?
+    public var players: PlayerBoxScore?
+    public var scoringSummary: ScoringSummary?
 
-    public init(winProbability: WinProbabilitySeries? = nil, teamStats: TeamStatComparison? = nil, excitement: Int? = nil) {
+    public init(
+        winProbability: WinProbabilitySeries? = nil, teamStats: TeamStatComparison? = nil, excitement: Int? = nil,
+        players: PlayerBoxScore? = nil, scoringSummary: ScoringSummary? = nil
+    ) {
         self.winProbability = winProbability
         self.teamStats = teamStats
         self.excitement = excitement
+        self.players = players
+        self.scoringSummary = scoringSummary
     }
 
-    public var isEmpty: Bool { winProbability == nil && teamStats == nil && excitement == nil }
+    public var isEmpty: Bool {
+        winProbability == nil && teamStats == nil && excitement == nil && players == nil && scoringSummary == nil
+    }
 }
 
 public extension ESPNSummaryResponse {
@@ -184,10 +237,15 @@ public extension ESPNSummaryResponse {
         let series = winprobability.flatMap { WinProbabilitySeries(entries: $0, plays: allPlays) }
         let sport = league.map(SportType.init(league:))
         let teamStats = sport.flatMap { TeamStatComparison(boxscore: boxscore, sport: $0) }
+        let players = sport.flatMap { PlayerBoxScore(boxscore: boxscore, sport: $0) }
+        let scoring = sport.flatMap { ScoringSummary(summary: self, sport: $0) }
         var excitement: Int?
         if isFinal, let series, let league {
             excitement = ExcitementIndex.score(series: series.home, league: league)
         }
-        return CachedPlaysExtras(winProbability: series, teamStats: teamStats, excitement: excitement)
+        return CachedPlaysExtras(
+            winProbability: series, teamStats: teamStats, excitement: excitement,
+            players: players, scoringSummary: scoring
+        )
     }
 }
