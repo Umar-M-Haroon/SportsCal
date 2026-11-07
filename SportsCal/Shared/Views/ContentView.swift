@@ -208,6 +208,7 @@ struct ContentView: View {
                     OnboardingPage(sheetType: $sheetType)
                         .environment(storage)
                         .environment(viewModel)
+                        .environment(favorites)
                 case .calendar(let eventGame):
                     #if os(iOS)
                     if let game = eventGame {

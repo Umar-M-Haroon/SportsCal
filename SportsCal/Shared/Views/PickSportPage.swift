@@ -8,8 +8,10 @@
 import SwiftUI
 import SportsCalModel
 import UserNotifications
+import NukeUI
 struct PickSportPage: View {
     @State var subscriptionPresented: Bool = false
+    @State private var teamsPresented = false
     @Environment(UserDefaultStorage.self) private var appStorage
     @Binding var sheetType: SheetType?
     @Environment(GameViewModel.self) private var viewModel
@@ -185,17 +187,9 @@ struct PickSportPage: View {
                 MiniSubscriptionPage(subscriptionPresented: $subscriptionPresented)
             } footer: {
                 Button(action: {
-                    appStorage.shouldShowOnboarding = false
                     appStorage.recomputeEnabledSports()
-                    MonetizationTelemetry.onboardingCompleted(sportCount: appStorage.enabledSports.count)
                     viewModel.getInfo()
-                    requestNotifications()
-                    // Peak-intent moment: offer the Pro trial once (throttled +
-                    // Pro-guarded). Falls back to dismissing if not shown.
-                    let offered = UpsellCoordinator.shared.request(.postOnboarding) {
-                        sheetType = .paywall
-                    }
-                    if !offered { sheetType = .none }
+                    teamsPresented = true
                 }, label: {
                     Text("Continue")
                         .disabled(!(appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup || appStorage.shouldShowMLB || appStorage.shouldShowNBA || appStorage.shouldShowWNBA || appStorage.shouldShowNFL || appStorage.shouldShowCFB || appStorage.shouldShowNHL || appStorage.shouldShowGolf || appStorage.shouldShowTennis || appStorage.shouldShowRacing))
@@ -209,9 +203,180 @@ struct PickSportPage: View {
         }
         .navigationBarBackButtonHidden(true)
         .navigationTitle("Pick Sports")
+        .navigationDestination(isPresented: $teamsPresented) {
+            PickTeamsPage(sheetType: $sheetType)
+        }
     }
 
     /// Contextual notification opt-in, asked after the user has picked sports.
+}
+
+// MARK: - Pick teams (onboarding step 2)
+
+/// One league's worth of pickable teams.
+struct OnboardingTeamSection: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let sport: SportType
+    let teams: [Team]
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id && lhs.teams.map(\.idTeam) == rhs.teams.map(\.idTeam)
+    }
+
+    /// Teams that appear in the schedule for the user's enabled sports, grouped by
+    /// league in the order the sports were enabled. Individual sports (golf, tennis,
+    /// racing) have no teams to follow and are skipped. Pure so it can be tested.
+    static func build(games: [Game], enabled: [SportType],
+                      teams: (Game) -> (home: Team, away: Team)?) -> [OnboardingTeamSection] {
+        var byLeague: [String: (title: String, sport: SportType, teams: [String: Team])] = [:]
+        for game in games where !game.isIndividualSport {
+            guard let sport = game.sportType, enabled.contains(sport),
+                  let leagueID = game.idLeague, let pair = teams(game) else { continue }
+            let title = Int(leagueID).flatMap(Leagues.init(rawValue:))?.leagueName ?? game.strLeague ?? sport.displayName
+            var entry = byLeague[leagueID] ?? (title, sport, [:])
+            for team in [pair.home, pair.away] {
+                guard let name = team.strTeam, !name.isEmpty else { continue }
+                entry.teams[team.idTeam ?? name] = entry.teams[team.idTeam ?? name] ?? team
+            }
+            byLeague[leagueID] = entry
+        }
+        return byLeague
+            .map { id, entry in
+                OnboardingTeamSection(
+                    id: id, title: entry.title, sport: entry.sport,
+                    teams: entry.teams.values.sorted { ($0.strTeam ?? "") < ($1.strTeam ?? "") }
+                )
+            }
+            .sorted { lhs, rhs in
+                let l = enabled.firstIndex(of: lhs.sport) ?? .max, r = enabled.firstIndex(of: rhs.sport) ?? .max
+                return l != r ? l < r : lhs.title < rhs.title
+            }
+    }
+}
+
+/// Second onboarding step: follow a few teams so the first feed, reminders and
+/// widgets are personal from day one. Following a team is the habit that keeps
+/// people, so this comes before the notification ask, which then has a reason.
+struct PickTeamsPage: View {
+    @Binding var sheetType: SheetType?
+    @Environment(UserDefaultStorage.self) private var appStorage
+    @Environment(GameViewModel.self) private var viewModel
+    @Environment(Favorites.self) private var favorites
+    @State private var search = ""
+    @State private var picked: Set<String> = []
+
+    private var sections: [OnboardingTeamSection] {
+        OnboardingTeamSection.build(games: viewModel.totalGames ?? [],
+                                    enabled: appStorage.enabledSports,
+                                    teams: viewModel.getTeams(for:))
+    }
+
+    private func filtered(_ section: OnboardingTeamSection) -> [Team] {
+        let query = search.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return section.teams }
+        return section.teams.filter {
+            ($0.strTeam ?? "").localizedCaseInsensitiveContains(query)
+                || ($0.strTeamShort ?? "").localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    var body: some View {
+        let sections = sections
+        List {
+            if sections.isEmpty {
+                Section {
+                    HStack(spacing: 12) {
+                        ProgressView()
+                        Text("Loading teams…").foregroundStyle(.secondary)
+                    }
+                } footer: {
+                    Text("Golf, tennis and racing don't have teams. You can follow players and drivers from any event.")
+                }
+            }
+            ForEach(sections) { section in
+                let teams = filtered(section)
+                if !teams.isEmpty {
+                    Section(section.title) {
+                        ForEach(teams, id: \.self) { team in
+                            row(team, sport: section.sport)
+                        }
+                    }
+                }
+            }
+        }
+        .searchable(text: $search, prompt: "Search teams")
+        .navigationTitle("Your Teams")
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                finish()
+            } label: {
+                Text(picked.isEmpty ? "Skip for Now" : "Done · \(picked.count) \(picked.count == 1 ? "Team" : "Teams")")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(6)
+            }
+            .buttonStyle(.borderedProminent)
+            .padding()
+            .background(.bar)
+        }
+    }
+
+    private func row(_ team: Team, sport: SportType) -> some View {
+        let key = team.idTeam ?? team.strTeam ?? ""
+        let isPicked = picked.contains(key) || favorites.contains(team: team)
+        return Button {
+            if isPicked {
+                favorites.remove(team: team)
+                picked.remove(key)
+            } else {
+                favorites.add(team: team)
+                picked.insert(key)
+            }
+        } label: {
+            HStack(spacing: 12) {
+                badge(team, sport: sport)
+                Text(team.strTeam ?? "")
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: isPicked ? "star.fill" : "star")
+                    .foregroundStyle(isPicked ? Color.yellow : Color.secondary)
+                    .imageScale(.large)
+            }
+        }
+        .accessibilityLabel(team.strTeam ?? "")
+        .accessibilityValue(isPicked ? "Following" : "Not following")
+        .accessibilityHint(isPicked ? "Unfollow this team" : "Follow this team")
+    }
+
+    @ViewBuilder
+    private func badge(_ team: Team, sport: SportType) -> some View {
+        if let string = team.strTeamBadge, let url = URL(string: string) {
+            LazyImage(url: url) { state in
+                if let image = state.image {
+                    image.resizable().aspectRatio(contentMode: .fit)
+                } else {
+                    Circle().fill(Color.secondary.opacity(0.15))
+                }
+            }
+            .frame(width: 32, height: 32)
+        } else {
+            TeamLogo(abbreviation: String((team.strTeamShort ?? team.strTeam ?? "?").prefix(3)), sport: sport, size: 32)
+        }
+    }
+
+    private func finish() {
+        appStorage.shouldShowOnboarding = false
+        appStorage.recomputeEnabledSports()
+        MonetizationTelemetry.onboardingCompleted(sportCount: appStorage.enabledSports.count)
+        viewModel.filterSports(force: true)
+        requestNotifications()
+        let offered = UpsellCoordinator.shared.request(.postOnboarding) {
+            sheetType = .paywall
+        }
+        if !offered { sheetType = .none }
+    }
+
     private func requestNotifications() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
             if granted { MonetizationTelemetry.activationNotificationsEnabled() }
@@ -227,4 +392,5 @@ struct PickSportPage: View {
     PickSportPage(sheetType: .constant(.none))
         .environment(storage)
         .environment(viewModel)
+        .environment(Favorites())
 }

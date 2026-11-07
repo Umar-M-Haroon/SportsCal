@@ -13,6 +13,7 @@ struct OnboardingPage: View {
     @Environment(UserDefaultStorage.self) private var appStorage
     @Binding var sheetType: SheetType?
     @Environment(GameViewModel.self) private var viewModel
+    @Environment(Favorites.self) private var favorites
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading) {
@@ -66,6 +67,7 @@ struct OnboardingPage: View {
         PickSportPage(sheetType: $sheetType)
             .environment(appStorage)
             .environment(viewModel)
+            .environment(favorites)
     }
 
     private var pickSportsLabel: some View {
@@ -134,4 +136,5 @@ struct InfoView: View {
     }))
     .environment(storage)
     .environment(viewModel)
+    .environment(Favorites())
 }
