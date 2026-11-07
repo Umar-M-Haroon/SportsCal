@@ -38,7 +38,7 @@ struct UpcomingGameView: View {
     var body: some View {
         let content = VStack(spacing: 6) {
                 HStack {
-                    IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: false, isAway: true, record: game.awayRecord, seed: game.awaySeed)
+                    IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: false, isAway: true, record: game.awayRecord, seed: game.awaySeed, seedIsRank: game.isCollegeFootball)
                     .frame(maxWidth: .infinity)
                     VStack(alignment: .center, spacing: 4) {
                         if let date = game.standardDate {
@@ -61,10 +61,28 @@ struct UpcomingGameView: View {
                                 .tracking(1)
                                 .foregroundStyle(Color.appInkFaint)
                         }
+                        if let number = game.doubleheaderGame {
+                            Text("Game \(number)")
+                                .font(.caption2)
+                                .foregroundStyle(Color.appInkSoft)
+                        }
+                        if let network = game.broadcasts?.first {
+                            Label(network, systemImage: "tv")
+                                .labelStyle(.titleAndIcon)
+                                .font(.caption2)
+                                .foregroundStyle(Color.appInkSoft)
+                                .lineLimit(1)
+                                .accessibilityLabel("On \(network)")
+                        }
                     }
                         .fixedSize(horizontal: true, vertical: false)
-                    IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: Int(game.intHomeScore ?? ""), isWinning: false, isAway: false, record: game.homeRecord, seed: game.homeSeed)
+                    IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: Int(game.intHomeScore ?? ""), isWinning: false, isAway: false, record: game.homeRecord, seed: game.homeSeed, seedIsRank: game.isCollegeFootball)
                     .frame(maxWidth: .infinity)
+                }
+
+                // Baseball: the probable starters, away on the left like the teams.
+                if game.homeProbable != nil || game.awayProbable != nil {
+                    ProbablePitchersLine(away: game.awayProbable, home: game.homeProbable)
                 }
 
                 // Venue for favorites
@@ -111,6 +129,40 @@ struct UpcomingGameView: View {
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+/// "J. Berrios 9-5, 4.17 ERA · R. Ray 9-4, 2.92 ERA" under an upcoming baseball row.
+struct ProbablePitchersLine: View {
+    let away: ProbablePitcher?
+    let home: ProbablePitcher?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            pitcher(away, alignment: .leading)
+            Image(systemName: "baseball.fill")
+                .font(.caption2)
+                .foregroundStyle(Color.appInkFaint)
+            pitcher(home, alignment: .trailing)
+        }
+        .font(.caption2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Probable pitchers: \(away?.name ?? "to be announced") and \(home?.name ?? "to be announced")")
+    }
+
+    private func pitcher(_ pitcher: ProbablePitcher?, alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: 0) {
+            Text(pitcher?.name ?? "TBA")
+                .foregroundStyle(Color.appInkSoft)
+                .lineLimit(1)
+            if let record = pitcher?.record {
+                Text(record)
+                    .foregroundStyle(Color.appInkFaint)
+                    .monospacedDigit()
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: alignment == .leading ? .leading : .trailing)
     }
 }
 
