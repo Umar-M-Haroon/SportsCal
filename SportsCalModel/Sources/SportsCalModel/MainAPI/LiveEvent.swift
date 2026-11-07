@@ -284,22 +284,14 @@ public struct LiveEvent: Codable, Equatable, Hashable {
 
             // 3) Racing: create ONE game per event (Grand Prix weekend) with all sessions
             if league.isRacing, let competitions = event.competitions, !competitions.isEmpty {
-                // Session priority: Race > Sprint > Qual > FP3 > FP2 > FP1
-                let sessionPriority = ["Race": 6, "Sprint": 5, "Qual": 4, "FP3": 3, "FP2": 2, "FP1": 1]
-
                 // Build EventSession array from all competitions
                 let eventSessions: [EventSession] = competitions.map { competition in
                     let sessionType = competition.type?.abbreviation ?? ""
-                    let sessionName: String
-                    switch sessionType {
-                    case "FP1": sessionName = "Free Practice 1"
-                    case "FP2": sessionName = "Free Practice 2"
-                    case "FP3": sessionName = "Free Practice 3"
-                    case "Qual": sessionName = "Qualifying"
-                    case "Sprint": sessionName = "Sprint"
-                    case "Race": sessionName = "Race"
-                    default: sessionName = sessionType.isEmpty ? "Session" : sessionType
-                    }
+                    // ESPN sends sprint weekends as bare "SS"/"SR" codes; the shared
+                    // session table names them (and every other code) properly.
+                    let sessionName = sessionType.isEmpty
+                        ? "Session"
+                        : EventSession(sessionType: sessionType, sessionName: sessionType).displayName
                     let competitionTiming = timingMap[competition.id]
                     let sessionLeaderboard: [LeaderboardEntry] = (competition.competitors ?? []).map { competitor in
                         let name = competitor.athlete?.displayName ?? "TBD"
@@ -343,9 +335,10 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 } else {
                     let completedSessions = eventSessions.filter { $0.status == "post" }
                     if !completedSessions.isEmpty {
-                        primarySession = completedSessions.max(by: {
-                            (sessionPriority[$0.sessionType] ?? 0) < (sessionPriority[$1.sessionType] ?? 0)
-                        }) ?? eventSessions.last!
+                        // Rank by EventSession.importance so a sprint weekend's
+                        // "SR"/"SS" outrank FP1 (they were missing from a local table).
+                        primarySession = completedSessions.max(by: { $0.importance < $1.importance })
+                            ?? eventSessions.last!
                     } else {
                         primarySession = eventSessions.last!
                     }
