@@ -33,13 +33,45 @@ struct TournamentHubView: View {
         return [Leagues.atp, .wta].filter { set.contains($0) }
     }
 
+    /// `games` with the live feed's copy of any match in play: the list handed in is a
+    /// snapshot taken when the hub opened, so without this an open hub froze mid-set.
+    private var currentGames: [Game] {
+        let live = viewModel.liveEventsForSport(.tennis)
+        guard !live.isEmpty else { return games }
+        var liveByID: [String: Game] = [:]
+        for game in live {
+            if let id = game.idEvent { liveByID[id] = game }
+        }
+        return games.map { game in
+            guard let id = game.idEvent, let fresh = liveByID[id] else { return game }
+            var merged = fresh
+            merged.tournamentName = game.tournamentName ?? fresh.tournamentName
+            return merged
+        }
+    }
+
     /// Games for the selected tour (Men's = ATP, Women's = WTA). Falls back to all games when the
     /// tournament is single-tour or no tour is selected yet.
     private var activeGames: [Game] {
+        let games = currentGames
         guard toursPresent.count > 1, let tour = selectedTour else { return games }
         // Mixed doubles belongs to both tours, so it can't be selected by `idLeague`
         // alone — see `Game.belongsToTennisTour`.
         return games.filter { $0.belongsToTennisTour(tour) }
+    }
+
+    /// A followed player is in the match.
+    private func isFollowed(_ game: Game) -> Bool {
+        favorites.contains(game) || favorites.containsPlayer(game.strHomeTeam) || favorites.containsPlayer(game.strAwayTeam)
+    }
+
+    /// Live and followed matches, pinned above the rounds (live first).
+    private func pinnedMatches(_ matches: [Game]) -> [Game] {
+        matches.filter { $0.isTennisMatchLive || isFollowed($0) }
+            .sorted { lhs, rhs in
+                if lhs.isTennisMatchLive != rhs.isTennisMatchLive { return lhs.isTennisMatchLive }
+                return isFollowed(lhs) && !isFollowed(rhs)
+            }
     }
 
     /// Binding for the tour picker — defaults to the first tour present and clears the selected day
@@ -82,20 +114,29 @@ struct TournamentHubView: View {
             .sorted { ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast) }
     }
 
-    /// Matches for the selected day grouped by round, preserving first-appearance order.
+    /// Matches for the selected day grouped by round: singles before doubles, and the
+    /// deepest round first within each (Final, Semifinal, …), whatever order ESPN sent.
     private func roundGroups(_ matches: [Game]) -> [(round: String, matches: [Game])] {
-        var result: [(round: String, matches: [Game])] = []
+        var result: [(round: String, matches: [Game], doubles: Bool, depth: Int)] = []
         var seen: [String: Int] = [:]
         for game in matches {
-            let key = game.round ?? "Matches"
+            let doubles = game.isTennisDoubles
+            let round = game.round ?? "Matches"
+            let key = doubles ? "Doubles · \(round)" : round
             if let idx = seen[key] {
                 result[idx].matches.append(game)
             } else {
                 seen[key] = result.count
-                result.append((round: key, matches: [game]))
+                result.append((round: key, matches: [game], doubles: doubles, depth: game.roundDepth))
             }
         }
-        return result
+        let ordered = result.enumerated().sorted { lhs, rhs in
+            let l = lhs.element, r = rhs.element
+            if l.doubles != r.doubles { return !l.doubles }
+            if l.depth != r.depth { return l.depth > r.depth }
+            return lhs.offset < rhs.offset
+        }
+        return ordered.map { (round: $0.element.round, matches: $0.element.matches) }
     }
 
     // MARK: Body
@@ -124,10 +165,22 @@ struct TournamentHubView: View {
 
             if let day = resolvedDay {
                 let dayMatches = matches(on: day)
+                let pinned = pinnedMatches(dayMatches)
+                let pinnedIDs = Set(pinned.map(\.id))
                 if dayMatches.isEmpty {
                     Section { Text("No matches scheduled").foregroundStyle(.secondary) }
                 } else {
-                    ForEach(roundGroups(dayMatches), id: \.round) { group in
+                    if !pinned.isEmpty {
+                        Section {
+                            ForEach(pinned, id: \.id) { game in
+                                matchRow(game)
+                            }
+                        } header: {
+                            Label(pinned.contains(where: \.isTennisMatchLive) ? "Live & Following" : "Following",
+                                  systemImage: pinned.contains(where: \.isTennisMatchLive) ? "dot.radiowaves.left.and.right" : "star.fill")
+                        }
+                    }
+                    ForEach(roundGroups(dayMatches.filter { !pinnedIDs.contains($0.id) }), id: \.round) { group in
                         Section {
                             ForEach(group.matches, id: \.id) { game in
                                 matchRow(game)

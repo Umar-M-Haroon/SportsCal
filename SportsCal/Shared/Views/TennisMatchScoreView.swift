@@ -8,161 +8,250 @@
 import SwiftUI
 import SportsCalModel
 
+/// Whether tennis rows name their tournament. Off where rows already sit under a
+/// tournament heading (Browse, the hub, Home's per-tournament groups); on in mixed
+/// lists (Live, Your Teams).
+private struct TennisRowShowsTournamentKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var tennisRowShowsTournament: Bool {
+        get { self[TennisRowShowsTournamentKey.self] }
+        set { self[TennisRowShowsTournamentKey.self] = newValue }
+    }
+}
+
 /// Compact list row for a tennis head-to-head match showing player names and set scores
 struct TennisMatchScoreView: View {
     var game: Game
     @Environment(Favorites.self) private var favorites
     @Environment(GameViewModel.self) private var viewModel
+    @Environment(\.tennisRowShowsTournament) private var showsTournament
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var sheetType: SheetType?
     var isLive: Bool
+    @ScaledMetric(relativeTo: .subheadline) private var setColumnWidth: CGFloat = 28
 
     private var sportType: SportType? {
         guard let id = game.idLeague, let leagueID = Int(id), let league = Leagues(rawValue: leagueID) else { return nil }
         return SportType(league: league)
     }
 
-    private var homeWinsSets: Int {
-        guard let hLs = game.homeLinescores, let aLs = game.awayLinescores else { return 0 }
-        return zip(hLs, aLs).filter { $0.0 > $0.1 }.count
+    /// Finished sets only: 6-4 3-2 is one set to none, not one each.
+    private var setsWon: (home: Int, away: Int) { game.tennisSetsWon }
+
+    /// The side to bold: the winner once it's over (ESPN's call, so a retirement reads
+    /// right), the side ahead on sets while it's live. Nobody at 0-0 or on a walkover.
+    private var emphasizedSide: GameSituation.Side? {
+        TennisMatchPresentation.emphasizedSide(game)
     }
 
-    private var awayWinsSets: Int {
-        guard let hLs = game.homeLinescores, let aLs = game.awayLinescores else { return 0 }
-        return zip(hLs, aLs).filter { $0.1 > $0.0 }.count
-    }
-
-    /// One VoiceOver sentence: "Live, Sinner vs Alcaraz, sets 1 to 0, 6-4, 3-2, 2nd Set".
+    /// One VoiceOver sentence: "Live, Sinner vs Alcaraz, QF, sets 1 to 0, 7 6, tiebreak 7 4, 3 2, Sinner serving".
     /// Home player first, matching the visual row order.
     private var accessibilityLabel: String {
-        let matchup = "\(game.strHomeTeam) vs \(game.strAwayTeam)"
         var parts: [String] = []
         if isLive { parts.append("Live") }
-        parts.append(matchup)
-        let home = game.homeLinescores ?? [], away = game.awayLinescores ?? []
-        if !home.isEmpty || !away.isEmpty {
-            parts.append("sets \(homeWinsSets) to \(awayWinsSets)")
-            let sets = (0..<max(home.count, away.count)).map { i in
-                "\(i < home.count ? formatScore(home[i]) : "-")-\(i < away.count ? formatScore(away[i]) : "-")"
+        if let stoppage = game.tennisStoppageText { parts.append(stoppage) }
+        parts.append("\(game.strHomeTeam) vs \(game.strAwayTeam)")
+        if showsTournament, let tournament = game.tournamentName { parts.append(tournament) }
+        if let round = game.round { parts.append(round) }
+        parts.append(contentsOf: TennisMatchPresentation.spokenScore(game))
+        if game.tennisMatchWinner == nil {
+            if let status = game.displayStatus {
+                parts.append(game.isFinalStatus ? status.lowercased() : status)
+            } else if !isLive, let date = game.standardDate, date > Date() {
+                parts.append(GameRowAccessibility.when(date))
             }
-            parts.append(sets.joined(separator: ", "))
-        }
-        if let status = game.displayStatus {
-            parts.append(game.isFinalStatus ? status.lowercased() : status)
-        } else if !isLive, let date = game.standardDate, date > Date() {
-            parts.append(GameRowAccessibility.when(date))
         }
         return parts.joined(separator: ", ")
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Summary (header + players) reads as one VoiceOver element; the action
-            // menu below stays its own element so it remains operable.
+            header
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(accessibilityLabel))
+
+            // Players read as part of the header's sentence.
+            let sets = game.tennisSets
             VStack(alignment: .leading, spacing: 6) {
-                // Header: sport icon + status + LIVE badge
-                HStack {
-                    if let sport = sportType {
-                        Image(systemName: sport.systemImage)
-                            .foregroundColor(sport.color)
-                    }
-                    if let progress = game.displayStatus {
-                        Text(progress)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    if isLive {
-                        Text("LIVE")
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.red)
-                            .clipShape(Capsule())
-                    }
-                }
-
-                // Player rows with set scores
-                let setCount = max(game.homeLinescores?.count ?? 0, game.awayLinescores?.count ?? 0)
-
-                // Home player
-                playerRow(
-                    name: game.strHomeTeam,
-                    setsWon: homeWinsSets,
-                    isWinning: homeWinsSets > awayWinsSets,
-                    linescores: game.homeLinescores,
-                    opponentLinescores: game.awayLinescores,
-                    setCount: setCount,
-                    headshot: game.strHomeTeamBadge
-                )
-
-                // Away player
-                playerRow(
-                    name: game.strAwayTeam,
-                    setsWon: awayWinsSets,
-                    isWinning: awayWinsSets > homeWinsSets,
-                    linescores: game.awayLinescores,
-                    opponentLinescores: game.homeLinescores,
-                    setCount: setCount,
-                    headshot: game.strAwayTeamBadge
-                )
+                playerRow(side: .home, name: game.strHomeTeam, seed: game.tennisHomeSeed,
+                          headshot: game.strHomeTeamBadge, sets: sets)
+                playerRow(side: .away, name: game.strAwayTeam, seed: game.tennisAwaySeed,
+                          headshot: game.strAwayTeamBadge, sets: sets)
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(Text(accessibilityLabel))
-
-            // Action menu
-            HStack {
-                Spacer()
-                Menu {
-                    FavoriteMenu(game: game)
-                        .environment(favorites)
-                    CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-                    NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .accessibilityLabel("Actions")
-                }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.capsule)
-                Spacer()
-            }
+            .accessibilityHidden(true)
         }
         .padding(.vertical, 4)
     }
 
-    private func playerRow(name: String, setsWon: Int, isWinning: Bool, linescores: [Double]?, opponentLinescores: [Double]?, setCount: Int, headshot: String? = nil) -> some View {
-        HStack(spacing: 0) {
-            HeadshotView(url: headshot, size: 24)
-                .padding(.trailing, 6)
-            Text(name)
-                .font(.subheadline)
-                .fontWeight(isWinning ? .semibold : .regular)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            if setCount > 0 {
-                ForEach(0..<setCount, id: \.self) { i in
-                    let score = linescores.flatMap { i < $0.count ? $0[i] : nil }
-                    let opScore = opponentLinescores.flatMap { i < $0.count ? $0[i] : nil }
-                    let wonSet = score != nil && opScore != nil && score! > opScore!
-                    Text(score.map { formatScore($0) } ?? "-")
-                        .font(.subheadline.monospacedDigit())
-                        .fontWeight(wonSet ? .bold : .regular)
-                        .foregroundColor(wonSet ? .primary : .secondary)
-                        .frame(width: 28, alignment: .center)
-                }
-            } else if let matchScore = (isWinning ? game.intHomeScore : game.intAwayScore) ?? (name == game.strHomeTeam ? game.intHomeScore : game.intAwayScore) {
-                Text(matchScore)
-                    .font(.subheadline.monospacedDigit())
-                    .fontWeight(.semibold)
-                    .frame(width: 28, alignment: .center)
+    /// Sport icon, round, tournament (in mixed lists), status or start time, and the
+    /// actions menu — on one line, so the menu no longer takes a row of its own.
+    private var header: some View {
+        HStack(spacing: 6) {
+            if let sport = sportType {
+                Image(systemName: sport.systemImage)
+                    .foregroundColor(sport.color)
             }
+            if let round = game.shortRoundLabel {
+                Text(round)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(.quaternary, in: Capsule())
+            }
+            if showsTournament, let tournament = game.tournamentName {
+                Text(tournament)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
+            }
+            statusLabel
+            Spacer(minLength: 4)
+            if isLive {
+                Text("LIVE")
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.red)
+                    .clipShape(Capsule())
+            }
+            Menu {
+                FavoriteMenu(game: game)
+                    .environment(favorites)
+                CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+                NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 32, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Actions")
         }
     }
 
-    private func formatScore(_ value: Double) -> String {
-        value.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(value))" : "\(value)"
+    @ViewBuilder
+    private var statusLabel: some View {
+        if let stoppage = game.tennisStoppageText {
+            TennisStoppageBadge(text: stoppage)
+        } else if let progress = game.displayStatus {
+            Text(progress)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+        } else if let date = game.standardDate {
+            GameTimeLabel(date: date, includeDate: false)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private func playerRow(side: GameSituation.Side, name: String, seed: Int?, headshot: String?, sets: [TennisSet]) -> some View {
+        let isEmphasized = emphasizedSide == side
+        let isServing = game.tennisServer == side
+        let marker = game.tennisMatchWinner == side ? game.tennisResultMarker : nil
+        return HStack(spacing: 0) {
+            HeadshotView(url: headshot, size: 24)
+                .padding(.trailing, 6)
+            if let seed {
+                Text("\(seed)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.trailing, 3)
+            }
+            Text(name)
+                .font(.subheadline)
+                .fontWeight(isEmphasized ? .semibold : .regular)
+                .lineLimit(1)
+            if isServing {
+                TennisServeDot()
+                    .padding(.leading, 4)
+            }
+            if let marker {
+                Text(marker)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 4)
+            }
+            Spacer(minLength: 4)
+
+            ForEach(Array(sets.enumerated()), id: \.offset) { _, set in
+                let wonSet = set.winner == side
+                Text(set.text(for: side))
+                    .font(.subheadline.monospacedDigit())
+                    .fontWeight(wonSet ? .bold : .regular)
+                    .foregroundColor(wonSet || !set.isComplete ? .primary : .secondary)
+                    .frame(minWidth: setColumnWidth, alignment: .center)
+            }
+        }
+    }
+}
+
+/// The ball by the server's name.
+struct TennisServeDot: View {
+    var body: some View {
+        Circle()
+            .fill(Color.yellow)
+            .overlay(Circle().stroke(Color.primary.opacity(0.25), lineWidth: 0.5))
+            .frame(width: 7, height: 7)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Rain delay / suspension, distinct from the plain status text.
+struct TennisStoppageBadge: View {
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: "cloud.rain.fill")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.orange.opacity(0.15), in: Capsule())
+            .lineLimit(1)
+    }
+}
+
+/// Reading shared by the tennis row and detail.
+enum TennisMatchPresentation {
+    /// Winner once it's over, the side ahead on sets while live; nobody at level sets
+    /// or on a walkover (there's no match to have won).
+    static func emphasizedSide(_ game: Game) -> GameSituation.Side? {
+        if game.tennisResultMarker == "w/o" { return nil }
+        if let winner = game.tennisMatchWinner { return winner }
+        let won = game.tennisSetsWon
+        if won.home == won.away { return nil }
+        return won.home > won.away ? .home : .away
+    }
+
+    /// "sets 1 to 0", "7 6, tiebreak 7 4, 3 2", "Sinner serving", "Sinner won by retirement".
+    static func spokenScore(_ game: Game) -> [String] {
+        var parts: [String] = []
+        let sets = game.tennisSets
+        if !sets.isEmpty {
+            let won = game.tennisSetsWon
+            parts.append("sets \(won.home) to \(won.away)")
+            parts.append(sets.map(\.spokenText).joined(separator: ", "))
+        }
+        if let server = game.tennisServer {
+            parts.append("\(server == .home ? game.strHomeTeam : game.strAwayTeam) serving")
+        }
+        if let winner = game.tennisMatchWinner {
+            let name = winner == .home ? game.strHomeTeam : game.strAwayTeam
+            let how: String
+            switch game.tennisResultMarker {
+            case "w/o": how = " by walkover"
+            case "ret.": how = ", opponent retired"
+            default: how = ""
+            }
+            parts.append("\(name) won\(how)")
+        }
+        return parts
     }
 }

@@ -89,13 +89,13 @@ public enum TournamentDigest {
 }
 
 extension Game {
-    var isTennisMatchLive: Bool { strStatus == "in" }
+    public var isTennisMatchLive: Bool { strStatus == "in" }
 
     /// ESPN ISO timestamps sort correctly as strings; missing ones sort last.
     var sortTimestamp: String { strTimestamp ?? "~" }
 
     /// Rough draw position for ordering: final > semifinal > quarterfinal > earlier.
-    var roundDepth: Int {
+    public var roundDepth: Int {
         guard let round = round?.lowercased() else { return 0 }
         if isQualifyingRound { return -1 }
         if round.contains("semifinal") { return 5 }

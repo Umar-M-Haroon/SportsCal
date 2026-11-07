@@ -15,18 +15,94 @@ import SportsCalModel
 // MARK: - Day sections
 
 /// Games in play right now, under the animated LIVE header. Renders nothing when empty.
+///
+/// A Slam day puts 30+ tennis matches in play at once; past a handful they're grouped
+/// under their tournament ("Wimbledon · 12 live"), with tournaments and matches that
+/// have a followed player first.
 struct LiveGamesSection<Row: View>: View {
     let games: [GameWithTeams]
+    /// A followed player is in this tennis match.
+    var isFollowed: (Game) -> Bool = { _ in false }
     @ViewBuilder let row: (GameWithTeams) -> Row
+
+    /// Live tennis matches at which the section starts grouping them by tournament.
+    static var tennisGroupingThreshold: Int { 4 }
 
     var body: some View {
         if !games.isEmpty {
+            let tennis = games.filter { $0.game.isTennisMatch }
             Section {
-                ForEach(games) { row($0) }
+                if tennis.count < Self.tennisGroupingThreshold {
+                    ForEach(games) { row($0) }
+                } else {
+                    ForEach(games.filter { !$0.game.isTennisMatch }) { row($0) }
+                    ForEach(LiveTennisGroup.groups(tennis, isFollowed: isFollowed), id: \.name) { group in
+                        LiveTennisGroupHeader(group: group)
+                        ForEach(group.matches) { row($0) }
+                    }
+                }
             } header: {
                 LiveAnimatedView()
             }
+            // Mixed list: tennis rows say which tournament they're from (grouped ones too,
+            // harmlessly — the header above them names it).
+            .environment(\.tennisRowShowsTournament, tennis.count < Self.tennisGroupingThreshold)
         }
+    }
+}
+
+/// One tournament's live matches in the Live section.
+struct LiveTennisGroup {
+    let name: String
+    let matches: [GameWithTeams]
+    let followedCount: Int
+
+    /// Tournaments with a followed player first, then the busiest; followed matches
+    /// first within each. Stable otherwise.
+    static func groups(_ matches: [GameWithTeams], isFollowed: (Game) -> Bool) -> [LiveTennisGroup] {
+        var order: [String] = []
+        var buckets: [String: [GameWithTeams]] = [:]
+        for match in matches {
+            let name = match.game.tournamentName ?? match.game.strLeague ?? "Tennis"
+            if buckets[name] == nil { order.append(name) }
+            buckets[name, default: []].append(match)
+        }
+        let groups = order.map { name -> LiveTennisGroup in
+            let all = buckets[name] ?? []
+            let followed = all.filter { isFollowed($0.game) }
+            let rest = all.filter { !isFollowed($0.game) }
+            return LiveTennisGroup(name: name, matches: followed + rest, followedCount: followed.count)
+        }
+        return groups.enumerated().sorted { lhs, rhs in
+            let l = lhs.element, r = rhs.element
+            if (l.followedCount > 0) != (r.followedCount > 0) { return l.followedCount > 0 }
+            if l.matches.count != r.matches.count { return l.matches.count > r.matches.count }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
+    }
+}
+
+private struct LiveTennisGroupHeader: View {
+    let group: LiveTennisGroup
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "tennisball.fill")
+                .foregroundStyle(Color.app(.tennis))
+            Text(group.name)
+                .font(.subheadline.weight(.semibold))
+            Text("· \(group.matches.count) live")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if group.followedCount > 0 {
+                Image(systemName: "star.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.yellow)
+            }
+            Spacer()
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -47,6 +123,7 @@ struct YourTeamsSection<Row: View>: View {
                         .font(.headline)
                 }
             }
+            .environment(\.tennisRowShowsTournament, true)
         }
     }
 }

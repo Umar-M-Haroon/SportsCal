@@ -821,7 +821,7 @@ struct DayPage: View {
         }
 
         // Live games (only on today)
-        LiveGamesSection(games: filteredLiveEvents) { gameRow(for: $0, isLive: true) }
+        LiveGamesSection(games: filteredLiveEvents, isFollowed: isFollowedTennisMatch) { gameRow(for: $0, isLive: true) }
 
         // Favorites for this day
         YourTeamsSection(games: filteredFavorites) { gameRow(for: $0, isLive: false) }
@@ -1439,10 +1439,14 @@ struct DayPage: View {
     @ViewBuilder
     private func tennisTournamentContent(games: [GameWithTeams]) -> some View {
         let grouped = groupedByTournament(games)
+        let liveByTournament = liveTennisCounts
         ForEach(grouped, id: \.key) { tournamentName, matches in
             let isMajor = Self.tier(of: matches) == .major
+            // Open by default for a Slam, or when a followed player is on the day's card.
+            let hasFollowed = matches.contains { isFollowedTennisMatch($0.game) }
+            let liveCount = liveByTournament[tournamentName] ?? 0
             DisclosureGroup(isExpanded: Binding(
-                get: { tournamentExpansion[tournamentName] ?? isMajor },
+                get: { tournamentExpansion[tournamentName] ?? (isMajor || hasFollowed) },
                 set: { tournamentExpansion[tournamentName] = $0 }
             )) {
                 flatGameList(games: matches, region: nil, adPlan: FeedAdPlan())
@@ -1453,9 +1457,36 @@ struct DayPage: View {
                     Text("(\(matches.count))")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    if liveCount > 0 {
+                        Text("· \(liveCount) live")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.red)
+                    }
+                    if hasFollowed {
+                        Image(systemName: "star.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.yellow)
+                            .accessibilityLabel("Following")
+                    }
                 }
             }
         }
+    }
+
+    /// A followed player (or pair) is in this tennis match.
+    private func isFollowedTennisMatch(_ game: Game) -> Bool {
+        guard game.isTennisMatch else { return false }
+        return favorites.contains(game) || favorites.containsPlayer(game.strHomeTeam) || favorites.containsPlayer(game.strAwayTeam)
+    }
+
+    /// Live tennis matches per tournament. They sit in the Live section, not the
+    /// tournament groups below, so the groups' "· 3 live" comes from here.
+    private var liveTennisCounts: [String: Int] {
+        var counts: [String: Int] = [:]
+        for gwt in filteredLiveEvents where gwt.game.isTennisMatch {
+            counts[gwt.game.tournamentName ?? gwt.game.strLeague ?? "Tennis", default: 0] += 1
+        }
+        return counts
     }
 
     private func groupedByTournament(_ games: [GameWithTeams]) -> [(key: String, matches: [GameWithTeams])] {
