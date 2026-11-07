@@ -303,6 +303,7 @@ public enum SoccerTimeline {
     ///     only says a shootout started, so its kicks come from here.
     ///   - finalScore: the game's score. A running score that doesn't add up to it on
     ///     a finished match is dropped rather than shown wrong.
+    ///   - isFinished: the match is over, so the FT/AET divider closes the timeline.
     ///   - currentPeriod: the period a live match is in, so a divider shows before the
     ///     period has an event of its own.
     public static func rows(

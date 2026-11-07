@@ -194,9 +194,11 @@ public enum StandingsStyle: Sendable, Equatable {
 
     /// `entries` best first, each with its position in that order.
     ///
-    /// - Parameter combined: The entries come from several groups merged into one list
-    ///   (the widget's league-wide table). Seeds and conference records only order a
-    ///   single group, so a combined list falls back to the overall record.
+    /// - Parameters:
+    ///   - entries: One group's standings entries, in ESPN's order.
+    ///   - combined: The entries come from several groups merged into one list
+    ///     (the widget's league-wide table). Seeds and conference records only order a
+    ///     single group, so a combined list falls back to the overall record.
     public func ranked(_ entries: [Entry], combined: Bool = false) -> [RankedStandingsEntry] {
         let indexed = Array(entries.enumerated())
         let sorted: [(offset: Int, element: Entry)]
