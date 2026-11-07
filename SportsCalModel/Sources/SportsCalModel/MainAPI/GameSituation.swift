@@ -253,15 +253,22 @@ public struct LiveActivitySituation: Codable, Hashable, Sendable {
     public var redZone: Bool?
     /// Home win probability, 0...100.
     public var homeWinPct: Int?
+    /// Football timeouts left. They change a handful of times a game, so they cost
+    /// almost no extra pushes.
+    public var homeTimeouts: Int?
+    public var awayTimeouts: Int?
 
     public init(outs: Int? = nil, bases: Int? = nil, downDistance: String? = nil,
-                possession: GameSituation.Side? = nil, redZone: Bool? = nil, homeWinPct: Int? = nil) {
+                possession: GameSituation.Side? = nil, redZone: Bool? = nil, homeWinPct: Int? = nil,
+                homeTimeouts: Int? = nil, awayTimeouts: Int? = nil) {
         self.outs = outs
         self.bases = bases
         self.downDistance = downDistance
         self.possession = possession
         self.redZone = redZone
         self.homeWinPct = homeWinPct
+        self.homeTimeouts = homeTimeouts
+        self.awayTimeouts = awayTimeouts
     }
 
     /// Nil when there's nothing worth showing.
@@ -276,6 +283,8 @@ public struct LiveActivitySituation: Codable, Hashable, Sendable {
             downDistance = s.downDistanceText ?? s.shortDownDistanceText
             possession = s.possession
             redZone = s.isRedZone == true ? true : nil
+            homeTimeouts = s.homeTimeouts
+            awayTimeouts = s.awayTimeouts
         }
         homeWinPct = s.homeWinProbability.map { Int(($0 * 100).rounded()) }
         if outs == nil, bases == nil, downDistance == nil, possession == nil, homeWinPct == nil { return nil }

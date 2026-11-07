@@ -191,6 +191,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     seasonPhase: league.hasSeasonPhases
                         ? (event.season?.type.flatMap(SeasonPhase.init(espnSeasonType:)) ?? (isPlayoff ? .postseason : nil))
                         : nil,
+                    // Football's regular-season week, in TheSportsDB's `intRound` slot so
+                    // ESPN-built rows group by week like the TheSportsDB schedule does.
+                    sportsDBRound: league.isFootball && event.season?.type == 2 ? event.week?.number : nil,
                     situation: GameSituation(
                         espn: competition.situation,
                         status: competition.status ?? event.status,
@@ -886,7 +889,8 @@ public struct Game: Identifiable, Equatable, Hashable {
     /// `.regular` is omitted on the wire — read ``resolvedSeasonPhase``.
     public var seasonPhase: SeasonPhase?
     /// TheSportsDB `intRound`, decoded on ingest so ``SeasonPhase/assignPhases(_:league:)``
-    /// can derive `seasonPhase`. Never encoded.
+    /// can derive `seasonPhase`. ESPN-built football rows put the regular-season week
+    /// here too. Encoded only for football, where it's the week (read ``footballWeek``).
     public let sportsDBRound: Int?
 
     /// Live state beyond the score — count and runners, down and distance, win
@@ -943,7 +947,7 @@ extension Game: Codable {
         case strSeason, seasonPhase
         case situation, excitement
         case scoreboardExtras = "extras"
-        // TheSportsDB schedule round — decoded on ingest, never encoded
+        // TheSportsDB schedule round — encoded for football only (the week)
         case intRound
         // Computed properties - decoded for backward compatibility, not encoded
         case strSport, strLeague
@@ -1091,6 +1095,11 @@ extension Game: Codable {
             try container.encodeIfPresent(situation, forKey: .situation)
         }
         try container.encodeIfPresent(excitement, forKey: .excitement)
+        // The week, for grouping a football schedule. Other leagues' rounds stay off the
+        // wire to keep the schedule small.
+        if let sportsDBRound, isFootballLeague {
+            try container.encode(sportsDBRound, forKey: .intRound)
+        }
         if let scoreboardExtras, !scoreboardExtras.isEmpty {
             try container.encode(scoreboardExtras, forKey: .scoreboardExtras)
         }
