@@ -272,13 +272,16 @@ struct GameDetailView: View {
                 }
             }
 
-            if let statusText = game.displayStatus {
+            // `scoreOrTime` already prints the status under a score; repeat it here
+            // only when no score is shown (e.g. "Postponed" under the kickoff time).
+            if !headerShowsScore, let statusText = game.displayStatus {
                 Text(statusText)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
 
-            if !game.isIndividualSport, let lastPlay = game.lastPlay {
+            if !game.isIndividualSport, let lastPlay = game.lastPlay,
+               !Self.isPeriodMarker(lastPlay) {
                 HStack(spacing: 6) {
                     if game.strStatus == "in" {
                         Circle()
@@ -296,6 +299,19 @@ struct GameDetailView: View {
         .padding()
         .background(Color.secondaryGroupedBackground)
         .cornerRadius(12)
+    }
+
+    /// True when `scoreOrTime` renders the score branch (which carries the status line).
+    private var headerShowsScore: Bool {
+        guard let home = game.intHomeScore, let away = game.intAwayScore else { return false }
+        return Int(home) != nil && Int(away) != nil
+    }
+
+    /// ESPN's last play is often just the period boundary ("End of the 3rd Quarter",
+    /// "End of 1st Half", "End of Game"), which only restates the status line.
+    static func isPeriodMarker(_ lastPlay: String) -> Bool {
+        let text = lastPlay.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return text.hasPrefix("end of ") || text.hasPrefix("start of ") || text == "halftime"
     }
 
     @ViewBuilder
@@ -1396,6 +1412,7 @@ struct GameDetailSections: View {
     }
 
     private func periodAbbreviation(_ period: Int) -> String {
+        if league == .ncaaMBBTournament { return league?.periodName(period) ?? "H\(period)" }
         switch sportType {
         case .basketball, .nfl: return "Q\(period)"
         case .hockey: return period > 3 ? (period == 4 ? "OT" : "SO") : "P\(period)"

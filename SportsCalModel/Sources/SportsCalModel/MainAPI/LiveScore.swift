@@ -395,7 +395,8 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         case .wec:
             return "FIA WEC"
         case .ncaaMBBTournament:
-            return "March Madness"
+            // Covers the whole season (ESPN mens-college-basketball), not just the tournament.
+            return "College Basketball"
         case .wnba:
             return "WNBA"
         case .ncaaf:

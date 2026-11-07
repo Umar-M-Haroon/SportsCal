@@ -222,7 +222,7 @@ public extension Leagues {
     }
 
     /// "Q4", "H2", "P3", "OT", "2OT", or an inning ordinal.
-    func periodName(_ period: Int) -> String {
+    public func periodName(_ period: Int) -> String {
         guard let regulation = regulationPeriods else { return "\(period)" }
         if self == .mlb { return ClutchMoment.ordinal(period) }
         if period <= regulation {

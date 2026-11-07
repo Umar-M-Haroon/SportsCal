@@ -1300,6 +1300,13 @@ extension Game {
             return (1...count).map { "\($0)" }
         }
         switch sport {
+        case .basketball where idLeague == String(Leagues.ncaaMBBTournament.rawValue):
+            // Men's college basketball plays halves: H1, H2, OT, OT2...
+            return (0..<count).map { i in
+                if i < 2 { return "H\(i + 1)" }
+                else if i == 2 { return "OT" }
+                else { return "OT\(i - 1)" }
+            }
         case .basketball, .nfl:
             // Q1, Q2, Q3, Q4, OT, OT2...
             return (0..<count).map { i in
