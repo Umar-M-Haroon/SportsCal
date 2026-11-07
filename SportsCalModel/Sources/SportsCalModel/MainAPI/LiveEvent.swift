@@ -886,7 +886,7 @@ public struct Game: Identifiable, Equatable, Hashable {
     /// `.regular` is omitted on the wire — read ``resolvedSeasonPhase``.
     public var seasonPhase: SeasonPhase?
     /// TheSportsDB `intRound`, decoded on ingest so ``SeasonPhase/assignPhases(_:league:)``
-    /// can derive `seasonPhase`. Never encoded.
+    /// can derive `seasonPhase`. Encoded for soccer only, where it's the matchday.
     public let sportsDBRound: Int?
 
     /// Live state beyond the score — count and runners, down and distance, win
@@ -943,7 +943,8 @@ extension Game: Codable {
         case strSeason, seasonPhase
         case situation, excitement
         case scoreboardExtras = "extras"
-        // TheSportsDB schedule round — decoded on ingest, never encoded
+        // TheSportsDB schedule round — decoded on ingest, encoded for soccer only
+        // (the competition hub's matchdays)
         case intRound
         // Computed properties - decoded for backward compatibility, not encoded
         case strSport, strLeague
@@ -1093,6 +1094,10 @@ extension Game: Codable {
         try container.encodeIfPresent(excitement, forKey: .excitement)
         if let scoreboardExtras, !scoreboardExtras.isEmpty {
             try container.encode(scoreboardExtras, forKey: .scoreboardExtras)
+        }
+        // Soccer's round is its matchday. Other sports' rounds only feed `seasonPhase`.
+        if sportType == .soccer {
+            try container.encodeIfPresent(sportsDBRound, forKey: .intRound)
         }
         // Note: strSport and strLeague are not encoded - they're computed from idLeague
         // Deprecated fields are not encoded: strPlayer, idPlayer, intEventScore,

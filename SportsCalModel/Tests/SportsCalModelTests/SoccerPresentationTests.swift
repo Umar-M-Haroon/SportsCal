@@ -65,6 +65,15 @@ final class SoccerPresentationTests: XCTestCase {
         XCTAssertEqual(game.redCards(.home), 0)
     }
 
+    func testSoccerRoundRidesTheWireAsTheMatchday() throws {
+        let game = Game(idLeague: "\(Leagues.English_Premier_League.rawValue)", strHomeTeam: "A", strAwayTeam: "B",
+                        isoDate: nil, sportsDBRound: 12)
+        let decoded = try JSONDecoder().decode(Game.self, from: JSONEncoder().encode(game))
+        XCTAssertEqual(decoded.soccerMatchday, 12)
+        let cup = Game(idLeague: "\(Leagues.FA_Cup.rawValue)", strHomeTeam: "A", strAwayTeam: "B", isoDate: nil, sportsDBRound: 3)
+        XCTAssertNil(cup.soccerMatchday)
+    }
+
     func testClockPeriod() {
         XCTAssertEqual(soccerGame(progress: "45'+2'").soccerClockPeriod, 1)
         XCTAssertEqual(soccerGame(progress: "HT").soccerClockPeriod, 2)

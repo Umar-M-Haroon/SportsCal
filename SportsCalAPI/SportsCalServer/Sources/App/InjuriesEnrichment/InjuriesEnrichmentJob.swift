@@ -155,7 +155,7 @@ struct InjuriesEnrichmentJob: AsyncScheduledJob {
             homeInjuries: home, awayInjuries: away,
             raceTiming: game.raceTiming,
             playoff: game.playoff,
-            season: game.season, seasonPhase: game.seasonPhase,
+            season: game.season, seasonPhase: game.seasonPhase, sportsDBRound: game.sportsDBRound,
             situation: game.situation, excitement: game.excitement,
             scoreboardExtras: game.scoreboardExtras
         )

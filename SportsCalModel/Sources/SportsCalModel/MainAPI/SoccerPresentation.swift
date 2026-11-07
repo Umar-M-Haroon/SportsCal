@@ -191,6 +191,35 @@ public extension Game {
     }
 }
 
+// MARK: - Matchday
+
+public extension Game {
+    /// The league matchday ("Matchday 12"), from TheSportsDB's round. Nil for cups,
+    /// whose rounds aren't matchdays, for a round outside a season's range, and for
+    /// games ESPN added (they carry no round).
+    var soccerMatchday: Int? {
+        guard sportType == .soccer, let league = knownLeagueForRound, !league.isSoccerCup,
+              let round = sportsDBRound, (1...60).contains(round) else { return nil }
+        return round
+    }
+
+    private var knownLeagueForRound: Leagues? {
+        idLeague.flatMap { Int($0) }.flatMap(Leagues.init(rawValue:))
+    }
+}
+
+public extension Leagues {
+    /// Knockout cups and tournaments: no table of matchdays.
+    var isSoccerCup: Bool {
+        switch self {
+        case .FA_Cup, .Copa_del_Rey, .Coupe_De_France, .DFB_Pokal, .FIFA_World_Cup, .Womens_World_Cup, .Copa_America:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 // MARK: - Competition order
 
 public extension Leagues {

@@ -1864,7 +1864,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 homeConference: game.homeConference,
                 awayConference: game.awayConference,
                 playoff: game.playoff,
-                season: game.season, seasonPhase: game.seasonPhase,
+                season: game.season, seasonPhase: game.seasonPhase, sportsDBRound: game.sportsDBRound,
                 situation: game.situation, excitement: game.excitement,
                 scoreboardExtras: game.scoreboardExtras?.withoutHeavyDetail
             )
