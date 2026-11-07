@@ -26,6 +26,8 @@ struct RaceDetailView: View {
     /// Lap chart / tyres / safety cars for the selected Race or Sprint, fetched on demand.
     @State private var sessionDetail: F1SessionDetail?
     @State private var showStandings = false
+    /// Session the Calendar action adds; nil means the headline session (the Race).
+    @State private var calendarSession: EventSession?
     @State private var standingsTab: StandingsTab = .drivers
 
     private enum StandingsTab: String, CaseIterable {
@@ -264,21 +266,7 @@ struct RaceDetailView: View {
             #endif
 
             #if os(iOS)
-            Button {
-                EKEventStore().requestAccess(to: .event) { _, _ in
-                    sheetType = .calendar(game: game)
-                }
-            } label: {
-                VStack(spacing: 4) {
-                    Image(systemName: "calendar")
-                        .font(.title3)
-                        .foregroundColor(.secondary)
-                    Text("Calendar")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-            }
+            calendarAction
             #endif
 
             Menu {
@@ -299,6 +287,52 @@ struct RaceDetailView: View {
         .background(Color.secondaryGroupedBackground)
         .cornerRadius(12)
     }
+
+    #if os(iOS)
+    // MARK: - Calendar Action
+    /// A weekend with sessions picks which one to add; otherwise one tap adds the event.
+    @ViewBuilder
+    private var calendarAction: some View {
+        let label = VStack(spacing: 4) {
+            Image(systemName: "calendar")
+                .font(.title3)
+                .foregroundColor(.secondary)
+            Text("Calendar")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        let sessions = (game.sessions ?? []).filter { $0.startDate != nil }
+        if sessions.count > 1 {
+            Menu {
+                ForEach(Array(sessions.enumerated()), id: \.offset) { _, session in
+                    Button {
+                        addToCalendar(session: session)
+                    } label: {
+                        if let start = session.startDate {
+                            Text("\(session.displayName) · \(start.formatted(.dateTime.weekday(.abbreviated).hour().minute()))")
+                        }
+                    }
+                }
+            } label: {
+                label
+            }
+        } else {
+            Button {
+                addToCalendar(session: nil)
+            } label: {
+                label
+            }
+        }
+    }
+
+    private func addToCalendar(session: EventSession?) {
+        calendarSession = session
+        EKEventStore().requestAccess(to: .event) { _, _ in
+            DispatchQueue.main.async { sheetType = .calendar(game: game) }
+        }
+    }
+    #endif
 
     // MARK: - Live Activity (session in progress)
     #if canImport(ActivityKit) && os(iOS)
@@ -846,13 +880,18 @@ struct RaceDetailView: View {
 
     #if os(iOS)
     // MARK: - Calendar Event
+    /// One session of the weekend (`calendarSession`, defaulting to the Race): F1's own
+    /// date is FP1, and a weekend-long entry helps nobody find the race.
     private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         let event = EKEvent(eventStore: eventStore)
-        event.title = game.strHomeTeam
-        if let gameDate = game.standardDate {
+        event.title = game.eventTitle(session: calendarSession)
+        if let gameDate = game.eventStartDate(session: calendarSession) {
             event.startDate = gameDate
-            event.endDate = gameDate.afterHoursFromNow(hours: 3)
+            event.endDate = gameDate.afterHoursFromNow(hours: game.eventDurationHours(session: calendarSession))
+        }
+        if let venue = game.circuitInfo?.circuitName ?? game.venueName {
+            event.location = venue
         }
         return CalendarRepresentable(eventStore: eventStore, event: event)
     }
