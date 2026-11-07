@@ -33,6 +33,8 @@ final class GameDetailSectionsModel {
     /// Ride along with the plays on the same fetch.
     var winProbability: WinProbabilitySeries?
     var teamStats: TeamStatComparison?
+    var players: PlayerBoxScore?
+    var scoringSummary: ScoringSummary?
 
     var soccerMatch: SoccerMatchDetail?
     var soccerMatchLoading = false
@@ -72,7 +74,7 @@ final class GameDetailSectionsModel {
         defer { playsLoading = false }
         do {
             let cached = try await NetworkHandler.fetchPlayByPlay(
-                eventID: eventID, sport: sport, league: league
+                eventID: eventID, sport: sport, league: league, includePlayers: true
             )
             plays = cached.plays
             playsAvailable = true
@@ -80,6 +82,8 @@ final class GameDetailSectionsModel {
             // box score mid-game shouldn't blank the panel.
             winProbability = cached.winProbability ?? winProbability
             teamStats = cached.teamStats ?? teamStats
+            players = cached.players ?? players
+            scoringSummary = cached.scoringSummary ?? scoringSummary
         } catch is NetworkHandler.PlayByPlayNotAvailable {
             plays = []
             playsAvailable = false
@@ -249,7 +253,10 @@ struct GameDetailView: View {
                     teamBadge(url: awayTeam.strTeamBadge, name: awayTeam.strTeamShort ?? awayTeam.strTeam, size: 60)
                 }
                 Spacer()
-                scoreOrTime
+                VStack(spacing: 4) {
+                    scoreOrTime
+                    HeroShotsOnGoalLine(sport: sportType, stats: sectionsModel.teamStats, awayName: awayTeam.strTeamShort ?? game.strAwayTeam, homeName: homeTeam.strTeamShort ?? game.strHomeTeam)
+                }
                 Spacer()
                 teamLink(homeTeam) {
                     teamBadge(url: homeTeam.strTeamBadge, name: homeTeam.strTeamShort ?? homeTeam.strTeam, size: 60)
@@ -544,11 +551,13 @@ struct GameDetailSections: View {
             liveSituationSection
             playoffSeriesSection
             boxScoreSection
+            PlayerBoxScoreSection(box: model.players, sport: sportType, homeName: homeShortName, awayName: awayShortName, homeColor: homeColor, awayColor: awayColor)
             soccerMatchSection
             winProbabilitySection
             momentumChartSection
             teamStatsSection
             keyPlayersSection
+            ScoringSummarySection(summary: model.scoringSummary, game: game, homeName: homeShortName, awayName: awayShortName, homeColor: homeColor, awayColor: awayColor)
             playByPlaySection
             injuriesSection
             headToHeadSection

@@ -787,15 +787,18 @@ struct NetworkHandler {
 
     /// Fetches the cached ESPN play-by-play array for a specific event (NBA/NFL/NHL/MLB).
     /// Throws `PlayByPlayNotAvailable` on 404 — the server hasn't captured plays yet for this event.
+    /// `includePlayers` also asks for the player box score and scoring summary (game detail).
     static func fetchPlayByPlay(
         eventID: String,
         sport: String? = nil,
-        league: String? = nil
+        league: String? = nil,
+        includePlayers: Bool = false
     ) async throws -> CachedPlays {
         var components = URLComponents(string: "\(baseURL())/plays/\(eventID)")!
         var queryItems: [URLQueryItem] = []
         if let sport { queryItems.append(URLQueryItem(name: "sport", value: sport)) }
         if let league { queryItems.append(URLQueryItem(name: "league", value: league)) }
+        if includePlayers { queryItems.append(URLQueryItem(name: "players", value: "1")) }
         if !queryItems.isEmpty { components.queryItems = queryItems }
         let url = components.url!
         let (data, response) = try await performAuthorized(url: url)
