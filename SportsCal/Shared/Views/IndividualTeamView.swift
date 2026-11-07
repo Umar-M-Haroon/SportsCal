@@ -144,12 +144,19 @@ struct IndividualTeamView: View {
                     .font(.headline)
                     .fontWeight(isWinning ? .bold : .regular)
                     .foregroundColor(isWinning ? .primary : .secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             } else if let longName {
+                // A full name in half a row: one line, shrunk to fit. Wrapping let SwiftUI
+                // break a long word mid-way ("Vanderbilt Com-modores").
                 Text(seed != nil ? "(\(seed!)) \(longName)" : longName)
                     .foregroundColor(isWinning ? .primary : .secondary)
                     .font(.headline)
                     .fontWeight(isWinning ? .bold : .regular)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .allowsTightening(true)
             .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             }
             if let record {
