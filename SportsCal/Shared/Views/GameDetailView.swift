@@ -160,8 +160,8 @@ struct GameDetailView: View {
             if let id = game.idEvent, let url = DeepLink.url(for: .game(idEvent: id)) {
                 ShareLink(
                     item: url,
-                    subject: Text("\(game.strAwayTeam) @ \(game.strHomeTeam)"),
-                    message: Text("Follow \(game.strAwayTeam) @ \(game.strHomeTeam) live on Scoreline")
+                    subject: Text(game.matchupTitle),
+                    message: Text("Follow \(game.matchupTitle) live on Scoreline")
                 ) {
                     Image(systemName: "square.and.arrow.up")
                 }
@@ -242,33 +242,31 @@ struct GameDetailView: View {
     }
 
     // MARK: - Classic hero
+    /// The hero's left and right teams: away then home, home then away for soccer.
+    private var heroFirst: Team { game.displaysHomeFirst ? homeTeam : awayTeam }
+    private var heroSecond: Team { game.displaysHomeFirst ? awayTeam : homeTeam }
+
     private var gameHeader: some View {
         VStack(spacing: 12) {
             HStack(alignment: .top) {
-                teamLink(awayTeam) {
-                    teamBadge(url: awayTeam.strTeamBadge, name: awayTeam.strTeamShort ?? awayTeam.strTeam, size: 60)
+                teamLink(heroFirst) {
+                    teamBadge(url: heroFirst.strTeamBadge, name: heroFirst.strTeamShort ?? heroFirst.strTeam, size: 60)
                 }
                 Spacer()
                 scoreOrTime
                 Spacer()
-                teamLink(homeTeam) {
-                    teamBadge(url: homeTeam.strTeamBadge, name: homeTeam.strTeamShort ?? homeTeam.strTeam, size: 60)
+                teamLink(heroSecond) {
+                    teamBadge(url: heroSecond.strTeamBadge, name: heroSecond.strTeamShort ?? heroSecond.strTeam, size: 60)
                 }
             }
 
             HStack {
-                teamLink(awayTeam) {
-                    Text(awayTeam.strTeam ?? "Away")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity)
+                teamLink(heroFirst) {
+                    heroTeamName(heroFirst, side: game.displayedSides.first)
                 }
                 Spacer()
-                teamLink(homeTeam) {
-                    Text(homeTeam.strTeam ?? "Home")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity)
+                teamLink(heroSecond) {
+                    heroTeamName(heroSecond, side: game.displayedSides.second)
                 }
             }
 
@@ -307,27 +305,44 @@ struct GameDetailView: View {
         return (home, away)
     }
 
+    private func heroTeamName(_ team: Team, side: GameSituation.Side) -> some View {
+        HStack(spacing: 4) {
+            Text(team.strTeam ?? (side == .home ? "Home" : "Away"))
+                .font(.subheadline)
+                .fontWeight(.medium)
+            if game.redCards(side) > 0 {
+                SoccerRedCardMark(count: game.redCards(side))
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     @ViewBuilder
     private var scoreOrTime: some View {
         if let scores = heroScores {
-            let home = scores.home, away = scores.away
+            // Bold the winner by ESPN's call, so a shootout winner reads on a level score.
+            let winner = game.winningSide
+            let sides = game.displayedSides
+            let first = sides.first == .home ? scores.home : scores.away
+            let second = sides.first == .home ? scores.away : scores.home
             VStack(spacing: 4) {
                 HStack(spacing: 16) {
-                    Text("\(away)")
-                        .font(.system(size: 36, weight: away > home ? .heavy : .regular))
-                        .foregroundColor(away > home ? .primary : .secondary)
+                    Text("\(first)")
+                        .font(.system(size: 36, weight: winner == sides.first ? .heavy : .regular))
+                        .foregroundColor(winner == sides.first ? .primary : .secondary)
                     Text("-")
                         .font(.system(size: 28, weight: .light))
                         .foregroundColor(.secondary)
-                    Text("\(home)")
-                        .font(.system(size: 36, weight: home > away ? .heavy : .regular))
-                        .foregroundColor(home > away ? .primary : .secondary)
+                    Text("\(second)")
+                        .font(.system(size: 36, weight: winner == sides.second ? .heavy : .regular))
+                        .foregroundColor(winner == sides.second ? .primary : .secondary)
                 }
                 if let statusText = game.displayStatus {
                     Text(statusText)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                SoccerScoreNotes(game: game)
             }
         } else if let date = game.standardDate {
             VStack(spacing: 4) {
@@ -502,8 +517,7 @@ struct GameDetailView: View {
     private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         let event = EKEvent(eventStore: eventStore)
-        let separator = (game.playoff?.isNeutralSite == true) ? " vs " : " @ "
-        event.title = "\(game.strAwayTeam)\(separator)\(game.strHomeTeam)"
+        event.title = game.matchupTitle
         if let gameDate = game.standardDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 2)
@@ -511,6 +525,24 @@ struct GameDetailView: View {
         return CalendarRepresentable(eventStore: eventStore, event: event)
     }
     #endif
+}
+
+/// "(4–3 pens)" and "Agg 3–2" under a soccer hero score. Empty for other sports.
+struct SoccerScoreNotes: View {
+    let game: Game
+
+    var body: some View {
+        if let pens = game.shootoutLine {
+            Text("(\(pens))")
+                .font(.caption.weight(.medium))
+                .foregroundColor(.secondary)
+        }
+        if let aggregate = game.aggregateLine {
+            Text(aggregate)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
 }
 
 // MARK: - GameDetailSections

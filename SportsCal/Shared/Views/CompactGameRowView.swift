@@ -4,7 +4,7 @@
 //
 //  A dense two-line scoreboard row for team-sport Browse lists. Far shorter than
 //  GameScoreView (~44pt vs ~100pt) so a day's games scan at a glance. Taps through to
-//  the full game detail.
+//  the full game detail. Away on top, home on top for soccer (`Game.displaysHomeFirst`).
 //
 
 import SwiftUI
@@ -35,10 +35,9 @@ struct CompactGameRowView: View {
         } label: {
             HStack(spacing: 10) {
                 VStack(spacing: 3) {
-                    teamLine(team: awayTeam, score: awayScore,
-                             winning: (awayScore ?? 0) > (homeScore ?? 0), seed: game.awaySeed)
-                    teamLine(team: homeTeam, score: homeScore,
-                             winning: (homeScore ?? 0) > (awayScore ?? 0), seed: game.homeSeed)
+                    let sides = game.displayedSides
+                    teamLine(side: sides.first)
+                    teamLine(side: sides.second)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -77,7 +76,14 @@ struct CompactGameRowView: View {
     }
 
     @ViewBuilder
-    private func teamLine(team: Team, score: Int?, winning: Bool, seed: Int?) -> some View {
+    private func teamLine(side: GameSituation.Side) -> some View {
+        let isHome = side == .home
+        let team = isHome ? homeTeam : awayTeam
+        let score = isHome ? homeScore : awayScore
+        let seed = isHome ? game.homeSeed : game.awaySeed
+        // ESPN's winner first: a shootout winner is bold on a level score.
+        let winning = game.winningSide == side
+        let redCards = game.redCards(side)
         HStack(spacing: 6) {
             badge(team.strTeamBadge)
             Text(seed != nil ? "(\(seed!)) \(label(team))" : label(team))
@@ -85,6 +91,9 @@ struct CompactGameRowView: View {
                 .fontWeight(winning ? .semibold : .regular)
                 .foregroundStyle(hasScores && !winning ? .secondary : .primary)
                 .lineLimit(1)
+            if redCards > 0 {
+                SoccerRedCardMark(count: redCards)
+            }
             Spacer(minLength: 4)
             if let score {
                 Text("\(score)")
@@ -98,6 +107,15 @@ struct CompactGameRowView: View {
     private var trailing: some View {
         VStack(alignment: .trailing, spacing: 2) {
             status
+            // "4–3 pens" / "Agg 3–2" under the status. Two-leg ties show the
+            // aggregate; a shootout outranks it.
+            if let decider = game.shootoutLine ?? game.aggregateLine {
+                Text(decider)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
             if game.isPreseason {
                 Text("Preseason")
                     .font(.caption2)

@@ -14,8 +14,9 @@ import ActivityKit
 /// One VoiceOver sentence for a team-sport list row, so a row reads as a single element
 /// ("Live, Rockets 89, Lakers 119, 3rd Qtr" / "Rockets 89, Lakers 119, final" /
 /// "Rockets vs Lakers, 7:30 PM") instead of badge/score/status fragments. Mirrors the
-/// Modern `LiveGameRow.voiceOverLabel` shape (state, matchup, score, period). Away team
-/// first, matching the visual order of the rows.
+/// Modern `LiveGameRow.voiceOverLabel` shape (state, matchup, score, period). Teams in
+/// the rows' visual order: away first, home first for soccer (`Game.displaysHomeFirst`),
+/// which also says who won a shootout and the aggregate of a two-leg tie.
 enum GameRowAccessibility {
     static func label(
         game: Game,
@@ -41,17 +42,20 @@ enum GameRowAccessibility {
         now: Date
     ) -> String {
         let status = game.displayStatus
-        let matchup = "\(awayName) vs \(homeName)"
+        let names = game.displayOrdered(home: homeName, away: awayName)
+        let matchup = "\(names.first) vs \(names.second)"
         var score: String?
         if let awayScore, let homeScore {
-            score = "\(awayName) \(awayScore), \(homeName) \(homeScore)"
+            let scores = game.displayOrdered(home: homeScore, away: awayScore)
+            score = "\(names.first) \(scores.first), \(names.second) \(scores.second)"
         }
+        let decision = game.soccerDecisionSpoken(homeName: homeName, awayName: awayName)
 
         if isLive {
-            return ["Live", score ?? matchup, status].compactMap { $0 }.joined(separator: ", ")
+            return ["Live", score ?? matchup, status, decision].compactMap { $0 }.joined(separator: ", ")
         }
         if game.isFinalStatus {
-            return "\(score ?? matchup), \(status?.lowercased() ?? "final")"
+            return ["\(score ?? matchup), \(status?.lowercased() ?? "final")", decision].compactMap { $0 }.joined(separator: ", ")
         }
         // Not started yet: the kickoff time is what matters.
         if let date = game.standardDate, date > now {
@@ -85,6 +89,9 @@ struct GameScoreView: View {
     
     var isLive: Bool
     var navigationDisabled: Bool = false
+    /// The competition, under the status, where the list around the row doesn't say
+    /// it (soccer in Live / Your Teams).
+    var competitionLabel: String? = nil
 
     private var accessibilityLabel: String {
         GameRowAccessibility.label(
@@ -183,6 +190,52 @@ struct GameScoreView: View {
         .frame(maxWidth: .infinity)
     }
 
+    // MARK: Sides
+
+    private struct Side {
+        let team: Team
+        let side: GameSituation.Side
+    }
+
+    /// Away then home, or home then away for soccer.
+    private var displayed: (first: Side, second: Side) {
+        game.displayOrdered(home: Side(team: homeTeam, side: .home), away: Side(team: awayTeam, side: .away))
+    }
+
+    private func teamColumn(_ entry: Side, leading: Bool) -> some View {
+        let isHome = entry.side == .home
+        // ESPN's winner first, so the side that won a shootout is the one in bold.
+        let winning = game.winningSide.map { $0 == entry.side } ?? false
+        return IndividualTeamView(teamURL: entry.team.strTeamBadge, shortName: entry.team.strTeamShort, longName: entry.team.strTeam,
+                                  score: isHome ? homeScore : awayScore, isWinning: winning, isAway: leading,
+                                  record: isHome ? game.homeRecord : game.awayRecord, seed: isHome ? game.homeSeed : game.awaySeed,
+                                  redCards: game.redCards(entry.side))
+            .frame(maxWidth: .infinity, alignment: leading ? .leading : .trailing)
+    }
+
+    /// Each side's goalscorers, in display order. Nil without a goal.
+    private var soccerScorers: (first: String?, second: String?)? {
+        guard game.sportType == .soccer else { return nil }
+        let first = game.scorerLine(displayed.first.side)
+        let second = game.scorerLine(displayed.second.side)
+        return first == nil && second == nil ? nil : (first, second)
+    }
+
+    private func soccerScorerLine(_ scorers: (first: String?, second: String?)) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(scorers.first ?? "")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "soccerball")
+                .opacity(0.6)
+            Text(scorers.second ?? "")
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(2)
+    }
+
     var body: some View {
         @Bindable var bindableFavorites = favorites
         @Bindable var bindableViewModel = viewModel
@@ -196,8 +249,7 @@ struct GameScoreView: View {
                             .padding(.horizontal, 4)
                             .background(.orange, in: RoundedRectangle(cornerRadius: 4))
                     }
-                    IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: awayScore, isWinning: awayScore > homeScore, isAway: true, record: game.awayRecord, seed: game.awaySeed)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    teamColumn(displayed.first, leading: true)
                     VStack(spacing: 4) {
                         HStack(spacing: 4) {
                             if isLive {
@@ -210,7 +262,12 @@ struct GameScoreView: View {
                                     .foregroundColor(isLive ? .red : .secondary)
                             }
                         }
-                        if let agg = game.aggregateScore {
+                        if let pens = game.shootoutLine {
+                            Text("(\(pens))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        if let agg = game.aggregateLine ?? (game.displaysHomeFirst ? nil : game.aggregateScore) {
                             Text(agg)
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
@@ -219,10 +276,19 @@ struct GameScoreView: View {
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
+                        if let competitionLabel {
+                            Text(competitionLabel)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
-                    IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: homeScore, isWinning: homeScore > awayScore, isAway: false, record: game.homeRecord, seed: game.homeSeed)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    teamColumn(displayed.second, leading: false)
+                }
+
+                if let scorers = soccerScorers {
+                    soccerScorerLine(scorers)
                 }
 
                 if isLive, let situation = game.situation {
@@ -238,8 +304,11 @@ struct GameScoreView: View {
                         .frame(maxWidth: .infinity)
                 }
 
-                // Rotating info: last play (weighted on live), leader categories, venue
-                rotatingInfoLine
+                // Rotating info: last play (weighted on live), leader categories, venue.
+                // A finished soccer match's scorer line says more than its venue.
+                if isLive || soccerScorers == nil {
+                    rotatingInfoLine
+                }
 
                 if game.playoff != nil {
                     PlayoffPill(

@@ -269,7 +269,7 @@ struct SoccerCompetitionHubView: View {
     private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         let event = EKEvent(eventStore: eventStore)
-        event.title = "\(game.strAwayTeam) @ \(game.strHomeTeam)"
+        event.title = game.matchupTitle
         if let gameDate = game.standardDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 2)

@@ -20,6 +20,8 @@ struct UpcomingGameView: View {
     @Environment(GameViewModel.self) private var viewModel
     var isFavorite: Bool = false
     var navigationDisabled: Bool = false
+    /// The competition, under "vs", where the list around the row doesn't say it.
+    var competitionLabel: String? = nil
     var formatter =  Date.RelativeFormatStyle(presentation: .numeric, capitalizationContext: .beginningOfSentence)
 
     private var isStartingSoon: Bool {
@@ -35,11 +37,20 @@ struct UpcomingGameView: View {
         isStartingSoon ? Color.appLive : Color.appInkSoft
     }
 
+    /// Away on the left, home on the left for soccer (`Game.displaysHomeFirst`).
+    private func sideColumn(_ side: GameSituation.Side, leading: Bool) -> some View {
+        let isHome = side == .home
+        let team = isHome ? homeTeam : awayTeam
+        return IndividualTeamView(teamURL: team.strTeamBadge, shortName: team.strTeamShort, longName: team.strTeam,
+                                  score: Int((isHome ? game.intHomeScore : game.intAwayScore) ?? ""), isWinning: false, isAway: leading,
+                                  record: isHome ? game.homeRecord : game.awayRecord, seed: isHome ? game.homeSeed : game.awaySeed)
+            .frame(maxWidth: .infinity)
+    }
+
     var body: some View {
         let content = VStack(spacing: 6) {
                 HStack {
-                    IndividualTeamView(teamURL: awayTeam.strTeamBadge, shortName: awayTeam.strTeamShort, longName: awayTeam.strTeam, score: Int(game.intAwayScore ?? ""), isWinning: false, isAway: true, record: game.awayRecord, seed: game.awaySeed)
-                    .frame(maxWidth: .infinity)
+                    sideColumn(game.displayedSides.first, leading: true)
                     VStack(alignment: .center, spacing: 4) {
                         if let date = game.standardDate {
                             if isStartingSoon {
@@ -61,10 +72,15 @@ struct UpcomingGameView: View {
                                 .tracking(1)
                                 .foregroundStyle(Color.appInkFaint)
                         }
+                        if let competitionLabel {
+                            Text(competitionLabel)
+                                .font(.caption2)
+                                .foregroundStyle(Color.appInkFaint)
+                                .lineLimit(1)
+                        }
                     }
                         .fixedSize(horizontal: true, vertical: false)
-                    IndividualTeamView(teamURL: homeTeam.strTeamBadge, shortName: homeTeam.strTeamShort, longName: homeTeam.strTeam, score: Int(game.intHomeScore ?? ""), isWinning: false, isAway: false, record: game.homeRecord, seed: game.homeSeed)
-                    .frame(maxWidth: .infinity)
+                    sideColumn(game.displayedSides.second, leading: false)
                 }
 
                 // Venue for favorites

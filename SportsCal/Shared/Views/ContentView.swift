@@ -819,7 +819,7 @@ struct ContentView: View {
         let eventStore = EKEventStore()
         AppLogger.calendar.info("Making calendar event for game \(game.strAwayTeam) @ \(game.strHomeTeam)")
         let event = EKEvent(eventStore: eventStore)
-        event.title = "\(game.strAwayTeam) @ \(game.strHomeTeam)"
+        event.title = game.matchupTitle
         if let gameDate = game.standardDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 2)

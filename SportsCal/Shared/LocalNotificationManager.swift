@@ -33,23 +33,23 @@ struct NotificationManager {
         switch duration {
         case .gameStarting:
             notiContent.title = "Game Starting Now!"
-            notiContent.body = "\(item.strAwayTeam) @ \(item.strHomeTeam) is about to begin"
+            notiContent.body = "\(item.matchupTitle) is about to begin"
             // Fire 1 minute before game start
             guard let notificationDate = Calendar.current.date(byAdding: .minute, value: -1, to: date) else { return }
             interval = notificationDate.timeIntervalSince(Date())
         case .thirtyMinutes:
             notiContent.title = "Upcoming \(item.strSport ?? "Sports") Event"
-            notiContent.body = "Check out \(item.strAwayTeam) @ \(item.strHomeTeam) in 30 minutes"
+            notiContent.body = "Check out \(item.matchupTitle) in 30 minutes"
             guard let notificationDate = Calendar.current.date(byAdding: .minute, value: -30, to: date) else { return }
             interval = notificationDate.timeIntervalSince(Date())
         case .oneHour:
             notiContent.title = "Upcoming \(item.strSport ?? "Sports") Event"
-            notiContent.body = "Check out \(item.strAwayTeam) @ \(item.strHomeTeam) in 1 hour"
+            notiContent.body = "Check out \(item.matchupTitle) in 1 hour"
             guard let notificationDate = Calendar.current.date(byAdding: .hour, value: -1, to: date) else { return }
             interval = notificationDate.timeIntervalSince(Date())
         case .twoHour:
             notiContent.title = "Upcoming \(item.strSport ?? "Sports") Event"
-            notiContent.body = "Check out \(item.strAwayTeam) @ \(item.strHomeTeam) in 2 hours"
+            notiContent.body = "Check out \(item.matchupTitle) in 2 hours"
             guard let notificationDate = Calendar.current.date(byAdding: .hour, value: -2, to: date) else { return }
             interval = notificationDate.timeIntervalSince(Date())
         }
@@ -175,7 +175,7 @@ enum TeamAlertScheduler {
 
                 let content = UNMutableNotificationContent()
                 content.title = "Game Starting Now!"
-                content.body = "\(item.game.strAwayTeam) @ \(item.game.strHomeTeam) is about to begin"
+                content.body = "\(item.game.matchupTitle) is about to begin"
                 content.sound = .default
                 content.categoryIdentifier = NotificationType.gameReminder.rawValue
                 // Re-adding under the same identifier replaces the request, which

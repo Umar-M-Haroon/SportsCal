@@ -277,8 +277,7 @@ private struct TeamLeagueHub: View {
     private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         let event = EKEvent(eventStore: eventStore)
-        let separator = (game.playoff?.isNeutralSite == true) ? " vs " : " @ "
-        event.title = "\(game.strAwayTeam)\(separator)\(game.strHomeTeam)"
+        event.title = game.matchupTitle
         if let gameDate = game.standardDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 3)

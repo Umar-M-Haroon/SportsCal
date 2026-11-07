@@ -199,6 +199,22 @@ public extension Leagues {
     /// sport). Browse chips and the day page's competition groups share it.
     var soccerDisplayRank: Int? { Self.soccerOrder[self] }
 
+    /// The name a row or group heading has room for: "Premier League", "Champions
+    /// League". Falls back to `leagueName`.
+    var soccerShortName: String {
+        switch self {
+        case .English_Premier_League: return "Premier League"
+        case .English_League_Championship: return "Championship"
+        case .UEFA_Champions_League: return "Champions League"
+        case .UEFA_Europa_League: return "Europa League"
+        case .UEFA_Conference_League: return "Conference League"
+        case .UEFA_Nations_League: return "Nations League"
+        case .FIFA_World_Cup: return "World Cup"
+        case .Womens_World_Cup: return "Women's World Cup"
+        default: return leagueName
+        }
+    }
+
     private static let soccerOrder: [Leagues: Int] = {
         let order: [Leagues] = [
             .English_Premier_League, .La_Liga, .UEFA_Champions_League, .German_Bundesliga, .Serie_A,
