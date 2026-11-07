@@ -136,7 +136,8 @@ extension Game {
 
     /// User-facing status text. Prefers `strProgress` (e.g. "6:43 - 3rd", "Final Round"),
     /// falls back to `strStatus`. Hides raw state codes ("pre", "in", "NS") and
-    /// normalizes completion codes ("FT", "AET", "post", …) to "Final".
+    /// normalizes completion and stoppage codes ("FT" → "Final", "AET", "AP" → "Final (Pens)",
+    /// "Final/2OT" → "Final (2OT)", "PST" → "Postponed").
     var displayStatus: String? {
         if let progress = normalizeStatus(strProgress) { return progress }
         return normalizeStatus(strStatus)
@@ -150,13 +151,43 @@ extension Game {
         switch lower {
         case "pre", "ns", "not started", "in":
             return nil
-        case "ft", "ap", "post", "final", "match finished":
+        case "ft", "post", "final", "match finished", "status_final", "status_full_time":
             return "Final"
-        case "aet", "aot", "final/ot":
+        // Soccer extra time is "AET"; "OT" is for the sports that call it overtime.
+        case "aet", "status_final_aet":
+            return "AET"
+        // TheSportsDB's "AP" (after penalties) is a shootout in hockey.
+        case "ap":
+            return sportType == .hockey ? "Final (SO)" : "Final (Pens)"
+        case "pen", "pens", "ft-pens", "ft-pen", "final/pens", "final (pens)", "status_final_pen":
+            return "Final (Pens)"
+        case "aot", "final/ot", "final ot":
             return "Final (OT)"
+        case "final/so", "final so", "status_final_so":
+            return "Final (SO)"
+        case "pst", "postponed", "status_postponed":
+            return "Postponed"
+        case "susp", "suspended", "status_suspended":
+            return "Suspended"
+        case "delayed", "delay", "status_delayed":
+            return "Delayed"
+        case "rain delay", "status_rain_delay":
+            return "Rain Delay"
+        case "int", "interrupted":
+            return "Interrupted"
+        case "canc", "canceled", "cancelled", "status_canceled":
+            return "Canceled"
+        case "abd", "abandoned", "status_abandoned":
+            return "Abandoned"
         default:
-            return trimmed
+            break
         }
+        // "Final/2OT", "Final/3OT" → "Final (2OT)".
+        if lower.hasPrefix("final/") {
+            let suffix = trimmed.dropFirst("final/".count).uppercased()
+            return suffix.isEmpty ? "Final" : "Final (\(suffix))"
+        }
+        return trimmed
     }
 }
 
@@ -203,18 +234,11 @@ extension Game {
             .min { $0.1 < $1.1 }?.0
     }
 
-    /// Long-form display name for an F1 session type abbreviation.
+    /// Long-form display name for a session type abbreviation ("SR" → "Sprint"). Delegates
+    /// to `EventSession` so sprint codes and NASCAR's "practice" read the same everywhere.
     func sessionDisplayName(_ type: String) -> String {
-        switch type.lowercased() {
-        case "fp1", "practice 1": return "Practice 1"
-        case "fp2", "practice 2": return "Practice 2"
-        case "fp3", "practice 3": return "Practice 3"
-        case "qual", "qualifying": return "Qualifying"
-        case "sprint": return "Sprint"
-        case "sprint qualifying", "sprint shootout", "sq", "ss": return "Sprint Qualifying"
-        case "race", "r": return "Race"
-        default: return type.isEmpty ? "Session" : type
-        }
+        guard !type.isEmpty else { return "Session" }
+        return EventSession(sessionType: type, sessionName: type).displayName
     }
 
     /// Status to surface for a race weekend. "Final" is reported **only** once the Race
@@ -222,13 +246,13 @@ extension Game {
     var raceWeekendStatus: RaceWeekendStatus {
         guard isRace, let sessions, !sessions.isEmpty else { return .none }
         if let live = liveSessionEntry {
-            return .live(sessionDisplayName(live.sessionType))
+            return .live(live.displayName)
         }
         if raceSessionEntry?.status?.lowercased() == "post" {
             return .finished
         }
         if let next = nextUpcomingSession, let date = next.startDate {
-            return .upcoming(label: sessionDisplayName(next.sessionType), date: date)
+            return .upcoming(label: next.displayName, date: date)
         }
         return .none
     }
