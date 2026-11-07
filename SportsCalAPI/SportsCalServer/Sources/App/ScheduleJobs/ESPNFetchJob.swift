@@ -652,7 +652,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             let clientFacingID = candidate.tsdbEventID ?? espnEventID
             let league = candidate.game.idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))
             let extras = summary.extras(league: league, isFinal: isFinal)
-            let payload = CachedPlays(
+            var payload = CachedPlays(
                 eventID: clientFacingID,
                 // The skip check compares this to the scoreboard's lastPlay.id. Drive play
                 // IDs aren't guaranteed to share that format, so for football record the
@@ -667,6 +667,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 teamStats: extras.teamStats,
                 excitement: extras.excitement
             )
+            payload.apply(extras)
             if isFinal {
                 // Final state: persist to the SQLite archive (durable, no TTL) and flush the
                 // hot Redis keys so we don't double-store the same blob. Falls back to a Redis
@@ -1705,6 +1706,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 season: scheduleGame.season ?? espnGame.season,
                 // ESPN's season.type is authoritative; TheSportsDB's round codes are the fallback.
                 seasonPhase: espnGame.seasonPhase ?? scheduleGame.seasonPhase,
+                sportsDBRound: scheduleGame.sportsDBRound ?? espnGame.sportsDBRound,
                 // Live-only, so ESPN's or nothing: a schedule copy is a stale snapshot.
                 situation: espnGame.situation,
                 // Sticky: ESPN drops a game off its board a day after it ends, and the
@@ -1812,7 +1814,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             if let foundEvent = events.first(where: {$0.strHomeTeam == event.strHomeTeam && $0.strAwayTeam == event.strAwayTeam}) {
                 // Only include essential fields - strSport/strLeague are computed from idLeague
                 // Deprecated fields removed: strPlayer, idPlayer, intEventScore, intEventScoreTotal, strEventTime, dateEvent, updated
-                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, homeConference: event.homeConference ?? foundEvent.homeConference, awayConference: event.awayConference ?? foundEvent.awayConference, tournamentName: foundEvent.tournamentName ?? event.tournamentName, round: foundEvent.round ?? event.round, drawSlug: foundEvent.drawSlug ?? event.drawSlug, playoff: event.playoff, season: foundEvent.season ?? event.season, seasonPhase: event.seasonPhase ?? foundEvent.seasonPhase, situation: event.situation, excitement: event.excitement ?? foundEvent.excitement, scoreboardExtras: event.scoreboardExtras ?? foundEvent.scoreboardExtras)
+                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, homeConference: event.homeConference ?? foundEvent.homeConference, awayConference: event.awayConference ?? foundEvent.awayConference, tournamentName: foundEvent.tournamentName ?? event.tournamentName, round: foundEvent.round ?? event.round, drawSlug: foundEvent.drawSlug ?? event.drawSlug, playoff: event.playoff, season: foundEvent.season ?? event.season, seasonPhase: event.seasonPhase ?? foundEvent.seasonPhase, sportsDBRound: foundEvent.sportsDBRound ?? event.sportsDBRound, situation: event.situation, excitement: event.excitement ?? foundEvent.excitement, scoreboardExtras: event.scoreboardExtras ?? foundEvent.scoreboardExtras)
             } else {
                 return event
             }
