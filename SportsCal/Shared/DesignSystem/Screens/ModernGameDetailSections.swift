@@ -532,22 +532,9 @@ struct ModernGameDetailSections: View {
         .padding(.vertical, 2)
     }
 
+    /// Shared with the box score, so OT reads "OT"/"2OT" and NCAA halves "H1"/"H2".
     private func periodAbbreviation(_ period: Int) -> String {
-        switch sportType {
-        case .basketball, .nfl: return "Q\(period)"
-        case .hockey: return period > 3 ? (period == 4 ? "OT" : "SO") : "P\(period)"
-        case .mlb: return "\(period)"
-        case .soccer:
-            switch period {
-            case 1: return "1H"
-            case 2: return "2H"
-            case 3: return "ET1"
-            case 4: return "ET2"
-            case 5: return "PEN"
-            default: return "\(period)"
-            }
-        default: return "\(period)"
-        }
+        game.periodLabel(period)
     }
 
     // MARK: - Injuries

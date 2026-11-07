@@ -49,6 +49,7 @@ public extension ClutchMoment {
     /// - Parameters:
     ///   - sport: The game's sport; decides which moments apply.
     ///   - league: Sets the period structure (the NCAA tournament plays halves); defaults per sport.
+    ///   - phase: The game's season phase; hockey overtime only ends in a shootout outside the playoffs.
     ///   - situation: The game situation right now.
     ///   - previous: The situation as of the last check, used to spot a win-probability flip.
     ///   - homeScore: Current home score.
@@ -58,6 +59,7 @@ public extension ClutchMoment {
     static func detect(
         sport: SportType,
         league: Leagues? = nil,
+        phase: SeasonPhase? = nil,
         situation: GameSituation,
         previous: GameSituation?,
         homeScore: Int,
@@ -71,7 +73,7 @@ public extension ClutchMoment {
         // The league decides the shape of the game: the NCAA tournament plays halves.
         let league = league ?? Self.defaultLeague(for: sport)
         let finalPeriod = league?.regulationPeriods ?? 4
-        func periodName(_ period: Int) -> String { league?.periodName(period) ?? "\(period)" }
+        func periodName(_ period: Int) -> String { league?.periodName(period, phase: phase) ?? "\(period)" }
 
         switch sport {
         case .mlb:
@@ -203,36 +205,5 @@ public extension ClutchMoment {
         default: suffix = "th"
         }
         return "\(n)\(suffix)"
-    }
-}
-
-// MARK: - Periods
-
-public extension Leagues {
-    /// Periods in regulation: quarters, halves, periods or innings. Nil where it isn't
-    /// a fixed count we reason about (soccer, individual sports).
-    var regulationPeriods: Int? {
-        switch self {
-        case .nba, .wnba, .nfl, .ncaaf: return 4
-        case .ncaaMBBTournament: return 2
-        case .nhl: return 3
-        case .mlb: return 9
-        default: return nil
-        }
-    }
-
-    /// "Q4", "H2", "P3", "OT", "2OT", or an inning ordinal.
-    func periodName(_ period: Int) -> String {
-        guard let regulation = regulationPeriods else { return "\(period)" }
-        if self == .mlb { return ClutchMoment.ordinal(period) }
-        if period <= regulation {
-            switch self {
-            case .ncaaMBBTournament: return "H\(period)"
-            case .nhl: return "P\(period)"
-            default: return "Q\(period)"
-            }
-        }
-        let overtime = period - regulation
-        return overtime == 1 ? "OT" : "\(overtime)OT"
     }
 }

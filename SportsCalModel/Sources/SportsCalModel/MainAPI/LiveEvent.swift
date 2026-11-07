@@ -1295,40 +1295,6 @@ extension Game {
         }
     }
 
-    public func periodLabels(count: Int) -> [String] {
-        guard let sport = strSport.flatMap({ SportType(rawValue: $0) }) else {
-            return (1...count).map { "\($0)" }
-        }
-        switch sport {
-        case .basketball, .nfl:
-            // Q1, Q2, Q3, Q4, OT, OT2...
-            return (0..<count).map { i in
-                if i < 4 { return "Q\(i + 1)" }
-                else if i == 4 { return "OT" }
-                else { return "OT\(i - 3)" }
-            }
-        case .hockey:
-            // P1, P2, P3, OT, OT2...
-            return (0..<count).map { i in
-                if i < 3 { return "P\(i + 1)" }
-                else if i == 3 { return "OT" }
-                else { return "OT\(i - 2)" }
-            }
-        case .mlb:
-            return (1...count).map { "\($0)" }
-        case .soccer:
-            // 1H, 2H, ET1, ET2, PEN
-            let labels = ["1H", "2H", "ET1", "ET2", "PEN"]
-            return (0..<count).map { i in
-                i < labels.count ? labels[i] : "\(i + 1)"
-            }
-        case .golf, .tennis:
-            return (1...count).map { "\($0)" }
-        case .racing:
-            return (1...count).map { "Lap \($0)" }
-        }
-    }
-
     /// Whether this is a golf major or a tennis Grand Slam. See `EventTier`.
     public var isMajor: Bool {
         eventTier == .major

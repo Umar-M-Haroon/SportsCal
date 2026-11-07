@@ -394,7 +394,7 @@ struct APNSJob: AsyncScheduledJob {
         let before = previous?.situation?.homeWinPct.map { GameSituation(homeWinProbability: Double($0) / 100) }
         let league = event.idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))
         return ClutchMoment.detect(
-            sport: sport, league: league, situation: situation, previous: before,
+            sport: sport, league: league, phase: event.resolvedSeasonPhase, situation: situation, previous: before,
             homeScore: homeScore, awayScore: awayScore,
             homeName: event.strHomeTeam, awayName: event.strAwayTeam
         )
