@@ -125,6 +125,7 @@ enum WatchGameLogic {
             endDate: scheduled.endDate ?? live.endDate,
             season: scheduled.season ?? live.season,
             seasonPhase: live.seasonPhase ?? scheduled.seasonPhase,
+            sportsDBRound: scheduled.sportsDBRound ?? live.sportsDBRound,
             situation: live.situation,
             excitement: live.excitement ?? scheduled.excitement,
             scoreboardExtras: live.scoreboardExtras ?? scheduled.scoreboardExtras

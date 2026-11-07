@@ -69,6 +69,10 @@ enum LiveActivityVariant {
 private func variantFor(progress: String?, status: String?) -> LiveActivityVariant {
     let p = (progress ?? "").lowercased().trimmingCharacters(in: .whitespaces)
     let s = (status ?? "").lowercased().trimmingCharacters(in: .whitespaces)
+    // A suspended game is "post" but not over: it resumes another day.
+    if p.hasPrefix("suspended") {
+        return .stopped
+    }
     // ESPN state "post", soccer FT / AET / penalties, TheSportsDB codes, "Final/OT".
     let finalStatuses: Set<String> = ["post", "ft", "aet", "ap", "pen", "pens", "final", "match finished"]
     let finalProgress: Set<String> = ["ft", "aet", "ft-pens", "ft-pen", "pens", "ap"]
@@ -135,6 +139,22 @@ private func progressLabel(for state: LiveSportActivityAttributes.ContentState) 
     }
 }
 
+
+/// Baseball's inning for the compact Dynamic Island: "▲9" top, "▼9" bottom,
+/// "M9" / "E9" between halves. Nil for anything that isn't ESPN's "Top 9th" shape.
+func compactInning(_ progress: String?) -> String? {
+    let words = (progress ?? "").split(separator: " ")
+    guard words.count == 2, let first = words.first, let last = words.last else { return nil }
+    let digits = last.prefix { $0.isNumber }
+    guard !digits.isEmpty, digits.count + 2 == last.count else { return nil }
+    switch first.lowercased() {
+    case "top": return "▲\(digits)"
+    case "bot", "bottom": return "▼\(digits)"
+    case "mid", "middle": return "M\(digits)"
+    case "end": return "E\(digits)"
+    default: return nil
+    }
+}
 
 // MARK: - F1
 
@@ -368,10 +388,19 @@ struct LiveSportActivityWidget: Widget {
                         .monospacedDigit()
                         .foregroundColor(WidgetTokens.ink)
                 } else {
-                Text("\(context.state.awayScore)-\(context.state.homeScore)")
-                    .font(.system(.caption, design: .rounded).weight(.bold))
-                    .monospacedDigit()
-                    .foregroundColor(WidgetTokens.ink)
+                HStack(spacing: 3) {
+                    Text("\(context.state.awayScore)-\(context.state.homeScore)")
+                        .font(.system(.caption, design: .rounded).weight(.bold))
+                        .monospacedDigit()
+                        .foregroundColor(WidgetTokens.ink)
+                    if let inning = compactInning(context.state.progress) {
+                        Text(inning)
+                            .font(.system(.caption2, design: .rounded).weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundColor(WidgetTokens.inkSoft)
+                            .accessibilityLabel(context.state.progress ?? inning)
+                    }
+                }
                 }
             } minimal: {
                 if context.state.race != nil {

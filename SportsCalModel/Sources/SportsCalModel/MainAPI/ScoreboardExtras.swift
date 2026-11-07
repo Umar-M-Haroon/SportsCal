@@ -37,13 +37,15 @@ public struct ScoreboardExtras: Codable, Equatable, Hashable, Sendable {
     public var broadcasts: [String]?
     /// Baseball's winning, losing and saving pitchers, once the game is final.
     public var featuredPitchers: [FeaturedPitcher]?
+    /// Baseball doubleheaders: 1 or 2, from ESPN's "Doubleheader - Game 2" note.
+    public var doubleheaderGame: Int?
 
     public init(homeWinner: Bool? = nil, awayWinner: Bool? = nil,
                 homeShootoutScore: Int? = nil, awayShootoutScore: Int? = nil,
                 homeHits: Int? = nil, awayHits: Int? = nil, homeErrors: Int? = nil, awayErrors: Int? = nil,
                 homeProbable: ProbablePitcher? = nil, awayProbable: ProbablePitcher? = nil,
                 soccerDetails: [MatchIncident]? = nil, broadcasts: [String]? = nil,
-                featuredPitchers: [FeaturedPitcher]? = nil) {
+                featuredPitchers: [FeaturedPitcher]? = nil, doubleheaderGame: Int? = nil) {
         self.homeWinner = homeWinner
         self.awayWinner = awayWinner
         self.homeShootoutScore = homeShootoutScore
@@ -57,6 +59,7 @@ public struct ScoreboardExtras: Codable, Equatable, Hashable, Sendable {
         self.soccerDetails = soccerDetails
         self.broadcasts = broadcasts
         self.featuredPitchers = featuredPitchers
+        self.doubleheaderGame = doubleheaderGame
     }
 
     /// Nothing to carry.
@@ -79,7 +82,9 @@ public struct ScoreboardExtras: Codable, Equatable, Hashable, Sendable {
 /// A probable starting pitcher.
 public struct ProbablePitcher: Codable, Equatable, Hashable, Sendable {
     public var name: String
-    /// Season line as ESPN shows it, e.g. "10-5, 3.21 ERA". Nil when ESPN sends none.
+    /// Season line, e.g. "9-5, 4.17 ERA". ESPN sends `record` as "(9-5, 4.17)"; the
+    /// parentheses are dropped and the ERA labelled. Nil when ESPN sends neither a record
+    /// nor an ERA.
     public var record: String?
 
     public init(name: String, record: String? = nil) {
@@ -97,7 +102,7 @@ public struct FeaturedPitcher: Codable, Equatable, Hashable, Sendable {
     public var role: Role
     public var name: String
     public var side: GameSituation.Side?
-    /// e.g. "(12-4)" for a W/L, "(31)" saves.
+    /// The season line after this game: "(12-4)" for a W/L pitcher, "(31)" saves.
     public var line: String?
 
     public init(role: Role, name: String, side: GameSituation.Side? = nil, line: String? = nil) {
@@ -163,6 +168,7 @@ extension ScoreboardExtras {
             extras.awayProbable = away.probables.flatMap(ProbablePitcher.init(espn:))
             let featured = (status?.featuredAthletes ?? []).compactMap { FeaturedPitcher(espn: $0, side: side) }
             extras.featuredPitchers = featured.isEmpty ? nil : featured
+            extras.doubleheaderGame = Self.doubleheaderGame(notes: competition.notes)
         }
         if sport == .soccer {
             let incidents = (competition.details ?? []).compactMap { MatchIncident(espn: $0, side: side) }
@@ -170,6 +176,18 @@ extension ScoreboardExtras {
         }
         guard !extras.isEmpty else { return nil }
         self = extras
+    }
+
+    /// 1 or 2 from a note like "Doubleheader - Game 1 - Makeup from July 25".
+    static func doubleheaderGame(notes: [CompetitionNote]?) -> Int? {
+        for note in notes ?? [] {
+            guard let headline = note.headline ?? note.text,
+                  headline.lowercased().contains("doubleheader"),
+                  let range = headline.range(of: "Game ", options: .caseInsensitive) else { continue }
+            let digits = headline[range.upperBound...].prefix { $0.isNumber }
+            if let number = Int(digits), (1...2).contains(number) { return number }
+        }
+        return nil
     }
 
     /// Distinct network names in ESPN's order.
@@ -188,32 +206,51 @@ extension ProbablePitcher {
         let starter = probables.first { $0.name == "probableStartingPitcher" } ?? probables.first
         guard let starter, let name = starter.athlete?.displayName ?? starter.athlete?.shortName else { return nil }
         self.name = name
-        if let record = starter.record, !record.isEmpty {
-            self.record = record
-        } else {
-            let era = starter.statistics?.first { $0.abbreviation == "ERA" || $0.name == "ERA" }?.displayValue
-            self.record = era.map { "\($0) ERA" }
+        self.record = Self.seasonLine(record: starter.record, statistics: starter.statistics)
+    }
+
+    /// "(9-5, 4.17)" → "9-5, 4.17 ERA". Without a record, the ERA stat alone.
+    static func seasonLine(record: String?, statistics: [ESPNAthleteStat]?) -> String? {
+        let trimmed = record?.trimmingCharacters(in: CharacterSet(charactersIn: "() "))
+        if let trimmed, !trimmed.isEmpty {
+            // ESPN's line is "W-L, ERA"; label the ERA so it doesn't read as a score.
+            return trimmed.contains(",") && !trimmed.contains("ERA") ? "\(trimmed) ERA" : trimmed
         }
+        let era = statistics?.first { $0.abbreviation == "ERA" || $0.name == "ERA" }?.displayValue
+        return era.map { "\($0) ERA" }
     }
 }
 
 extension FeaturedPitcher {
     init?(espn: ESPNFeaturedAthlete, side: (String?) -> GameSituation.Side?) {
         let role: Role
-        switch espn.name {
-        case "winningPitcher": role = .win
-        case "losingPitcher": role = .loss
-        case "savingPitcher": role = .save
-        default:
-            guard let abbreviation = espn.abbreviation, let parsed = Role(rawValue: abbreviation) else { return nil }
-            role = parsed
+        // ESPN's names are "winningPitcher" / "losingPitcher" / "savingPitcher", with
+        // abbreviations "WP" / "LP" / "S" (verified against the 2025 scoreboard).
+        switch espn.name ?? espn.abbreviation {
+        case "winningPitcher", "WP", "W": role = .win
+        case "losingPitcher", "LP", "L": role = .loss
+        case "savingPitcher", "S", "SV": role = .save
+        default: return nil
         }
         guard let name = espn.athlete?.shortName ?? espn.athlete?.displayName else { return nil }
         self.role = role
         self.name = name
         self.side = side(espn.team?.id ?? espn.athlete?.team?.id)
-        // ESPN's featured stats lead with the season record ("12-4") or saves.
-        self.line = espn.statistics?.first?.displayValue.map { "(\($0))" }
+        // ESPN sends the season stats in no useful order (saves, losses, wins, ERA,
+        // errors), so pick them by name.
+        func stat(_ name: String) -> String? {
+            espn.statistics?.first { $0.name == name }?.displayValue
+        }
+        switch role {
+        case .win, .loss:
+            if let wins = stat("wins"), let losses = stat("losses") {
+                self.line = "(\(wins)-\(losses))"
+            } else {
+                self.line = nil
+            }
+        case .save:
+            self.line = stat("saves").map { "(\($0))" }
+        }
     }
 }
 
@@ -262,6 +299,8 @@ public extension Game {
     var soccerDetails: [MatchIncident]? { scoreboardExtras?.soccerDetails }
     var broadcasts: [String]? { scoreboardExtras?.broadcasts }
     var featuredPitchers: [FeaturedPitcher]? { scoreboardExtras?.featuredPitchers }
+    /// 1 or 2 for a baseball doubleheader; nil for a single game.
+    var doubleheaderGame: Int? { scoreboardExtras?.doubleheaderGame }
 
     /// A rank or bracket seed after a merge. For college (where ESPN's curated rank is
     /// the only source) a fresh copy is final even when it's nil — a team that falls out

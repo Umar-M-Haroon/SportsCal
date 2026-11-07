@@ -140,7 +140,7 @@ enum PlayResolver {
             // score, so an empty play list alone isn't a miss.
             let extras = summary.extras(league: Leagues(slug: league), isFinal: false)
             guard !plays.isEmpty || !extras.isEmpty else { return nil }
-            let payload = CachedPlays(
+            var payload = CachedPlays(
                 eventID: eventID,
                 lastPlayId: plays.last?.id ?? "",
                 plays: plays,
@@ -148,6 +148,7 @@ enum PlayResolver {
                 fetchedAt: Date(),
                 extras: extras
             )
+            payload.apply(extras)
             // Write under the client-facing key so subsequent requests hit cache. TTL'd:
             // nothing else ever deletes an on-demand key (the archive path only clears
             // keys for games the job itself tracked).

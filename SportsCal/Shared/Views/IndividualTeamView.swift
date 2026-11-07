@@ -16,6 +16,27 @@ private func resolvedBadgeURL(_ urlString: String) -> URL? {
     return URL(string: urlString)
 }
 
+/// A team name with its seed or rank. A playoff seed reads "(5) Bills"; a college
+/// AP / CFP rank is a small raised number before the name, the way polls print it,
+/// so it isn't mistaken for a seed.
+enum SeededName {
+    static func text(_ name: String, seed: Int?, isRank: Bool) -> Text {
+        guard let seed else { return Text(name) }
+        guard isRank else { return Text("(\(seed)) \(name)") }
+        let rank = Text("\(seed)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .baselineOffset(4)
+        return Text("\(rank)\u{2009}\(name)")
+    }
+
+    /// "Number 5 Ohio State" / "5 seed Bills", for an accessibility label.
+    static func spoken(_ name: String, seed: Int?, isRank: Bool) -> String {
+        guard let seed else { return name }
+        return isRank ? "Number \(seed) \(name)" : "\(seed) seed \(name)"
+    }
+}
+
 struct IndividualTeamView: View {
     var teamURL: String?
     var shortName: String?
@@ -25,6 +46,8 @@ struct IndividualTeamView: View {
     var isAway: Bool
     var record: String? = nil
     var seed: Int? = nil
+    /// The seed is a college poll rank (see `SeededName`).
+    var seedIsRank: Bool = false
     var data: Data? = nil
     /// Score / fallback-code sizes track Dynamic Type; 24pt / 14pt at the default size.
     @ScaledMetric(relativeTo: .title2) private var scoreSize: CGFloat = 24
@@ -140,13 +163,13 @@ struct IndividualTeamView: View {
             }
             .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             if let shortName {
-                Text(seed != nil ? "(\(seed!)) \(shortName)" : shortName)
+                SeededName.text(shortName, seed: seed, isRank: seedIsRank)
                     .font(.headline)
                     .fontWeight(isWinning ? .bold : .regular)
                     .foregroundColor(isWinning ? .primary : .secondary)
             .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             } else if let longName {
-                Text(seed != nil ? "(\(seed!)) \(longName)" : longName)
+                SeededName.text(longName, seed: seed, isRank: seedIsRank)
                     .foregroundColor(isWinning ? .primary : .secondary)
                     .font(.headline)
                     .fontWeight(isWinning ? .bold : .regular)

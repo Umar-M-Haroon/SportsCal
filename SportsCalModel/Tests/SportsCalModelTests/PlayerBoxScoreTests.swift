@@ -189,6 +189,27 @@ final class PlayerBoxScoreTests: XCTestCase {
         XCTAssertNil(slim.scoringSummary)
     }
 
+    func testArchiveRoundTripsAllFourExtrasAndSlimKeepsDrivesAndSeries() throws {
+        var extras = try summary("BoxScore-nhl").extras(league: .nhl, isFinal: false)
+        extras.drives = [DriveSummary(firstPlayID: "p1", team: "KC", summary: "8 plays, 75 yards", result: "Touchdown", isScore: true)]
+        extras.series = SeriesContext(gameNumber: 2, totalGames: 3, summary: "PHI leads series 1-0")
+
+        // The archive stores `extras` as one blob and rebuilds with init(extras:) + apply.
+        let blob = try JSONEncoder().encode(
+            CachedPlays(eventID: "1", lastPlayId: "x", plays: [], isFinal: true, fetchedAt: Date(), extras: extras).extras
+        )
+        let restoredExtras = try JSONDecoder().decode(CachedPlaysExtras.self, from: blob)
+        var restored = CachedPlays(eventID: "1", lastPlayId: "x", plays: [], isFinal: true, fetchedAt: Date(), extras: restoredExtras)
+        restored.apply(restoredExtras)
+        XCTAssertEqual(restored.extras, extras)
+
+        let slim = restored.withoutPlayerDetail
+        XCTAssertNil(slim.players)
+        XCTAssertNil(slim.scoringSummary)
+        XCTAssertEqual(slim.drives, extras.drives)
+        XCTAssertEqual(slim.series, extras.series)
+    }
+
     func testOldPayloadWithoutPlayersStillDecodes() throws {
         let json = #"{"eventID":"1","lastPlayId":"","plays":[],"isFinal":false,"fetchedAt":0}"#
         let decoded = try JSONDecoder().decode(CachedPlays.self, from: Data(json.utf8))

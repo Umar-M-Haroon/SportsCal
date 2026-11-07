@@ -13,6 +13,8 @@ public struct Event: Codable {
     public var endDate: String?
     public var shortName: String?
     public var season: EventSeason?
+    /// Football's week of the season (`{"number": 8}`). Absent for other sports.
+    public var week: EventWeek?
     public var competitions: [Competition]?
     public var groupings: [EventGrouping]?
     public var links: [EventLink]?
@@ -30,6 +32,18 @@ public struct Event: Codable {
         self.groupings = groupings
         self.links = links
         self.status = status
+    }
+}
+
+// MARK: - EventWeek
+public struct EventWeek: Codable {
+    public var number: Int?
+
+    public init(number: Int? = nil) { self.number = number }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        number = (try? container.decodeIfPresent(Int.self, forKey: .number)) ?? nil
     }
 }
 

@@ -291,7 +291,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                         if let date = game.getDate(), date.timeIntervalSinceNow > 0 {
                             // Only include essential fields - strSport/strLeague are computed from idLeague
                             // Deprecated fields removed: strPlayer, idPlayer, intEventScore, intEventScoreTotal, strEventTime, dateEvent, updated
-                            let newGame = Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: game.idHomeTeam, idAwayTeam: game.idAwayTeam, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: nil, intAwayScore: nil, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: game.strStatus, strProgress: game.strProgress, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: game.strTimestamp, isoDate: game.getDate(), season: game.season, seasonPhase: game.seasonPhase, scoreboardExtras: game.scoreboardExtras)
+                            let newGame = Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: game.idHomeTeam, idAwayTeam: game.idAwayTeam, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: nil, intAwayScore: nil, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: game.strStatus, strProgress: game.strProgress, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: game.strTimestamp, isoDate: game.getDate(), season: game.season, seasonPhase: game.seasonPhase, sportsDBRound: game.sportsDBRound, scoreboardExtras: game.scoreboardExtras)
                             return newGame
                         }
                         return game
@@ -1031,6 +1031,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 season: scheduleGame.season ?? espnGame.season,
                 // ESPN's season.type is authoritative; TheSportsDB's round codes are the fallback.
                 seasonPhase: espnGame.seasonPhase ?? scheduleGame.seasonPhase,
+                sportsDBRound: scheduleGame.sportsDBRound ?? espnGame.sportsDBRound,
                 situation: espnGame.situation,
                 excitement: espnGame.excitement ?? scheduleGame.excitement,
                 scoreboardExtras: espnGame.scoreboardExtras ?? scheduleGame.scoreboardExtras

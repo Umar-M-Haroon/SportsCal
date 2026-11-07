@@ -112,10 +112,13 @@ enum LiveMerge {
         strategy: MatchStrategy,
         race: RaceOptions?
     ) -> OverlayPass {
-        let freshByKey = Dictionary(
-            fresh.compactMap { game in matchKey(for: game, strategy: strategy).map { ($0, game) } },
-            uniquingKeysWith: { _, new in new }
-        )
+        // Several fresh games can share a teams+day key — a doubleheader — so keep them
+        // all and pick per snapshot game (see `bestMatch`).
+        var freshByKey: [String: [Game]] = [:]
+        for game in fresh {
+            guard let key = matchKey(for: game, strategy: strategy) else { continue }
+            freshByKey[key, default: []].append(game)
+        }
 
         var changed = Set<String>()
         var observed: [String: String] = [:]
@@ -127,7 +130,7 @@ enum LiveMerge {
         let merged: [Game] = events.map { game in
             guard game.strStatus == "in",
                   let key = matchKey(for: game, strategy: strategy),
-                  let f = freshByKey[key] else { return game }
+                  let f = bestMatch(for: game, among: freshByKey[key] ?? []) else { return game }
 
             if let race, let id = game.idEvent {
                 observed[id] = scoreKey(f)
@@ -157,8 +160,10 @@ enum LiveMerge {
                 awayLeaders: f.awayLeaders,
                 isCompleted: f.isCompleted,
                 aggregateScore: f.aggregateScore,
-                // nil (a source without ESPN's extras) keeps the snapshot's.
-                scoreboardExtras: f.scoreboardExtras
+                // Only ESPN sends the whole set (R/H/E, pitchers, TV); a partial source's
+                // (statsapi's doubleheader number) must not replace it. nil keeps the
+                // snapshot's.
+                scoreboardExtras: freshSituationIsComplete ? f.scoreboardExtras : nil
             )
             // ESPN's situation is the whole picture, so it replaces the old one outright:
             // a nil down, distance, red zone or possession means "none right now" (a
@@ -371,6 +376,28 @@ enum LiveMerge {
     }
 
     // MARK: - Matching
+
+    /// The fresh copy of `game` among those sharing its match key. One candidate is the
+    /// common case. A doubleheader has two on the same day with the same teams: match
+    /// the game number when both sides know it, else the nearest scheduled start —
+    /// last-one-wins once pushed game 1's final score onto a live game 2.
+    static func bestMatch(for game: Game, among candidates: [Game]) -> Game? {
+        guard candidates.count > 1 else { return candidates.first }
+        if let number = game.doubleheaderGame,
+           let same = candidates.first(where: { $0.doubleheaderGame == number }) {
+            return same
+        }
+        guard let kickoff = kickoffDate(game) else { return candidates.last }
+        return candidates.min { a, b in
+            let da = kickoffDate(a).map { abs($0.timeIntervalSince(kickoff)) } ?? .infinity
+            let db = kickoffDate(b).map { abs($0.timeIntervalSince(kickoff)) } ?? .infinity
+            return da < db
+        }
+    }
+
+    private static func kickoffDate(_ game: Game) -> Date? {
+        game.isoDate ?? game.strTimestamp.flatMap(DateParsers.parse)
+    }
 
     static func matchKey(for game: Game, strategy: MatchStrategy) -> String? {
         switch strategy {
