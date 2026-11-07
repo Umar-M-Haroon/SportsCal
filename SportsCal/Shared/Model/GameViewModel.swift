@@ -1916,12 +1916,20 @@ public class GameViewModel: NSObject {
             // Only update if the live data has meaningful status (not pre-game)
             guard live.strStatus != "pre" && live.strStatus != "NS" else { continue }
 
-            // Only update if something actually changed
+            // Only update if something actually changed. Linescores and the situation
+            // count too: a tennis game won mid-set or a new count/runner in baseball
+            // moves neither the score nor the status, and skipping those left Browse and
+            // team pages with a stale set score and diamond.
             if scheduled.intHomeScore == live.intHomeScore &&
                scheduled.intAwayScore == live.intAwayScore &&
                scheduled.strStatus == live.strStatus &&
                scheduled.strProgress == live.strProgress &&
-               scheduled.isCompleted == live.isCompleted { continue }
+               scheduled.isCompleted == live.isCompleted &&
+               // Compared as the rebuild below would merge them (a nil live copy keeps
+               // the scheduled one), so an unchanged game isn't rebuilt every tick.
+               scheduled.homeLinescores == (live.homeLinescores ?? scheduled.homeLinescores) &&
+               scheduled.awayLinescores == (live.awayLinescores ?? scheduled.awayLinescores) &&
+               scheduled.situation == live.situation { continue }
 
             games[i] = Game(
                 idLiveScore: scheduled.idLiveScore, idEvent: scheduled.idEvent,
