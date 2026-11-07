@@ -272,7 +272,9 @@ struct GameDetailView: View {
                 }
             }
 
-            if let statusText = game.displayStatus {
+            // `scoreOrTime` already shows the status under the score (or in place of a
+            // missing date); show it here only beside a kickoff time.
+            if heroScores == nil, game.standardDate != nil, let statusText = game.displayStatus {
                 Text(statusText)
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -298,10 +300,17 @@ struct GameDetailView: View {
         .cornerRadius(12)
     }
 
+    /// The hero's numeric score, when the game has one.
+    private var heroScores: (home: Int, away: Int)? {
+        guard let home = game.intHomeScore.flatMap({ Int($0) }),
+              let away = game.intAwayScore.flatMap({ Int($0) }) else { return nil }
+        return (home, away)
+    }
+
     @ViewBuilder
     private var scoreOrTime: some View {
-        if let homeScore = game.intHomeScore, let awayScore = game.intAwayScore,
-           let home = Int(homeScore), let away = Int(awayScore) {
+        if let scores = heroScores {
+            let home = scores.home, away = scores.away
             VStack(spacing: 4) {
                 HStack(spacing: 16) {
                     Text("\(away)")
