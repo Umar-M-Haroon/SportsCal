@@ -128,11 +128,25 @@ struct SoccerPitchView: View {
     private func goalBadge(_ player: SoccerLineupPlayer) -> some View {
         let goals = player.stat("totalGoals")
         if goals > 0 {
-            Text(goals > 1 ? "⚽︎\(goals)" : "⚽︎")
-                .font(.system(size: 9))
-                .padding(1)
-                .background(.white, in: Capsule())
-                .offset(x: 8, y: -5)
+            // The badge is always white, so its ink must be fixed too. With the default
+            // (primary) style the count was white-on-white in dark mode: a brace read as
+            // a single ⚽ — the ball glyph renders as a colour emoji regardless.
+            HStack(spacing: 1) {
+                Text("⚽︎")
+                if goals > 1 {
+                    Text("\(goals)")
+                        .fontWeight(.bold)
+                        .monospacedDigit()
+                }
+            }
+            .font(.system(size: 9))
+            .foregroundStyle(.black)
+            .padding(.horizontal, goals > 1 ? 2 : 1)
+            .padding(.vertical, 1)
+            .background(.white, in: Capsule())
+            .fixedSize()
+            .offset(x: goals > 1 ? 11 : 8, y: -5)
+            .accessibilityHidden(true)
         }
     }
 
