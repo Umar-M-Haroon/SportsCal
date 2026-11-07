@@ -22,6 +22,12 @@ public extension GameSituation {
         homeFouls != nil || awayFouls != nil || ballSide != nil || runSide != nil
     }
 
+    /// Whether there's basketball or hockey state worth a line: fouls, the ball or a run;
+    /// a power play or a pulled goalie (even strength alone says nothing).
+    var hasHoopsHockeyDisplay: Bool {
+        hasBasketballState || powerPlaySide != nil || emptyNetSide != nil
+    }
+
     /// Whether the skater strength is known. Even strength counts: it's what clears a
     /// power play.
     var hasHockeyState: Bool { homeSkaters != nil && awaySkaters != nil }

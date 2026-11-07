@@ -165,6 +165,8 @@ struct GameStateStrip: View {
     var homeName: String
     var awayName: String
     var tint: Color = .secondary
+    /// Sets basketball's bonus rule (college halves); the NBA's when nil.
+    var league: Leagues? = nil
 
     var body: some View {
         if hasContent {
@@ -173,6 +175,9 @@ struct GameStateStrip: View {
                     baseball
                 } else if sport == .nfl, situation.hasFootballState {
                     football
+                } else if sport == .basketball || sport == .hockey, situation.hasHoopsHockeyDisplay {
+                    HoopsHockeyStateLine(situation: situation, sport: sport, league: league,
+                                         homeName: homeName, awayName: awayName, tint: tint)
                 }
                 if let home = situation.homeWinProbability {
                     WinProbabilityLabel(home: home, tie: situation.tieProbability,
@@ -187,6 +192,7 @@ struct GameStateStrip: View {
     private var hasContent: Bool {
         (sport == .mlb && situation.hasBaseballState)
             || (sport == .nfl && situation.hasFootballState)
+            || ((sport == .basketball || sport == .hockey) && situation.hasHoopsHockeyDisplay)
             || situation.homeWinProbability != nil
     }
 
@@ -220,6 +226,85 @@ struct GameStateStrip: View {
                 .padding(.vertical, 1)
                 .background(Color.red, in: Capsule())
         }
+    }
+}
+
+// MARK: - Basketball and hockey
+
+/// A small filled capsule for a live state that's an event in itself: a run, a power
+/// play, an empty net, the bonus.
+struct SituationChip: View {
+    let text: String
+    var color: Color
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.weight(.heavy))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(color, in: Capsule())
+    }
+}
+
+/// The row-sized basketball and hockey state: the ball, a scoring run and who's in the
+/// bonus; a power play (with its clock) and a pulled goalie. Timeouts and foul counts
+/// are for the detail panel.
+struct HoopsHockeyStateLine: View {
+    let situation: GameSituation
+    let sport: SportType?
+    var league: Leagues?
+    var homeName: String
+    var awayName: String
+    var tint: Color = .secondary
+
+    private func name(_ side: GameSituation.Side) -> String { side == .home ? homeName : awayName }
+
+    var body: some View {
+        if sport == .hockey {
+            if let side = situation.powerPlaySide {
+                SituationChip(text: ["PP", situation.powerPlayClockText, name(side)].compactMap { $0 }.joined(separator: " · "),
+                              color: .orange)
+                    .accessibilityLabel(Self.powerPlayAccessibility(team: name(side), situation: situation))
+            }
+            if let side = situation.emptyNetSide {
+                SituationChip(text: "EN · \(name(side))", color: .red)
+                    .accessibilityLabel("\(name(side)) goalie pulled")
+            }
+        } else {
+            if let side = situation.ballSide {
+                HStack(spacing: 3) {
+                    Image(systemName: "basketball.fill").imageScale(.small)
+                    Text(name(side))
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(name(side)) ball")
+            }
+            if let side = situation.runSide, let points = situation.runPoints {
+                SituationChip(text: "\(points)-0 run · \(name(side))", color: .orange)
+                    .accessibilityLabel("\(name(side)) on a \(points) to nothing run")
+            }
+            ForEach(bonusSides, id: \.self) { side in
+                Text("BONUS \(name(side))")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(tint)
+                    .lineLimit(1)
+                    .accessibilityLabel("\(name(side)) in the bonus")
+            }
+        }
+    }
+
+    private var bonusSides: [GameSituation.Side] {
+        let rules = league ?? .nba
+        return [GameSituation.Side.away, .home].filter { situation.isInBonus($0, league: rules) == true }
+    }
+
+    static func powerPlayAccessibility(team: String, situation: GameSituation) -> String {
+        var text = "\(team) power play"
+        if let strength = situation.strengthText { text += ", \(strength)" }
+        if let clock = situation.powerPlayClockText { text += ", \(clock) left" }
+        return text
     }
 }
 
@@ -257,6 +342,12 @@ struct LiveActivitySituationStrip: View {
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)
                     .background(Color.red, in: Capsule())
+            }
+            if let side = situation.powerPlay {
+                SituationChip(text: "PP · \(side == .home ? homeName : awayName)", color: .orange)
+            }
+            if let side = situation.emptyNet {
+                SituationChip(text: "EN · \(side == .home ? homeName : awayName)", color: .red)
             }
             if let percent = situation.homeWinPct {
                 WinProbabilityLabel(home: Double(percent) / 100, homeName: homeName, awayName: awayName, showsIcon: true)

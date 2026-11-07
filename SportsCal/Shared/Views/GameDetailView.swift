@@ -806,13 +806,15 @@ struct GameDetailSections: View {
     @ViewBuilder
     private var liveSituationSection: some View {
         if game.strStatus == "in", let situation = game.situation,
-           situation.hasBaseballState || situation.hasFootballState || situation.homeWinProbability != nil {
+           situation.hasBaseballState || situation.hasFootballState || situation.homeWinProbability != nil
+            || situation.hasHoopsHockeyDisplay {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Live").font(.headline)
                 LiveSituationPanel(
                     situation: situation, sport: sportType,
                     homeName: homeShortName, awayName: awayShortName,
-                    homeColor: homeColor, awayColor: awayColor
+                    homeColor: homeColor, awayColor: awayColor,
+                    league: league
                 )
             }
             .padding()
@@ -883,7 +885,10 @@ struct GameDetailSections: View {
                                 .foregroundColor(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .center)
 
-                            HStack {
+                            HStack(spacing: 8) {
+                                if let headshot = pair.awayLeader.headshot {
+                                    HeadshotView(url: headshot, size: 32).accessibilityHidden(true)
+                                }
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(pair.awayLeader.playerName)
                                         .font(.subheadline)
@@ -905,6 +910,9 @@ struct GameDetailSections: View {
                                         .foregroundColor(.secondary)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .trailing)
+                                if let headshot = pair.homeLeader.headshot {
+                                    HeadshotView(url: headshot, size: 32).accessibilityHidden(true)
+                                }
                             }
                         }
 
@@ -928,7 +936,9 @@ struct GameDetailSections: View {
     }
 
     private func matchedLeaderCategories(away: [GameLeader], home: [GameLeader]) -> [LeaderPair] {
-        away.compactMap { awayLeader in
+        // ESPN's basketball "Rating" is an opaque composite ("27 PTS, 9 REB…" restated as
+        // one number); the points/rebounds/assists rows already say it.
+        away.filter { !(sportType == .basketball && $0.category == "rating") }.compactMap { awayLeader in
             guard let homeLeader = home.first(where: { $0.category == awayLeader.category }) else { return nil }
             return LeaderPair(category: awayLeader.category, categoryDisplay: awayLeader.categoryDisplay,
                               awayLeader: awayLeader, homeLeader: homeLeader)

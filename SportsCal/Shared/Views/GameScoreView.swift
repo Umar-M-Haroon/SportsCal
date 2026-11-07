@@ -28,7 +28,44 @@ enum GameRowAccessibility {
     ) -> String {
         let base = baseLabel(game: game, awayName: awayName, homeName: homeName,
                              awayScore: awayScore, homeScore: homeScore, isLive: isLive, now: now)
-        return game.isPreseason ? "\(base), preseason" : base
+        let labeled = game.isPreseason ? "\(base), preseason" : base
+        let context = hoopsHockeyContext(game: game, awayName: awayName, homeName: homeName, isLive: isLive)
+        return ([labeled] + context).joined(separator: ", ")
+    }
+
+    /// What a basketball or hockey row shows beside the score, spoken: the series, seeds
+    /// and records, and the live state (the ball, a run, the bonus, a power play).
+    static func hoopsHockeyContext(game: Game, awayName: String, homeName: String, isLive: Bool) -> [String] {
+        guard game.sportType == .basketball || game.sportType == .hockey else { return [] }
+        var parts: [String] = []
+        if let playoff = game.playoff,
+           let series = PlayoffPill.summaryText(playoff: playoff, homeShort: homeName, awayShort: awayName) {
+            parts.append(series)
+        }
+        func team(_ name: String, seed: Int?, record: String?) -> String? {
+            let bits = [seed.map { "seed \($0)" }, record.map { "record \($0)" }].compactMap { $0 }
+            return bits.isEmpty ? nil : "\(name) \(bits.joined(separator: ", "))"
+        }
+        // Records are part of what a scheduled or live row shows; finals already say who won.
+        if !game.isFinalStatus {
+            parts += [team(awayName, seed: game.awaySeed, record: game.awayRecord),
+                      team(homeName, seed: game.homeSeed, record: game.homeRecord)].compactMap { $0 }
+        }
+        guard isLive, let s = game.situation else { return parts }
+        func name(_ side: GameSituation.Side) -> String { side == .home ? homeName : awayName }
+        if game.sportType == .hockey {
+            if let side = s.powerPlaySide {
+                parts.append(HoopsHockeyStateLine.powerPlayAccessibility(team: name(side), situation: s))
+            }
+            if let side = s.emptyNetSide { parts.append("\(name(side)) goalie pulled") }
+        } else {
+            if let side = s.ballSide { parts.append("\(name(side)) ball") }
+            if let side = s.runSide, let points = s.runPoints { parts.append("\(name(side)) on a \(points) to nothing run") }
+            for side in [GameSituation.Side.away, .home] where s.isInBonus(side, league: game.leagueValue ?? .nba) == true {
+                parts.append("\(name(side)) in the bonus")
+            }
+        }
+        return parts
     }
 
     private static func baseLabel(
@@ -230,7 +267,8 @@ struct GameScoreView: View {
                         situation: situation,
                         sport: game.sportType,
                         homeName: homeTeam.strTeamShort ?? homeTeam.strTeam ?? game.strHomeTeam,
-                        awayName: awayTeam.strTeamShort ?? awayTeam.strTeam ?? game.strAwayTeam
+                        awayName: awayTeam.strTeamShort ?? awayTeam.strTeam ?? game.strAwayTeam,
+                        league: game.leagueValue
                     )
                     .frame(maxWidth: .infinity)
                 } else if !isLive, game.hasDoneStatus, let tier = game.excitementTier, tier.isWorthWatching {

@@ -14,13 +14,16 @@ import SportsCalModel
 // MARK: - Live situation panel
 
 /// The full live state for a detail screen: a large diamond with the count, outs and
-/// matchup in baseball; down, distance, field position and timeouts in football; and
-/// the win-probability split.
+/// matchup in baseball; down, distance, field position and timeouts in football; fouls,
+/// the bonus, timeouts and runs in basketball; power plays and pulled goalies in hockey;
+/// and the win-probability split.
 struct LiveSituationPanel: View {
     let situation: GameSituation
     let sport: SportType?
     let homeName: String
     let awayName: String
+    /// Sets basketball's bonus rule; the NBA's when nil.
+    var league: Leagues? = nil
     private let rawHomeColor: Color
     private let rawAwayColor: Color
 
@@ -28,7 +31,9 @@ struct LiveSituationPanel: View {
     private var homeColor: Color { rawHomeColor.legible(in: environment) }
     private var awayColor: Color { rawAwayColor.legible(in: environment) }
 
-    init(situation: GameSituation, sport: SportType?, homeName: String, awayName: String, homeColor: Color, awayColor: Color) {
+    init(situation: GameSituation, sport: SportType?, homeName: String, awayName: String, homeColor: Color, awayColor: Color,
+         league: Leagues? = nil) {
+        self.league = league
         self.situation = situation
         self.sport = sport
         self.homeName = homeName
@@ -43,6 +48,10 @@ struct LiveSituationPanel: View {
                 baseball
             } else if sport == .nfl, situation.hasFootballState {
                 football
+            } else if sport == .basketball, situation.hasBasketballState {
+                basketball
+            } else if sport == .hockey, situation.hasHoopsHockeyDisplay {
+                hockey
             }
             if let home = situation.homeWinProbability {
                 winProbability(home: home)
@@ -108,6 +117,98 @@ struct LiveSituationPanel: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var basketball: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                if let side = situation.ballSide {
+                    Label(side == .home ? homeName : awayName, systemImage: "basketball.fill")
+                        .font(.headline)
+                        .foregroundStyle(side == .home ? homeColor : awayColor)
+                        .accessibilityLabel("\(side == .home ? homeName : awayName) ball")
+                }
+                Spacer(minLength: 0)
+                if let side = situation.runSide, let points = situation.runPoints {
+                    SituationChip(text: "\(points)-0 RUN · \(side == .home ? homeName : awayName)", color: .orange)
+                        .accessibilityLabel("\(side == .home ? homeName : awayName) on a \(points) to nothing run")
+                }
+            }
+            if situation.homeFouls != nil || situation.homeTimeouts != nil {
+                VStack(spacing: 6) {
+                    teamFoulsRow(.away, name: awayName, color: awayColor)
+                    teamFoulsRow(.home, name: homeName, color: homeColor)
+                }
+            }
+        }
+    }
+
+    /// "LAL  4 fouls  BONUS  ▮▮▯ timeouts" for one side.
+    private func teamFoulsRow(_ side: GameSituation.Side, name: String, color: Color) -> some View {
+        let fouls = side == .home ? situation.homeFouls : situation.awayFouls
+        let timeoutsLeft = side == .home ? situation.homeTimeouts : situation.awayTimeouts
+        let rules = league ?? .nba
+        let bonus: String? = situation.isInDoubleBonus(side, league: rules) ? "DOUBLE BONUS"
+            : (situation.isInBonus(side, league: rules) == true ? "BONUS" : nil)
+        var spoken = name
+        if let fouls { spoken += ", \(fouls) team foul\(fouls == 1 ? "" : "s")" }
+        if let bonus { spoken += ", in the \(bonus.lowercased())" }
+        if let timeoutsLeft { spoken += ", \(timeoutsLeft) timeout\(timeoutsLeft == 1 ? "" : "s") left" }
+        return HStack(spacing: 10) {
+            Text(name).font(.subheadline.weight(.semibold)).foregroundStyle(color)
+            if let fouls {
+                Text("\(fouls) foul\(fouls == 1 ? "" : "s")").font(.subheadline.monospacedDigit())
+            }
+            if let bonus {
+                Text(bonus).font(.caption2.weight(.heavy)).foregroundStyle(.orange)
+            }
+            Spacer(minLength: 0)
+            if let timeoutsLeft {
+                Text("\(timeoutsLeft) TO").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
+    }
+
+    private var hockey: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let side = situation.powerPlaySide {
+                let team = side == .home ? homeName : awayName
+                HStack(spacing: 8) {
+                    Text("POWER PLAY")
+                        .font(.caption2.weight(.heavy))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange, in: Capsule())
+                    Text(team).font(.headline).foregroundStyle(side == .home ? homeColor : awayColor)
+                    if let strength = situation.strengthText {
+                        Text(strength).font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    if let clock = situation.powerPlayClockText {
+                        Text(clock).font(.title3.weight(.semibold).monospacedDigit())
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(HoopsHockeyStateLine.powerPlayAccessibility(team: team, situation: situation))
+            }
+            if let side = situation.emptyNetSide {
+                let team = side == .home ? homeName : awayName
+                HStack(spacing: 8) {
+                    Text("EMPTY NET")
+                        .font(.caption2.weight(.heavy))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.red, in: Capsule())
+                    Text("\(team) goalie pulled").font(.subheadline)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(team) goalie pulled for an extra attacker")
             }
         }
     }
