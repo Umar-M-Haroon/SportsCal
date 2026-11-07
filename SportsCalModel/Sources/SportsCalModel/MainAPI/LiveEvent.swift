@@ -326,10 +326,13 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     // as a RaceState (with the distance for the Grand Prix) so the detail
                     // header and Live Activity can say "Lap 23/57".
                     let lapsRun = competition.status?.period ?? 0
-                    let raceState: RaceState? = (sessionState == "in" || sessionState == "post") && !probe.isTimedLapSession && lapsRun > 0
-                        ? RaceState(lap: lapsRun, totalLaps: probe.importance == 6 ? (raceLaps[event.id] ?? 0) : 0,
-                                    flag: sessionState == "post" ? .checkered : .none)
-                        : nil
+                    let hasRun = sessionState == "in" || sessionState == "post"
+                    var raceState: RaceState?
+                    if hasRun, !probe.isTimedLapSession, lapsRun > 0 {
+                        let distance = probe.importance == 6 ? (raceLaps[event.id] ?? 0) : 0
+                        let flag: RaceState.Flag = sessionState == "post" ? .checkered : .none
+                        raceState = RaceState(lap: lapsRun, totalLaps: distance, flag: flag)
+                    }
                     var progress = sessionState == "pre" ? nil : competition.status?.type.shortDetail
                     if sessionState == "in", let raceState, progress?.lowercased().contains("lap") != true {
                         progress = raceState.totalLaps > 0 ? raceState.lapLabel : "Lap \(raceState.lap)"
