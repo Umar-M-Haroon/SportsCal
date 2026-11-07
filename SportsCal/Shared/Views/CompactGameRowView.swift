@@ -20,6 +20,8 @@ struct CompactGameRowView: View {
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var sheetType: SheetType?
     var isLive: Bool
+    /// The status column grows with Dynamic Type so "Final (2OT)" or "Bot 9th" isn't cut off.
+    @ScaledMetric(relativeTo: .caption2) private var statusWidth: CGFloat = 62
 
     private var awayScore: Int? { game.intAwayScore.flatMap { Int($0) } }
     private var homeScore: Int? { game.intHomeScore.flatMap { Int($0) } }
@@ -41,7 +43,7 @@ struct CompactGameRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 trailing
-                    .frame(width: 62, alignment: .trailing)
+                    .frame(width: statusWidth, alignment: .trailing)
             }
             .padding(.vertical, 2)
             .contentShape(Rectangle())
@@ -115,16 +117,20 @@ struct CompactGameRowView: View {
                     .font(.caption2)
                     .foregroundStyle(.red)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
         } else if hasScores, let status = game.displayStatus {
             Text(status)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.75)
         } else if let date = game.standardDate {
             GameTimeLabel(date: date)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
     }
 

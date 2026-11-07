@@ -534,6 +534,11 @@ struct GameDetailSections: View {
     @Environment(SubscriptionManager.self) private var subscriptionManager
     #endif
 
+    // Box-score columns grow with Dynamic Type (the grid scrolls sideways when it outgrows the card).
+    @ScaledMetric(relativeTo: .caption) private var boxTeamWidth: CGFloat = 60
+    @ScaledMetric(relativeTo: .caption) private var boxPeriodWidth: CGFloat = 36
+    @ScaledMetric(relativeTo: .caption) private var boxTotalWidth: CGFloat = 40
+
     var body: some View {
         VStack(spacing: 24) {
             liveSituationSection
@@ -700,62 +705,73 @@ struct GameDetailSections: View {
                     VStack(spacing: 6) {
                         HStack(spacing: 0) {
                             Text("")
-                                .frame(width: 60, alignment: .leading)
+                                .frame(width: boxTeamWidth, alignment: .leading)
                             ForEach(Array(labels.enumerated()), id: \.offset) { _, label in
                                 Text(label)
-                                    .frame(width: 36, alignment: .center)
+                                    .frame(width: boxPeriodWidth, alignment: .center)
                             }
                             Text("T")
-                                .frame(width: 40, alignment: .center)
+                                .frame(width: boxTotalWidth, alignment: .center)
                         }
                         .font(.caption2)
                         .foregroundColor(.secondary)
 
                         Divider()
 
-                        HStack(spacing: 0) {
-                            Text(Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam))
-                                .frame(width: 60, alignment: .leading)
-                                .lineLimit(1)
-                            ForEach(Array(awayLs.enumerated()), id: \.offset) { _, score in
-                                Text(formatLinescoreValue(score))
-                                    .frame(width: 36, alignment: .center)
-                            }
-                            ForEach(0..<max(0, homeLs.count - awayLs.count), id: \.self) { _ in
-                                Text("-")
-                                    .frame(width: 36, alignment: .center)
-                            }
-                            Text(formatLinescoreValue(awayTotal))
-                                .fontWeight(awayTotal > homeTotal ? .bold : .regular)
-                                .frame(width: 40, alignment: .center)
-                        }
-                        .font(.caption)
-
-                        HStack(spacing: 0) {
-                            Text(Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam))
-                                .frame(width: 60, alignment: .leading)
-                                .lineLimit(1)
-                            ForEach(Array(homeLs.enumerated()), id: \.offset) { _, score in
-                                Text(formatLinescoreValue(score))
-                                    .frame(width: 36, alignment: .center)
-                            }
-                            ForEach(0..<max(0, awayLs.count - homeLs.count), id: \.self) { _ in
-                                Text("-")
-                                    .frame(width: 36, alignment: .center)
-                            }
-                            Text(formatLinescoreValue(homeTotal))
-                                .fontWeight(homeTotal > awayTotal ? .bold : .regular)
-                                .frame(width: 40, alignment: .center)
-                        }
-                        .font(.caption)
+                        boxScoreRow(
+                            name: Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam),
+                            scores: awayLs, padTo: periodCount, total: awayTotal, isLeading: awayTotal > homeTotal
+                        )
+                        boxScoreRow(
+                            name: Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam),
+                            scores: homeLs, padTo: periodCount, total: homeTotal, isLeading: homeTotal > awayTotal
+                        )
                     }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .padding(.horizontal, 4)
                 }
+                // One summary instead of a grid of bare numbers.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(boxScoreAccessibilityLabel(labels: labels, home: homeLs, away: awayLs,
+                                                               homeTotal: homeTotal, awayTotal: awayTotal))
             }
             .padding()
             .background(Color.secondaryGroupedBackground)
             .cornerRadius(12)
         }
+    }
+
+    private func boxScoreRow(name: String, scores: [Double], padTo count: Int, total: Double, isLeading: Bool) -> some View {
+        HStack(spacing: 0) {
+            Text(name)
+                .frame(width: boxTeamWidth, alignment: .leading)
+            ForEach(Array(scores.enumerated()), id: \.offset) { _, score in
+                Text(formatLinescoreValue(score))
+                    .frame(width: boxPeriodWidth, alignment: .center)
+            }
+            ForEach(0..<max(0, count - scores.count), id: \.self) { _ in
+                Text("-")
+                    .frame(width: boxPeriodWidth, alignment: .center)
+            }
+            Text(formatLinescoreValue(total))
+                .fontWeight(isLeading ? .bold : .regular)
+                .frame(width: boxTotalWidth, alignment: .center)
+        }
+        .font(.caption)
+        .monospacedDigit()
+    }
+
+    /// "Box score. Celtics: Q1 28, Q2 31, …, total 112. Lakers: …"
+    private func boxScoreAccessibilityLabel(labels: [String], home: [Double], away: [Double],
+                                            homeTotal: Double, awayTotal: Double) -> String {
+        func line(_ name: String, _ scores: [Double], _ total: Double) -> String {
+            let periods = zip(labels, scores).map { "\($0) \(formatLinescoreValue($1))" }
+            return "\(name): " + (periods + ["total \(formatLinescoreValue(total))"]).joined(separator: ", ")
+        }
+        let awayName = awayTeam.strTeam ?? game.strAwayTeam
+        let homeName = homeTeam.strTeam ?? game.strHomeTeam
+        return "Box score. " + line(awayName, away, awayTotal) + ". " + line(homeName, home, homeTotal)
     }
 
     private func formatLinescoreValue(_ value: Double) -> String {
