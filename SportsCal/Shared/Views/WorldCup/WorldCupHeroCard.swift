@@ -638,23 +638,24 @@ private struct WCMarqueeCard: View {
 
     var body: some View {
         VStack(spacing: .appSpace3) {
+            // Home on the left, soccer's order; ESPN's winner bolds a shootout winner.
             HStack(alignment: .top, spacing: .appSpace2) {
                 side(
-                    code: wcCode(gameWithTeams.awayTeam, fallback: game.strAwayTeam),
-                    badge: game.strAwayTeamBadge,
-                    score: hasScore ? awayScore : nil,
-                    winning: hasScore && awayScore > homeScore,
-                    isHome: false
+                    code: wcCode(gameWithTeams.homeTeam, fallback: game.strHomeTeam),
+                    badge: game.strHomeTeamBadge,
+                    score: hasScore ? homeScore : nil,
+                    winning: hasScore && game.winningSide == .home,
+                    leading: true
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
                 center
                     .padding(.top, .appSpace2)
                 side(
-                    code: wcCode(gameWithTeams.homeTeam, fallback: game.strHomeTeam),
-                    badge: game.strHomeTeamBadge,
-                    score: hasScore ? homeScore : nil,
-                    winning: hasScore && homeScore > awayScore,
-                    isHome: true
+                    code: wcCode(gameWithTeams.awayTeam, fallback: game.strAwayTeam),
+                    badge: game.strAwayTeamBadge,
+                    score: hasScore ? awayScore : nil,
+                    winning: hasScore && game.winningSide == .away,
+                    leading: false
                 )
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -684,14 +685,15 @@ private struct WCMarqueeCard: View {
         }
     }
 
-    private func side(code: String, badge: String?, score: Int?, winning: Bool, isHome: Bool) -> some View {
-        VStack(alignment: isHome ? .trailing : .leading, spacing: .appSpace2) {
+    /// `leading`: the left-hand side, badge then score; the right-hand one mirrors it.
+    private func side(code: String, badge: String?, score: Int?, winning: Bool, leading: Bool) -> some View {
+        VStack(alignment: leading ? .leading : .trailing, spacing: .appSpace2) {
             HStack(spacing: .appSpace3) {
-                if isHome, let score {
+                if !leading, let score {
                     scoreText(score, winning: winning)
                 }
                 WCBadge(url: badge, size: 44)
-                if !isHome, let score {
+                if leading, let score {
                     scoreText(score, winning: winning)
                 }
             }
@@ -726,7 +728,8 @@ private struct WCMarqueeCard: View {
                     .font(.appFootnote)
                     .tracking(1.2)
                     .foregroundStyle(Color.appInkFaint)
-                if let aggregate = game.aggregateScore, !aggregate.isEmpty {
+                // Pens first (a WC knockout), then a two-leg aggregate, home first.
+                if let aggregate = game.shootoutLine ?? game.aggregateLine, !aggregate.isEmpty {
                     Text(aggregate)
                         .font(.appCaption)
                         .foregroundStyle(Color.appInkFaint)
@@ -765,10 +768,11 @@ private struct WCFixtureRow: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: .appSpace2) {
+                // Home first, as in the marquee.
                 HStack(spacing: .appSpace2) {
-                    codeText(wcCode(gameWithTeams.awayTeam, fallback: game.strAwayTeam),
-                             winning: hasScore && awayScore > homeScore)
-                    WCBadge(url: game.strAwayTeamBadge, size: 19)
+                    codeText(wcCode(gameWithTeams.homeTeam, fallback: game.strHomeTeam),
+                             winning: hasScore && game.winningSide == .home)
+                    WCBadge(url: game.strHomeTeamBadge, size: 19)
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
 
@@ -776,9 +780,9 @@ private struct WCFixtureRow: View {
                     .frame(width: 64)
 
                 HStack(spacing: .appSpace2) {
-                    WCBadge(url: game.strHomeTeamBadge, size: 19)
-                    codeText(wcCode(gameWithTeams.homeTeam, fallback: game.strHomeTeam),
-                             winning: hasScore && homeScore > awayScore)
+                    WCBadge(url: game.strAwayTeamBadge, size: 19)
+                    codeText(wcCode(gameWithTeams.awayTeam, fallback: game.strAwayTeam),
+                             winning: hasScore && game.winningSide == .away)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -806,13 +810,13 @@ private struct WCFixtureRow: View {
     private var centerColumn: some View {
         if hasScore {
             HStack(spacing: 4) {
-                Text("\(awayScore)")
-                    .fontWeight(awayScore > homeScore ? .bold : .regular)
-                    .foregroundStyle(awayScore > homeScore ? Color.appInk : Color.appInkSoft)
-                Text("–").foregroundStyle(Color.appInkFaint)
                 Text("\(homeScore)")
-                    .fontWeight(homeScore > awayScore ? .bold : .regular)
-                    .foregroundStyle(homeScore > awayScore ? Color.appInk : Color.appInkSoft)
+                    .fontWeight(game.winningSide == .home ? .bold : .regular)
+                    .foregroundStyle(game.winningSide == .home ? Color.appInk : Color.appInkSoft)
+                Text("–").foregroundStyle(Color.appInkFaint)
+                Text("\(awayScore)")
+                    .fontWeight(game.winningSide == .away ? .bold : .regular)
+                    .foregroundStyle(game.winningSide == .away ? Color.appInk : Color.appInkSoft)
             }
             .font(.appCallout)
             .monospacedDigit()
