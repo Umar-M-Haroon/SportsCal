@@ -238,7 +238,8 @@ struct APNSJob: AsyncScheduledJob {
                 progress: event.strProgress,
                 lastPlay: lastPlay,
                 situation: LiveActivitySituation(event.situation),
-                race: race
+                race: race,
+                soccer: LiveActivitySoccer(game: event)
             )
             let savedState = try? await kv.getJSON(stateKey, as: ContentState.self)
             guard savedState != contentState else { return }
@@ -322,7 +323,8 @@ struct APNSJob: AsyncScheduledJob {
                 status: event.strStatus,
                 progress: event.strProgress,
                 lastPlay: lastPlay,
-                race: race
+                race: race,
+                soccer: LiveActivitySoccer(game: event)
             )
             do {
                 let (_, delivered) = try await sendWithEnvironmentFallback(primary: environment) { env in

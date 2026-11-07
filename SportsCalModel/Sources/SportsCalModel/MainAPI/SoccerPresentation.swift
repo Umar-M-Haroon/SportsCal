@@ -398,3 +398,35 @@ public enum SoccerTimeline {
         }
     }
 }
+
+// MARK: - Live Activity
+
+/// A soccer Live Activity's extras: red cards and the latest goal. Built the same
+/// way by the server's APNS push and the app's foreground update, so the two agree.
+public struct LiveActivitySoccer: Codable, Hashable, Sendable {
+    /// Nil for none, to keep the push small.
+    public var homeRedCards: Int?
+    public var awayRedCards: Int?
+    /// "Saka 67'", "van Dijk 80' (OG)".
+    public var lastGoal: String?
+
+    public init(homeRedCards: Int? = nil, awayRedCards: Int? = nil, lastGoal: String? = nil) {
+        self.homeRedCards = homeRedCards
+        self.awayRedCards = awayRedCards
+        self.lastGoal = lastGoal
+    }
+
+    /// Nil for other sports, or a match with no goal or red card yet.
+    public init?(game: Game) {
+        guard game.sportType == .soccer, let details = game.soccerDetails, !details.isEmpty else { return nil }
+        let home = game.redCards(.home), away = game.redCards(.away)
+        var lastGoal: String?
+        if let goal = details.last(where: { $0.kind == .goal || $0.kind == .penaltyGoal || $0.kind == .ownGoal }) {
+            let note = goal.kind == .penaltyGoal ? " (P)" : goal.kind == .ownGoal ? " (OG)" : ""
+            let name = Game.rowName(goal.athlete) ?? "Goal"
+            lastGoal = [name, goal.clock].compactMap { $0 }.joined(separator: " ") + note
+        }
+        guard home + away > 0 || lastGoal != nil else { return nil }
+        self.init(homeRedCards: home > 0 ? home : nil, awayRedCards: away > 0 ? away : nil, lastGoal: lastGoal)
+    }
+}

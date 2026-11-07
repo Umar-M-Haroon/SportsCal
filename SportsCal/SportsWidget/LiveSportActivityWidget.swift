@@ -222,16 +222,16 @@ struct LiveSportActivityWidget: Widget {
             VStack(spacing: 8) {
                 HStack {
                     if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.awayTeam) {
-                        IndividualTeamView(shortName: context.attributes.awayTeam, longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true, data: try? Data(contentsOf: fileURL))
+                        IndividualTeamView(shortName: context.attributes.awayTeam, longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true, redCards: context.state.soccer?.awayRedCards ?? 0, data: try? Data(contentsOf: fileURL))
                     } else {
-                        IndividualTeamView(shortName: context.attributes.awayTeam, longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true)
+                        IndividualTeamView(shortName: context.attributes.awayTeam, longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true, redCards: context.state.soccer?.awayRedCards ?? 0)
                     }
                     progressLabel(for: context.state)
                         .frame(maxWidth: .infinity, alignment: .center)
                     if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.homeTeam) {
-                        IndividualTeamView(shortName: context.attributes.homeTeam, longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false, data: try? Data(contentsOf: fileURL))
+                        IndividualTeamView(shortName: context.attributes.homeTeam, longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false, redCards: context.state.soccer?.homeRedCards ?? 0, data: try? Data(contentsOf: fileURL))
                     } else {
-                        IndividualTeamView(shortName: context.attributes.homeTeam, longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false)
+                        IndividualTeamView(shortName: context.attributes.homeTeam, longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false, redCards: context.state.soccer?.homeRedCards ?? 0)
                     }
                 }
                 if let situation = context.state.situation {
@@ -242,6 +242,13 @@ struct LiveSportActivityWidget: Widget {
                         tint: WidgetTokens.inkSoft
                     )
                     .frame(maxWidth: .infinity, alignment: .center)
+                }
+                if let lastGoal = context.state.soccer?.lastGoal {
+                    Label(lastGoal, systemImage: "soccerball")
+                        .font(.system(.caption2, design: .rounded).weight(.semibold))
+                        .foregroundStyle(WidgetTokens.inkSoft)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
                 if let lastPlay = context.state.lastPlay, !lastPlay.isEmpty {
                     Text(lastPlay)
