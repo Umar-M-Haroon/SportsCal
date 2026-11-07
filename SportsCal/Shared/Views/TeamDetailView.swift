@@ -83,7 +83,10 @@ struct TeamDetailView: View {
                 ForEach(seasons.seasons) { season in
                     ForEach(season.phases) { group in
                         Section {
-                            ForEach(group.games) { game in
+                            ForEach(Array(group.games.enumerated()), id: \.element.id) { index, game in
+                                ForEach(Self.byeWeeks(in: group.games, before: index), id: \.self) { week in
+                                    byeRow(week)
+                                }
                                 gameRow(game)
                                     .id(game.id)
                             }
@@ -365,6 +368,30 @@ struct TeamDetailView: View {
     }
 
     // MARK: - Rows
+
+    /// The football weeks this team sits out between the game before `index` and the
+    /// one at it — the bye. Empty outside a football regular season.
+    static func byeWeeks(in games: [Game], before index: Int) -> [Int] {
+        guard index > 0, let week = games[index].footballWeek,
+              let previous = games[index - 1].footballWeek, week > previous + 1 else { return [] }
+        return Array((previous + 1)..<week)
+    }
+
+    private func byeRow(_ week: Int) -> some View {
+        HStack(spacing: 10) {
+            Text("BYE")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 26)
+            Text("Week \(week)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Week \(week), bye")
+    }
 
     @ViewBuilder
     private func gameRow(_ game: Game) -> some View {
@@ -859,7 +886,8 @@ private struct TeamScheduleRow: View {
                             .font(.subheadline)
                             .lineLimit(1)
                         if let date = game.standardDate {
-                            Text(date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                            let day = date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+                            Text(game.footballWeek.map { "Week \($0) · \(day)" } ?? day)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }

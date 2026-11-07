@@ -10,14 +10,19 @@ import SportsCalModel
 
 struct SportsTint: ViewModifier {
     let sport: SportType
+    @Environment(\.colorScheme) private var colorScheme
+
     func body(content: Content) -> some View {
         switch sport {
         case .basketball:
             content
                 .foregroundColor(.orange)
         case .mlb:
+            // The design system's baseball rust (`Color.app(.mlb)`), inlined because this
+            // file also builds into targets without the design tokens. Plain red was the
+            // live and racing color too.
             content
-                .foregroundColor(.red)
+                .foregroundColor(Color(hex: colorScheme == .dark ? "E89F84" : "A14829") ?? .red)
         case .nfl:
             content
                 .foregroundColor(.brown)
