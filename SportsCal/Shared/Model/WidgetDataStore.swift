@@ -41,7 +41,11 @@ enum WidgetDataStore {
                 rounds: [],
                 constructor: entry.constructor,
                 gap: entry.gap,
-                movement: entry.movement
+                isCut: entry.isCut,
+                movement: entry.movement,
+                teeTime: entry.teeTime,
+                today: entry.today,
+                teeTimeDate: entry.teeTimeDate
             )
         }
 

@@ -10,8 +10,10 @@ import Queues
 import SportsCalModel
 import Logging
 
-/// Fetches detailed golf tournament data (course info, hole-by-hole scores, round stats) from ESPN Summary API.
-/// Runs every 30 minutes. Only fetches for active/in-progress golf events.
+/// Adds tournament context to golf events from ESPN's web leaderboard: course par, hole
+/// pars and yardage, purse, defending champion, rounds and the (projected) cut. Runs every
+/// 30 minutes, for upcoming, live and just-finished events. Hole-by-hole scores and round
+/// stats come from the scoreboard itself (`LiveEvent`).
 struct GolfEnrichmentJob: AsyncScheduledJob {
     private static let logger = Logger(label: "com.sportscal.golf-enrichment")
 
@@ -59,24 +61,20 @@ struct GolfEnrichmentJob: AsyncScheduledJob {
 
         Self.logger.info("Enriching golf events", metadata: ["count": "\(activeEvents.count)"])
 
-        // Enrichment per event ID. Applied to the schedule as it is at write time (re-read
-        // under the lock), not to the copy read above, which is minutes old by then.
-        var enrichmentByEvent: [String: (courseInfo: GolfCourseInfo?, playerRoundDetails: [String: [GolfRoundDetail]])] = [:]
+        // Tournament context per event ID, from ESPN's web leaderboard (the site summary
+        // endpoint this job used to read answers 404 for golf, so it enriched nothing).
+        // Applied to the schedule as it is at write time (re-read under the lock), not to
+        // the copy read above, which is minutes old by then.
+        var contextByEvent: [String: GolfCourseInfo] = [:]
 
         for game in activeEvents {
             guard let eventId = game.idEvent else { continue }
-
+            let tour = game.golfTour ?? .pga
             do {
-                let tour = game.idLeague.flatMap { Int($0) }.flatMap { Leagues(rawValue: $0) } ?? .pga
-                let summary = try await ESPNNetworking.getGolfSummary(req: client, eventId: eventId, tour: tour)
-
-                // Extract course info
-                let courseInfo = extractCourseInfo(from: summary)
-
-                // Extract per-player round details
-                let playerRoundDetails = extractPlayerRoundDetails(from: summary, courseInfo: courseInfo)
-
-                enrichmentByEvent[eventId] = (courseInfo, playerRoundDetails)
+                let leaderboard = try await ESPNNetworking.getGolfLeaderboard(req: client, eventId: eventId, tour: tour)
+                if let info = Self.courseInfo(from: leaderboard, eventID: eventId) {
+                    contextByEvent[eventId] = info
+                }
             } catch {
                 Self.logger.warning("Failed to enrich golf event", metadata: [
                     "eventId": "\(eventId)",
@@ -87,20 +85,16 @@ struct GolfEnrichmentJob: AsyncScheduledJob {
 
         // Write enriched schedule back: re-read → apply → write under the shared lock.
         var enrichmentCount = 0
-        if !enrichmentByEvent.isEmpty {
+        if !contextByEvent.isEmpty {
             let outcome = try await ScheduleStore.update(
                 app: context.application, isDebug: isDebug, logger: Self.logger, writer: "GolfEnrichmentJob"
             ) { current in
                 guard var current, let events = current.golf?.events else { return nil }
                 enrichmentCount = 0
                 current.golf = LiveEvent(events: events.map { game in
-                    guard let id = game.idEvent, let enrichment = enrichmentByEvent[id] else { return game }
+                    guard let id = game.idEvent, let info = contextByEvent[id] else { return game }
                     enrichmentCount += 1
-                    return gameWithEnrichment(
-                        game,
-                        courseInfo: enrichment.courseInfo,
-                        playerRoundDetails: enrichment.playerRoundDetails
-                    )
+                    return Self.applying(info, to: game)
                 })
                 return current
             }
@@ -117,161 +111,42 @@ struct GolfEnrichmentJob: AsyncScheduledJob {
         await JobHeartbeat.recordSuccess(.golfEnrichment, app: context.application, isDebug: isDebug)
     }
 
-    // MARK: - Extraction Helpers
+    // MARK: - Tournament context
 
-    private func extractCourseInfo(from summary: ESPNNetworking.GolfSummaryResponse) -> GolfCourseInfo? {
-        guard let course = summary.courses?.first,
-              let name = course.name,
-              let par = course.par else { return nil }
-
-        let holePars = course.holes?.sorted(by: { $0.number < $1.number }).map(\.par)
-        return GolfCourseInfo(courseName: name, par: par, holePars: holePars)
-    }
-
-    private func extractPlayerRoundDetails(
-        from summary: ESPNNetworking.GolfSummaryResponse,
-        courseInfo: GolfCourseInfo?
-    ) -> [String: [GolfRoundDetail]] {
-        var result: [String: [GolfRoundDetail]] = [:]
-
-        guard let rounds = summary.rounds else { return result }
-        let holePars = courseInfo?.holePars
-
-        for round in rounds {
-            guard let roundNum = round.number else { continue }
-
-            for competitor in round.competitors ?? [] {
-                guard let athleteName = competitor.athlete?.displayName else { continue }
-
-                // Hole-by-hole scores
-                var holeScores: [GolfHoleScore]?
-                if let linescores = competitor.linescores, !linescores.isEmpty {
-                    holeScores = linescores.compactMap { ls -> GolfHoleScore? in
-                        guard let holeNum = ls.period, holeNum >= 1, holeNum <= 18 else { return nil }
-                        let holePar = holePars != nil && holeNum <= holePars!.count ? holePars![holeNum - 1] : 4
-                        return GolfHoleScore(hole: holeNum, par: holePar, score: ls.value)
-                    }
-                }
-
-                // Round stats
-                var stats: GolfRoundStats?
-                if let statCategories = competitor.statistics {
-                    stats = extractRoundStats(from: statCategories, holeScores: holeScores)
-                }
-
-                // Total score for this round
-                let totalScore = holeScores?.compactMap(\.score).reduce(0, +)
-
-                let detail = GolfRoundDetail(
-                    roundNumber: roundNum,
-                    totalScore: totalScore,
-                    stats: stats,
-                    holeScores: holeScores
-                )
-
-                var existing = result[athleteName] ?? []
-                existing.append(detail)
-                result[athleteName] = existing
-            }
-        }
-
-        return result
-    }
-
-    private func extractRoundStats(
-        from categories: [ESPNNetworking.GolfSummaryStatCategory],
-        holeScores: [GolfHoleScore]?
-    ) -> GolfRoundStats {
-        var fairways: String?
-        var gir: String?
-        var putts: Int?
-
-        for category in categories {
-            for stat in category.stats ?? [] {
-                switch stat.name {
-                case "fairwaysHit":
-                    fairways = stat.displayValue
-                case "greensInRegulation":
-                    gir = stat.displayValue
-                case "putts":
-                    putts = stat.value.map { Int($0) }
-                default:
-                    break
-                }
-            }
-        }
-
-        // Count birdies/bogeys/eagles/pars from hole scores
-        var birdies = 0, bogeys = 0, eagles = 0, pars = 0
-        if let holes = holeScores {
-            for hole in holes {
-                guard let score = hole.score else { continue }
-                let diff = score - hole.par
-                switch diff {
-                case ...(-2): eagles += 1
-                case -1: birdies += 1
-                case 0: pars += 1
-                default: bogeys += 1
-                }
-            }
-        }
-
-        let hasHoleData = holeScores?.contains(where: { $0.score != nil }) ?? false
-        return GolfRoundStats(
-            fairways: fairways,
-            greensInRegulation: gir,
-            putts: putts,
-            birdies: hasHoleData ? birdies : nil,
-            bogeys: hasHoleData ? bogeys : nil,
-            eagles: hasHoleData ? eagles : nil,
-            pars: hasHoleData ? pars : nil
+    /// Course par, hole pars and yardage plus the tournament's purse, defending champion,
+    /// rounds and (projected) cut.
+    static func courseInfo(from response: ESPNNetworking.GolfLeaderboardResponse, eventID: String) -> GolfCourseInfo? {
+        guard let event = response.events?.first(where: { $0.id == eventID }) ?? response.events?.first else { return nil }
+        let course = event.courses?.first(where: { $0.host == true }) ?? event.courses?.first
+        let holePars = course?.holes?.sorted(by: { $0.number < $1.number }).compactMap(\.shotsToPar)
+        guard let par = course?.shotsToPar, GolfPar.plausiblePar.contains(par) else { return nil }
+        let champion = event.defendingChampion?.athlete?.displayName
+        return GolfCourseInfo(
+            courseName: course?.name ?? "",
+            par: par,
+            holePars: holePars?.count == 18 ? holePars : nil,
+            purse: event.displayPurse,
+            defendingChampion: (champion?.isEmpty ?? true) ? nil : champion,
+            numberOfRounds: event.tournament?.numberOfRounds,
+            cutRound: event.tournament?.cutRound,
+            cutScore: event.tournament?.cutScore,
+            cutCount: event.tournament?.cutCount,
+            yardage: course?.totalYards
         )
     }
 
-    // MARK: - Game Merging
-
-    private func gameWithEnrichment(
-        _ game: Game,
-        courseInfo: GolfCourseInfo?,
-        playerRoundDetails: [String: [GolfRoundDetail]]
-    ) -> Game {
-        // Enrich leaderboard entries with round details
-        let enrichedEntries = game.leaderboardEntries?.map { entry -> LeaderboardEntry in
-            let details = playerRoundDetails[entry.name]?.sorted(by: { $0.roundNumber < $1.roundNumber })
-            guard let details, !details.isEmpty else { return entry }
-            return LeaderboardEntry(
-                name: entry.name, score: entry.score, position: entry.position,
-                headshot: entry.headshot, thruHole: entry.thruHole, rounds: entry.rounds,
-                constructor: entry.constructor, gap: entry.gap,
-                isCut: entry.isCut, movement: entry.movement,
-                flagURL: entry.flagURL, flagAlt: entry.flagAlt,
-                teeTime: entry.teeTime, roundDetails: details
-            )
+    /// `game` with the leaderboard feed's course info. The scoreboard's own course name
+    /// and hole pars win where it has them (they're per-event, the feed's are per-host).
+    static func applying(_ info: GolfCourseInfo, to game: Game) -> Game {
+        var enriched = game
+        if let existing = game.golfCourseInfo {
+            enriched.golfCourseInfo = GolfCourseInfo(
+                courseName: existing.courseName, par: existing.par,
+                holePars: existing.holePars ?? info.holePars
+            ).withContext(from: info)
+        } else {
+            enriched.golfCourseInfo = info
         }
-
-        return Game(
-            idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: game.strSport,
-            idLeague: game.idLeague, strLeague: game.strLeague,
-            idHomeTeam: game.idHomeTeam, idAwayTeam: game.idAwayTeam,
-            strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam,
-            strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge,
-            intHomeScore: game.intHomeScore, intAwayScore: game.intAwayScore,
-            strStatus: game.strStatus, strProgress: game.strProgress,
-            strTimestamp: game.strTimestamp,
-            lastPlay: game.lastPlay,
-            homeLinescores: game.homeLinescores, awayLinescores: game.awayLinescores,
-            homeLeaders: game.homeLeaders, awayLeaders: game.awayLeaders,
-            isCompleted: game.isCompleted, isoDate: game.isoDate,
-            leaderboardEntries: enrichedEntries ?? game.leaderboardEntries,
-            sessions: game.sessions,
-            venueName: game.venueName,
-            homeTeamColor: game.homeTeamColor, awayTeamColor: game.awayTeamColor,
-            homeRecord: game.homeRecord, awayRecord: game.awayRecord,
-            circuitInfo: game.circuitInfo,
-            golfCourseInfo: courseInfo ?? game.golfCourseInfo,
-            // Rebuilding the game by hand would otherwise drop the tournament's span and
-            // put it back on a single day.
-            endDate: game.endDate
-        )
+        return enriched
     }
 }
