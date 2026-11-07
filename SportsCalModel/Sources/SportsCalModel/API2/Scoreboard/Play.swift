@@ -90,6 +90,22 @@ public struct ESPNSummaryResponse: Codable {
     public let seasonseries: [ESPNSeasonSeries]?
     /// Just the event ID, to place this game within its series.
     public let header: ESPNSummaryHeader?
+    /// The ESPN team ID of each top-level play, index for index. Read only to count team
+    /// fouls and timeouts (`BasketballPlayTally`); kept off `Play` so the cached and
+    /// served play-by-play doesn't grow by a team per play.
+    public var playTeamIDs: [String?]? = nil
+
+    private struct PlayTeamRef: Decodable {
+        let teamID: String?
+
+        enum CodingKeys: String, CodingKey { case team }
+        struct TeamID: Decodable { let id: String? }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            teamID = (try? c.decodeIfPresent(TeamID.self, forKey: .team))?.id
+        }
+    }
 
     public struct Drives: Codable {
         public var previous: [Drive]?
@@ -197,6 +213,7 @@ public struct ESPNSummaryResponse: Codable {
         detailPlays = (try? c.decodeIfPresent([Lossy<DetailPlay>].self, forKey: .plays))?.compactMap(\.value)
         seasonseries = try? c.decodeIfPresent([ESPNSeasonSeries].self, forKey: .seasonseries)
         header = try? c.decodeIfPresent(ESPNSummaryHeader.self, forKey: .header)
+        playTeamIDs = (try? c.decodeIfPresent([PlayTeamRef].self, forKey: .plays))?.map(\.teamID)
     }
 
     /// One element of a list that may fail on its own without failing the list.
@@ -337,12 +354,15 @@ public struct CachedPlays: Codable, Equatable {
     public var drives: [DriveSummary]?
     /// Baseball: the regular-season series this game belongs to.
     public var series: SeriesContext?
+    /// Basketball, while live: team fouls, timeouts and the current run, counted from
+    /// the plays when they were fetched. The live job stamps it onto the game's situation.
+    public var basketballTally: BasketballPlayTally?
 
     public init(
         eventID: String, lastPlayId: String, plays: [Play], isFinal: Bool, fetchedAt: Date,
         winProbability: WinProbabilitySeries? = nil, teamStats: TeamStatComparison? = nil, excitement: Int? = nil,
         players: PlayerBoxScore? = nil, scoringSummary: ScoringSummary? = nil,
-        drives: [DriveSummary]? = nil, series: SeriesContext? = nil
+        drives: [DriveSummary]? = nil, series: SeriesContext? = nil, basketballTally: BasketballPlayTally? = nil
     ) {
         self.eventID = eventID
         self.lastPlayId = lastPlayId
@@ -356,6 +376,7 @@ public struct CachedPlays: Codable, Equatable {
         self.scoringSummary = scoringSummary
         self.drives = drives
         self.series = series
+        self.basketballTally = basketballTally
     }
 
     public init(eventID: String, lastPlayId: String, plays: [Play], isFinal: Bool, fetchedAt: Date, extras: CachedPlaysExtras?) {
@@ -363,7 +384,7 @@ public struct CachedPlays: Codable, Equatable {
             eventID: eventID, lastPlayId: lastPlayId, plays: plays, isFinal: isFinal, fetchedAt: fetchedAt,
             winProbability: extras?.winProbability, teamStats: extras?.teamStats, excitement: extras?.excitement,
             players: extras?.players, scoringSummary: extras?.scoringSummary,
-            drives: extras?.drives, series: extras?.series
+            drives: extras?.drives, series: extras?.series, basketballTally: extras?.basketballTally
         )
     }
 
@@ -372,12 +393,12 @@ public struct CachedPlays: Codable, Equatable {
         CachedPlaysExtras(
             winProbability: winProbability, teamStats: teamStats, excitement: excitement,
             players: players, scoringSummary: scoringSummary,
-            drives: drives, series: series
+            drives: drives, series: series, basketballTally: basketballTally
         )
     }
 
     /// This payload without the opt-in player detail, for callers that didn't ask.
-    /// Drives and series stay: they're part of the default payload.
+    /// Drives, series and the basketball tally stay: they're part of the default payload.
     public var withoutPlayerDetail: CachedPlays {
         var copy = self
         copy.players = nil
@@ -386,12 +407,13 @@ public struct CachedPlays: Codable, Equatable {
     }
 
     /// Sets the derived detail (player box score, scoring summary, drive headers,
-    /// series) from archived or freshly derived extras.
+    /// series, basketball tally) from archived or freshly derived extras.
     public mutating func apply(_ extras: CachedPlaysExtras) {
         players = extras.players
         scoringSummary = extras.scoringSummary
         drives = extras.drives
         series = extras.series
+        basketballTally = extras.basketballTally
     }
 }
 
@@ -404,11 +426,12 @@ public struct CachedPlaysExtras: Codable, Equatable {
     public var scoringSummary: ScoringSummary?
     public var drives: [DriveSummary]?
     public var series: SeriesContext?
+    public var basketballTally: BasketballPlayTally?
 
     public init(
         winProbability: WinProbabilitySeries? = nil, teamStats: TeamStatComparison? = nil, excitement: Int? = nil,
         players: PlayerBoxScore? = nil, scoringSummary: ScoringSummary? = nil,
-        drives: [DriveSummary]? = nil, series: SeriesContext? = nil
+        drives: [DriveSummary]? = nil, series: SeriesContext? = nil, basketballTally: BasketballPlayTally? = nil
     ) {
         self.winProbability = winProbability
         self.teamStats = teamStats
@@ -417,13 +440,14 @@ public struct CachedPlaysExtras: Codable, Equatable {
         self.scoringSummary = scoringSummary
         self.drives = drives
         self.series = series
+        self.basketballTally = basketballTally
     }
 
     public var isEmpty: Bool {
         // Split up: one long `&&` chain of optional comparisons is slow to type-check.
         let base = winProbability == nil && teamStats == nil && excitement == nil
         let detail = players == nil && scoringSummary == nil
-        let context = drives == nil && series == nil
+        let context = drives == nil && series == nil && basketballTally == nil
         return base && detail && context
     }
 }

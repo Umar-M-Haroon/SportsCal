@@ -149,6 +149,19 @@ final class TeamStatComparisonEdgeTests: XCTestCase {
         XCTAssertNil(stats.rows.first { $0.name == "passPct" }, "a zero denominator yields no row")
     }
 
+    /// ESPN's NHL box (2026-11-02 VGK @ BOS): power plays read as goals over chances.
+    func testHockeyPowerPlayReadsAsGoalsOverChances() throws {
+        let b = try box("""
+        {"teams":[\(side("home", [("powerPlayGoals", "1"), ("powerPlayOpportunities", "3"), ("shortHandedGoals", "0")])),\
+        \(side("away", [("powerPlayGoals", "1"), ("powerPlayOpportunities", "4"), ("shortHandedGoals", "1")]))]}
+        """)
+        let stats = try XCTUnwrap(TeamStatComparison(boxscore: b, sport: .hockey))
+        XCTAssertEqual(stats.rows.map(\.name), ["powerPlay", "shortHandedGoals"])
+        XCTAssertEqual(stats.rows[0].home, "1/3")
+        XCTAssertEqual(stats.rows[0].away, "1/4")
+        XCTAssertEqual(stats.rows[0].homeValue, 1, "bars compare goals")
+    }
+
     func testIndividualSportsHaveNoSpecs() {
         XCTAssertTrue(TeamStatComparison.specs(for: .golf).isEmpty)
         XCTAssertTrue(TeamStatComparison.specs(for: .tennis).isEmpty)

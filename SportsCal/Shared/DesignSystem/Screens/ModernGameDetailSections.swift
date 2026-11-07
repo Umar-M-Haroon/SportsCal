@@ -277,13 +277,15 @@ struct ModernGameDetailSections: View {
     @ViewBuilder
     private var liveSituationSection: some View {
         if game.strStatus == "in", let situation = game.situation,
-           situation.hasBaseballState || situation.hasFootballState || situation.homeWinProbability != nil {
+           situation.hasBaseballState || situation.hasFootballState || situation.homeWinProbability != nil
+            || situation.hasHoopsHockeyDisplay {
             VStack(alignment: .leading, spacing: .appSpace3) {
                 Text("LIVE").appEyebrow().foregroundStyle(Color.appLive)
                 LiveSituationPanel(
                     situation: situation, sport: sportType,
                     homeName: homeShortName, awayName: awayShortName,
-                    homeColor: homeColor, awayColor: awayColor
+                    homeColor: homeColor, awayColor: awayColor,
+                    league: league
                 )
             }
             .appCard()

@@ -189,10 +189,11 @@ final class PlayerBoxScoreTests: XCTestCase {
         XCTAssertNil(slim.scoringSummary)
     }
 
-    func testArchiveRoundTripsAllFourExtrasAndSlimKeepsDrivesAndSeries() throws {
+    func testArchiveRoundTripsDerivedExtrasAndSlimKeepsDefaultPayload() throws {
         var extras = try summary("BoxScore-nhl").extras(league: .nhl, isFinal: false)
         extras.drives = [DriveSummary(firstPlayID: "p1", team: "KC", summary: "8 plays, 75 yards", result: "Touchdown", isScore: true)]
         extras.series = SeriesContext(gameNumber: 2, totalGames: 3, summary: "PHI leads series 1-0")
+        extras.basketballTally = BasketballPlayTally(period: 3, homeFouls: 4, awayFouls: 2, runSide: .home, runPoints: 9)
 
         // The archive stores `extras` as one blob and rebuilds with init(extras:) + apply.
         let blob = try JSONEncoder().encode(
@@ -208,6 +209,7 @@ final class PlayerBoxScoreTests: XCTestCase {
         XCTAssertNil(slim.scoringSummary)
         XCTAssertEqual(slim.drives, extras.drives)
         XCTAssertEqual(slim.series, extras.series)
+        XCTAssertEqual(slim.basketballTally, extras.basketballTally)
     }
 
     func testOldPayloadWithoutPlayersStillDecodes() throws {

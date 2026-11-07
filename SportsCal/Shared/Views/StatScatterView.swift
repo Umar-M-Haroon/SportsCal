@@ -24,7 +24,7 @@ struct StatScatterView: View {
 
     private var leagueOptions: [(name: String, id: Int)] {
         switch sport {
-        case .basketball: return [("NBA", 4387)]
+        case .basketball: return [("NBA", 4387), ("WNBA", Leagues.wnba.rawValue)]
         case .nfl: return [("NFL", 4391)]
         case .hockey: return [("NHL", 4380)]
         case .mlb: return [("MLB", 4424)]
@@ -56,7 +56,7 @@ struct StatScatterView: View {
                     Spacer()
                 }
 
-                // League picker for soccer
+                // League picker where a sport has several (soccer, NBA/WNBA)
                 if leagueOptions.count > 1 {
                     Picker("League", selection: Binding(
                         get: { activeLeagueID },
