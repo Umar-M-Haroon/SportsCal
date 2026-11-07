@@ -120,6 +120,10 @@ enum LiveMerge {
         var changed = Set<String>()
         var observed: [String: String] = [:]
         var behind = Set<String>()
+        // The ESPN source (and the same-upstream `.eventID` overlay, which is ESPN) sends
+        // a complete situation; every other source only part of one.
+        let freshSituationIsComplete = race.map { $0.source == ESPNLiveSource.sourceName }
+            ?? (strategy == .eventID)
         let merged: [Game] = events.map { game in
             guard game.strStatus == "in",
                   let key = matchKey(for: game, strategy: strategy),
@@ -154,12 +158,19 @@ enum LiveMerge {
                 isCompleted: f.isCompleted,
                 aggregateScore: f.aggregateScore
             )
-            // A source with situation data (MLB statsapi) updates the fields it has and
+            // ESPN's situation is the whole picture, so it replaces the old one outright:
+            // a nil down, distance, red zone or possession means "none right now" (a
+            // touchdown, halftime, the break between quarters), and overlaying would keep
+            // the stale one. A partial source (MLB statsapi) updates the fields it has and
             // keeps the rest of ESPN's — game lines, win probability. One without keeps
             // ESPN's from the last full fetch, minus the clock if the score just moved:
             // that clock predates the basket, and the clutch rules read it.
             if let fresh = f.situation {
-                merged.situation = game.situation.map { $0.overlaying(fresh) } ?? fresh
+                if freshSituationIsComplete {
+                    merged.situation = fresh
+                } else {
+                    merged.situation = game.situation.map { $0.overlaying(fresh) } ?? fresh
+                }
             } else if scoreChanged {
                 merged.situation?.clock = nil
             }

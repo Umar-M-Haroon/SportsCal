@@ -56,6 +56,23 @@ final class LiveSituationServerTests: XCTestCase {
         XCTAssertEqual(merged?.homeWinProbability, 0.6)
     }
 
+    func testESPNSituationReplacesInsteadOfOverlaying() {
+        // After a touchdown ESPN drops down, distance and the red zone; the old drive's
+        // "3rd & 4", RED ZONE pill and possession must go with them.
+        let drive = GameSituation(period: 2, down: 3, distance: 4, shortDownDistanceText: "3rd & 4",
+                                  possession: .home, isRedZone: true, homeWinProbability: 0.6)
+        let cached = TestGameFactory.liveScore(mlb: [mlb("espn-1", situation: drive)])
+        let fresh = mlb("espn-1", home: "10", situation: GameSituation(period: 2, homeWinProbability: 0.7))
+        let merged = LiveMerge.overlay(cached: cached, sport: .mlb, fresh: [fresh], strategy: .eventID,
+                                       race: LiveMerge.RaceOptions(source: ESPNLiveSource.sourceName))
+            .liveScore.mlb?.events.first?.situation
+        XCTAssertNil(merged?.down)
+        XCTAssertNil(merged?.isRedZone)
+        XCTAssertNil(merged?.possession)
+        XCTAssertNil(merged?.shortDownDistanceText)
+        XCTAssertEqual(merged?.homeWinProbability, 0.7)
+    }
+
     func testHourlyRebuildKeepsExcitement() {
         let old = TestGameFactory.liveScore(nba: [
             { var g = TestGameFactory.make(idEvent: "a", strHomeTeam: "A", strAwayTeam: "B", strStatus: "post"); g.excitement = 88; return g }()
