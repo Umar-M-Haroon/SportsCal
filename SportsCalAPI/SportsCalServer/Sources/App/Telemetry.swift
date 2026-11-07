@@ -90,6 +90,8 @@ struct RedisTelemetry: Telemetry {
 ///   telemetry:{event}:{channel}:{field}={value}:{day}     allow-listed dimension breakouts
 ///   telemetry:dau:{channel}:{platform}:{day}              HLL of install IDs sending app_active
 ///   telemetry:uniq:{event}:{channel}:{day}                HLL of install IDs per funnel event
+///   telemetry:cohort:{channel}:{installDay}               HLL of install IDs first installed that day
+///   telemetry:ret:{channel}:{installDay}:d{N}             HLL of those installs active exactly N days later
 ///
 /// `channel` is a reserved field: when present `RedisTelemetry` keys by it.
 /// Only the client ingestion route sets it, always to a normalized value from
@@ -97,6 +99,16 @@ struct RedisTelemetry: Telemetry {
 enum TelemetryKeys {
     static let dauPrefix = "telemetry:dau:"
     static let uniquePrefix = "telemetry:uniq:"
+    static let cohortPrefix = "telemetry:cohort:"
+    static let retentionPrefix = "telemetry:ret:"
+
+    /// Every HyperLogLog key family. Their values are binary, so the admin
+    /// counter scan skips them and reads them through PFCOUNT instead.
+    static let hllPrefixes = [dauPrefix, uniquePrefix, cohortPrefix, retentionPrefix]
+
+    static func isHLL(_ key: String) -> Bool {
+        hllPrefixes.contains { key.hasPrefix($0) }
+    }
 
     static func epochDay(_ date: Date) -> Int {
         Int(date.timeIntervalSince1970) / 86_400
@@ -117,6 +129,51 @@ enum TelemetryKeys {
 
     static func unique(_ event: String, channel: String, day: Int) -> String {
         "\(uniquePrefix)\(event):\(channel):\(day)"
+    }
+
+    static func cohort(channel: String, installDay: Int) -> String {
+        "\(cohortPrefix)\(channel):\(installDay)"
+    }
+
+    static func retention(channel: String, installDay: Int, age: Int) -> String {
+        "\(retentionPrefix)\(channel):\(installDay):d\(age)"
+    }
+}
+
+/// Day-N retention from `app_active`. The client sends `install_day` (the UTC
+/// epoch day of its first launch on a cohort-aware build) on every ping, or
+/// `cohort=legacy` for an install that upgraded from an older build. So the
+/// server never stores a per-install record: each ping PFADDs the install into
+/// its cohort day's HLL and, when today is exactly N days on, into that cohort's
+/// `d{N}` HLL.
+enum RetentionCohorts {
+    /// The day-N marks that get their own HLL.
+    static let ages = [1, 7, 14, 30]
+
+    /// The oldest `install_day` accepted, in days before today. Past the last
+    /// mark a ping adds nothing new, and the cap stops a forged day from minting
+    /// keys arbitrarily far back.
+    static let maxAge = 45
+
+    /// Cohort keys back the weekly retention table, whose oldest rows need their
+    /// D30 to land, so keep them well past the 90-day DAU HLLs.
+    static let retention: TimeInterval = 60 * 60 * 24 * 180
+
+    /// The validated install day, or nil when the ping carries none (legacy and
+    /// pre-cohort builds), it's malformed, in the future, or older than `maxAge`.
+    static func installDay(from fields: [String: String], today: Int) -> Int? {
+        guard fields["cohort"] != "legacy",
+              let raw = fields["install_day"],
+              let day = Int(raw) else { return nil }
+        let age = today - day
+        guard age >= 0, age <= maxAge else { return nil }
+        return day
+    }
+
+    /// Monday-aligned week start for an epoch day (epoch day 4 was a Monday).
+    static func weekStart(_ day: Int) -> Int {
+        let offset = ((day + 3) % 7 + 7) % 7
+        return day - offset
     }
 }
 
@@ -156,10 +213,26 @@ struct ClientTelemetryCounters: Sendable {
         if event == "app_active" {
             let key = TelemetryKeys.dau(channel: channel, platform: platform, day: day)
             try? await kv.hllAdd(key, element: installID, ttl: Self.uniqueRetention)
+            await recordRetention(channel: channel, installID: installID, fields: fields, today: day)
         } else if ClientTelemetryEvent.uniqueEvents.contains(event) {
             let key = TelemetryKeys.unique(name, channel: channel, day: day)
             try? await kv.hllAdd(key, element: installID, ttl: Self.uniqueRetention)
         }
+    }
+}
+
+extension ClientTelemetryCounters {
+    /// See `RetentionCohorts`. Idempotent per install per day (HLL), so a
+    /// retried ping or a day-0 ping that only lands on day 1 files correctly.
+    func recordRetention(channel: String, installID: String, fields: [String: String], today: Int) async {
+        guard let installDay = RetentionCohorts.installDay(from: fields, today: today) else { return }
+        let ttl = RetentionCohorts.retention
+        let cohortKey = TelemetryKeys.cohort(channel: channel, installDay: installDay)
+        try? await kv.hllAdd(cohortKey, element: installID, ttl: ttl)
+        let age = today - installDay
+        guard RetentionCohorts.ages.contains(age) else { return }
+        let retentionKey = TelemetryKeys.retention(channel: channel, installDay: installDay, age: age)
+        try? await kv.hllAdd(retentionKey, element: installID, ttl: ttl)
     }
 }
 

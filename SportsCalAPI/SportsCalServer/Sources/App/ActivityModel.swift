@@ -77,7 +77,7 @@ struct ClientTelemetryEvent: Codable, Content {
     /// Allow-list that bounds Redis counter cardinality — the app API key ships in
     /// every binary and is extractable, so a leaked key must not be able to mint
     /// arbitrary counter keys. Keep in sync with `MonetizationTelemetry.Event`.
-    static let allowedEvents: Set<String> = [
+    static let allowedEvents: Set<String> = Set<String>([
         "paywall_shown",
         "paywall_dismissed",
         "purchase_completed",
@@ -90,7 +90,23 @@ struct ClientTelemetryEvent: Codable, Content {
         "whats_new_shown",
         "whats_new_action",
         "app_active",
+    ]).union(activationEvents)
+
+    /// The install-once activation funnel, in funnel order. Clients send each at
+    /// most once per install and only from installs in a retention cohort (never
+    /// upgraded legacy installs). Keep in sync with `MonetizationTelemetry.Event`.
+    static let activationFunnel: [String] = [
+        "activation_onboarding_started",
+        "activation_onboarding_completed",
+        "activation_first_favorite",
+        "activation_notifications_granted",
+        "activation_notifications_denied",
+        "activation_first_reminder_set",
+        "activation_first_live_activity",
+        "activation_widget_installed",
+        "activation_first_game_detail_opened",
     ]
+    static let activationEvents: Set<String> = Set(activationFunnel)
 
     /// Distribution channel tag (`fields.channel`). Anything else → `unknown`
     /// (also what pre-channel app builds land in). `debug` is kept, segregated.
@@ -101,7 +117,7 @@ struct ClientTelemetryEvent: Codable, Content {
 
     /// Events whose install IDs go into a per-day HLL so the funnel can be read
     /// per user, not per event. `app_active` has its own DAU key (by platform).
-    static let uniqueEvents: Set<String> = [
+    static let uniqueEvents: Set<String> = Set<String>([
         "gate_hit",
         "paywall_shown",
         "paywall_dismissed",
@@ -109,7 +125,7 @@ struct ClientTelemetryEvent: Codable, Content {
         "trial_started",
         "activation_first_favorite",
         "activation_notifications_enabled",
-    ]
+    ]).union(activationEvents)
 
     /// Which fields get their own `field=value` counter per event. Values are
     /// allow-listed too (unknown → `other`) so key cardinality stays bounded.
@@ -117,12 +133,15 @@ struct ClientTelemetryEvent: Codable, Content {
     static let breakoutFields: [String: [String]] = [
         "paywall_shown": ["trigger"],
         "gate_hit": ["feature"],
+        "activation_onboarding_completed": ["sports"],
     ]
 
     /// Keep in sync with iOS `UpsellTrigger` raw values and `ProFeature` cases.
     static let breakoutValues: [String: Set<String>] = [
         "trigger": ["post_onboarding", "free_reminder_cap", "favorite_live_opened", "nth_session"],
         "feature": ["adFree", "proSettings", "goalAlerts", "preGameReminders", "unlimitedReminders", "calendarExport"],
+        // iOS `ActivationSignals.sportCountBucket`.
+        "sports": ["0", "1", "2", "3-4", "5+"],
     ]
 }
 
