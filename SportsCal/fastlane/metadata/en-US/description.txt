@@ -1,25 +1,41 @@
-  Track live scores, schedules, and standings for 8 major sports — all in one app.                                      
-                                                                                                                        
-  SPORTS COVERED                                                                                                        
-  • NBA Basketball                                                                                                      
-  • NFL Football                                                                                                        
-  • MLB Baseball  
-  • NHL Hockey
-  • Soccer (Premier League, Champions League, MLS, and more)
-  • Golf (PGA Tour)                                                                                                     
-  • Tennis (ATP, WTA)
-  • Formula 1 Racing                                                                                                    
-                  
-  KEY FEATURES                                                                                                          
-  • Live Scores — Real-time updates with Live Activities on your Lock Screen
-  • Calendar View — See your teams' schedules at a glance with colored sport indicators                                 
-  • Favorites — Follow your teams and get personalized game feeds                                                       
-  • Push Notifications — Never miss tip-off, kickoff, or first pitch                                                    
-  • Widgets — Home screen and Lock Screen widgets for instant scores                                                    
-  • Apple Watch — Check scores from your wrist                                                                          
-  • Siri Shortcuts — "Show my games" and more                                                                           
-  • Focus Filters — Choose which sports appear during Work or Personal focus                                                                                                       
-  
-  Just scores, schedules, and standings. No betting lines. No odds. No gambling. Just the games you love.  
+Live scores on your Lock Screen, every game on one calendar, and alerts for the teams you follow. Scoreline covers the NFL, NBA, MLB, NHL, WNBA, college football, soccer, F1, NASCAR, IndyCar, tennis and golf, with no betting and no clutter.
 
-Scoreline Pro is available as a $2.99/month or $19.99/year subscription, or a one-time $39.99 Lifetime purchase. Subscriptions auto-renew unless turned off at least 24 hours before the end of the current period; you can manage or cancel anytime in your App Store account settings. Terms of use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/ — Privacy policy: https://komodollc.com/privacy
+LIVE, WITHOUT OPENING THE APP
+• Live Activities and Dynamic Island for games and F1 sessions
+• Scores that update within seconds
+• Win probability, game situation and clutch-moment alerts
+• Home Screen, Lock Screen and Apple Watch widgets
+
+PLAN YOUR WEEK
+• Calendar view of every game, color-coded by sport
+• Follow your teams for a personal feed and game-start reminders
+• Team pages with the full season: preseason, regular season and playoffs, records and results
+• Standings, college polls (AP, Coaches, CFP) and championship tables
+
+GO DEEPER
+• Soccer match centre for every league: lineups on the pitch, shot map, momentum, commentary, form and head-to-head
+• F1: lap chart, gap ladder, tyres, weather, safety cars, driver and constructor standings
+• Golf leaderboards and tennis draws grouped by tournament
+
+SPORTS AND LEAGUES
+• Football: NFL and college football (FBS, by conference)
+• Basketball: NBA, WNBA
+• Baseball: MLB
+• Hockey: NHL
+• Soccer: Premier League, Champions League, Europa League, MLS, Liga MX, La Liga, Serie A, Bundesliga, Ligue 1, A-League and more
+• Racing: Formula 1, NASCAR Cup Series, IndyCar, IMSA, WEC
+• Tennis: ATP and WTA
+• Golf: PGA Tour, LPGA, DP World Tour, LIV Golf, Korn Ferry and Champions Tour
+
+ALSO
+• Siri, Shortcuts and Spotlight search
+• Focus Filters to choose which sports appear during Work or Personal focus
+• iPhone, iPad and Apple Watch
+
+Just scores, schedules and standings. No betting lines. No odds.
+
+SCORELINE PRO
+Pro adds alerts for any game, pre-game reminders, score alerts and an ad-free app. It is available as an auto-renewing monthly or yearly subscription, or a one-time Lifetime purchase; prices are shown in the app before you buy. Subscriptions renew automatically unless turned off at least 24 hours before the end of the current period. Manage or cancel anytime in your App Store account settings.
+
+Terms of use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+Privacy policy: https://komodollc.com/privacy

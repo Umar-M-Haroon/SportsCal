@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scoreline Growth Roadmap</title>
+<style>
+:root{--bg:#fafaf9;--fg:#1c1917;--mut:#57534e;--line:#e7e5e4;--acc:#b91c1c;--card:#fff;--ok:#15803d}
+@media (prefers-color-scheme:dark){:root{--bg:#141210;--fg:#f5f5f4;--mut:#a8a29e;--line:#2e2a27;--acc:#f87171;--card:#1c1917;--ok:#4ade80}}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 -apple-system,system-ui,sans-serif;margin:0;padding:32px 16px}
+main{max-width:860px;margin:0 auto}
+h1{font-size:28px;margin:0 0 4px}h2{font-size:19px;margin:36px 0 8px;border-bottom:1px solid var(--line);padding-bottom:6px}
+h3{font-size:15px;margin:20px 0 6px}.mut{color:var(--mut)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+.kpi b{display:block;font-size:24px}.kpi span{color:var(--mut);font-size:13px}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0}td,th{border-bottom:1px solid var(--line);padding:7px 6px;text-align:left;vertical-align:top}
+th{color:var(--mut);font-weight:600}code{font-size:13px;background:var(--line);padding:1px 4px;border-radius:4px}
+.tag{font-size:12px;padding:1px 6px;border-radius:99px;border:1px solid var(--line);color:var(--mut);white-space:nowrap}
+.call{border-left:3px solid var(--acc);padding:4px 12px;margin:12px 0;background:var(--card)}
+li{margin:3px 0}
+</style></head><body><main>
+<h1>Scoreline growth roadmap</h1>
+<p class="mut">Nov 2026 – Mar 2027 · App Attest shelved · Baseline from App Store Connect analytics, Sep 28 – Nov 5 2026</p>
+
+<h2>Where we are</h2>
+<div class="kpis">
+<div class="kpi"><b>~10 / wk</b><span>first-time downloads (≈55 over 5.5 wks)</span></div>
+<div class="kpi"><b>5,373</b><span>search impressions</span></div>
+<div class="kpi"><b>2.5%</b><span>search impression → tap (135 taps)</span></div>
+<div class="kpi"><b>~1%</b><span>search impression → install</span></div>
+<div class="kpi"><b>~33%</b><span>deleted (15 deletes vs 46 installs)</span></div>
+</div>
+<ul>
+<li><b>Search is the whole funnel:</b> 59 of 78 first-time downloads came from App Store search, 14 from app referrers, 4 from browse and 1 from the web. The US is about 40% of downloads, then GB, CA and PH.</li>
+<li><b>Two problems, both fixable:</b> (1) <i>visibility</i>: 5.4k impressions in 5.5 weeks means we rank for very few searches people actually make; (2) <i>conversion</i>: 2.5% of people who see us tap. The live screenshots are still the Nov 2022 "SportsCal"-branded art, so they don't match the app's name, and there's no 6.9" set.</li>
+<li><b>Retention leak:</b> about 1 in 3 installs gets deleted. Growth spent on acquisition is wasted until activation is better.</li>
+<li><b>Listing debt:</b> the live description advertises $2.99 / $19.99 / $39.99, but the live prices are $0.99 / $9.99 and Lifetime has never been reviewed. 3.3 is sitting in PREPARE_FOR_SUBMISSION.</li>
+</ul>
+<div class="call"><b>Goal for the next 4 months:</b> get to 100+ first-time downloads a week by the end of March (10×), with day-7 deletes under 20%. Every number gets checked against the <code>appstore</code> telemetry channel and the ASC reports, which now generate daily.</div>
+
+<h2>Phase 0 · Listing fixes, no new features <span class="tag">weeks 1–2</span></h2>
+<table><tr><th>Item</th><th>Why</th><th>Who</th></tr>
+<tr><td><b>New screenshot set</b> (6.9" + iPad) from the UITest harness: Live Activity on the Lock Screen, widgets, the calendar, team page, soccer match centre. Each one gets a caption with a benefit and a keyword</td><td>Biggest lever on the 2.5% tap rate. In search results, the first three screenshots are the listing</td><td>me (harness exists) + you approve</td></tr>
+<tr><td><b>Keyword rework (en-US):</b> drop single words that are hopelessly contested (<code>football, basketball, baseball, hockey</code>). Add long-tail terms we can actually rank for: <code>fixtures, scoreboard, live activity, widget, tracker, ncaa, college, nascar, indycar, premier, mls, wnba, schedule</code></td><td>Visibility. Words already in the name or subtitle are wasted in the keyword field</td><td>me via <code>asc</code></td></tr>
+<tr><td><b>Use extra locales to index more US keywords:</b> <code>es-MX</code> (and en-GB, which already exists) carry a second 100-character keyword set for US search</td><td>Roughly doubles our keyword surface for free</td><td>me</td></tr>
+<tr><td><b>Fix the pricing text</b> in the description, or ship the price change plus Lifetime in ASC/RevenueCat</td><td>Risk of rejection or bad reviews</td><td>you (dashboard) → me (copy)</td></tr>
+<tr><td><b>Ship 3.3</b> with the new screenshots and metadata</td><td>Screenshots only change when a version ships</td><td>both</td></tr>
+<tr><td><b>Ratings push:</b> confirm the <code>RatingsManager</code> policy fires on a real moment of value, such as after a favorite team's win or after a Live Activity ends</td><td>Rating count and stars feed both ranking and conversion</td><td>me</td></tr>
+</table>
+
+<h2>Phase 1 · Activation and retention <span class="tag">weeks 2–5</span></h2>
+<ul>
+<li><b>Instrument the first session:</b> add telemetry for onboarding_complete, first_favorite, first_widget_added, first_live_activity, notifications_granted, plus a server-side D1/D7 return rate built from the DAU HLLs. Without these numbers we can't tell <i>why</i> a third of users delete the app.</li>
+<li><b>Onboarding gets to "aha" in under 60 seconds:</b> pick teams → see their next game → one tap to follow it with a Live Activity or reminder → nudge to add the widget. The "follow team" step is the retention hook.</li>
+<li><b>Empty-state audit:</b> a user who installs on a quiet day (no games for their sports) should still see upcoming games and the calendar, never a blank screen.</li>
+<li><b>Re-engagement:</b> a weekly "your teams this week" local notification, opt-in, free tier.</li>
+</ul>
+
+<h2>Phase 2 · Features that also act as acquisition channels <span class="tag">weeks 4–12</span></h2>
+<table><tr><th>Feature</th><th>Growth mechanism</th><th>Size</th></tr>
+<tr><td><b>Subscribable team calendars</b> (ICS feeds: <code>sportscal.app/cal/&lt;team&gt;.ics</code>) with "Add to Calendar" in the app</td><td>The app's original identity ("SportsCal"). Calendar events carry a link back. People search "add [team] schedule to calendar" on Google</td><td>M</td></tr>
+<tr><td><b>Public web schedule pages</b> per team/league (server-rendered from the existing schedule data), with a Smart App Banner and universal links (finish the Associated Domains setup)</td><td>Turns the 1-download web channel into an SEO channel. "[team] schedule 2026-27" is a huge evergreen query family</td><td>M–L</td></tr>
+<tr><td><b>Share cards:</b> an image of the final score or bracket, or a "watch with me" card that deep-links via <code>/g/:id</code></td><td>App referrer is already our #2 source. Make every share carry the brand</td><td>S</td></tr>
+<tr><td><b>Pro: custom live alerts + milestone alerts</b> (already decided, no betting framing)</td><td>Differentiator against Apple Sports and ESPN, gives screenshots something to show, makes Pro worth it every game day</td><td>L</td></tr>
+<tr><td><b>Pro: themes / accent colours</b></td><td>Cheap Pro perk and good screenshot material</td><td>S</td></tr>
+<tr><td><b>College basketball, ready for March Madness</b> (ESPN path exists in <code>LiveScore.swift</code>; verify end to end, add bracket reuse from WC)</td><td>Biggest US sports search spike of spring</td><td>M</td></tr>
+</table>
+
+<h2>Phase 3 · Seasonal moments (App Store featuring) <span class="tag">ongoing</span></h2>
+<p>Every in-app event gets its own placement in search and on the Today tab. Create one per tentpole with the <code>asc</code> / API recipe already proven for the World Cup:</p>
+<table><tr><th>When</th><th>Moment</th><th>Asset</th></tr>
+<tr><td>Dec 4–6</td><td>F1 season finale</td><td>event + standings screenshot</td></tr>
+<tr><td>Dec–Jan</td><td>College football playoff</td><td>event; rankings tab already shipped</td></tr>
+<tr><td>Jan</td><td>NFL playoffs → Super Bowl (Feb)</td><td>event + Live Activity creative</td></tr>
+<tr><td>Feb</td><td>Champions League knockouts</td><td>event; match centre</td></tr>
+<tr><td>Mar</td><td>March Madness · F1 2027 start · MLB Opening Day (late Mar)</td><td>3 events, bracket</td></tr>
+</table>
+<p class="mut">Custom product pages per sport (soccer, F1, NFL, college) can also be tied to keywords so they show in organic search. Verify this in ASC before relying on it.</p>
+
+<h2>How we'll measure</h2>
+<ul>
+<li>Weekly: an ASC pull (downloads by source/territory, impressions → taps → installs, deletes) using the scripts from this session, plus telemetry DAU/WAU for the <code>appstore</code> channel.</li>
+<li>Change one listing variable at a time, e.g. screenshots before keywords, ~2 weeks apart, so the effect is readable even at small volume.</li>
+<li>Optional later: a small Apple Search Ads budget, used only to find which keywords convert, then put those into organic.</li>
+</ul>
+
+<h2>Needs you</h2>
+<ul>
+<li>Decide on pricing (the current recommendation is $1.99 / $9.99 / Lifetime $24.99–29.99), then make the ASC and RevenueCat dashboard changes.</li>
+<li>Approve pushing metadata and screenshots to the live listing (outward-facing).</li>
+<li>Associated Domains capability + DNS for <code>sportscal.app</code>, needed for universal links and the web pages.</li>
+</ul>
+</main></body></html>

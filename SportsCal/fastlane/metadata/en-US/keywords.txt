@@ -1,1 +1,1 @@
-calendar,wnba,nfl,nba,nhl,mlb,f1,soccer,football,basketball,baseball,tennis,golf,hockey,results
+nfl,nba,mlb,nhl,f1,wnba,ncaa,college,soccer,fixtures,scoreboard,widget,calendar,nascar,indycar

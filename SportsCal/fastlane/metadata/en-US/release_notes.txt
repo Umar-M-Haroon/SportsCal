@@ -1,18 +1,22 @@
-Fixes an issue in 3.2 where games didn't load.
+Our biggest update yet.
 
-Faster live scores:
-• Scores now update within seconds during live games, with less battery and data use
-• Live Activities are easier to find, with a clear hint when they're switched off
+New sports:
+• College football, with conference picks and AP, Coaches and CFP rankings
+• NASCAR Cup Series, IndyCar, IMSA and WEC
 
-Team pages:
-• Tap any team to see its schedule, results, record, and roster
+Soccer match centre, for every league:
+• Lineups on the pitch, shot map, momentum graph and live commentary
+• Competition hubs, player pages and goal alerts for teams you follow
 
-Tennis:
-• Matches are grouped by tournament and filed under the correct tour (ATP or WTA)
+Live games:
+• Scores update within seconds for every team sport
+• Win probability, game situation, team stats and clutch-moment alerts
+• Follow F1 sessions from your Lock Screen with Live Activities
 
-Also in this release:
-• Quicker app launch and a redesigned game detail screen
-• Corrected team abbreviations (NYK, not NY)
-• Stronger security for your device's connection to Scoreline
+F1:
+• Lap chart, gap ladder, tyres, weather, safety car periods and driver pages
 
-Plus a batch of stability and reliability fixes. Thanks for using the app!
+Also:
+• Team pages grouped by season and phase, with records and head-to-head
+• A redesigned Browse tab
+• Faster loading, better VoiceOver support and lots of fixes
