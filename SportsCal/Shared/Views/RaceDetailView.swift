@@ -744,103 +744,13 @@ struct RaceDetailView: View {
                     }
                     .pickerStyle(.segmented)
 
-                    switch standingsTab {
-                    case .drivers:
-                        driverStandingsView(standings.driverStandings)
-                    case .constructors:
-                        constructorStandingsView(standings.constructorStandings)
-                    }
+                    F1StandingsTable(standings: standings,
+                                     kind: standingsTab == .drivers ? .drivers : .constructors)
                 }
             }
             .padding()
             .background(Color.secondaryGroupedBackground)
             .cornerRadius(12)
-        }
-    }
-
-    private func driverStandingsView(_ standings: [F1DriverStanding]) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                Text("Pos")
-                    .frame(width: 32, alignment: .leading)
-                Text("Driver")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("Team")
-                    .frame(width: 90, alignment: .leading)
-                Text("Pts")
-                    .frame(width: 50, alignment: .trailing)
-            }
-            .font(.caption2)
-            .foregroundColor(.secondary)
-            .padding(.bottom, 6)
-
-            ForEach(standings, id: \.position) { standing in
-                NavigationLink { F1DriverView(driverName: standing.driverName) } label: {
-                HStack(spacing: 0) {
-                    Text("\(standing.position)")
-                        .frame(width: 32, alignment: .leading)
-                        .fontWeight(standing.position <= 3 ? .bold : .regular)
-                    Text(standing.driverName)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .lineLimit(1)
-                    Text(standing.constructorName)
-                        .frame(width: 90, alignment: .leading)
-                        .lineLimit(1)
-                    Text(standing.points.truncatingRemainder(dividingBy: 1) == 0
-                         ? "\(Int(standing.points))" : "\(standing.points, specifier: "%.1f")")
-                        .frame(width: 50, alignment: .trailing)
-                        .fontWeight(standing.position <= 3 ? .bold : .regular)
-                }
-                .font(.caption)
-                .foregroundColor(standing.position <= 3 ? .primary : .secondary)
-                .padding(.vertical, 2)
-                .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func constructorStandingsView(_ standings: [F1ConstructorStanding]) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                Text("Pos")
-                    .frame(width: 32, alignment: .leading)
-                Text("Constructor")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("Wins")
-                    .frame(width: 40, alignment: .trailing)
-                Text("Pts")
-                    .frame(width: 50, alignment: .trailing)
-            }
-            .font(.caption2)
-            .foregroundColor(.secondary)
-            .padding(.bottom, 6)
-
-            ForEach(standings, id: \.position) { standing in
-                HStack(spacing: 0) {
-                    Text("\(standing.position)")
-                        .frame(width: 32, alignment: .leading)
-                        .fontWeight(standing.position <= 3 ? .bold : .regular)
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(F1GapRibbonView.colorForConstructorName(standing.constructorName, standings: viewModel.f1Standings))
-                            .frame(width: 6, height: 6)
-                        Text(standing.constructorName)
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("\(standing.wins)")
-                        .frame(width: 40, alignment: .trailing)
-                    Text(standing.points.truncatingRemainder(dividingBy: 1) == 0
-                         ? "\(Int(standing.points))" : "\(standing.points, specifier: "%.1f")")
-                        .frame(width: 50, alignment: .trailing)
-                        .fontWeight(standing.position <= 3 ? .bold : .regular)
-                }
-                .font(.caption)
-                .foregroundColor(standing.position <= 3 ? .primary : .secondary)
-                .padding(.vertical, 2)
-            }
         }
     }
 

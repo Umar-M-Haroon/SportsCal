@@ -1404,12 +1404,18 @@ private struct RacingStandingsScreen: View {
     let f1: F1Standings?
     let standings: NetworkHandler.SeriesStandings?
     @State private var showAll = false
+    @State private var f1Kind: F1TitleFight.Kind = .drivers
 
     var body: some View {
         ScrollView {
             Group {
                 if series == .formula1, let f1 {
-                    F1TitleFightCard(standings: f1)
+                    // The title fight is a summary of the top five; the table below is the
+                    // actual championship. This screen used to stop after the card.
+                    VStack(spacing: 16) {
+                        F1TitleFightCard(standings: f1, selection: $f1Kind)
+                        f1Table(f1)
+                    }
                 } else {
                     switch standings {
                     case .drivers(let table):
@@ -1427,5 +1433,32 @@ private struct RacingStandingsScreen: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+    }
+
+    /// The card's own picker drives the table; when the card has nothing to show (no
+    /// title fight data) the table carries the picker itself.
+    @ViewBuilder
+    private func f1Table(_ f1: F1Standings) -> some View {
+        let cardShowsPicker = f1.titleFight(f1Kind).map { $0.remainingRaces > 0 || $0.champion != nil } ?? false
+        if !f1.driverStandings.isEmpty || !f1.constructorStandings.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(f1Kind == .drivers ? "Drivers' Championship" : "Constructors' Championship")
+                    .font(.headline)
+                if !cardShowsPicker {
+                    Picker("Championship", selection: $f1Kind) {
+                        Text("Drivers").tag(F1TitleFight.Kind.drivers)
+                        Text("Constructors").tag(F1TitleFight.Kind.constructors)
+                    }
+                    .pickerStyle(.segmented)
+                }
+                F1StandingsTable(standings: f1, kind: f1Kind)
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.secondaryGroupedBackground)
+            .cornerRadius(12)
+        } else {
+            ContentUnavailableView("No Standings", systemImage: "list.number")
+        }
     }
 }
