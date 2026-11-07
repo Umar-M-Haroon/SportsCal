@@ -68,12 +68,17 @@ public extension TeamStatComparison {
         /// Computes a percentage from two counting stats instead of reading `name`, for
         /// rates ESPN only sends rounded (soccer pass accuracy arrives as "0.9").
         let ratio: (numerator: String, denominator: String)?
+        /// Shows two counting stats as "made/chances" instead of reading `name`, for
+        /// rates that mean little without the attempts (hockey power plays: "1/4").
+        let fraction: (made: String, chances: String)?
 
-        init(_ name: String, _ label: String, lowerIsBetter: Bool = false, ratio: (String, String)? = nil) {
+        init(_ name: String, _ label: String, lowerIsBetter: Bool = false, ratio: (String, String)? = nil,
+             fraction: (String, String)? = nil) {
             self.name = name
             self.label = label
             self.lowerIsBetter = lowerIsBetter
             self.ratio = ratio.map { (numerator: $0.0, denominator: $0.1) }
+            self.fraction = fraction.map { (made: $0.0, chances: $0.1) }
         }
     }
 
@@ -109,7 +114,8 @@ public extension TeamStatComparison {
         case .hockey:
             return [
                 Spec("shotsTotal", "Shots"),
-                Spec("powerPlayGoals", "Power Play Goals"),
+                Spec("powerPlay", "Power Play", fraction: ("powerPlayGoals", "powerPlayOpportunities")),
+                Spec("shortHandedGoals", "Shorthanded Goals"),
                 Spec("faceoffPercent", "Faceoff %"),
                 Spec("hits", "Hits"),
                 Spec("blockedShots", "Blocked Shots"),
@@ -158,6 +164,10 @@ public extension TeamStatComparison {
                 guard let h = Self.percent(ratio, in: homeStats), let a = Self.percent(ratio, in: awayStats) else { return nil }
                 return Row(name: spec.name, label: spec.label, home: h, away: a, lowerIsBetter: spec.lowerIsBetter ? true : nil)
             }
+            if let fraction = spec.fraction {
+                guard let h = Self.fraction(fraction, in: homeStats), let a = Self.fraction(fraction, in: awayStats) else { return nil }
+                return Row(name: spec.name, label: spec.label, home: h, away: a, lowerIsBetter: spec.lowerIsBetter ? true : nil)
+            }
             guard let h = homeStats[spec.name], let a = awayStats[spec.name] else { return nil }
             return Row(
                 name: spec.name,
@@ -177,6 +187,12 @@ extension TeamStatComparison {
         guard let made = stats[ratio.numerator].flatMap(Row.numeric),
               let total = stats[ratio.denominator].flatMap(Row.numeric), total > 0 else { return nil }
         return "\(Int((made / total * 100).rounded()))%"
+    }
+
+    /// "1/4". Nil unless both counts are there.
+    static func fraction(_ fraction: (made: String, chances: String), in stats: [String: String]) -> String? {
+        guard let made = stats[fraction.made], let chances = stats[fraction.chances] else { return nil }
+        return "\(made)/\(chances)"
     }
 }
 
