@@ -602,6 +602,11 @@ struct GameDetailSections: View {
             Task { await reloadPlays() }
             Task { await reloadSoccerMatch() }
         }
+        // Soccer's lastPlay rarely changes; a goal, a card or the clock moving does.
+        .onChange(of: soccerLiveKey) { _, _ in
+            Task { await reloadSoccerMatch() }
+        }
+        .task(id: soccerPollID) { await pollSoccerMatchWhileLive() }
         .onChange(of: model.plays) { _, newPlays in
             let newAvailable = Set(newPlays.compactMap { $0.period?.number })
             if let current = model.selectedPeriod, newAvailable.contains(current) {
@@ -1384,10 +1389,48 @@ struct GameDetailSections: View {
         await model.loadSoccerMatch(game: game, leagueSlug: league?.espnSlug)
     }
 
+    /// Changes with the score, the clock and red cards of a live soccer match.
+    private var soccerLiveKey: String {
+        guard isSoccer, game.strStatus == "in" else { return "" }
+        return [game.intHomeScore ?? "", game.intAwayScore ?? "", game.strProgress ?? "",
+                "\(game.redCards(.home))", "\(game.redCards(.away))"].joined(separator: "|")
+    }
+
+    private var soccerPollID: String { "\(game.idEvent ?? "")|\(game.strStatus ?? "")" }
+
+    /// The match centre is live while its own status says so (it's fresher than a game
+    /// copy that a non-live list handed over), or the game's when it has none yet.
+    private var soccerMatchIsLive: Bool {
+        if let state = model.soccerMatch?.status?.state { return state == "in" }
+        return game.strStatus == "in"
+    }
+
+    /// Refetch while the match is live: every 45s, a little over the server's 30s
+    /// cache, so a screen opened from a list that doesn't tick still moves.
+    private func pollSoccerMatchWhileLive() async {
+        guard isSoccer, game.idEvent != nil else { return }
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(45))
+            guard !Task.isCancelled, soccerMatchIsLive else { return }
+            await reloadSoccerMatch()
+        }
+    }
+
     @ViewBuilder
     private var soccerMatchSection: some View {
         if isSoccer, let match = model.soccerMatch, !match.isEmpty {
             SoccerMatchCentreView(match: match, game: game)
+        } else if isSoccer, model.soccerMatchLoading, game.idEvent != nil {
+            HStack(spacing: 10) {
+                ProgressView()
+                Text("Loading match centre…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.secondaryGroupedBackground)
+            .cornerRadius(12)
         }
     }
 
