@@ -1154,7 +1154,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
     /// Live Activity `awayTeam` attribute for F1. Must match the app's
     /// `GameViewModel.raceActivitySubtitle` so update matching agrees.
     static func raceActivitySubtitle(for game: Game) -> String {
-        game.racingSeries?.leagueName ?? "Formula 1"
+        if let tour = game.golfTour { return tour.leagueName }
+        return game.racingSeries?.leagueName ?? "Formula 1"
     }
 
     static func sendPushToStartNotification(
@@ -1173,8 +1174,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
     ) async {
         guard let eventID = game.idEvent else { return }
         let homeTeam = game.strHomeTeam
-        // F1's strAwayTeam is whoever leads right now; a static attribute would freeze it.
-        let awayTeam = game.isRace ? Self.raceActivitySubtitle(for: game) : game.strAwayTeam
+        // F1's and golf's strAwayTeam is whoever leads right now; a static attribute would
+        // freeze it. Golf follows the tour's board; the app names a player when one is a favourite.
+        let awayTeam = game.usesLeaderboardActivity ? Self.raceActivitySubtitle(for: game) : game.strAwayTeam
         // Validate the ID-based lookup by name to guard against cross-sport ID collisions
         // (e.g. ESPN NBA ID 18 ≠ ESPN NHL ID 18 — a wrong translation would return "LAC"
         // for the Knicks). Fall back to name-based lookup if the ID resolves to a different team.
@@ -1210,15 +1212,18 @@ struct ESPNFetchJob: AsyncScheduledJob {
             homeTeamShort: homeTeamShort,
             awayTeamShort: awayTeamShort
         )
+        let tennisSets = game.isTennisMatch ? game.tennisSetsWon : nil
         let contentState = ContentState(
-            homeScore: Int(game.intHomeScore ?? "") ?? 0,
-            awayScore: Int(game.intAwayScore ?? "") ?? 0,
+            homeScore: tennisSets?.home ?? Int(game.intHomeScore ?? "") ?? 0,
+            awayScore: tennisSets?.away ?? Int(game.intAwayScore ?? "") ?? 0,
             status: game.strStatus,
             progress: game.strProgress,
-            // F1's lastPlay is the full leaderboard: too big for APNS, and `race` covers it.
-            lastPlay: game.isRace ? nil : game.lastPlay,
+            // F1's and golf's lastPlay is the full leaderboard: too big for APNS, and
+            // `race` covers it.
+            lastPlay: game.usesLeaderboardActivity || game.isTennisMatch ? nil : game.lastPlay,
             situation: LiveActivitySituation(game.situation),
-            race: game.isRace ? LiveActivityRace(game: game, standings: nil) : nil
+            race: APNSJob.leaderboardContent(event: game, f1Standings: nil, following: awayTeam),
+            tennis: LiveActivityTennis(game: game)
         )
 
         do {
@@ -1231,8 +1236,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
                     appID: "com.KomodoLLC.SportsCal",
                     attributes: attributes,
                     contentState: contentState,
-                    alertTitle: game.isRace ? homeTeam : "\(homeTeam) vs \(awayTeam)",
-                    alertBody: game.isRace ? "Session is live" : "Game is starting now!",
+                    alertTitle: game.usesLeaderboardActivity ? homeTeam : "\(homeTeam) vs \(awayTeam)",
+                    alertBody: game.isRace ? "Session is live"
+                        : (game.golfTour != nil ? "Play is under way" : (game.isTennisMatch ? "Match is starting now!" : "Game is starting now!")),
                     timestamp: Int(clock.now.timeIntervalSince1970),
                     environment: env
                 )
@@ -1676,7 +1682,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 circuitInfo: scheduleGame.circuitInfo ?? espnGame.circuitInfo,
                 // Golf course + pars come only from ESPN; without this the merge stripped
                 // the scorecard off every matched tournament.
-                golfCourseInfo: espnGame.golfCourseInfo ?? scheduleGame.golfCourseInfo,
+                // ESPN's scoreboard has no purse/cut/defending champion: keep the
+                // enrichment job's context on top of each fresh copy.
+                golfCourseInfo: espnGame.golfCourseInfo?.withContext(from: scheduleGame.golfCourseInfo) ?? scheduleGame.golfCourseInfo,
                 legDisplay: espnGame.legDisplay ?? scheduleGame.legDisplay,
                 aggregateScore: espnGame.aggregateScore ?? scheduleGame.aggregateScore,
                 // College ranks come only from ESPN, so its nil is final: a team that

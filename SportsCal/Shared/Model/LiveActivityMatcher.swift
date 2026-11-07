@@ -18,6 +18,8 @@ enum LiveActivityMatcher {
         /// Keyed by `"<home>|<away>"`, both lowercased — fuzzy fallback for when
         /// TheSportsDB and ESPN disagree on event IDs but the teams still line up.
         var byTeams: [String: LiveSportActivityAttributes.ContentState]
+        /// Golf boards, by eventID: each activity's state depends on the player it follows.
+        var golfByEventID: [String: Game] = [:]
     }
 
     /// Build the lookup from live event games. A game without `idEvent` still
@@ -25,18 +27,22 @@ enum LiveActivityMatcher {
     static func buildLookup(from liveEvents: [Game], f1Standings: F1Standings? = nil) -> StateLookup {
         var byEventID: [String: LiveSportActivityAttributes.ContentState] = [:]
         var byTeams: [String: LiveSportActivityAttributes.ContentState] = [:]
+        var golfByEventID: [String: Game] = [:]
         for game in liveEvents {
+            if game.golfTour != nil, let eventID = game.idEvent {
+                golfByEventID[eventID] = game
+            }
             let state = LiveSportActivityAttributes.ContentState.make(for: game, standings: f1Standings)
             if let eventID = game.idEvent {
                 byEventID[eventID] = state
             }
             // A race's "away team" is the current leader, so a name key would match
             // the wrong activity once the lead changes: races match by eventID only.
-            guard !game.isRace else { continue }
+            guard !game.usesLeaderboardActivity else { continue }
             let teamKey = teamKey(home: game.strHomeTeam, away: game.strAwayTeam)
             byTeams[teamKey] = state
         }
-        return StateLookup(byEventID: byEventID, byTeams: byTeams)
+        return StateLookup(byEventID: byEventID, byTeams: byTeams, golfByEventID: golfByEventID)
     }
 
     /// Resolve a state for an activity: try eventID first, then team-name fallback.
@@ -46,6 +52,9 @@ enum LiveActivityMatcher {
         awayTeam: String,
         in lookup: StateLookup
     ) -> LiveSportActivityAttributes.ContentState? {
+        if let golf = lookup.golfByEventID[eventID] {
+            return LiveSportActivityAttributes.ContentState.make(for: golf, standings: nil, following: awayTeam)
+        }
         if let state = lookup.byEventID[eventID] { return state }
         return lookup.byTeams[teamKey(home: homeTeam, away: awayTeam)]
     }
