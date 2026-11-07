@@ -490,8 +490,14 @@ func routes(_ app: Application) throws {
         headers.contentType = .html
         return Response(status: .ok, headers: headers, body: .init(string: html))
     }
-    app.get("g", ":id") { _ async -> Response in appStoreFallback("Game") }
     app.get("wc", "bracket") { _ async -> Response in appStoreFallback("World Cup Bracket") }
+
+    // MARK: - Public web pages + calendar feeds (public, unauthenticated, rate-limited)
+    // SEO schedule pages (/team, /league), the /g/:id game page (which falls back to the
+    // App Store bounce above for games outside the window), ICS feeds under /cal,
+    // /sitemap.xml and /robots.txt. Absolute URLs use PUBLIC_BASE_URL
+    // (default https://sportscal.app). See PublicWebController.
+    try app.register(collection: PublicWebController(site: .fromEnvironment(Environment.get("PUBLIC_BASE_URL"))))
 }
 
 /// Registers all API routes on a given route builder.
