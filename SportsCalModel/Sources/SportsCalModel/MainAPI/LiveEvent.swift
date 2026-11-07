@@ -26,7 +26,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
         }
     }
 
-    public init?(events: Scoreboard, league: Leagues, constructorMap: [String: String] = [:], timingMap: [String: [String: String]] = [:]) {
+    /// `raceLaps`: F1 race distance in laps by ESPN event id (from its circuit), so a
+    /// live race reads "Lap 23/57"; ESPN's scoreboard only carries the lap count so far.
+    public init?(events: Scoreboard, league: Leagues, constructorMap: [String: String] = [:], timingMap: [String: [String: String]] = [:], raceLaps: [String: Int] = [:]) {
         guard let slug = events.leagues.first?.slug,
               let league = Leagues(slug: slug) else { return nil }
         let sportType = SportType(league: league)
@@ -319,12 +321,26 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         )
                     }
                     let sessionState = competition.status?.type.state
+                    let probe = EventSession(sessionType: sessionType, sessionName: sessionName)
+                    // ESPN's status.period is laps completed. For a race or sprint, keep it
+                    // as a RaceState (with the distance for the Grand Prix) so the detail
+                    // header and Live Activity can say "Lap 23/57".
+                    let lapsRun = competition.status?.period ?? 0
+                    let raceState: RaceState? = (sessionState == "in" || sessionState == "post") && !probe.isTimedLapSession && lapsRun > 0
+                        ? RaceState(lap: lapsRun, totalLaps: probe.importance == 6 ? (raceLaps[event.id] ?? 0) : 0,
+                                    flag: sessionState == "post" ? .checkered : .none)
+                        : nil
+                    var progress = sessionState == "pre" ? nil : competition.status?.type.shortDetail
+                    if sessionState == "in", let raceState, progress?.lowercased().contains("lap") != true {
+                        progress = raceState.totalLaps > 0 ? raceState.lapLabel : "Lap \(raceState.lap)"
+                    }
                     return EventSession(
                         sessionType: sessionType, sessionName: sessionName,
                         status: sessionState,
-                        progress: sessionState == "pre" ? nil : competition.status?.type.shortDetail,
+                        progress: progress,
                         date: competition.date,
-                        leaderboard: sessionLeaderboard
+                        leaderboard: sessionLeaderboard,
+                        raceState: raceState
                     )
                 }
 

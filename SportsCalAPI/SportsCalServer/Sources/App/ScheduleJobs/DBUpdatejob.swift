@@ -407,9 +407,15 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                     }
                     // Fetch timing/gap data for all completed sessions
                     let f1TimingMap = await ESPNNetworking.getF1TimingMap(req: context.application.client, scoreboards: espnScoreboards)
+                    // Race distances and Jolpica classifications, cached by F1EnrichmentJob.
+                    let f1RaceLaps = (try? await context.application.redis.get(
+                        RedisEndpoint.ESPN.f1RaceLaps.getValue(isDebug: isDebug), asJSON: [String: Int].self)) ?? [:]
+                    let f1RoundResults = (try? await context.application.redis.get(
+                        RedisEndpoint.ESPN.f1RoundResults.getValue(isDebug: isDebug), asJSON: [F1RoundResults].self)) ?? []
                     var espnRacingGames: [Game] = []
                     for scoreboard in espnScoreboards {
-                        if let liveEvent = LiveEvent(events: scoreboard, league: .formula1, constructorMap: f1ConstructorMap, timingMap: f1TimingMap) {
+                        if let liveEvent = LiveEvent(events: scoreboard, league: .formula1, constructorMap: f1ConstructorMap,
+                                                     timingMap: f1TimingMap, raceLaps: f1RaceLaps) {
                             espnRacingGames.append(contentsOf: liveEvent.events)
                         }
                     }
@@ -498,6 +504,11 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                             }
                             schedule.racing = LiveEvent(events: racingGames)
                         }
+                    }
+                    // Fill what ESPN's per-driver calls missed (P8+ gaps, teams) and add Q1–Q3.
+                    if let racingGames = schedule.racing?.events,
+                       let enriched = F1EnrichmentJob.applyRaceResults(to: racingGames, results: f1RoundResults, laps: f1RaceLaps) {
+                        schedule.racing = LiveEvent(events: enriched)
                     }
                     Self.logger.info("Schedule loaded", metadata: ["sport": "racing", "events": "\(schedule.racing?.events.count ?? 0)", "constructors": "\(f1ConstructorMap.count)", "timingCompetitions": "\(f1TimingMap.count)"])
                 default:

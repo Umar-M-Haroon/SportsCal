@@ -74,6 +74,10 @@ enum RedisEndpoint {
         case f1Circuits
         case f1CircuitImages
         case f1RaceTiming
+        /// Jolpica classifications by race day ([F1RoundResults]).
+        case f1RoundResults
+        /// Race distance in laps by ESPN event id.
+        case f1RaceLaps
         case f1EnrichmentLastUpdate
         case golfEnrichment
         case golfEnrichmentLastUpdate
@@ -125,6 +129,10 @@ enum RedisEndpoint {
                 return "F1 Circuit Images"
             case .f1RaceTiming:
                 return "F1 Race Timing"
+            case .f1RoundResults:
+                return "F1 Round Results"
+            case .f1RaceLaps:
+                return "F1 Race Laps"
             case .f1EnrichmentLastUpdate:
                 return "F1 Enrichment Last Update"
             case .golfEnrichment:
@@ -201,6 +209,10 @@ enum RedisEndpoint {
                 return "debug-F1 Circuit Images"
             case .f1RaceTiming:
                 return "debug-F1 Race Timing"
+            case .f1RoundResults:
+                return "debug-F1 Round Results"
+            case .f1RaceLaps:
+                return "debug-F1 Race Laps"
             case .f1EnrichmentLastUpdate:
                 return "debug-F1 Enrichment Last Update"
             case .golfEnrichment:

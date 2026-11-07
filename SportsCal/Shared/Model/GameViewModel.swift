@@ -1951,7 +1951,9 @@ public class GameViewModel: NSObject {
                 isCompleted: live.isCompleted ?? scheduled.isCompleted,
                 isoDate: scheduled.isoDate,
                 leaderboardEntries: live.leaderboardEntries ?? scheduled.leaderboardEntries,
-                sessions: live.sessions ?? scheduled.sessions,
+                // Keep the schedule's F1 enrichment (teams, gaps, Q1–Q3, race distance)
+                // that a live tick's ESPN-only sessions don't carry.
+                sessions: live.sessions?.carryingEnrichment(from: scheduled.sessions) ?? scheduled.sessions,
                 venueName: live.venueName ?? scheduled.venueName,
                 circuitInfo: live.circuitInfo ?? scheduled.circuitInfo,
                 // College ranks come only from ESPN: a team that drops out of the

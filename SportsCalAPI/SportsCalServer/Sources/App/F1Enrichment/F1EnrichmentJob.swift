@@ -7,6 +7,7 @@
 
 import Foundation
 import Queues
+import Vapor
 import SportsCalModel
 import Logging
 
@@ -52,6 +53,10 @@ struct F1EnrichmentJob: AsyncScheduledJob {
         let client = context.application.client
         let redis = context.application.redis
         let currentYear = Calendar.current.component(.year, from: Date())
+
+        // Classifications move faster than standings (qualifying ends, the race gets
+        // classified), so they refresh every run, ahead of the 6-hour gate.
+        await refreshRaceResults(app: context.application, isDebug: isDebug, season: currentYear)
 
         // Check if enrichment is stale (> 6 hours)
         let lastUpdateKey = RedisEndpoint.ESPN.f1EnrichmentLastUpdate.getValue(isDebug: isDebug)
@@ -194,6 +199,79 @@ struct F1EnrichmentJob: AsyncScheduledJob {
             "raceTimingDrivers": "\(recentRaceTiming?.drivers.count ?? 0)"
         ])
         await JobHeartbeat.recordSuccess(.f1Enrichment, app: context.application, isDebug: isDebug)
+    }
+
+    // MARK: - Classifications and race distance
+
+    /// Jolpica's latest round every run (the whole season when nothing is cached) and
+    /// ESPN's race distance for any F1 weekend that lacks one, cached and folded into
+    /// the schedule's F1 sessions: teams and gaps ESPN's per-driver calls missed,
+    /// qualifying Q1–Q3, and the "/57" of "Lap 23/57".
+    func refreshRaceResults(app: Application, isDebug: Bool, season: Int) async {
+        let redis = app.redis
+        let resultsKey = RedisEndpoint.ESPN.f1RoundResults.getValue(isDebug: isDebug)
+        let lapsKey = RedisEndpoint.ESPN.f1RaceLaps.getValue(isDebug: isDebug)
+
+        let seasonPrefix = "\(season)-"
+        var results = ((try? await redis.get(resultsKey, asJSON: [F1RoundResults].self)) ?? [])
+            .filter { $0.raceDate.hasPrefix(seasonPrefix) }
+        let fetched = await JolpicaNetworking.getRoundResults(client: app.client, season: season, lastOnly: !results.isEmpty)
+        var resultsChanged = false
+        for round in fetched where !round.isEmpty {
+            if let index = results.firstIndex(where: { $0.round == round.round }) {
+                if results[index] != round {
+                    results[index] = round
+                    resultsChanged = true
+                }
+            } else {
+                results.append(round)
+                resultsChanged = true
+            }
+        }
+        if resultsChanged {
+            try? await redis.set(resultsKey, toJSON: results)
+        }
+
+        var laps = (try? await redis.get(lapsKey, asJSON: [String: Int].self)) ?? [:]
+        let snapshot = try? await ScheduleStore.read(app: app, isDebug: isDebug)
+        let f1Games = (snapshot?.schedule?.racing?.events ?? []).filter { $0.racingSeries == .formula1 }
+        let missing = f1Games.compactMap(\.idEvent).filter { laps[$0] == nil }
+        if !missing.isEmpty {
+            let found = await ESPNNetworking.getF1RaceLaps(req: app.client, eventIDs: missing)
+            if !found.isEmpty {
+                laps.merge(found) { _, new in new }
+                try? await redis.set(lapsKey, toJSON: laps)
+            }
+        }
+
+        guard !results.isEmpty || !laps.isEmpty, !f1Games.isEmpty else { return }
+        let outcome = try? await ScheduleStore.update(
+            app: app, isDebug: isDebug, logger: Self.logger, writer: "F1EnrichmentJob.results", basis: snapshot
+        ) { schedule in
+            guard var schedule, let games = schedule.racing?.events,
+                  let enriched = Self.applyRaceResults(to: games, results: results, laps: laps) else { return nil }
+            schedule.racing = LiveEvent(events: enriched)
+            return schedule
+        }
+        Self.logger.info("F1 classifications refreshed", metadata: [
+            "rounds": "\(results.count)", "raceLaps": "\(laps.count)", "outcome": "\(String(describing: outcome))"
+        ])
+    }
+
+    /// F1 games with cached classifications and race distances applied; nil when none
+    /// changed. Shared with the schedule build so a rebuild keeps them.
+    static func applyRaceResults(to games: [Game], results: [F1RoundResults], laps: [String: Int]) -> [Game]? {
+        let byDay = Dictionary(results.map { ($0.raceDate, $0) }, uniquingKeysWith: { first, _ in first })
+        var changed = false
+        let enriched = games.map { game -> Game in
+            guard game.racingSeries == .formula1 else { return game }
+            let round = game.f1RaceDay.flatMap { byDay[$0] }
+            let distance = game.idEvent.flatMap { laps[$0] }
+            guard let updated = game.applyingF1Enrichment(results: round, raceLaps: distance) else { return game }
+            changed = true
+            return updated
+        }
+        return changed ? enriched : nil
     }
 
     /// Matches a telemetry session to a schedule Game by comparing session country/location

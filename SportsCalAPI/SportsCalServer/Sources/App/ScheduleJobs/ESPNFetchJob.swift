@@ -1669,7 +1669,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 isCompleted: espnGame.isCompleted ?? scheduleGame.isCompleted,
                 isoDate: scheduleGame.isoDate,
                 leaderboardEntries: espnGame.leaderboardEntries ?? scheduleGame.leaderboardEntries,
-                sessions: espnGame.sessions ?? scheduleGame.sessions,
+                // Live ticks rebuild sessions from ESPN alone: keep the teams, gaps,
+                // qualifying times and race distance the schedule build added.
+                sessions: espnGame.sessions?.carryingEnrichment(from: scheduleGame.sessions) ?? scheduleGame.sessions,
                 venueName: scheduleGame.venueName ?? espnGame.venueName,
                 homeTeamColor: espnGame.homeTeamColor ?? scheduleGame.homeTeamColor,
                 awayTeamColor: espnGame.awayTeamColor ?? scheduleGame.awayTeamColor,

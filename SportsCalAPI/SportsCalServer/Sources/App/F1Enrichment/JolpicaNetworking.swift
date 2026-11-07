@@ -228,4 +228,114 @@ class JolpicaNetworking {
             return []
         }
     }
+
+    // MARK: - Classifications (qualifying, sprint, race)
+
+    private struct ResultsResponse: Decodable {
+        let MRData: ResultsMRData
+    }
+    private struct ResultsMRData: Decodable {
+        let total: String?
+        let RaceTable: ResultsRaceTable
+    }
+    private struct ResultsRaceTable: Decodable {
+        let Races: [ResultsRace]
+    }
+    private struct ResultsRace: Decodable {
+        let round: String
+        let date: String
+        let QualifyingResults: [ResultLine]?
+        let SprintResults: [ResultLine]?
+        let Results: [ResultLine]?
+    }
+    private struct ResultLine: Decodable {
+        let position: String?
+        let Driver: JolpicaDriver
+        let Constructor: JolpicaConstructor?
+        let laps: String?
+        let status: String?
+        let Time: ResultTime?
+        let Q1: String?
+        let Q2: String?
+        let Q3: String?
+    }
+    private struct ResultTime: Decodable {
+        let time: String?
+    }
+
+    enum Classification: String, CaseIterable {
+        case qualifying, sprint, results
+    }
+
+    /// One classification for a whole season, paged (Jolpica caps a page at 100 rows), as
+    /// round → rows. `last` fetches only the latest round (one request).
+    static func getClassification(client: some Client, season: Int, kind: Classification, lastOnly: Bool = false) async -> [Int: (date: String, rows: [F1ResultRow], laps: Int?)] {
+        var output: [Int: (date: String, rows: [F1ResultRow], laps: Int?)] = [:]
+        var offset = 0
+        let path = lastOnly ? "\(season)/last" : "\(season)"
+        repeat {
+            let url = "\(baseURL)/\(path)/\(kind.rawValue).json?limit=100&offset=\(offset)"
+            guard let response = try? await client.get(URI(string: url)),
+                  response.status == .ok,
+                  let decoded = try? response.content.decode(ResultsResponse.self) else {
+                logger.warning("Jolpica \(kind.rawValue) fetch failed", metadata: ["season": "\(season)", "offset": "\(offset)"])
+                break
+            }
+            var rowCount = 0
+            for race in decoded.MRData.RaceTable.Races {
+                guard let round = Int(race.round) else { continue }
+                let lines = race.QualifyingResults ?? race.SprintResults ?? race.Results ?? []
+                rowCount += lines.count
+                var entry = output[round] ?? (race.date, [], nil)
+                // A round can straddle two pages; rows append in order.
+                let winnerLaps = entry.rows.isEmpty ? lines.first.flatMap { $0.laps.flatMap(Int.init) } : entry.laps
+                entry.rows += lines.map { row(from: $0, winnerLaps: winnerLaps, isQualifying: kind == .qualifying) }
+                entry.laps = kind == .qualifying ? nil : winnerLaps
+                output[round] = entry
+            }
+            offset += 100
+            let total = Int(decoded.MRData.total ?? "") ?? 0
+            if lastOnly || rowCount == 0 || offset >= total { break }
+        } while true
+        return output
+    }
+
+    private static func row(from line: ResultLine, winnerLaps: Int?, isQualifying: Bool) -> F1ResultRow {
+        let name = "\(line.Driver.givenName) \(line.Driver.familyName)"
+        let position = Int(line.position ?? "") ?? 0
+        if isQualifying {
+            let times = [line.Q1, line.Q2, line.Q3].compactMap { $0 }.filter { !$0.isEmpty }
+            return F1ResultRow(position: position, driverName: name, constructor: line.Constructor?.name,
+                               gap: times.last, qualifyingTimes: times.isEmpty ? nil : times)
+        }
+        return F1ResultRow(position: position, driverName: name, constructor: line.Constructor?.name,
+                           gap: raceGap(line, winnerLaps: winnerLaps))
+    }
+
+    /// "2:20:28.772" for the winner, "+0.799" behind, "+2 Laps" when lapped, else the status.
+    private static func raceGap(_ line: ResultLine, winnerLaps: Int?) -> String? {
+        if let time = line.Time?.time, !time.isEmpty { return time }
+        let status = line.status ?? ""
+        if status.hasPrefix("+") { return status }
+        if let laps = line.laps.flatMap(Int.init), let winnerLaps, laps < winnerLaps,
+           status == "Finished" || status == "Lapped" {
+            let down = winnerLaps - laps
+            return "+\(down) Lap\(down == 1 ? "" : "s")"
+        }
+        return status.isEmpty ? nil : status
+    }
+
+    /// Qualifying, sprint and race classifications combined per round, keyed by race day.
+    static func getRoundResults(client: some Client, season: Int, lastOnly: Bool = false) async -> [F1RoundResults] {
+        async let qualifying = getClassification(client: client, season: season, kind: .qualifying, lastOnly: lastOnly)
+        async let sprint = getClassification(client: client, season: season, kind: .sprint, lastOnly: lastOnly)
+        async let race = getClassification(client: client, season: season, kind: .results, lastOnly: lastOnly)
+        let (q, s, r) = await (qualifying, sprint, race)
+        let rounds = Set(q.keys).union(s.keys).union(r.keys)
+        return rounds.sorted().compactMap { round in
+            guard let date = r[round]?.date ?? q[round]?.date ?? s[round]?.date else { return nil }
+            return F1RoundResults(round: round, raceDate: date, qualifying: q[round]?.rows ?? [],
+                                  sprint: s[round]?.rows ?? [], race: r[round]?.rows ?? [], raceLaps: r[round]?.laps)
+        }
+    }
 }
