@@ -28,6 +28,8 @@ struct RaceDetailView: View {
     @State private var showStandings = false
     /// Session the Calendar action adds; nil means the headline session (the Race).
     @State private var calendarSession: EventSession?
+    /// Tyre stint bar height; 12pt at the default text size.
+    @ScaledMetric(relativeTo: .caption2) private var stintBarHeight: CGFloat = 12
     @State private var standingsTab: StandingsTab = .drivers
 
     private enum StandingsTab: String, CaseIterable {
@@ -66,7 +68,6 @@ struct RaceDetailView: View {
                 }
                 gameInfo
                 actionsRow
-                NASCARPromoCard()
                 if hasSessions {
                     gapRibbonSection
                     if let sessionDetail, !sessionDetail.lapPositions.isEmpty {
@@ -145,6 +146,34 @@ struct RaceDetailView: View {
     }
 
     // MARK: - Race Header
+    private var selectedSession: EventSession? {
+        guard let sessions = game.sessions, selectedSessionIndex < sessions.count else { return nil }
+        return sessions[selectedSessionIndex]
+    }
+
+    /// The header follows the session picker; legacy games without sessions keep theirs.
+    private var headerEntries: [LeaderboardEntry] {
+        guard let selectedSession else { return game.resolvedLeaderboard }
+        return selectedSession.leaderboard.filter { $0.position > 0 }.sorted { $0.position < $1.position }
+    }
+
+    private var headerTitle: String {
+        guard let selectedSession else { return isGameCompleted(game) ? "Winner" : "Leader" }
+        return "\(selectedSession.displayName) · \(selectedSession.leaderTitle)"
+    }
+
+    /// A running race says where it is ("Lap 23/57") — ESPN publishes no flag or safety-car
+    /// state for F1, and OpenF1's live feed is paid. Otherwise the weekend's status line.
+    private var headerStatus: String? {
+        if let live = game.sessions?.first(where: { $0.status == "in" }) {
+            if let state = live.raceState, state.lap > 0 {
+                return "\(live.displayName) · \(state.totalLaps > 0 ? state.lapLabel : "Lap \(state.lap)")"
+            }
+            return [live.displayName, live.progress].compactMap { $0 }.joined(separator: " · ")
+        }
+        return game.displayStatus
+    }
+
     private var raceHeader: some View {
         VStack(spacing: 12) {
             HStack {
@@ -178,19 +207,20 @@ struct RaceDetailView: View {
                 }
             }
 
-            if let progress = game.displayStatus {
+            if let progress = headerStatus {
                 Text(progress)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            // Leader highlight
-            if let leader = game.resolvedLeaderboard.first {
+            // P1 of the selected session: "Winner" once a race or sprint is over,
+            // "Fastest" for practice and qualifying, "Leader" while a race runs.
+            if let leader = headerEntries.first {
                 HStack(spacing: 8) {
                     HeadshotView(url: leader.headshot, size: 32)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Leader")
+                        Text(headerTitle)
                             .font(.caption2)
                             .foregroundColor(.secondary)
                         HStack(spacing: 4) {
@@ -205,10 +235,14 @@ struct RaceDetailView: View {
                         }
                     }
                     Spacer()
-                    Text(leader.score)
-                        .font(.title3)
-                        .fontWeight(.bold)
+                    // The feed's P1 value is the race time or best lap; never "P1".
+                    if let time = leader.gap, !time.isEmpty {
+                        Text(time)
+                            .font(.subheadline.monospacedDigit())
+                            .fontWeight(.semibold)
+                    }
                 }
+                .accessibilityElement(children: .combine)
             }
         }
         .padding()
@@ -435,7 +469,9 @@ struct RaceDetailView: View {
                 }
             }
 
-            if let session, !session.leaderboard.isEmpty {
+            if let session, !session.leaderboard.isEmpty, session.leaderboard.contains(where: { $0.qualifyingTimes != nil }) {
+                qualifyingTable(session)
+            } else if let session, !session.leaderboard.isEmpty {
                 // Header row
                 HStack(spacing: 0) {
                     Text("Pos")
@@ -445,7 +481,7 @@ struct RaceDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text("Constructor")
                         .frame(width: 90, alignment: .leading)
-                    Text("Time/Gap")
+                    Text(session.isTimedLapSession ? "Time" : "Time/Gap")
                         .frame(width: 80, alignment: .trailing)
                 }
                 .font(.caption2)
@@ -453,6 +489,7 @@ struct RaceDetailView: View {
                 .padding(.bottom, 4)
 
                 let gained = sessions.positionsGainedVsQualifying(in: session)
+                let gaps = RaceGap.gaps(for: session.leaderboard)
                 ForEach(Array(session.leaderboard.enumerated()), id: \.offset) { index, entry in
                     let isLeader = index == 0
                     NavigationLink { F1DriverView(driverName: viewModel.f1Standings?.driverStanding(matching: entry.name)?.driverName ?? entry.name) } label: {
@@ -473,7 +510,7 @@ struct RaceDetailView: View {
                             .frame(width: 90, alignment: .leading)
                             .lineLimit(1)
                             .font(.caption)
-                        Text(entry.gap ?? "--")
+                        gapCell(entry, reading: index < gaps.count ? gaps[index] : .missing)
                             .frame(width: 80, alignment: .trailing)
                     }
                     .font(.caption)
@@ -504,6 +541,100 @@ struct RaceDetailView: View {
         .cornerRadius(12)
     }
 
+    /// Sprint qualifying sends each lap time where a gap belongs ("+1:11.608"): show it
+    /// as the time it is, with the real gap under it — the same reading as the ribbon.
+    @ViewBuilder
+    private func gapCell(_ entry: LeaderboardEntry, reading: RaceGap) -> some View {
+        switch reading {
+        case .lapTime(let lap, let behind):
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(RaceGap.clockString(lap))
+                    .monospacedDigit()
+                Text(RaceGap.gapString(behind))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+            }
+        default:
+            Text(entry.gap ?? "--")
+                .monospacedDigit()
+        }
+    }
+
+    // MARK: - Qualifying (Q1 / Q2 / Q3)
+    /// Each driver's best time in every part they reached, with the knockout lines drawn
+    /// where Q1 and Q2 end. Times come from Jolpica once the session is classified.
+    private func qualifyingTable(_ session: EventSession) -> some View {
+        let entries = session.leaderboard.sorted { ($0.position == 0 ? Int.max : $0.position) < ($1.position == 0 ? Int.max : $1.position) }
+        let cuts = F1RoundResults.qualifyingCutLines(fieldSize: entries.count)
+        return VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Text("Pos").frame(width: 32, alignment: .leading)
+                Text("Driver").frame(maxWidth: .infinity, alignment: .leading)
+                ForEach(["Q1", "Q2", "Q3"], id: \.self) { part in
+                    Text(part).frame(width: 66, alignment: .trailing)
+                }
+            }
+            .font(.caption2)
+            .foregroundColor(.secondary)
+            .padding(.bottom, 4)
+
+            ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
+                let times = entry.qualifyingTimes ?? []
+                HStack(spacing: 0) {
+                    Text("\(entry.position)")
+                        .frame(width: 32, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(entry.name).lineLimit(1)
+                        if let constructor = entry.constructor {
+                            Text(constructor)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    ForEach(0..<3, id: \.self) { part in
+                        Text(part < times.count ? times[part] : "")
+                            .monospacedDigit()
+                            // The time that set the grid slot stands out.
+                            .fontWeight(part == times.count - 1 ? .semibold : .regular)
+                            .frame(width: 66, alignment: .trailing)
+                    }
+                }
+                .font(.caption)
+                .foregroundColor(index == 0 ? .primary : .secondary)
+                .padding(.vertical, 3)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(qualifyingAccessibility(entry, times: times))
+
+                if entry.position == cuts.q2 || entry.position == cuts.q1, index < entries.count - 1 {
+                    cutLine(entry.position == cuts.q2 ? "Q2 knockout" : "Q1 knockout")
+                }
+            }
+        }
+    }
+
+    private func cutLine(_ label: String) -> some View {
+        HStack(spacing: 6) {
+            Rectangle().fill(Color.red.opacity(0.5)).frame(height: 1)
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.red)
+                .fixedSize()
+            Rectangle().fill(Color.red.opacity(0.5)).frame(height: 1)
+        }
+        .padding(.vertical, 2)
+        .accessibilityHidden(true)
+    }
+
+    private func qualifyingAccessibility(_ entry: LeaderboardEntry, times: [String]) -> String {
+        var parts = ["Position \(entry.position)", entry.name]
+        if let constructor = entry.constructor { parts.append(constructor) }
+        for (index, time) in times.enumerated() { parts.append("Q\(index + 1) \(time)") }
+        if times.count == 1 { parts.append("out in Q1") } else if times.count == 2 { parts.append("out in Q2") }
+        return parts.joined(separator: ", ")
+    }
+
     // MARK: - Weekend Schedule
     private var weekendSchedule: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -519,7 +650,7 @@ struct RaceDetailView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(session.displayName)
                                 .font(.subheadline)
-                            if let sessionDate = parseSessionDate(session.date) {
+                            if let sessionDate = session.startDate {
                                 GameTimeLabel(date: sessionDate, includeDate: true)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
@@ -539,24 +670,6 @@ struct RaceDetailView: View {
         .padding()
         .background(Color.secondaryGroupedBackground)
         .cornerRadius(12)
-    }
-
-    private static let sessionDateFormatters: [DateFormatter] = {
-        let formats = ["yyyy-MM-dd'T'HH:mm:ssX", "yyyy-MM-dd'T'HH:mmX"]
-        return formats.map { format in
-            let df = DateFormatter()
-            df.dateFormat = format
-            df.locale = Locale(identifier: "en_US_POSIX")
-            return df
-        }
-    }()
-
-    private func parseSessionDate(_ dateString: String?) -> Date? {
-        guard let dateString else { return nil }
-        for formatter in Self.sessionDateFormatters {
-            if let date = formatter.date(from: dateString) { return date }
-        }
-        return nil
     }
 
     // MARK: - Legacy Leaderboard (fallback when no sessions)
@@ -695,6 +808,12 @@ struct RaceDetailView: View {
                                     .foregroundColor(.secondary)
                             }
                             stintBar(stints: driver.stints, maxLap: maxLap)
+                            if !driver.pitStops.isEmpty {
+                                Text(pitStopSummary(driver.pitStops))
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(2)
+                            }
                         }
                     }
                 }
@@ -711,7 +830,8 @@ struct RaceDetailView: View {
         }
     }
 
-    @ViewBuilder
+    /// One bar per driver, a segment per stint, its compound's letter on it. The height
+    /// follows Dynamic Type, and VoiceOver reads the stints as words.
     private func stintBar(stints: [F1Stint], maxLap: Int) -> some View {
         GeometryReader { geo in
             HStack(spacing: 1) {
@@ -720,17 +840,33 @@ struct RaceDetailView: View {
                     let width = maxLap > 0 ? geo.size.width * CGFloat(laps) / CGFloat(maxLap) : 0
                     Rectangle()
                         .fill(tireColor(stint.compound))
-                        .frame(width: width, height: 8)
+                        .frame(width: width, height: stintBarHeight)
                         .overlay(
                             Text(stint.compound.prefix(1))
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundColor(.white)
+                                .font(.caption2.weight(.bold))
+                                .minimumScaleFactor(0.6)
+                                .foregroundColor(tireLetterColor(stint.compound))
+                                .opacity(width >= 10 ? 1 : 0)
                         )
                 }
             }
         }
-        .frame(height: 8)
+        .frame(height: stintBarHeight)
         .cornerRadius(2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(stintAccessibility(stints))
+    }
+
+    private func stintAccessibility(_ stints: [F1Stint]) -> String {
+        guard !stints.isEmpty else { return "No tyre data" }
+        return "Tyres: " + stints.map { "\($0.compound.capitalized), laps \($0.lapStart) to \($0.lapEnd)" }.joined(separator: "; ")
+    }
+
+    /// "Stops: L18 2.4s · L40 2.6s".
+    private func pitStopSummary(_ stops: [F1PitStop]) -> String {
+        "Stops: " + stops.map { stop in
+            stop.pitDuration.map { "L\(stop.lapNumber) \(String(format: "%.1f", $0))s" } ?? "L\(stop.lapNumber)"
+        }.joined(separator: " · ")
     }
 
     private func tireColor(_ compound: String) -> Color {
@@ -741,6 +877,14 @@ struct RaceDetailView: View {
         case "INTERMEDIATE": return .green
         case "WET": return .blue
         default: return .gray
+        }
+    }
+
+    /// White disappears on the pale Hard and the yellow Medium; those get black.
+    private func tireLetterColor(_ compound: String) -> Color {
+        switch compound.uppercased() {
+        case "HARD", "MEDIUM": return .black
+        default: return .white
         }
     }
 
