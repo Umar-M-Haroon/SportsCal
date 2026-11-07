@@ -67,13 +67,13 @@ final class TeamsManager {
         var seen: [String: Team] = [:]
         for game in games where game.isCollegeFootball {
             let sides = [
-                (game.idHomeTeam, game.strHomeTeam, game.strHomeTeamBadge, game.homeConference),
-                (game.idAwayTeam, game.strAwayTeam, game.strAwayTeamBadge, game.awayConference),
+                (game.idHomeTeam, game.strHomeTeam, game.strHomeTeamBadge, game.homeConference, game.teamCode(home: true)),
+                (game.idAwayTeam, game.strAwayTeam, game.strAwayTeamBadge, game.awayConference, game.teamCode(home: false)),
             ]
-            for (id, name, badge, conference) in sides {
+            for (id, name, badge, conference, code) in sides {
                 guard let id, !id.isEmpty, seen[id] == nil,
                       let conference, conference != CollegeConference.fcs.rawValue else { continue }
-                seen[id] = Team(idTeam: id, strTeam: name, strTeamShort: nil, strAlternate: nil, strTeamBadge: badge)
+                seen[id] = Team(idTeam: id, strTeam: name, strTeamShort: code, strAlternate: nil, strTeamBadge: badge)
             }
         }
         let updated = seen.values.sorted { ($0.strTeam ?? "") < ($1.strTeam ?? "") }

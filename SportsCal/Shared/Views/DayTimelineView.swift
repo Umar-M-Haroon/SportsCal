@@ -298,7 +298,7 @@ struct DayTimelineView: View {
                                 .foregroundStyle(.secondary)
                         }
                         if let date = game.standardDate {
-                            GameTimeLabel(date: date)
+                            GameTimeLabel(date: date, isTBD: game.isTimeTBD)
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
                         }

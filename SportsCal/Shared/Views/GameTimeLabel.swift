@@ -16,6 +16,9 @@ import SwiftUI
 struct GameTimeLabel: View {
     let date: Date
     var includeDate: Bool = false
+    /// The day is set but the start time isn't (`Game.isTimeTBD`): show "TBD" rather
+    /// than the placeholder clock time the source parked the game at.
+    var isTBD: Bool = false
 
     private var startsWithinHour: Bool {
         let interval = date.timeIntervalSinceNow
@@ -23,7 +26,13 @@ struct GameTimeLabel: View {
     }
 
     var body: some View {
-        if startsWithinHour {
+        if isTBD {
+            if includeDate && !Calendar.current.isDateInToday(date) {
+                Text("\(date.formatted(.dateTime.month(.abbreviated).day())) · TBD")
+            } else {
+                Text("TBD")
+            }
+        } else if startsWithinHour {
             // "in 4 min", live-updating — `.relative` reads "4 min, 21 sec" and wraps in a row.
             Text(.currentDate, format: .reference(to: date, allowedFields: [.minute], maxFieldCount: 1))
                 .lineLimit(1)

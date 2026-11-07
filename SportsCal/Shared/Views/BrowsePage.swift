@@ -1125,7 +1125,7 @@ struct BrowseSportView: View {
         } else {
             VStack(alignment: .leading, spacing: 4) {
                 if let date = game.standardDate {
-                    GameTimeLabel(date: date, includeDate: false)
+                    GameTimeLabel(date: date, includeDate: false, isTBD: game.isTimeTBD)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

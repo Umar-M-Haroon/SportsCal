@@ -242,6 +242,6 @@ enum AmbientFormat {
     static func abbreviation(team: Team?, fallback: String) -> String {
         // Delegates to the shared model helper so every surface derives abbreviations
         // identically ("New York Knicks" → "NYK", never "NEW").
-        Team.shortCode(strTeamShort: team?.strTeamShort, name: fallback)
+        Team.shortCode(strTeamShort: team?.strTeamShort, name: fallback, idTeam: team?.idTeam)
     }
 }

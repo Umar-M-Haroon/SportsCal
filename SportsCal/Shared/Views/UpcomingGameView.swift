@@ -47,12 +47,12 @@ struct UpcomingGameView: View {
                                     Circle()
                                         .fill(Color.appLive)
                                         .frame(width: 5, height: 5)
-                                    GameTimeLabel(date: date)
+                                    GameTimeLabel(date: date, isTBD: game.isTimeTBD)
                                         .font(.system(.subheadline, design: .monospaced).weight(.bold))
                                         .foregroundStyle(timeColor)
                                 }
                             } else {
-                                GameTimeLabel(date: date)
+                                GameTimeLabel(date: date, isTBD: game.isTimeTBD)
                                     .font(.system(.subheadline, design: .monospaced).weight(.medium))
                                     .foregroundStyle(timeColor)
                             }

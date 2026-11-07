@@ -341,7 +341,7 @@ struct GameDetailView: View {
                 Text(date.formatted(.dateTime.weekday(.wide).month().day()))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
-                GameTimeLabel(date: date)
+                GameTimeLabel(date: date, isTBD: game.isTimeTBD)
                     .font(.title2)
                     .fontWeight(.semibold)
             }
@@ -409,7 +409,7 @@ struct GameDetailView: View {
             }
             Spacer()
             if let date = game.standardDate {
-                GameTimeLabel(date: date, includeDate: true)
+                GameTimeLabel(date: date, includeDate: true, isTBD: game.isTimeTBD)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -677,8 +677,8 @@ struct GameDetailSections: View {
     }
 
     private func seriesStatusText(homeWins: Int, awayWins: Int, seriesCompleted: Bool) -> String {
-        let homeShort = Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam)
-        let awayShort = Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam)
+        let homeShort = Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam, idTeam: homeTeam.idTeam)
+        let awayShort = Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam, idTeam: awayTeam.idTeam)
         if seriesCompleted {
             if homeWins > awayWins { return "\(homeShort) win series \(homeWins)-\(awayWins)" }
             if awayWins > homeWins { return "\(awayShort) win series \(awayWins)-\(homeWins)" }
@@ -722,7 +722,7 @@ struct GameDetailSections: View {
                         Divider()
 
                         HStack(spacing: 0) {
-                            Text(Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam))
+                            Text(Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam, idTeam: awayTeam.idTeam))
                                 .frame(width: 60, alignment: .leading)
                                 .lineLimit(1)
                             ForEach(Array(awayLs.enumerated()), id: \.offset) { _, score in
@@ -740,7 +740,7 @@ struct GameDetailSections: View {
                         .font(.caption)
 
                         HStack(spacing: 0) {
-                            Text(Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam))
+                            Text(Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam, idTeam: homeTeam.idTeam))
                                 .frame(width: 60, alignment: .leading)
                                 .lineLimit(1)
                             ForEach(Array(homeLs.enumerated()), id: \.offset) { _, score in

@@ -122,7 +122,7 @@ struct CompactGameRowView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         } else if let date = game.standardDate {
-            GameTimeLabel(date: date)
+            GameTimeLabel(date: date, isTBD: game.isTimeTBD)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

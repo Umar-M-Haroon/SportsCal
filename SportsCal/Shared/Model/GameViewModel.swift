@@ -1948,6 +1948,10 @@ public class GameViewModel: NSObject {
                 circuitInfo: live.circuitInfo ?? scheduled.circuitInfo,
                 homeSeed: live.homeSeed ?? scheduled.homeSeed,
                 awaySeed: live.awaySeed ?? scheduled.awaySeed,
+                // College football sections key off these; dropping them moved a game
+                // out of its conference section the moment it went live.
+                homeConference: live.homeConference ?? scheduled.homeConference,
+                awayConference: live.awayConference ?? scheduled.awayConference,
                 // Tennis: the draw decides which tour view a match appears under, and
                 // mixed doubles appears under both. Rebuilding the game without it would
                 // drop a live mixed-doubles match out of the Women's tab the moment its
@@ -1963,7 +1967,9 @@ public class GameViewModel: NSObject {
                 seasonPhase: live.seasonPhase ?? scheduled.seasonPhase,
                 // Live-only: the live copy's or none, never a stale scheduled one.
                 situation: live.situation,
-                excitement: live.excitement ?? scheduled.excitement
+                excitement: live.excitement ?? scheduled.excitement,
+                homeAbbreviation: live.homeAbbreviation ?? scheduled.homeAbbreviation,
+                awayAbbreviation: live.awayAbbreviation ?? scheduled.awayAbbreviation
             )
             changedByID[scheduled.id] = games[i]
         }
@@ -3090,6 +3096,17 @@ public class GameViewModel: NSObject {
             return (homeTeam, awayTeam)
         }
 
+        // College football teams aren't in the `/teams` directory. A name lookup there
+        // only finds the *basketball* entry of the same school ("Vanderbilt Commodores",
+        // ESPN id 238, no abbreviation), which rendered the full name hyphenated across
+        // the row and a made-up code ("BCO" for BYU). Build both sides from the game:
+        // its own `ncaaf-` ID and ESPN's abbreviation.
+        if game.isCollegeFootball {
+            let homeTeam = Team(idTeam: idHomeTeam, strTeam: strHomeTeam, strTeamShort: game.teamCode(home: true), strAlternate: nil, strTeamBadge: game.strHomeTeamBadge)
+            let awayTeam = Team(idTeam: game.idAwayTeam ?? strAwayTeam, strTeam: strAwayTeam, strTeamShort: game.teamCode(home: false), strAlternate: nil, strTeamBadge: game.strAwayTeamBadge)
+            return (homeTeam, awayTeam)
+        }
+
         guard let idAwayTeam else {
             let homeTeam = Team(idTeam: idHomeTeam, strTeam: strHomeTeam, strTeamShort: nil, strAlternate: nil, strTeamBadge: game.strHomeTeamBadge)
             let awayTeam = Team(idTeam: game.idEvent ?? strAwayTeam, strTeam: strAwayTeam, strTeamShort: nil, strAlternate: nil, strTeamBadge: game.strAwayTeamBadge)
@@ -3114,7 +3131,7 @@ public class GameViewModel: NSObject {
             foundHomeTeam = Team(
                 idTeam: idHomeTeam,
                 strTeam: strHomeTeam,
-                strTeamShort: Team.shortCode(strTeamShort: nil, name: strHomeTeam),
+                strTeamShort: game.teamCode(home: true),
                 strAlternate: nil,
                 strTeamBadge: game.strHomeTeamBadge
             )
@@ -3135,7 +3152,7 @@ public class GameViewModel: NSObject {
             foundAwayTeam = Team(
                 idTeam: idAwayTeam,
                 strTeam: strAwayTeam,
-                strTeamShort: Team.shortCode(strTeamShort: nil, name: strAwayTeam),
+                strTeamShort: game.teamCode(home: false),
                 strAlternate: nil,
                 strTeamBadge: game.strAwayTeamBadge
             )

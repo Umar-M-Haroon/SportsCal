@@ -77,7 +77,12 @@ enum WidgetDataStore {
             legDisplay: game.legDisplay,
             aggregateScore: game.aggregateScore,
             homeSeed: game.homeSeed,
-            awaySeed: game.awaySeed
+            awaySeed: game.awaySeed,
+            homeConference: game.homeConference,
+            awayConference: game.awayConference,
+            homeAbbreviation: game.homeAbbreviation,
+            awayAbbreviation: game.awayAbbreviation,
+            timeTBD: game.timeTBD
         )
     }
 
