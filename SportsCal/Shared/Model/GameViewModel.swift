@@ -3316,7 +3316,7 @@ extension GameViewModel {
         // Races: the "away team" is the leader when you tap Follow; label the activity
         // with the series ("Formula 1") instead of freezing that driver into its attributes.
         let awayTeamName = game.isRace ? LiveSportActivityAttributes.raceSubtitle(for: game) : rawAwayTeamName
-        let homeShort = game.isRace ? (game.isNASCAR ? "CUP" : "F1") : homeTeam.strTeamShort
+        let homeShort = game.isRace ? LiveActivityRace.seriesCode(for: game) : homeTeam.strTeamShort
         let awayShort = game.isRace ? nil : awayTeam.strTeamShort
 
         // Download and cache badge images independently (don't require both to succeed)

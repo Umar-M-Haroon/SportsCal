@@ -62,15 +62,38 @@ public struct LiveActivityRace: Codable, Hashable, Sendable {
         } else {
             self.session = session?.shortName ?? "Race"
         }
+        // Endurance cars carry a crew ("Cameron / Nasr / Tandy"), so initials of the
+        // first driver read as nonsense ("CAM"); the car number is what fans follow.
+        let usesCarNumber = game.isEnduranceRacing
         self.leaders = top.map { entry in
             Driver(
                 position: entry.position,
-                code: standings?.driverCode(for: entry.name) ?? Self.fallbackCode(entry.name),
+                code: Self.code(for: entry, usesCarNumber: usesCarNumber, standings: standings),
                 gap: entry.position == 1 ? nil : Self.shortGap(entry.gap),
                 teamColor: entry.stockCar.flatMap { NASCARVocabulary.manufacturerColorHex($0.manufacturer) }
                     ?? entry.constructor.flatMap { standings?.teamColorHex(for: $0) }
             )
         }
+    }
+
+    /// Short series code for the Dynamic Island slots, where a race has no team
+    /// abbreviation ("F1", "CUP", "INDY", "IMSA", "WEC"). Shared by the app's own
+    /// starts and the server's push-to-start so both label the activity the same.
+    public static func seriesCode(for game: Game) -> String {
+        switch game.racingSeries {
+        case .nascarCup: "CUP"
+        case .indycar: "INDY"
+        case .imsa: "IMSA"
+        case .wec: "WEC"
+        default: "F1"
+        }
+    }
+
+    static func code(for entry: LeaderboardEntry, usesCarNumber: Bool, standings: F1Standings?) -> String {
+        if usesCarNumber, let number = entry.stockCar?.carNumber, !number.isEmpty {
+            return "#\(number)"
+        }
+        return standings?.driverCode(for: entry.name) ?? fallbackCode(entry.name)
     }
 
     static func fallbackCode(_ name: String) -> String {

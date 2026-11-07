@@ -1178,7 +1178,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // Validate the ID-based lookup by name to guard against cross-sport ID collisions
         // (e.g. ESPN NBA ID 18 ≠ ESPN NHL ID 18 — a wrong translation would return "LAC"
         // for the Knicks). Fall back to name-based lookup if the ID resolves to a different team.
-        let homeTeamShort = game.idHomeTeam.flatMap { id -> String? in
+        // Races have no team code: label the island with the series ("INDY", "WEC").
+        let raceShort: String? = game.isRace ? LiveActivityRace.seriesCode(for: game) : nil
+        let homeTeamShort = raceShort ?? game.idHomeTeam.flatMap { id -> String? in
             guard teamNameByID[id] == homeTeam else { return nil }
             return teamShortByID[id]
         } ?? teamShortByName[homeTeam]
