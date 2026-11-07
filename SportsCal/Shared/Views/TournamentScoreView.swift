@@ -16,6 +16,22 @@ struct TournamentScoreView: View {
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var sheetType: SheetType?
     var isLive: Bool
+    @ScaledMetric(relativeTo: .caption) private var positionWidth: CGFloat = 26
+    @ScaledMetric(relativeTo: .subheadline) private var scoreWidth: CGFloat = 34
+
+    /// "Tied 3rd, Scottie Scheffler, -12, through 14."
+    private func rowLabel(entry: LeaderboardEntry, position: String, isFavorite: Bool) -> String {
+        var parts = [GolfScoreStyle.spokenPosition(position), entry.name]
+        if isFavorite { parts.append("favorite") }
+        parts.append(entry.score)
+        if let today = entry.today, entry.isOnCourse { parts.append("today \(today)") }
+        if let thru = entry.thruHole {
+            parts.append(thru == "F" ? "finished round" : "through \(thru.replacingOccurrences(of: "*", with: ""))")
+        } else if let tee = GolfScoreStyle.teeTimeText(entry) {
+            parts.append("tees off \(tee)")
+        }
+        return parts.joined(separator: ", ")
+    }
 
     private var sportType: SportType? {
         guard let id = game.idLeague, let leagueID = Int(id), let league = Leagues(rawValue: leagueID) else { return nil }
@@ -100,14 +116,16 @@ struct TournamentScoreView: View {
             // Mini leaderboard
             let entries = displayEntries
             if !entries.isEmpty {
+                let positions = game.resolvedLeaderboard.golfPositionLabelsByName()
                 VStack(spacing: 4) {
                     ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
                         let isFavPlayer = favorites.containsPlayer(entry.name)
+                        let position = positions[entry.name] ?? "\(entry.position)"
                         HStack(spacing: 6) {
-                            Text("\(entry.position)")
-                                .font(.caption)
+                            Text(position)
+                                .font(.caption.monospacedDigit())
                                 .foregroundColor(.secondary)
-                                .frame(width: 18, alignment: .trailing)
+                                .frame(minWidth: positionWidth, alignment: .trailing)
                             HeadshotView(url: entry.headshot, size: 24)
                             if isFavPlayer {
                                 Image(systemName: "star.fill")
@@ -134,18 +152,30 @@ struct TournamentScoreView: View {
                                 .font(.caption2)
                                 .foregroundColor(movement < 0 ? .green : .red)
                             }
-                            if let thru = entry.thruHole {
+                            Spacer()
+                            if entry.isOnCourse, let thru = entry.thruHole, let today = entry.today {
+                                // Today's round and where they are in it.
+                                Text("\(today) · \(thru)")
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundColor(.secondary)
+                            } else if entry.thruHole == nil, let tee = GolfScoreStyle.teeTimeText(entry) {
+                                Text(tee)
+                                    .font(.caption2)
+                                    .foregroundColor(.blue)
+                            } else if let thru = entry.thruHole {
                                 Text(thru)
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
-                            Spacer()
                             Text(entry.score)
-                                .font(.subheadline)
+                                .font(.subheadline.monospacedDigit())
                                 .fontWeight(index == 0 ? .semibold : .regular)
-                                .foregroundColor(index == 0 ? .primary : .secondary)
+                                .foregroundColor(index == 0 ? GolfScoreStyle.color(toPar: entry.score) : .secondary)
+                                .frame(minWidth: scoreWidth, alignment: .trailing)
                         }
                         .opacity(entry.isCut == true ? 0.5 : 1.0)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(rowLabel(entry: entry, position: position, isFavorite: isFavPlayer))
                     }
                 }
             } else if game.strAwayTeam != "TBD" {

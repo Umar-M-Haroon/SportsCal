@@ -20,6 +20,23 @@ struct GolfLeaderboardEntry: TimelineEntry {
     let entries: [LeaderboardEntry]
     let status: String?
     let progress: String?
+    /// Tied positions ("T3") by player, worked out over the whole board.
+    var positions: [String: String] = [:]
+    /// Favourite players' names, so their rows stand out.
+    var favorites: Set<String> = []
+}
+
+/// The rows a leaderboard widget shows: the top of the board, with followed players
+/// pulled in from further down (in board order) so they're never cut off.
+enum GolfWidgetRows {
+    static func rows(from board: [LeaderboardEntry], favorites: Set<String>, limit: Int) -> [LeaderboardEntry] {
+        let extras = board.dropFirst(limit).filter { favorites.contains($0.name) }.prefix(max(limit - 3, 0))
+        return Array(board.prefix(limit - extras.count)) + extras
+    }
+
+    static var favoritePlayers: Set<String> {
+        Set(UserDefaults(suiteName: "group.Komodo.SportsCal")?.stringArray(forKey: "FavoritePlayers") ?? [])
+    }
 }
 
 // MARK: - Intent
@@ -125,13 +142,17 @@ struct GolfLeaderboardProvider: AppIntentTimelineProvider {
     }
 
     private func entry(for game: Game) -> GolfLeaderboardEntry {
-        GolfLeaderboardEntry(
+        let board = game.resolvedLeaderboard
+        let favorites = GolfWidgetRows.favoritePlayers
+        return GolfLeaderboardEntry(
             date: .now,
             tournamentName: game.strHomeTeam,
             venueName: game.venueName,
-            entries: Array(game.resolvedLeaderboard.prefix(8)),
+            entries: GolfWidgetRows.rows(from: board, favorites: favorites, limit: 8),
             status: game.strStatus,
-            progress: game.strProgress
+            progress: game.strProgress,
+            positions: board.golfPositionLabelsByName(),
+            favorites: favorites
         )
     }
 }
@@ -174,11 +195,11 @@ struct GolfLeaderboardWidgetView: View {
             // Column headers
             HStack(spacing: 0) {
                 Text("Pos")
-                    .frame(width: 24, alignment: .leading)
+                    .frame(width: 28, alignment: .leading)
                 Text("Player")
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text("Thru")
-                    .frame(width: 36, alignment: .trailing)
+                    .frame(width: 52, alignment: .trailing)
                 Text("Score")
                     .frame(width: 40, alignment: .trailing)
             }
@@ -223,34 +244,49 @@ struct GolfLeaderboardWidgetView: View {
         HStack(spacing: 0) {
             // Position + movement
             HStack(spacing: 1) {
-                Text("\(player.position)")
+                Text(entry.positions[player.name] ?? "\(player.position)")
                     .font(.system(size: 10, weight: index == 0 ? .bold : .regular))
-                    .frame(width: 16, alignment: .leading)
+                    .minimumScaleFactor(0.7)
+                    .frame(width: 20, alignment: .leading)
                 if let movement = player.movement, movement != 0 {
                     Image(systemName: movement > 0 ? "arrow.up" : "arrow.down")
                         .font(.system(size: 6))
                         .foregroundColor(movement > 0 ? .green : .red)
                 }
             }
-            .frame(width: 24, alignment: .leading)
+            .frame(width: 28, alignment: .leading)
 
-            // Player name
-            Text(player.name)
-                .font(.system(size: 10))
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // Player name (followed players starred)
+            HStack(spacing: 2) {
+                if entry.favorites.contains(player.name) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 7))
+                        .foregroundColor(.yellow)
+                }
+                Text(player.name)
+                    .font(.system(size: 10, weight: entry.favorites.contains(player.name) ? .semibold : .regular))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Thru hole
-            if let thru = player.thruHole, !thru.isEmpty {
+            // Thru hole, or the tee time before the round starts
+            if (player.thruHole ?? "").isEmpty, let tee = Self.teeTimeText(player) {
+                Text(tee)
+                    .font(.system(size: 9))
+                    .foregroundColor(.blue)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .frame(width: 52, alignment: .trailing)
+            } else if let thru = player.thruHole, !thru.isEmpty {
                 Text(thru)
                     .font(.system(size: 9))
                     .foregroundColor(.secondary)
-                    .frame(width: 36, alignment: .trailing)
+                    .frame(width: 52, alignment: .trailing)
             } else {
                 Text("-")
                     .font(.system(size: 9))
                     .foregroundColor(.secondary)
-                    .frame(width: 36, alignment: .trailing)
+                    .frame(width: 52, alignment: .trailing)
             }
 
             // Score
@@ -265,11 +301,19 @@ struct GolfLeaderboardWidgetView: View {
         .cornerRadius(4)
     }
 
+    /// Under par green, like the app's golf views and the Live Activity.
     private func scoreColor(_ score: String) -> Color {
-        if score.hasPrefix("-") { return .red }
+        if score.hasPrefix("-") { return .green }
         if score == "E" { return .primary }
         if score.hasPrefix("+") { return .secondary }
         return .primary
+    }
+
+    /// The next tee time in the viewer's zone: "1:49 PM", or "Sat 1:49 PM".
+    static func teeTimeText(_ player: LeaderboardEntry) -> String? {
+        guard let date = player.teeTimeStart else { return player.teeTime }
+        if Calendar.current.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
+        return date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
     }
 }
 
