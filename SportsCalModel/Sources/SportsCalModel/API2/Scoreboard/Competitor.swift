@@ -34,6 +34,8 @@ public struct Competitor: Codable {
     public var errors: ESPNFlexibleNumber?
     /// Baseball probable starting pitchers, before first pitch.
     public var probables: [ESPNProbable]?
+    /// Tennis: this side is serving.
+    public var possession: Bool?
 
     public struct CuratedRank: Codable {
         public var current: Int?

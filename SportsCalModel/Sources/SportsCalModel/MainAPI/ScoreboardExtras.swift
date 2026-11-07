@@ -37,13 +37,15 @@ public struct ScoreboardExtras: Codable, Equatable, Hashable, Sendable {
     public var broadcasts: [String]?
     /// Baseball's winning, losing and saving pitchers, once the game is final.
     public var featuredPitchers: [FeaturedPitcher]?
+    /// Tennis: per-set tiebreaks and winners, who's serving, the court. See ``TennisMatchExtras``.
+    public var tennis: TennisMatchExtras?
 
     public init(homeWinner: Bool? = nil, awayWinner: Bool? = nil,
                 homeShootoutScore: Int? = nil, awayShootoutScore: Int? = nil,
                 homeHits: Int? = nil, awayHits: Int? = nil, homeErrors: Int? = nil, awayErrors: Int? = nil,
                 homeProbable: ProbablePitcher? = nil, awayProbable: ProbablePitcher? = nil,
                 soccerDetails: [MatchIncident]? = nil, broadcasts: [String]? = nil,
-                featuredPitchers: [FeaturedPitcher]? = nil) {
+                featuredPitchers: [FeaturedPitcher]? = nil, tennis: TennisMatchExtras? = nil) {
         self.homeWinner = homeWinner
         self.awayWinner = awayWinner
         self.homeShootoutScore = homeShootoutScore
@@ -57,6 +59,7 @@ public struct ScoreboardExtras: Codable, Equatable, Hashable, Sendable {
         self.soccerDetails = soccerDetails
         self.broadcasts = broadcasts
         self.featuredPitchers = featuredPitchers
+        self.tennis = tennis
     }
 
     /// Nothing to carry.
@@ -262,6 +265,7 @@ public extension Game {
     var soccerDetails: [MatchIncident]? { scoreboardExtras?.soccerDetails }
     var broadcasts: [String]? { scoreboardExtras?.broadcasts }
     var featuredPitchers: [FeaturedPitcher]? { scoreboardExtras?.featuredPitchers }
+    var tennisExtras: TennisMatchExtras? { scoreboardExtras?.tennis }
 
     /// A rank or bracket seed after a merge. For college (where ESPN's curated rank is
     /// the only source) a fresh copy is final even when it's nil — a team that falls out

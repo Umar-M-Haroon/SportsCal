@@ -26,7 +26,11 @@ public struct LiveEvent: Codable, Equatable, Hashable {
         }
     }
 
-    public init?(events: Scoreboard, league: Leagues, constructorMap: [String: String] = [:], timingMap: [String: [String: String]] = [:]) {
+    /// Players kept on a golf board built for the schedule and the live feed. The
+    /// tournament page asks `/golf/tournament` for the whole field (`golfFieldLimit: nil`).
+    public static let golfFieldLimit = 30
+
+    public init?(events: Scoreboard, league: Leagues, constructorMap: [String: String] = [:], timingMap: [String: [String: String]] = [:], golfFieldLimit: Int? = LiveEvent.golfFieldLimit) {
         guard let slug = events.leagues.first?.slug,
               let league = Leagues(slug: slug) else { return nil }
         let sportType = SportType(league: league)
@@ -260,8 +264,7 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                             drawSlug: grouping.grouping?.slug,
                             // ESPN's winner is the only reliable one for a retirement
                             // or walkover, where the sets don't say who went through.
-                            scoreboardExtras: (home.winner == nil && away.winner == nil)
-                                ? nil : ScoreboardExtras(homeWinner: home.winner, awayWinner: away.winner)
+                            scoreboardExtras: Self.tennisExtras(competition: competition, home: home, away: away)
                         )
                     }
                 }
@@ -408,7 +411,10 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 let progress = golfState == "pre"
                     ? nil
                     : (competition.status?.type.shortDetail ?? event.status?.type.shortDetail)
-                let competitors = Array((competition.competitors ?? []).prefix(30))
+                let allCompetitors = competition.competitors ?? []
+                let competitors = golfFieldLimit.map { Array(allCompetitors.prefix($0)) } ?? allCompetitors
+                let currentPeriod = competition.status?.period ?? event.status?.period ?? 0
+                let eventCompleted = (competition.status?.type.completed ?? event.status?.type.completed) == true
 
                 // Extract course hole pars from the first competitor's first round hole data
                 let holePars: [Int]? = {
@@ -430,10 +436,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 // Par from completed rounds' strokes vs. to-par (every tour's board carries
                 // these). The hole sum is only a fallback, and only for a full 18: summed over
                 // a round still in progress it's the par of the holes played so far.
-                let completedRounds: Int = {
-                    let current = competition.status?.period ?? event.status?.period ?? 0
-                    return golfState == "post" ? current : current - 1
-                }()
+                // A suspended round reads "post" without being complete; only ESPN's
+                // `completed` says the last round is in.
+                let completedRounds = eventCompleted ? currentPeriod : currentPeriod - 1
                 let roundPar = GolfPar.inferred(fromRounds: (competition.competitors ?? []).flatMap { competitor in
                     (competitor.linescores ?? [])
                         .filter { ($0.period ?? .max) <= completedRounds }
@@ -459,8 +464,11 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     let name = competitor.athlete?.displayName ?? "TBD"
                     let score = competitor.score ?? "--"
                     let headshot = competitor.athlete?.headshot
-                    let thruHole = competitor.statistics?.first(where: { $0.name == "thruHole" })?.displayValue
-                    let rounds = (competitor.linescores ?? []).compactMap { ls -> String? in
+                    // Finished rounds only: a round in progress is `today` + `thruHole`.
+                    let reading = GolfRoundReading(linescores: competitor.linescores ?? [],
+                                                   currentPeriod: currentPeriod, eventCompleted: eventCompleted)
+                    let thruHole = competitor.statistics?.first(where: { $0.name == "thruHole" })?.displayValue ?? reading.thru
+                    let rounds = reading.completed.compactMap { ls -> String? in
                         guard let v = ls.value else { return nil }
                         return v.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(v))" : "\(v)"
                     }
@@ -474,6 +482,7 @@ public struct LiveEvent: Codable, Equatable, Hashable {
 
                     // Tee time for upcoming round
                     let teeTime = competitor.statistics?.first(where: { $0.name == "teeTime" })?.displayValue
+                        ?? reading.teeTime?.displayString
 
                     // Country flag
                     let flagURL = competitor.athlete?.flag?.href
@@ -541,7 +550,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         movement: movement,
                         flagURL: flagURL, flagAlt: flagAlt,
                         teeTime: teeTime,
-                        roundDetails: roundDetails
+                        roundDetails: roundDetails,
+                        today: reading.today,
+                        teeTimeDate: reading.teeTime?.isoString
                     )
                 }
 
@@ -549,7 +560,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 let leaderboard = competitors.map { competitor in
                     let name = competitor.athlete?.displayName ?? "TBD"
                     let score = competitor.score ?? "--"
-                    let rounds = (competitor.linescores ?? []).compactMap { ls -> String? in
+                    let reading = GolfRoundReading(linescores: competitor.linescores ?? [],
+                                                   currentPeriod: currentPeriod, eventCompleted: eventCompleted)
+                    let rounds = reading.completed.compactMap { ls -> String? in
                         guard let v = ls.value else { return nil }
                         return v.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(v))" : "\(v)"
                     }.joined(separator: ",")
@@ -581,6 +594,15 @@ public struct LiveEvent: Codable, Equatable, Hashable {
     public var events: [Game]
     enum CodingKeys: String, CodingKey {
         case events
+    }
+
+    /// Winner plus set tiebreaks/winners, serve, court and seeds for a tennis match.
+    static func tennisExtras(competition: Competition, home: Competitor, away: Competitor) -> ScoreboardExtras? {
+        let extras = ScoreboardExtras(
+            homeWinner: home.winner, awayWinner: away.winner,
+            tennis: TennisMatchExtras(competition: competition, home: home, away: away)
+        )
+        return extras.isEmpty ? nil : extras
     }
 
     /// `events` is required, but decodes game by game: a malformed game is skipped and
@@ -841,7 +863,7 @@ public struct Game: Identifiable, Equatable, Hashable {
     public let homeRecord: String?
     public let awayRecord: String?
     public let circuitInfo: F1CircuitInfo?
-    public let golfCourseInfo: GolfCourseInfo?
+    public var golfCourseInfo: GolfCourseInfo?
     /// Last day of a multi-day event — a golf tournament's Sunday. Nil for single-day games.
     /// `strTimestamp` stays the start, so an event spans `strTimestamp...endDate`.
     public let endDate: String?
@@ -1205,6 +1227,12 @@ extension Game {
             return league.isRacing
         }
         return strSport == "racing"
+    }
+
+    /// Live Activities show a leaderboard (`LiveActivityRace`) instead of a score: race
+    /// weekends and golf tournaments.
+    public var usesLeaderboardActivity: Bool {
+        isRace || golfTour != nil
     }
 
     /// The racing series this game belongs to, or nil when it isn't a race.

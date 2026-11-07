@@ -22,12 +22,19 @@ public struct LeaderboardEntry: Codable, Equatable, Hashable {
     public let flagURL: String?
     public let flagAlt: String?
     public let teeTime: String?
-    public let roundDetails: [GolfRoundDetail]?
+    public var roundDetails: [GolfRoundDetail]?
     /// Stock-car detail (NASCAR). All optional, so F1/golf/tennis rows and older payloads
     /// decode unchanged; `constructor` holds the race team for these rows.
     public var stockCar: StockCarDetail?
+    /// Golf: to-par for the round being played ("-3"), or for the round just finished
+    /// while it's still the tournament's current round. `rounds` holds finished rounds
+    /// only, so a round in progress lives here (with `thruHole`), never in `rounds`.
+    public var today: String?
+    /// Golf: the next tee time as ISO 8601, for local formatting. `teeTime` keeps a
+    /// display string for builds that predate this.
+    public var teeTimeDate: String?
 
-    public init(name: String, score: String, position: Int, headshot: String? = nil, thruHole: String? = nil, rounds: [String] = [], constructor: String? = nil, gap: String? = nil, isCut: Bool? = nil, movement: Int? = nil, flagURL: String? = nil, flagAlt: String? = nil, teeTime: String? = nil, roundDetails: [GolfRoundDetail]? = nil, stockCar: StockCarDetail? = nil) {
+    public init(name: String, score: String, position: Int, headshot: String? = nil, thruHole: String? = nil, rounds: [String] = [], constructor: String? = nil, gap: String? = nil, isCut: Bool? = nil, movement: Int? = nil, flagURL: String? = nil, flagAlt: String? = nil, teeTime: String? = nil, roundDetails: [GolfRoundDetail]? = nil, stockCar: StockCarDetail? = nil, today: String? = nil, teeTimeDate: String? = nil) {
         self.name = name
         self.score = score
         self.position = position
@@ -43,6 +50,8 @@ public struct LeaderboardEntry: Codable, Equatable, Hashable {
         self.teeTime = teeTime
         self.roundDetails = roundDetails
         self.stockCar = stockCar
+        self.today = today
+        self.teeTimeDate = teeTimeDate
     }
 }
 

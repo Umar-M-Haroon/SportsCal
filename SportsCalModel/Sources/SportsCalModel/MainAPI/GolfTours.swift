@@ -170,7 +170,7 @@ public enum GolfPar {
 
     /// Par of a regulation 18-hole course. Real courses sit at 69–73; the margin is slack,
     /// not a guess at any particular course.
-    static let plausiblePar = 66...74
+    public static let plausiblePar = 66...74
 
     /// "E" → 0, "-6" → -6, "+2" → 2. Nil for anything else ("--", "CUT", "F").
     static func parseToPar(_ text: String) -> Int? {

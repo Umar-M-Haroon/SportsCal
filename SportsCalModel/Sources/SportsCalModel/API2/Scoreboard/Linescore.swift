@@ -13,6 +13,10 @@ public struct Linescore: Codable {
     public var linescores: [HoleLinescore]?
     public var statistics: LinescoreStatistics?
     public var scoreType: ScoreType?
+    /// Tennis: this side's points in the set's tiebreak (the 5 of 6-7⁵). Absent otherwise.
+    public var tiebreak: Int?
+    /// Tennis: whether this side won the set. Absent while the set is being played.
+    public var winner: Bool?
 
     public init(value: Double?, displayValue: String? = nil, period: Int? = nil, linescores: [HoleLinescore]? = nil, statistics: LinescoreStatistics? = nil, scoreType: ScoreType? = nil) {
         self.value = value
