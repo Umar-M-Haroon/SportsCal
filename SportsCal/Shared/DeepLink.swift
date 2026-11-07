@@ -35,6 +35,25 @@ enum DeepLink {
         }
     }
 
+    /// The public web schedule page for a team (server: `/team/:id`, which
+    /// redirects to the slugged URL). Only TheSportsDB numeric team ids exist there.
+    static func teamPageURL(teamID: String) -> URL? {
+        guard isServerTeamID(teamID) else { return nil }
+        return URL(string: "https://\(host)/team/\(teamID)")
+    }
+
+    /// A subscribable calendar feed of the team's games (server: `/cal/team/:id.ics`).
+    /// `webcal://` hands it to Calendar as a subscription that keeps itself updated,
+    /// rather than a one-off import.
+    static func teamCalendarURL(teamID: String) -> URL? {
+        guard isServerTeamID(teamID) else { return nil }
+        return URL(string: "webcal://\(host)/cal/team/\(teamID).ics")
+    }
+
+    static func isServerTeamID(_ id: String) -> Bool {
+        !id.isEmpty && id.count <= 12 && id.allSatisfy(\.isASCIIDigit)
+    }
+
     /// Parse an inbound link into a route, or nil if it isn't one of ours. Host is
     /// not checked — the OS only delivers links for our associated domain, so this
     /// also tolerates staging/alternate hosts.
@@ -51,4 +70,8 @@ enum DeepLink {
             return nil
         }
     }
+}
+
+private extension Character {
+    var isASCIIDigit: Bool { ("0"..."9").contains(self) }
 }

@@ -23,6 +23,14 @@ import EventKitUI
 
 struct TeamDetailView: View {
     let team: Team
+    @Environment(\.openURL) private var openURL
+
+    /// The team's TheSportsDB id when the server knows it (public pages and feeds
+    /// are keyed by it). Synthetic ids for players and ESPN-only teams don't qualify.
+    private var webTeamID: String? {
+        guard let id = team.idTeam, TeamsManager.shared.team(byID: id) != nil else { return nil }
+        return id
+    }
 
     @Environment(GameViewModel.self) private var viewModel
     @Environment(Favorites.self) private var favorites
@@ -143,6 +151,22 @@ struct TeamDetailView: View {
                         .foregroundStyle(isFavorited ? .yellow : .secondary)
                 }
                 .accessibilityLabel(isFavorited ? "Remove favorite" : "Add favorite")
+            }
+            if let calendarURL = webTeamID.flatMap(DeepLink.teamCalendarURL(teamID:)) {
+                ToolbarItem(placement: .secondaryAction) {
+                    Button {
+                        openURL(calendarURL)
+                    } label: {
+                        Label("Subscribe in Calendar", systemImage: "calendar.badge.plus")
+                    }
+                }
+            }
+            if let pageURL = webTeamID.flatMap(DeepLink.teamPageURL(teamID:)) {
+                ToolbarItem(placement: .secondaryAction) {
+                    ShareLink(item: pageURL, subject: Text("\(team.strTeam ?? "Team") schedule")) {
+                        Label("Share Schedule", systemImage: "square.and.arrow.up")
+                    }
+                }
             }
         }
         .navigationDestination(item: $selectedOpponent) { opponent in
