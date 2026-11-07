@@ -156,7 +156,9 @@ enum LiveMerge {
                 homeLeaders: f.homeLeaders,
                 awayLeaders: f.awayLeaders,
                 isCompleted: f.isCompleted,
-                aggregateScore: f.aggregateScore
+                aggregateScore: f.aggregateScore,
+                // nil (a source without ESPN's extras) keeps the snapshot's.
+                scoreboardExtras: f.scoreboardExtras
             )
             // ESPN's situation is the whole picture, so it replaces the old one outright:
             // a nil down, distance, red zone or possession means "none right now" (a

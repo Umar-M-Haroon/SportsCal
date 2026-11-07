@@ -65,4 +65,27 @@ final class ScheduleSliceTests: XCTestCase {
         XCTAssertEqual(slim.golf?.events.first { $0.idEvent == "11" }?.leaderboardEntries?.count, 30, "in progress keeps the field")
         XCTAssertEqual(ScheduleSlimming.slimmed(slim), slim, "idempotent, so re-merging doesn't rewrite the blob")
     }
+
+    func testOldFinishedSoccerDropsItsTimelineButKeepsTheWinner() {
+        func match(_ id: String, daysAgo: Double) -> Game {
+            var game = TestGameFactory.make(
+                idEvent: id, idLeague: "4328", strHomeTeam: "Arsenal", strAwayTeam: "Chelsea",
+                intHomeScore: "1", intAwayScore: "1", strStatus: "post",
+                strTimestamp: "2026-06-27T17:10:00", isoDate: Date().addingTimeInterval(-daysAgo * 86400)
+            )
+            game.scoreboardExtras = ScoreboardExtras(
+                homeWinner: true, awayWinner: false, homeShootoutScore: 4, awayShootoutScore: 3,
+                soccerDetails: [MatchIncident(kind: .goal, clock: "12'", athlete: "B. Saka", side: .home)]
+            )
+            return game
+        }
+        let slim = ScheduleSlimming.slimmed(LiveScore(soccer: LiveEvent(events: [match("old", daysAgo: 10), match("new", daysAgo: 1)])))
+        let old = slim.soccer?.events.first { $0.idEvent == "old" }
+        XCTAssertNil(old?.soccerDetails)
+        XCTAssertEqual(old?.homeWinner, true)
+        XCTAssertEqual(old?.homeShootoutScore, 4)
+        XCTAssertEqual(slim.soccer?.events.first { $0.idEvent == "new" }?.soccerDetails?.count, 1, "recent keeps the timeline")
+        XCTAssertEqual(ScheduleSlimming.slimmed(slim), slim)
+    }
 }
+

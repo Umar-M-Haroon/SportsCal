@@ -77,7 +77,10 @@ enum WidgetDataStore {
             legDisplay: game.legDisplay,
             aggregateScore: game.aggregateScore,
             homeSeed: game.homeSeed,
-            awaySeed: game.awaySeed
+            awaySeed: game.awaySeed,
+            // Winner and shootout score (a widget row bolds the side that went through);
+            // not the goal timeline or pitchers.
+            scoreboardExtras: game.scoreboardExtras?.withoutHeavyDetail
         )
     }
 

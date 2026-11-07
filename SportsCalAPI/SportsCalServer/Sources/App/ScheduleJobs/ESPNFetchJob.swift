@@ -1679,8 +1679,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 golfCourseInfo: espnGame.golfCourseInfo ?? scheduleGame.golfCourseInfo,
                 legDisplay: espnGame.legDisplay ?? scheduleGame.legDisplay,
                 aggregateScore: espnGame.aggregateScore ?? scheduleGame.aggregateScore,
-                homeSeed: espnGame.homeSeed ?? scheduleGame.homeSeed,
-                awaySeed: espnGame.awaySeed ?? scheduleGame.awaySeed,
+                // College ranks come only from ESPN, so its nil is final: a team that
+                // drops out of the Top 25 must not keep the schedule's old number.
+                homeSeed: Game.mergedSeed(fresh: espnGame.homeSeed, stale: scheduleGame.homeSeed, idLeague: scheduleGame.idLeague),
+                awaySeed: Game.mergedSeed(fresh: espnGame.awaySeed, stale: scheduleGame.awaySeed, idLeague: scheduleGame.idLeague),
                 homeConference: espnGame.homeConference ?? scheduleGame.homeConference,
                 awayConference: espnGame.awayConference ?? scheduleGame.awayConference,
                 // Preserve tournament identity from the structured schedule — without this the
@@ -1707,7 +1709,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 situation: espnGame.situation,
                 // Sticky: ESPN drops a game off its board a day after it ends, and the
                 // schedule copy is then the only place the score lives.
-                excitement: espnGame.excitement ?? scheduleGame.excitement
+                excitement: espnGame.excitement ?? scheduleGame.excitement,
+                // ESPN's copy whole (a fresh nil winner beats a stale one); the schedule's
+                // only once ESPN has dropped the game off its board.
+                scoreboardExtras: espnGame.scoreboardExtras ?? scheduleGame.scoreboardExtras
             )
         }
 
@@ -1807,7 +1812,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             if let foundEvent = events.first(where: {$0.strHomeTeam == event.strHomeTeam && $0.strAwayTeam == event.strAwayTeam}) {
                 // Only include essential fields - strSport/strLeague are computed from idLeague
                 // Deprecated fields removed: strPlayer, idPlayer, intEventScore, intEventScoreTotal, strEventTime, dateEvent, updated
-                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, homeConference: event.homeConference ?? foundEvent.homeConference, awayConference: event.awayConference ?? foundEvent.awayConference, tournamentName: foundEvent.tournamentName ?? event.tournamentName, round: foundEvent.round ?? event.round, drawSlug: foundEvent.drawSlug ?? event.drawSlug, playoff: event.playoff, season: foundEvent.season ?? event.season, seasonPhase: event.seasonPhase ?? foundEvent.seasonPhase, situation: event.situation, excitement: event.excitement ?? foundEvent.excitement)
+                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, homeConference: event.homeConference ?? foundEvent.homeConference, awayConference: event.awayConference ?? foundEvent.awayConference, tournamentName: foundEvent.tournamentName ?? event.tournamentName, round: foundEvent.round ?? event.round, drawSlug: foundEvent.drawSlug ?? event.drawSlug, playoff: event.playoff, season: foundEvent.season ?? event.season, seasonPhase: event.seasonPhase ?? foundEvent.seasonPhase, situation: event.situation, excitement: event.excitement ?? foundEvent.excitement, scoreboardExtras: event.scoreboardExtras ?? foundEvent.scoreboardExtras)
             } else {
                 return event
             }

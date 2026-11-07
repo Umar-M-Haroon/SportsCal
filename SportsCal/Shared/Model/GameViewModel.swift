@@ -1954,8 +1954,10 @@ public class GameViewModel: NSObject {
                 sessions: live.sessions ?? scheduled.sessions,
                 venueName: live.venueName ?? scheduled.venueName,
                 circuitInfo: live.circuitInfo ?? scheduled.circuitInfo,
-                homeSeed: live.homeSeed ?? scheduled.homeSeed,
-                awaySeed: live.awaySeed ?? scheduled.awaySeed,
+                // College ranks come only from ESPN: a team that drops out of the
+                // Top 25 must lose its number, not keep the schedule's stale one.
+                homeSeed: Game.mergedSeed(fresh: live.homeSeed, stale: scheduled.homeSeed, idLeague: scheduled.idLeague),
+                awaySeed: Game.mergedSeed(fresh: live.awaySeed, stale: scheduled.awaySeed, idLeague: scheduled.idLeague),
                 // Tennis: the draw decides which tour view a match appears under, and
                 // mixed doubles appears under both. Rebuilding the game without it would
                 // drop a live mixed-doubles match out of the Women's tab the moment its
@@ -1971,7 +1973,9 @@ public class GameViewModel: NSObject {
                 seasonPhase: live.seasonPhase ?? scheduled.seasonPhase,
                 // Live-only: the live copy's or none, never a stale scheduled one.
                 situation: live.situation,
-                excitement: live.excitement ?? scheduled.excitement
+                excitement: live.excitement ?? scheduled.excitement,
+                // Whole, so a fresh board's nil winner isn't papered over by a stale one.
+                scoreboardExtras: live.scoreboardExtras ?? scheduled.scoreboardExtras
             )
             changedByID[scheduled.id] = games[i]
         }

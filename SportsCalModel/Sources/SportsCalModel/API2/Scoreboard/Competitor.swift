@@ -24,6 +24,16 @@ public struct Competitor: Codable {
     /// Tennis doubles: the pair's names live here ("Hugo Nys / Edouard
     /// Roger-Vasselin"), NOT on `team`/`athlete` — without it doubles decode as "TBD".
     public var roster: Roster?
+    /// Whether this side won. ESPN's call, so it covers what the score can't: a
+    /// penalty shootout, a tennis retirement or walkover.
+    public var winner: Bool?
+    /// Soccer penalty-shootout goals.
+    public var shootoutScore: ESPNFlexibleNumber?
+    /// Baseball hits and errors (the H and E of R/H/E).
+    public var hits: ESPNFlexibleNumber?
+    public var errors: ESPNFlexibleNumber?
+    /// Baseball probable starting pitchers, before first pitch.
+    public var probables: [ESPNProbable]?
 
     public struct CuratedRank: Codable {
         public var current: Int?

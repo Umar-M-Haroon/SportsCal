@@ -291,7 +291,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                         if let date = game.getDate(), date.timeIntervalSinceNow > 0 {
                             // Only include essential fields - strSport/strLeague are computed from idLeague
                             // Deprecated fields removed: strPlayer, idPlayer, intEventScore, intEventScoreTotal, strEventTime, dateEvent, updated
-                            let newGame = Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: game.idHomeTeam, idAwayTeam: game.idAwayTeam, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: nil, intAwayScore: nil, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: game.strStatus, strProgress: game.strProgress, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: game.strTimestamp, isoDate: game.getDate(), season: game.season, seasonPhase: game.seasonPhase)
+                            let newGame = Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: game.idHomeTeam, idAwayTeam: game.idAwayTeam, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: nil, intAwayScore: nil, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: game.strStatus, strProgress: game.strProgress, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: game.strTimestamp, isoDate: game.getDate(), season: game.season, seasonPhase: game.seasonPhase, scoreboardExtras: game.scoreboardExtras)
                             return newGame
                         }
                         return game
@@ -1010,8 +1010,10 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 awayTeamColor: espnGame.awayTeamColor ?? scheduleGame.awayTeamColor,
                 homeRecord: espnGame.homeRecord ?? scheduleGame.homeRecord,
                 awayRecord: espnGame.awayRecord ?? scheduleGame.awayRecord,
-                homeSeed: espnGame.homeSeed ?? scheduleGame.homeSeed,
-                awaySeed: espnGame.awaySeed ?? scheduleGame.awaySeed,
+                // College ranks come only from ESPN, so its nil is final: a team that
+                // drops out of the Top 25 must not keep the schedule's old number.
+                homeSeed: Game.mergedSeed(fresh: espnGame.homeSeed, stale: scheduleGame.homeSeed, idLeague: scheduleGame.idLeague),
+                awaySeed: Game.mergedSeed(fresh: espnGame.awaySeed, stale: scheduleGame.awaySeed, idLeague: scheduleGame.idLeague),
                 homeConference: espnGame.homeConference ?? scheduleGame.homeConference,
                 awayConference: espnGame.awayConference ?? scheduleGame.awayConference,
                 playoff: espnGame.playoff ?? scheduleGame.playoff,
@@ -1019,7 +1021,8 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 // ESPN's season.type is authoritative; TheSportsDB's round codes are the fallback.
                 seasonPhase: espnGame.seasonPhase ?? scheduleGame.seasonPhase,
                 situation: espnGame.situation,
-                excitement: espnGame.excitement ?? scheduleGame.excitement
+                excitement: espnGame.excitement ?? scheduleGame.excitement,
+                scoreboardExtras: espnGame.scoreboardExtras ?? scheduleGame.scoreboardExtras
             )
         }
 

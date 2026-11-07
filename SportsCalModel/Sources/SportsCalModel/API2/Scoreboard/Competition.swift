@@ -25,6 +25,8 @@ public struct Competition: Codable {
     public var notes: [CompetitionNote]?
     /// Tennis: round metadata (e.g. "Quarterfinal"). Present on ESPN tennis competitions.
     public var round: CompetitionRound?
+    /// Goals, cards and shootout kicks (soccer), in match order.
+    public var details: [ESPNCompetitionDetail]?
 
     public init(id: String, uid: String, date: String, attendance: Int? = nil, type: CompetitionType? = nil, timeValid: Bool? = nil, neutralSite: Bool? = nil, conferenceCompetition: Bool? = nil, recent: Bool? = nil, venue: Venue? = nil, competitors: [Competitor]? = nil, situation: Situation? = nil, status: Status? = nil, broadcasts: [Broadcast]? = nil, format: Format? = nil, startDate: String? = nil, geoBroadcasts: [GeoBroadcast]? = nil, tickets: [Ticket]? = nil, leg: CompetitionLeg? = nil, series: CompetitionSeries? = nil, notes: [CompetitionNote]? = nil, round: CompetitionRound? = nil) {
         self.id = id

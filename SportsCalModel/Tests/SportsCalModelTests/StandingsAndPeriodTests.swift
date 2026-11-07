@@ -82,4 +82,27 @@ final class StandingsAndPeriodTests: XCTestCase {
         XCTAssertNil(Leagues.nhl.periodLengthSeconds(5, phase: .regular))
         XCTAssertNil(Leagues.mlb.periodLengthSeconds(1))
     }
+
+    // MARK: Scoreboard extras
+
+    func testSoccerScoreboardCarriesWinnerAndIncidentsOverTheWire() throws {
+        let scoreboard = try XCTUnwrap(JSONLoader.load(file: "Premier-League-Scoreboard", type: Scoreboard.self) as? Scoreboard)
+        let games = try XCTUnwrap(LiveEvent(events: scoreboard, league: .English_Premier_League)).events
+        let game = try XCTUnwrap(games.first { $0.soccerDetails?.isEmpty == false })
+        let goal = try XCTUnwrap(game.soccerDetails?.first { $0.kind == .goal })
+        XCTAssertNotNil(goal.athlete)
+        XCTAssertNotNil(goal.side)
+        XCTAssertTrue(game.homeWinner != nil || game.awayWinner != nil)
+
+        // Round trip: the wire keeps it, and a slimmed copy drops only the timeline.
+        let decoded = try JSONDecoder().decode(Game.self, from: JSONEncoder().encode(game))
+        XCTAssertEqual(decoded.scoreboardExtras, game.scoreboardExtras)
+        XCTAssertNil(game.scoreboardExtras?.withoutHeavyDetail.soccerDetails)
+        XCTAssertEqual(game.scoreboardExtras?.withoutHeavyDetail.homeWinner, game.homeWinner)
+    }
+
+    func testCollegeSeedMergeLetsAFreshNilWin() {
+        XCTAssertNil(Game.mergedSeed(fresh: nil, stale: 12, idLeague: "\(Leagues.ncaaf.rawValue)"))
+        XCTAssertEqual(Game.mergedSeed(fresh: nil, stale: 3, idLeague: "\(Leagues.nba.rawValue)"), 3)
+    }
 }

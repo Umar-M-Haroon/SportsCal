@@ -116,8 +116,8 @@ enum WatchGameLogic {
             sessions: live.sessions ?? scheduled.sessions,
             venueName: live.venueName ?? scheduled.venueName,
             circuitInfo: live.circuitInfo ?? scheduled.circuitInfo,
-            homeSeed: live.homeSeed ?? scheduled.homeSeed,
-            awaySeed: live.awaySeed ?? scheduled.awaySeed,
+            homeSeed: Game.mergedSeed(fresh: live.homeSeed, stale: scheduled.homeSeed, idLeague: scheduled.idLeague),
+            awaySeed: Game.mergedSeed(fresh: live.awaySeed, stale: scheduled.awaySeed, idLeague: scheduled.idLeague),
             tournamentName: scheduled.tournamentName ?? live.tournamentName,
             round: scheduled.round ?? live.round,
             drawSlug: scheduled.drawSlug ?? live.drawSlug,
@@ -126,7 +126,8 @@ enum WatchGameLogic {
             season: scheduled.season ?? live.season,
             seasonPhase: live.seasonPhase ?? scheduled.seasonPhase,
             situation: live.situation,
-            excitement: live.excitement ?? scheduled.excitement
+            excitement: live.excitement ?? scheduled.excitement,
+            scoreboardExtras: live.scoreboardExtras ?? scheduled.scoreboardExtras
         )
     }
 
