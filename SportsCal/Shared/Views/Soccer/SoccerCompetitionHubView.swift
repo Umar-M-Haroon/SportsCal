@@ -6,6 +6,8 @@
 //  (upcoming and results, from the app's own schedule) and its top scorers and
 //  assisters, each linking to a player page. The table and leaders come from
 //  `/soccer/competition/:leagueID`; a cup with no table opens on its matches.
+//  League matches group by matchday where TheSportsDB gave one; table rows open the
+//  team page, and the user's teams are picked out.
 //
 
 import SwiftUI
@@ -20,6 +22,8 @@ struct SoccerCompetitionHubView: View {
 
     @State private var hub: SoccerCompetitionHub?
     @State private var isLoading = true
+    /// The table / leaders fetch failed (not a 404: a cup with neither is fine).
+    @State private var hubLoadFailed = false
     @State private var tab: Tab?
     @State private var showsResults = false
     @State private var leaderKind: LeaderKind = .goals
@@ -63,10 +67,20 @@ struct SoccerCompetitionHubView: View {
                     .labelsHidden()
                 }
 
+                if hubLoadFailed && hub == nil {
+                    hubErrorCard
+                }
+
                 switch currentTab {
                 case .table:
                     if let hub {
-                        SoccerLeagueTableView(groups: hub.groups, zones: hub.zones)
+                        SoccerLeagueTableView(
+                            groups: hub.groups, zones: hub.zones,
+                            team: { teamForTableRow($0) },
+                            isFavorite: { row in
+                                teamForTableRow(row).map { favorites.contains(team: $0) } ?? favorites.contains(row.teamName)
+                            }
+                        )
                     }
                 case .matches:
                     matches
@@ -115,7 +129,7 @@ struct SoccerCompetitionHubView: View {
     private func load() async {
         isLoading = true
         defer { isLoading = false }
-        async let fetchedHub = try? NetworkHandler.getSoccerCompetition(league: league)
+        async let fetchedHub = fetchHub()
 
         let leagueID = String(league.rawValue)
         var schedule = viewModel.gamesDict[.soccer] ?? []
@@ -129,9 +143,59 @@ struct SoccerCompetitionHubView: View {
             .compactMap { viewModel.resolveGameWithTeams($0) }
         liveEventIDs = liveIDs
 
-        if let fresh = await fetchedHub {
+        switch await fetchedHub {
+        case .success(let fresh):
             hub = fresh
+            hubLoadFailed = false
+        case .failure(let error):
+            // A 404 is a competition with no table or leaders; anything else is worth a retry.
+            hubLoadFailed = !(error is NetworkHandler.SoccerMatchNotAvailable)
         }
+    }
+
+    private func fetchHub() async -> Result<SoccerCompetitionHub, Error> {
+        do {
+            return .success(try await NetworkHandler.getSoccerCompetition(league: league))
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    private var hubErrorCard: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle")
+                .foregroundStyle(.secondary)
+            Text("Couldn't load the table and top scorers.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Button("Retry") {
+                Task { await load() }
+            }
+            .buttonStyle(.bordered)
+            .disabled(isLoading)
+        }
+        .appCard()
+    }
+
+    /// The app's team for a table row (ESPN names it), for the team page link.
+    private func teamForTableRow(_ row: SoccerTableRow) -> Team? {
+        if let team = TeamsManager.shared.team(byNameOrAlias: row.teamName) { return team }
+        let key = Self.nameKey(row.teamName)
+        for gwt in games {
+            for team in [gwt.homeTeam, gwt.awayTeam].compactMap({ $0 })
+            where [team.strTeam, team.strTeamShort, team.strAlternate].contains(where: { $0.map(Self.nameKey) == key }) {
+                return team
+            }
+        }
+        return nil
+    }
+
+    /// "Brighton & Hove Albion" and "Brighton and Hove Albion FC" match.
+    private static func nameKey(_ name: String) -> String {
+        let spaced = name.lowercased().replacingOccurrences(of: "&", with: " and ")
+        let words = spaced.split { !$0.isLetter && !$0.isNumber }.filter { !["fc", "afc", "cf", "sc"].contains($0) }
+        return words.joined(separator: " ")
     }
 
     // MARK: - Matches
@@ -163,17 +227,27 @@ struct SoccerCompetitionHubView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, .appSpace5)
             } else {
-                ForEach(groupedByDay(shown), id: \.day) { group in
-                    dayCard(title: dayTitle(group.day), games: group.games, isLive: false)
+                ForEach(groupedForDisplay(shown), id: \.id) { group in
+                    dayCard(title: group.title, games: group.games, isLive: false,
+                            showsDays: group.id.hasPrefix("md-"))
                 }
             }
         }
     }
 
-    private func dayCard(title: String, games: [GameWithTeams], isLive: Bool) -> some View {
-        VStack(alignment: .leading, spacing: .appSpace2) {
+    /// `showsDays`: a matchday spans days, so its rows get a day line where it changes.
+    private func dayCard(title: String, games: [GameWithTeams], isLive: Bool, showsDays: Bool = false) -> some View {
+        let calendar = Calendar.current
+        return VStack(alignment: .leading, spacing: .appSpace2) {
             Text(title.uppercased()).appEyebrow().foregroundStyle(isLive ? Color.appLive : Color.app(.soccer))
-            ForEach(games) { gwt in
+            ForEach(Array(games.enumerated()), id: \.element.id) { index, gwt in
+                if showsDays, let date = gwt.game.standardDate,
+                   index == 0 || games[index - 1].game.standardDate.map({ !calendar.isDate($0, inSameDayAs: date) }) ?? true {
+                    Text(dayTitle(calendar.startOfDay(for: date)))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, index == 0 ? 0 : 4)
+                }
                 CompactGameRowView(
                     homeTeam: gwt.homeTeam ?? Team(strTeam: gwt.game.strHomeTeam),
                     awayTeam: gwt.awayTeam ?? Team(strTeam: gwt.game.strAwayTeam),
@@ -187,6 +261,38 @@ struct SoccerCompetitionHubView: View {
             }
         }
         .appCard()
+    }
+
+    /// Matchdays when most of the list has one (a league), otherwise days (a cup, or a
+    /// schedule from a server that doesn't send rounds). A game with no matchday in a
+    /// matchday list gets its own day group, in order.
+    private func groupedForDisplay(_ games: [GameWithTeams]) -> [(id: String, title: String, games: [GameWithTeams])] {
+        let withMatchday = games.filter { $0.game.soccerMatchday != nil }.count
+        guard !games.isEmpty, Double(withMatchday) / Double(games.count) >= 0.8 else {
+            return groupedByDay(games).map { (id: "day-\($0.day.timeIntervalSince1970)", title: dayTitle($0.day), games: $0.games) }
+        }
+        var groups: [(id: String, title: String, games: [GameWithTeams])] = []
+        var index: [String: Int] = [:]
+        let calendar = Calendar.current
+        for gwt in games {
+            let id: String
+            let title: String
+            if let matchday = gwt.game.soccerMatchday {
+                id = "md-\(matchday)"
+                title = "Matchday \(matchday)"
+            } else {
+                let day = calendar.startOfDay(for: gwt.game.standardDate ?? .distantFuture)
+                id = "day-\(day.timeIntervalSince1970)"
+                title = dayTitle(day)
+            }
+            if let existing = index[id] {
+                groups[existing].games.append(gwt)
+            } else {
+                index[id] = groups.count
+                groups.append((id: id, title: title, games: [gwt]))
+            }
+        }
+        return groups
     }
 
     /// Games bucketed by local calendar day, in the order given.
