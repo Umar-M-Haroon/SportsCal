@@ -1707,7 +1707,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 situation: espnGame.situation,
                 // Sticky: ESPN drops a game off its board a day after it ends, and the
                 // schedule copy is then the only place the score lives.
-                excitement: espnGame.excitement ?? scheduleGame.excitement
+                excitement: espnGame.excitement ?? scheduleGame.excitement,
+                homeAbbreviation: espnGame.homeAbbreviation ?? scheduleGame.homeAbbreviation,
+                awayAbbreviation: espnGame.awayAbbreviation ?? scheduleGame.awayAbbreviation,
+                // ESPN's TBD flag describes ESPN's time; it only applies while the kept
+                // timestamp is that same time.
+                timeTBD: scheduleGame.strTimestamp == espnGame.strTimestamp ? espnGame.timeTBD : scheduleGame.timeTBD
             )
         }
 
@@ -1807,7 +1812,11 @@ struct ESPNFetchJob: AsyncScheduledJob {
             if let foundEvent = events.first(where: {$0.strHomeTeam == event.strHomeTeam && $0.strAwayTeam == event.strAwayTeam}) {
                 // Only include essential fields - strSport/strLeague are computed from idLeague
                 // Deprecated fields removed: strPlayer, idPlayer, intEventScore, intEventScoreTotal, strEventTime, dateEvent, updated
-                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, homeConference: event.homeConference ?? foundEvent.homeConference, awayConference: event.awayConference ?? foundEvent.awayConference, tournamentName: foundEvent.tournamentName ?? event.tournamentName, round: foundEvent.round ?? event.round, drawSlug: foundEvent.drawSlug ?? event.drawSlug, playoff: event.playoff, season: foundEvent.season ?? event.season, seasonPhase: event.seasonPhase ?? foundEvent.seasonPhase, situation: event.situation, excitement: event.excitement ?? foundEvent.excitement)
+                let sameTime: Bool = foundEvent.strTimestamp == event.strTimestamp
+                let timeTBD: Bool? = sameTime ? event.timeTBD : foundEvent.timeTBD
+                let homeAbbreviation: String? = event.homeAbbreviation ?? foundEvent.homeAbbreviation
+                let awayAbbreviation: String? = event.awayAbbreviation ?? foundEvent.awayAbbreviation
+                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, homeConference: event.homeConference ?? foundEvent.homeConference, awayConference: event.awayConference ?? foundEvent.awayConference, tournamentName: foundEvent.tournamentName ?? event.tournamentName, round: foundEvent.round ?? event.round, drawSlug: foundEvent.drawSlug ?? event.drawSlug, playoff: event.playoff, season: foundEvent.season ?? event.season, seasonPhase: event.seasonPhase ?? foundEvent.seasonPhase, situation: event.situation, excitement: event.excitement ?? foundEvent.excitement, homeAbbreviation: homeAbbreviation, awayAbbreviation: awayAbbreviation, timeTBD: timeTBD)
             } else {
                 return event
             }

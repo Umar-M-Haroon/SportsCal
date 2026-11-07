@@ -197,7 +197,10 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         sport: sportType,
                         homeTeamID: homeTeam.id,
                         awayTeamID: awayTeam.id
-                    )
+                    ),
+                    homeAbbreviation: league.shipsTeamAbbreviations ? homeTeam.abbreviation : nil,
+                    awayAbbreviation: league.shipsTeamAbbreviations ? awayTeam.abbreviation : nil,
+                    timeTBD: competition.timeValid == false && eventState == "pre"
                 )]
             }
 
@@ -727,7 +730,7 @@ public enum DateParsers {
 
 // MARK: - Event
 public struct Game: Identifiable, Equatable, Hashable {
-    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, homeConference: String? = nil, awayConference: String? = nil, tournamentName: String? = nil, round: String? = nil, drawSlug: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil, endDate: String? = nil, season: String? = nil, seasonPhase: SeasonPhase? = nil, sportsDBRound: Int? = nil, situation: GameSituation? = nil, excitement: Int? = nil) {
+    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, homeConference: String? = nil, awayConference: String? = nil, tournamentName: String? = nil, round: String? = nil, drawSlug: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil, endDate: String? = nil, season: String? = nil, seasonPhase: SeasonPhase? = nil, sportsDBRound: Int? = nil, situation: GameSituation? = nil, excitement: Int? = nil, homeAbbreviation: String? = nil, awayAbbreviation: String? = nil, timeTBD: Bool? = nil) {
         self.idLiveScore = idLiveScore
         self.idEvent = idEvent
         self._strSport = strSport
@@ -739,8 +742,10 @@ public struct Game: Identifiable, Equatable, Hashable {
         self.strAwayTeam = strAwayTeam
         self.strHomeTeamBadge = strHomeTeamBadge
         self.strAwayTeamBadge = strAwayTeamBadge
-        self.intHomeScore = intHomeScore
-        self.intAwayScore = intAwayScore
+        // ESPN reports "0"–"0" for a game that hasn't kicked off; a not-started game
+        // has no score, so drop it here and every row shows the start time instead.
+        self.intHomeScore = Game.scoreIfStarted(intHomeScore, status: strStatus)
+        self.intAwayScore = Game.scoreIfStarted(intAwayScore, status: strStatus)
         self.strStatus = strStatus
         self.strProgress = strProgress
         self.strTimestamp = strTimestamp
@@ -779,6 +784,9 @@ public struct Game: Identifiable, Equatable, Hashable {
         self.sportsDBRound = sportsDBRound
         self.situation = situation
         self.excitement = excitement
+        self.homeAbbreviation = homeAbbreviation
+        self.awayAbbreviation = awayAbbreviation
+        self.timeTBD = timeTBD == true ? true : nil
         // Pre-compute date from strTimestamp if isoDate not provided
         if let isoDate {
             self.isoDate = isoDate
@@ -884,6 +892,14 @@ public struct Game: Identifiable, Equatable, Hashable {
     /// "Worth watching" score, 0...100, for a finished game whose league publishes win
     /// probability. Spoiler-free by design: it says how tense the game was, not who won.
     public var excitement: Int?
+    /// The source's own team abbreviation ("BYU", "UCLA", "BC"). Only sent for leagues
+    /// whose teams aren't in the `/teams` directory (college football), where the app
+    /// would otherwise have to guess a code from the name.
+    public var homeAbbreviation: String?
+    public var awayAbbreviation: String?
+    /// The date is set but the kickoff time isn't (ESPN `timeValid == false`; it parks
+    /// the game at midnight Eastern). Read ``isTimeTBD``, which also covers old servers.
+    public var timeTBD: Bool?
 
     // MARK: - Computed Properties (derived from idLeague)
     // Private storage for backward compatibility when decoding old data
@@ -925,6 +941,7 @@ extension Game: Codable {
         case playoff
         case strSeason, seasonPhase
         case situation, excitement
+        case homeAbbreviation, awayAbbreviation, timeTBD
         // TheSportsDB schedule round — decoded on ingest, never encoded
         case intRound
         // Computed properties - decoded for backward compatibility, not encoded
@@ -948,9 +965,10 @@ extension Game: Codable {
         strAwayTeam = try container.decodeIfPresent(String.self, forKey: .strAwayTeam) ?? "TBD"
         strHomeTeamBadge = try container.decodeIfPresent(String.self, forKey: .strHomeTeamBadge)
         strAwayTeamBadge = try container.decodeIfPresent(String.self, forKey: .strAwayTeamBadge)
-        intHomeScore = try container.decodeIfPresent(String.self, forKey: .intHomeScore)
-        intAwayScore = try container.decodeIfPresent(String.self, forKey: .intAwayScore)
-        strStatus = try container.decodeIfPresent(String.self, forKey: .strStatus)
+        let status = try container.decodeIfPresent(String.self, forKey: .strStatus)
+        intHomeScore = Game.scoreIfStarted(try container.decodeIfPresent(String.self, forKey: .intHomeScore), status: status)
+        intAwayScore = Game.scoreIfStarted(try container.decodeIfPresent(String.self, forKey: .intAwayScore), status: status)
+        strStatus = status
         strProgress = try container.decodeIfPresent(String.self, forKey: .strProgress)
         strTimestamp = try container.decodeIfPresent(String.self, forKey: .strTimestamp)
         lastPlay = try container.decodeIfPresent(String.self, forKey: .lastPlay)
@@ -1003,6 +1021,9 @@ extension Game: Codable {
         // Lenient: these are display extras; an unexpected shape must not fail the game.
         situation = (try? container.decodeIfPresent(GameSituation.self, forKey: .situation)) ?? nil
         excitement = (try? container.decodeIfPresent(Int.self, forKey: .excitement)) ?? nil
+        homeAbbreviation = (try? container.decodeIfPresent(String.self, forKey: .homeAbbreviation)) ?? nil
+        awayAbbreviation = (try? container.decodeIfPresent(String.self, forKey: .awayAbbreviation)) ?? nil
+        timeTBD = ((try? container.decodeIfPresent(Bool.self, forKey: .timeTBD)) ?? nil) == true ? true : nil
         // Transient server-side field, not persisted
         lastPlayScoreboardID = nil
         // Decode for backward compatibility with old cached data
@@ -1072,6 +1093,12 @@ extension Game: Codable {
             try container.encodeIfPresent(situation, forKey: .situation)
         }
         try container.encodeIfPresent(excitement, forKey: .excitement)
+        try container.encodeIfPresent(homeAbbreviation, forKey: .homeAbbreviation)
+        try container.encodeIfPresent(awayAbbreviation, forKey: .awayAbbreviation)
+        // Only a not-started game's time can be unset; a kicked-off game has a real time.
+        if timeTBD == true, Game.isNotStarted(status: strStatus) {
+            try container.encode(true, forKey: .timeTBD)
+        }
         // Note: strSport and strLeague are not encoded - they're computed from idLeague
         // Deprecated fields are not encoded: strPlayer, idPlayer, intEventScore,
         // intEventScoreTotal, strEventTime, dateEvent, updated
@@ -1495,7 +1522,10 @@ public extension Game {
             seasonPhase: self.seasonPhase,
             sportsDBRound: self.sportsDBRound,
             situation: situation ?? self.situation,
-            excitement: excitement ?? self.excitement
+            excitement: excitement ?? self.excitement,
+            homeAbbreviation: self.homeAbbreviation,
+            awayAbbreviation: self.awayAbbreviation,
+            timeTBD: self.timeTBD
         )
     }
 }

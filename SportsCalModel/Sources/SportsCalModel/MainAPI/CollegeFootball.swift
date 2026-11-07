@@ -65,6 +65,12 @@ public extension Leagues {
         self == .ncaaf ? Self.collegeTeamIDPrefix + espnID : espnID
     }
 
+    /// Leagues whose teams aren't in the `/teams` directory, so games carry ESPN's own
+    /// abbreviation (`Game.homeAbbreviation`) instead of leaving the app to guess one.
+    var shipsTeamAbbreviations: Bool {
+        self == .ncaaf || self == .ncaaMBBTournament
+    }
+
     /// The ESPN team ID behind a college team ID (`ncaaf-57` → `57`), or nil for any other ID.
     static func collegeESPNTeamID(_ teamID: String) -> String? {
         guard teamID.hasPrefix(collegeTeamIDPrefix) else { return nil }
@@ -81,6 +87,31 @@ public extension Game {
 
     var isCollegeFootball: Bool {
         idLeague == "\(Leagues.ncaaf.rawValue)"
+    }
+
+    /// A college team's display code when the game didn't carry ESPN's abbreviation
+    /// (an older server): a leading all-caps word is the school's own code ("BYU
+    /// Cougars" → "BYU", "UCLA Bruins" → "UCLA"). Nil when the name doesn't start with
+    /// one, so the caller falls back to `Team.shortCode`.
+    static func collegeCodeFromName(_ name: String) -> String? {
+        guard let first = name.split(separator: " ").first, (2...5).contains(first.count),
+              first.allSatisfy({ $0.isUppercase || $0 == "&" }) else { return nil }
+        return String(first)
+    }
+
+    /// The abbreviation for one side when the team isn't in the directory: the source's
+    /// own code first (ESPN's "BYU", "UCLA", "BC"), then — college only — a leading
+    /// all-caps word, then `Team.shortCode`'s name-derived code. College names put the
+    /// mascot second, so name-derived codes for them came out as "BCO" (BYU Cougars),
+    /// "UUT" (Utah Utes) and "CTI" (Clemson Tigers).
+    func teamCode(home: Bool) -> String {
+        let name = home ? strHomeTeam : strAwayTeam
+        if let code = (home ? homeAbbreviation : awayAbbreviation)?.trimmingCharacters(in: .whitespaces),
+           !code.isEmpty {
+            return code
+        }
+        if isCollegeFootball, let code = Game.collegeCodeFromName(name) { return code }
+        return Team.shortCode(strTeamShort: nil, name: name)
     }
 
     /// Both teams' conferences, home first. Unknown values (a newer server) drop out.

@@ -1019,7 +1019,12 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 // ESPN's season.type is authoritative; TheSportsDB's round codes are the fallback.
                 seasonPhase: espnGame.seasonPhase ?? scheduleGame.seasonPhase,
                 situation: espnGame.situation,
-                excitement: espnGame.excitement ?? scheduleGame.excitement
+                excitement: espnGame.excitement ?? scheduleGame.excitement,
+                homeAbbreviation: espnGame.homeAbbreviation ?? scheduleGame.homeAbbreviation,
+                awayAbbreviation: espnGame.awayAbbreviation ?? scheduleGame.awayAbbreviation,
+                // ESPN's TBD flag describes ESPN's time; it only applies while the kept
+                // timestamp is that same time.
+                timeTBD: scheduleGame.strTimestamp == espnGame.strTimestamp ? espnGame.timeTBD : scheduleGame.timeTBD
             )
         }
 

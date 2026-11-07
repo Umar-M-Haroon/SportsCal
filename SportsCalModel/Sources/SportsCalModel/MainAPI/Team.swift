@@ -74,7 +74,15 @@ public extension Team {
     /// Display abbreviation: the real `strTeamShort` when present, otherwise the
     /// initials of each word in the name ("New York Knicks" → "NYK"). Never returns
     /// the broken first-3-characters value ("New York Knicks" → "NEW").
-    static func shortCode(strTeamShort: String?, name: String) -> String {
+    ///
+    /// Pass `idTeam` when you have it: a college team's own code is used as-is whatever
+    /// its length — college codes run 2–5 characters ("BC", "UCLA", "TA&M"), and
+    /// re-deriving them from "Boston College Eagles" gives "BCE".
+    static func shortCode(strTeamShort: String?, name: String, idTeam: String? = nil) -> String {
+        if let idTeam, idTeam.hasPrefix(Leagues.collegeTeamIDPrefix),
+           let short = strTeamShort?.trimmingCharacters(in: .whitespaces), !short.isEmpty {
+            return short
+        }
         // Use a provided short code only when it's already a clean 3-letter
         // abbreviation; otherwise derive a 3-letter code from the name.
         if let short = strTeamShort?.folding(options: .diacriticInsensitive, locale: .current),
@@ -96,5 +104,5 @@ public extension Team {
     }
 
     /// Display abbreviation for this team, falling back to its own name.
-    var shortCode: String { Team.shortCode(strTeamShort: strTeamShort, name: strTeam ?? "") }
+    var shortCode: String { Team.shortCode(strTeamShort: strTeamShort, name: strTeam ?? "", idTeam: idTeam) }
 }
