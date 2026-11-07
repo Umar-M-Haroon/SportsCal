@@ -22,6 +22,10 @@
 import Foundation
 import StoreKit
 import Sentry
+import UserNotifications
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
 
 enum MonetizationTelemetry {
 
@@ -38,6 +42,16 @@ enum MonetizationTelemetry {
         static let adUpsellTapped = "ad_upsell_tapped"
         static let activationFirstFavorite = "activation_first_favorite"
         static let activationNotificationsEnabled = "activation_notifications_enabled"
+        // Activation funnel — each sent at most once per install, and only by
+        // installs in a retention cohort (never by upgraded legacy installs).
+        static let activationOnboardingStarted = "activation_onboarding_started"
+        static let activationOnboardingCompleted = "activation_onboarding_completed"
+        static let activationNotificationsGranted = "activation_notifications_granted"
+        static let activationNotificationsDenied = "activation_notifications_denied"
+        static let activationFirstReminderSet = "activation_first_reminder_set"
+        static let activationFirstLiveActivity = "activation_first_live_activity"
+        static let activationWidgetInstalled = "activation_widget_installed"
+        static let activationFirstGameDetailOpened = "activation_first_game_detail_opened"
         static let whatsNewShown = "whats_new_shown"
         static let whatsNewAction = "whats_new_action"
         static let appActive = "app_active"
@@ -154,17 +168,97 @@ enum MonetizationTelemetry {
     /// Americas still counts toward the next server day. The day is claimed up
     /// front (so a burst of scene activations sends once) and released on
     /// failure so the next foreground retries.
+    ///
+    /// Also carries the install's retention cohort (see `InstallCohort`):
+    /// `install_day` for installs first seen on a cohort-aware build, or
+    /// `cohort=legacy` for upgraded installs, which the server keeps out of
+    /// every cohort.
     static func appActive() {
         let day = Int(Date().timeIntervalSince1970) / 86_400
         let defaults = UserDefaults.standard
         guard defaults.integer(forKey: lastActiveDayKey) != day else { return }
         defaults.set(day, forKey: lastActiveDayKey)
-        send(Event.appActive, [:]) { delivered in
+        send(Event.appActive, InstallCohort.appActiveFields(InstallCohort.current())) { delivered in
             guard !delivered else { return }
             if UserDefaults.standard.integer(forKey: MonetizationTelemetry.lastActiveDayKey) == day {
                 UserDefaults.standard.removeObject(forKey: MonetizationTelemetry.lastActiveDayKey)
             }
         }
+    }
+
+    // MARK: - Install-once activation events
+
+    /// Sends `event` at most once per install, claiming a UserDefaults flag up
+    /// front and releasing it on a non-2xx (the same pattern `appActive` uses for
+    /// its day). Skipped entirely for legacy installs: upgraded users completing
+    /// their "first" anything months after installing would pollute the funnel.
+    /// `key` overrides the flag name for events that predate this helper.
+    static func recordOncePerInstall(_ event: String, _ fields: [String: String] = [:], key: String? = nil) {
+        guard InstallCohort.current().isCohortMember else { return }
+        let flag = key ?? "telemetry.once.\(event)"
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: flag) else { return }
+        defaults.set(true, forKey: flag)
+        send(event, fields) { delivered in
+            if !delivered { UserDefaults.standard.removeObject(forKey: flag) }
+        }
+    }
+
+    /// Called on every foreground: picks up the notification decision (whichever
+    /// prompt asked) and whether any widget is on the Home Screen. Both are
+    /// install-once, so after the first hit these are just a flag check plus an
+    /// async status read.
+    static func observeForegroundActivation() {
+        guard InstallCohort.current().isCohortMember else { return }
+        let defaults = UserDefaults.standard
+        if !defaults.bool(forKey: notificationsResolvedKey) {
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                let status = settings.authorizationStatus
+                guard let granted = ActivationSignals.notificationDecision(status) else { return }
+                notificationsResolved(granted: granted)
+            }
+        }
+        #if canImport(WidgetKit) && os(iOS)
+        if !defaults.bool(forKey: "telemetry.once.\(Event.activationWidgetInstalled)") {
+            WidgetCenter.shared.getCurrentConfigurations { result in
+                guard case .success(let widgets) = result, !widgets.isEmpty else { return }
+                recordOncePerInstall(Event.activationWidgetInstalled)
+            }
+        }
+        #endif
+    }
+
+    /// One flag for both outcomes: the first decision observed wins.
+    private static let notificationsResolvedKey = "telemetry.once.notifications_resolved"
+
+    static func notificationsResolved(granted: Bool) {
+        recordOncePerInstall(
+            granted ? Event.activationNotificationsGranted : Event.activationNotificationsDenied,
+            key: notificationsResolvedKey
+        )
+    }
+
+    static func onboardingStarted() {
+        recordOncePerInstall(Event.activationOnboardingStarted)
+    }
+
+    static func onboardingCompleted(sportCount: Int) {
+        recordOncePerInstall(
+            Event.activationOnboardingCompleted,
+            ["sports": ActivationSignals.sportCountBucket(sportCount)]
+        )
+    }
+
+    static func firstReminderSet() {
+        recordOncePerInstall(Event.activationFirstReminderSet)
+    }
+
+    static func firstLiveActivity() {
+        recordOncePerInstall(Event.activationFirstLiveActivity)
+    }
+
+    static func firstGameDetailOpened() {
+        recordOncePerInstall(Event.activationFirstGameDetailOpened)
     }
 
     // MARK: - Typed conveniences
@@ -196,8 +290,10 @@ enum MonetizationTelemetry {
         record(Event.adUpsellTapped)
     }
 
+    /// Install-once; keeps the flag name it had before `recordOncePerInstall`
+    /// existed so installs that already sent it don't send it again.
     static func activationFirstFavorite() {
-        record(Event.activationFirstFavorite)
+        recordOncePerInstall(Event.activationFirstFavorite, key: "didEmitFirstFavorite")
     }
 
     static func activationNotificationsEnabled() {
@@ -211,5 +307,124 @@ enum MonetizationTelemetry {
     /// A CTA tapped on the What's New sheet, e.g. `competition:A-League`.
     static func whatsNewAction(_ action: String, version: String) {
         record(Event.whatsNewAction, ["action": action, "version": version])
+    }
+}
+
+// MARK: - Activation signals (pure)
+
+/// Pure mappings the activation events report, kept separate so tests can pin
+/// them. Bucket strings are allow-listed server-side (`breakoutValues["sports"]`),
+/// so keep the two in sync.
+enum ActivationSignals {
+    /// Coarse selected-sport count for `activation_onboarding_completed`.
+    static func sportCountBucket(_ count: Int) -> String {
+        switch count {
+        case ..<1: return "0"
+        case 1: return "1"
+        case 2: return "2"
+        case 3...4: return "3-4"
+        default: return "5+"
+        }
+    }
+
+    /// nil while the user hasn't been asked yet; otherwise whether they allowed
+    /// notifications (provisional/ephemeral count as allowed).
+    static func notificationDecision(_ status: UNAuthorizationStatus) -> Bool? {
+        switch status {
+        case .notDetermined: return nil
+        case .denied: return false
+        case .authorized, .provisional: return true
+        #if os(iOS)
+        case .ephemeral: return true
+        #endif
+        @unknown default: return nil
+        }
+    }
+}
+
+// MARK: - Retention cohort
+
+/// Which retention cohort this install belongs to, decided once, at the first
+/// launch of a cohort-aware build, and persisted.
+///
+/// - `.member(installDay:)`: a fresh install. `installDay` is the UTC epoch day
+///   of that first launch; every `app_active` carries it, so the server can file
+///   the ping under `d1/d7/d14/d30` without storing anything per install.
+/// - `.legacy`: an existing user upgrading. They were installed before we could
+///   see it, so they're kept out of every cohort and the activation funnel.
+///
+/// Legacy is detected from state an earlier build already wrote: a non-zero
+/// `launches` count (incremented on every launch for years, read here BEFORE
+/// this launch's increment), onboarding marked done, a previous `app_active`, or
+/// the old first-favorite flag. A reinstall wipes UserDefaults, so it starts a
+/// new cohort entry, the way the App Store counts a re-download.
+enum InstallCohort: Equatable {
+    case member(installDay: Int)
+    case legacy
+
+    static let storageKey = "telemetry.installDay"
+    /// Stored in place of a day for legacy installs.
+    static let legacyMarker = -1
+
+    var isCohortMember: Bool {
+        if case .member = self { return true }
+        return false
+    }
+
+    /// Pure decision. `stored` is the persisted value (nil the first time).
+    static func resolve(
+        stored: Int?,
+        today: Int,
+        priorLaunches: Int,
+        onboardingCompleted: Bool,
+        hasPriorTelemetry: Bool
+    ) -> InstallCohort {
+        if let stored {
+            return stored >= 0 ? .member(installDay: stored) : .legacy
+        }
+        if priorLaunches > 0 || onboardingCompleted || hasPriorTelemetry {
+            return .legacy
+        }
+        return .member(installDay: today)
+    }
+
+    var storedValue: Int {
+        switch self {
+        case .member(let day): return day
+        case .legacy: return Self.legacyMarker
+        }
+    }
+
+    /// Extra `app_active` fields for this cohort.
+    static func appActiveFields(_ cohort: InstallCohort) -> [String: String] {
+        switch cohort {
+        case .member(let day): return ["install_day": String(day)]
+        case .legacy: return ["cohort": "legacy"]
+        }
+    }
+
+    /// Call from `App.init`, before anything bumps `launches` or shows
+    /// onboarding. Idempotent: later calls just read the stored value.
+    @discardableResult
+    static func resolveAtLaunch(defaults: UserDefaults = .standard, now: Date = Date()) -> InstallCohort {
+        let stored = defaults.object(forKey: storageKey) as? Int
+        let onboardingDone = (defaults.object(forKey: "shouldShowOnboarding") as? Bool) == false
+        let hasPriorTelemetry = defaults.object(forKey: "telemetry.appActive.lastEpochDay") != nil
+            || defaults.bool(forKey: "didEmitFirstFavorite")
+        let cohort = resolve(
+            stored: stored,
+            today: Int(now.timeIntervalSince1970) / 86_400,
+            priorLaunches: defaults.integer(forKey: "launches"),
+            onboardingCompleted: onboardingDone,
+            hasPriorTelemetry: hasPriorTelemetry
+        )
+        if stored == nil { defaults.set(cohort.storedValue, forKey: storageKey) }
+        return cohort
+    }
+
+    /// The persisted cohort. Resolves on first use if `resolveAtLaunch` hasn't
+    /// run yet (it always has in the app; this keeps the call sites total).
+    static func current() -> InstallCohort {
+        resolveAtLaunch()
     }
 }

@@ -7,6 +7,7 @@
 
 import XCTest
 import SportsCalModel
+import UserNotifications
 @testable import Scoreline
 
 @MainActor
@@ -549,5 +550,61 @@ final class TeamPageLogicTests: XCTestCase {
         let g = Game(idLeague: "4387", strHomeTeam: "A", strAwayTeam: "B", strStatus: "FT",
                      isoDate: now.addingTimeInterval(-3 * 3600))
         XCTAssertEqual(g.scheduleState(now: now), .final)
+    }
+}
+
+// MARK: - Activation + retention cohort (pure)
+
+final class InstallCohortTests: XCTestCase {
+
+    func testFreshInstallJoinsTodaysCohort() {
+        let cohort = InstallCohort.resolve(stored: nil, today: 20_400, priorLaunches: 0,
+                                           onboardingCompleted: false, hasPriorTelemetry: false)
+        XCTAssertEqual(cohort, .member(installDay: 20_400))
+        XCTAssertEqual(InstallCohort.appActiveFields(cohort), ["install_day": "20400"])
+    }
+
+    func testUpgradingUsersAreLegacyOnAnyPriorSignal() {
+        XCTAssertEqual(InstallCohort.resolve(stored: nil, today: 1, priorLaunches: 3,
+                                             onboardingCompleted: false, hasPriorTelemetry: false), .legacy)
+        XCTAssertEqual(InstallCohort.resolve(stored: nil, today: 1, priorLaunches: 0,
+                                             onboardingCompleted: true, hasPriorTelemetry: false), .legacy)
+        XCTAssertEqual(InstallCohort.resolve(stored: nil, today: 1, priorLaunches: 0,
+                                             onboardingCompleted: false, hasPriorTelemetry: true), .legacy)
+        XCTAssertEqual(InstallCohort.appActiveFields(.legacy), ["cohort": "legacy"])
+    }
+
+    func testStoredDecisionIsSticky() {
+        // Once decided, later launches (which do have launches > 0) keep the cohort.
+        XCTAssertEqual(InstallCohort.resolve(stored: 20_000, today: 20_030, priorLaunches: 40,
+                                             onboardingCompleted: true, hasPriorTelemetry: true),
+                       .member(installDay: 20_000))
+        XCTAssertEqual(InstallCohort.resolve(stored: InstallCohort.legacyMarker, today: 5, priorLaunches: 0,
+                                             onboardingCompleted: false, hasPriorTelemetry: false), .legacy)
+    }
+
+    func testResolveAtLaunchPersistsOnce() throws {
+        let suite = "InstallCohortTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let day0 = Date(timeIntervalSince1970: 86_400 * 20_400 + 100)
+        XCTAssertEqual(InstallCohort.resolveAtLaunch(defaults: defaults, now: day0), .member(installDay: 20_400))
+        // A later launch with legacy-looking state must not reclassify.
+        defaults.set(9, forKey: "launches")
+        defaults.set(false, forKey: "shouldShowOnboarding")
+        XCTAssertEqual(InstallCohort.resolveAtLaunch(defaults: defaults, now: day0.addingTimeInterval(86_400 * 7)),
+                       .member(installDay: 20_400))
+    }
+
+    func testSportCountBuckets() {
+        XCTAssertEqual([0, 1, 2, 3, 4, 5, 11].map(ActivationSignals.sportCountBucket),
+                       ["0", "1", "2", "3-4", "3-4", "5+", "5+"])
+    }
+
+    func testNotificationDecision() {
+        XCTAssertNil(ActivationSignals.notificationDecision(.notDetermined))
+        XCTAssertEqual(ActivationSignals.notificationDecision(.denied), false)
+        XCTAssertEqual(ActivationSignals.notificationDecision(.authorized), true)
+        XCTAssertEqual(ActivationSignals.notificationDecision(.provisional), true)
     }
 }

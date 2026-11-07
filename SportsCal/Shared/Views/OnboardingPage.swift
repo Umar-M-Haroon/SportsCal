@@ -59,6 +59,7 @@ struct OnboardingPage: View {
             .navigationTitle("Welcome to Scoreline!")
         }
         .frame(minWidth: 400, minHeight: 500)
+        .onAppear { MonetizationTelemetry.onboardingStarted() }
     }
 
     private var pickSportPage: some View {
@@ -78,6 +79,7 @@ struct OnboardingPage: View {
     /// dismissing the sheet when the offer isn't shown.
     private func finishOnboarding() {
         appStorage.shouldShowOnboarding = false
+        MonetizationTelemetry.onboardingCompleted(sportCount: appStorage.enabledSports.count)
         requestNotifications()
         let offered = UpsellCoordinator.shared.request(.postOnboarding) {
             sheetType = .paywall
@@ -91,6 +93,7 @@ struct OnboardingPage: View {
     private func requestNotifications() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
             if granted { MonetizationTelemetry.activationNotificationsEnabled() }
+            MonetizationTelemetry.notificationsResolved(granted: granted)
         }
     }
 }

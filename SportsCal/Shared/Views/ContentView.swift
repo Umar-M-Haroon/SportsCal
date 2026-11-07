@@ -286,11 +286,12 @@ struct ContentView: View {
                 // One-time activation signal — emitted here (app target) rather
                 // than in Favorites, which also compiles into watch/widget where
                 // the telemetry helper (and Sentry) aren't available.
-                if !favorites.teamIDs.isEmpty,
-                   !UserDefaults.standard.bool(forKey: "didEmitFirstFavorite") {
-                    UserDefaults.standard.set(true, forKey: "didEmitFirstFavorite")
+                if !favorites.teamIDs.isEmpty {
                     MonetizationTelemetry.activationFirstFavorite()
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .liveActivityStartedFromApp)) { _ in
+                MonetizationTelemetry.firstLiveActivity()
             }
             .onOpenURL { url in
                 handleDeepLink(url)

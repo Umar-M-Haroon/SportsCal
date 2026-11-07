@@ -92,6 +92,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                     SentrySDK.capture(error: error)
                 }
             }
+            MonetizationTelemetry.notificationsResolved(granted: granted)
             if granted {
                 AppLogger.notifications.info("Notification authorization granted")
             } else {
@@ -243,6 +244,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     SentrySDK.capture(error: error)
                 }
             }
+            MonetizationTelemetry.notificationsResolved(granted: granted)
             if granted {
                 AppLogger.notifications.info("Notification authorization granted")
             } else {

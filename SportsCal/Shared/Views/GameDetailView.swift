@@ -549,6 +549,7 @@ struct GameDetailSections: View {
         // Drive play-by-play loading from the always-present body rather than the
         // section itself, so data still loads even when the section is hidden.
         .task(id: game.idEvent) {
+            MonetizationTelemetry.firstGameDetailOpened()
             await reloadPlays()
             await reloadSoccerMatch()
         }
