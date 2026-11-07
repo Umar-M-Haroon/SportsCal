@@ -70,8 +70,6 @@ struct TennisMatchScoreView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             header
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(accessibilityLabel))
 
             // Players read as part of the header's sentence.
             let sets = game.tennisSets
@@ -89,6 +87,28 @@ struct TennisMatchScoreView: View {
     /// Sport icon, round, tournament (in mixed lists), status or start time, and the
     /// actions menu — on one line, so the menu no longer takes a row of its own.
     private var header: some View {
+        HStack(spacing: 6) {
+            headerSummary
+                // The whole row's sentence lives here; the menu stays its own element.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(accessibilityLabel))
+            Menu {
+                FavoriteMenu(game: game)
+                    .environment(favorites)
+                CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+                NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 32, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Actions")
+        }
+    }
+
+    private var headerSummary: some View {
         HStack(spacing: 6) {
             if let sport = sportType {
                 Image(systemName: sport.systemImage)
@@ -119,19 +139,6 @@ struct TennisMatchScoreView: View {
                     .background(Color.red)
                     .clipShape(Capsule())
             }
-            Menu {
-                FavoriteMenu(game: game)
-                    .environment(favorites)
-                CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-                NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 32, height: 24)
-                    .contentShape(Rectangle())
-            }
-            .accessibilityLabel("Actions")
         }
     }
 
