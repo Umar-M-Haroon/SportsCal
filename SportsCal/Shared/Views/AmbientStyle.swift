@@ -59,8 +59,6 @@ struct AmbientDepartureRow: View {
     let isFinal: Bool
     /// Live: bases and outs, or down and distance, beside the status.
     var situation: GameSituation? = nil
-    /// Final: flags a game that was worth watching.
-    var excitementTier: ExcitementTier? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -93,11 +91,6 @@ struct AmbientDepartureRow: View {
 
             if isLive, let situation {
                 situationAccessory(situation)
-            } else if isFinal, let excitementTier, excitementTier.isWorthWatching {
-                Image(systemName: excitementTier == .classic ? "flame.fill" : "bolt.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(AmbientPalette.highlight)
-                    .accessibilityLabel(excitementTier.displayName)
             }
 
             Text(statusText.uppercased())

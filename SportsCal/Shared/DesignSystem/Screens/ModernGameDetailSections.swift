@@ -297,9 +297,6 @@ struct ModernGameDetailSections: View {
                 HStack {
                     Text("WIN PROBABILITY").appEyebrow().foregroundStyle(accent)
                     Spacer()
-                    if let tier = game.excitementTier, game.hasDoneStatus {
-                        ExcitementBadge(tier: tier)
-                    }
                 }
                 WinProbabilityChart(
                     series: series,

@@ -803,9 +803,6 @@ struct GameDetailSections: View {
                 HStack {
                     Text("Win Probability").font(.headline)
                     Spacer()
-                    if let tier = game.excitementTier, game.hasDoneStatus {
-                        ExcitementBadge(tier: tier)
-                    }
                 }
                 WinProbabilityChart(
                     series: series,

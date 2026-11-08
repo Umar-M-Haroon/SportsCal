@@ -150,8 +150,7 @@ struct AmbientDayPage: View {
             isLive: isLive,
             isFavorite: fav,
             isFinal: isFinal,
-            situation: isLive ? game.situation : nil,
-            excitementTier: isFinal ? game.excitementTier : nil
+            situation: isLive ? game.situation : nil
         )
     }
 
