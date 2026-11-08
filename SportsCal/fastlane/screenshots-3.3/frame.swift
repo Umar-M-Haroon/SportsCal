@@ -33,7 +33,7 @@ func drawText(_ s: String, size: CGFloat, weight: NSFont.Weight, color c: NSColo
     let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: size, weight: weight),
                                                 .foregroundColor: c, .paragraphStyle: para, .kern: -size * 0.01]
     let str = NSAttributedString(string: s, attributes: attrs)
-    let maxW = W * 0.86
+    let maxW = W * 0.9
     let bounds = str.boundingRect(with: NSSize(width: maxW, height: 1000), options: [.usesLineFragmentOrigin])
     NSGraphicsContext.saveGraphicsState()
     let flipped = NSGraphicsContext(cgContext: ctx, flipped: true)
@@ -44,15 +44,22 @@ func drawText(_ s: String, size: CGFloat, weight: NSFont.Weight, color c: NSColo
 }
 
 let scale = W / 1320
-var y = H * 0.055
-y += drawText(headline, size: 96 * scale, weight: .bold, color: .white, top: y)
-y += 18 * scale
-y += drawText(subline, size: 46 * scale, weight: .regular, color: color("D6D3D1"), top: y)
+var y = H * 0.045
+// Shrink the headline until it fits one line so every frame in the set lines up.
+var headSize = 112 * scale
+while headSize > 80 * scale {
+    let w = NSAttributedString(string: headline, attributes: [.font: NSFont.systemFont(ofSize: headSize, weight: .heavy)]).size().width
+    if w <= W * 0.9 { break }
+    headSize -= 2 * scale
+}
+y += drawText(headline, size: headSize, weight: .heavy, color: .white, top: y)
+y += 22 * scale
+y += drawText(subline, size: 52 * scale, weight: .medium, color: color("E7E5E4"), top: y)
 
 // Device screenshot: rounded, with a thin bezel + shadow, bleeding off the bottom.
-let devW = W * 0.82
+let devW = W * 0.86
 let devH = devW * shot.size.height / shot.size.width
-let devX = (W - devW) / 2, devY = max(y + 70 * scale, H * 0.2)
+let devX = (W - devW) / 2, devY = max(y + 60 * scale, H * 0.17)
 let radius = 64 * scale
 let bezel = 14 * scale
 let outer = CGRect(x: devX - bezel, y: devY - bezel, width: devW + bezel * 2, height: devH + bezel * 2)
@@ -68,6 +75,32 @@ ctx.addPath(CGPath(roundedRect: inner, cornerWidth: radius, cornerHeight: radius
 ctx.translateBy(x: 0, y: devY * 2 + devH); ctx.scaleBy(x: 1, y: -1)
 if let cg = shot.cgImage(forProposedRect: nil, context: nil, hints: nil) { ctx.draw(cg, in: inner) }
 ctx.restoreGState()
+
+// Optional callout: arg 8 = "x,y,w,h" in screenshot pixels, arg 9 = zoom (default 1.14).
+// Redraws that region larger, floating over the device, to make a small detail legible.
+if a.count > 8, let cg = shot.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+    let r = a[8].split(separator: ",").compactMap { Double($0) }.map { CGFloat($0) }
+    let zoom = a.count > 9 ? CGFloat(Double(a[9]) ?? 1.14) : 1.14
+    if r.count == 4, let crop = cg.cropping(to: CGRect(x: r[0], y: r[1], width: r[2], height: r[3])) {
+        let k = devW / CGFloat(cg.width)               // screenshot px → canvas px
+        let w = min(r[2] * k * zoom, W * 0.94), h = w * r[3] / r[2]
+        let cx = devX + (r[0] + r[2] / 2) * k
+        let cy = devY + (r[1] + r[3] / 2) * k
+        let rect = CGRect(x: max(W * 0.03, min(cx - w / 2, W * 0.97 - w)), y: cy - h / 2, width: w, height: h)
+        let corner = 46 * scale * zoom
+        ctx.saveGState()
+        ctx.setShadow(offset: CGSize(width: 0, height: 24 * scale), blur: 70 * scale,
+                      color: NSColor.black.withAlphaComponent(0.8).cgColor)
+        ctx.addPath(CGPath(roundedRect: rect, cornerWidth: corner, cornerHeight: corner, transform: nil))
+        ctx.setFillColor(NSColor.black.cgColor); ctx.fillPath()
+        ctx.restoreGState()
+        ctx.saveGState()
+        ctx.addPath(CGPath(roundedRect: rect, cornerWidth: corner, cornerHeight: corner, transform: nil)); ctx.clip()
+        ctx.translateBy(x: 0, y: rect.minY * 2 + rect.height); ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(crop, in: rect)
+        ctx.restoreGState()
+    }
+}
 
 NSGraphicsContext.restoreGraphicsState()
 // App Store rejects alpha: flatten to opaque RGB.
