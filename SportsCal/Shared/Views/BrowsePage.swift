@@ -74,7 +74,7 @@ struct BrowsePage: View {
                     NavigationLink {
                         sportPage(sport)
                     } label: {
-                        SportCard(sport: sport, liveCount: viewModel.liveGameCountsBySport[sport] ?? 0,
+                        SportCard(sport: sport, liveCount: browseLiveCounts[sport] ?? 0,
                                   summary: summaries[sport])
                     }
                     .buttonStyle(.plain)
@@ -149,6 +149,20 @@ struct BrowsePage: View {
 
     // MARK: - Sport card summaries
 
+    /// Live games per sport as the sport's page lists them: every live game in the
+    /// feed. `liveGameCountsBySport` is the Games tab's count, narrowed to the user's
+    /// picks (college football to their conferences), so the Football card read
+    /// "1 live" over a page showing five live college games.
+    private var browseLiveCounts: [SportType: Int] {
+        var counts: [SportType: Int] = [:]
+        for sport in SportType.allCases {
+            // Unique IDs: a combined Slam ships each tennis match on both tours.
+            let count = Set(viewModel.liveEventsForSport(sport).map(\.id)).count
+            if count > 0 { counts[sport] = count }
+        }
+        return counts
+    }
+
     /// One line per sport card — what's live, how much is on today, or when it's next on.
     /// One pass over the schedule rather than a filter per sport: this runs on every live tick.
     private func sportSummaries() -> [SportType: String] {
@@ -183,7 +197,7 @@ struct BrowsePage: View {
         }
         var result: [SportType: String] = [:]
         for sport in SportType.allCases {
-            let live = viewModel.liveGameCountsBySport[sport] ?? 0
+            let live = browseLiveCounts[sport] ?? 0
             // Every game dated today, finished ones included — what the sport's page lists.
             let today = todayCounts[sport] ?? 0
             let laterToday = laterTodayCounts[sport] ?? 0
@@ -196,7 +210,9 @@ struct BrowsePage: View {
                 result[sport] = "\(today) \(noun)\(today == 1 ? "" : "s") today"
             } else if let game = next[sport], let start = game.standardDate {
                 // Golf's day markers shifted onto the real day, as the golf page shows them.
-                let date = sport == .golf ? (game.eventDaySpan?.first ?? start) : start
+                // A race weekend reads as race day, the date it was picked by, not FP1.
+                let date = sport == .golf ? (game.eventDaySpan?.first ?? start)
+                    : game.isRace ? (game.summaryDate ?? start) : start
                 let when = date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
                 result[sport] = sport.isEventSport ? "\(game.strHomeTeam) · \(when)" : "Next: \(when)"
             } else {

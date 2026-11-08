@@ -20,18 +20,15 @@ struct MomentumChartView: View {
     /// Full play-by-play when available. When empty, chart draws from linescores only.
     var plays: [Play] = []
 
+    @Environment(\.self) private var environment
+
+    // Lifted off the background, so a navy or black team line doesn't vanish in dark mode.
     private var homeColor: Color {
-        if let hex = game.homeTeamColor {
-            return Color(hex: hex)
-        }
-        return .blue
+        (game.homeTeamColor.map { Color(hex: $0) } ?? .blue).legible(in: environment)
     }
 
     private var awayColor: Color {
-        if let hex = game.awayTeamColor {
-            return Color(hex: hex)
-        }
-        return .red
+        (game.awayTeamColor.map { Color(hex: $0) } ?? .red).legible(in: environment)
     }
 
     private struct ScorePoint: Identifiable {

@@ -336,16 +336,16 @@ struct LiveSportActivityWidget: Widget {
             VStack(spacing: 8) {
                 HStack {
                     if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.awayTeam) {
-                        IndividualTeamView(shortName: context.attributes.awayTeam, longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true, redCards: context.state.soccer?.awayRedCards ?? 0, data: try? Data(contentsOf: fileURL))
+                        IndividualTeamView(longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true, redCards: context.state.soccer?.awayRedCards ?? 0, data: try? Data(contentsOf: fileURL))
                     } else {
-                        IndividualTeamView(shortName: context.attributes.awayTeam, longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true, redCards: context.state.soccer?.awayRedCards ?? 0)
+                        IndividualTeamView(longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true, redCards: context.state.soccer?.awayRedCards ?? 0)
                     }
                     progressLabel(for: context.state)
                         .frame(maxWidth: .infinity, alignment: .center)
                     if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.homeTeam) {
-                        IndividualTeamView(shortName: context.attributes.homeTeam, longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false, redCards: context.state.soccer?.homeRedCards ?? 0, data: try? Data(contentsOf: fileURL))
+                        IndividualTeamView(longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false, redCards: context.state.soccer?.homeRedCards ?? 0, data: try? Data(contentsOf: fileURL))
                     } else {
-                        IndividualTeamView(shortName: context.attributes.homeTeam, longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false, redCards: context.state.soccer?.homeRedCards ?? 0)
+                        IndividualTeamView(longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false, redCards: context.state.soccer?.homeRedCards ?? 0)
                     }
                 }
                 if let situation = context.state.situation {
@@ -399,7 +399,10 @@ struct LiveSportActivityWidget: Widget {
                                     .font(.system(size: 24))
                                     .foregroundColor(.secondary)
                             }
-                            Text(context.attributes.awayTeam)
+                            // A code, on one line: a full name wrapped in the island.
+                            Text(shortAbbreviation(short: context.attributes.awayTeamShort, full: context.attributes.awayTeam))
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
                         }
                     }
                     }
@@ -423,7 +426,10 @@ struct LiveSportActivityWidget: Widget {
                                     .font(.system(size: 24))
                                     .foregroundColor(.secondary)
                             }
-                            Text(context.attributes.homeTeam)
+                            // A code, on one line: a full name wrapped in the island.
+                            Text(shortAbbreviation(short: context.attributes.homeTeamShort, full: context.attributes.homeTeam))
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
                         }
                         badgeImage(for: context.attributes.homeTeam, size: 35)
                     }

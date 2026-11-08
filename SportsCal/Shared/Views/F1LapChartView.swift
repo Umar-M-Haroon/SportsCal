@@ -14,6 +14,7 @@ struct F1LapChartView: View {
     let detail: F1SessionDetail
 
     @State private var focused: Int?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private static let rowHeight: CGFloat = 13
 
@@ -180,9 +181,23 @@ struct F1LapChartView: View {
         }
     }
 
+    /// One scrolling row on a phone; on a wide iPad / Mac column every driver wraps into
+    /// view, where a scrolling row read as a legend cut off at the edge.
+    @ViewBuilder
     private var driverChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+        if horizontalSizeClass == .regular {
+            FlowLayout(spacing: 6) { chipButtons }
+                .sensoryFeedback(.selection, trigger: focused)
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) { chipButtons }
+            }
+            .sensoryFeedback(.selection, trigger: focused)
+        }
+    }
+
+    @ViewBuilder
+    private var chipButtons: some View {
                 ForEach(lines, id: \.driverNumber) { line in
                     let isOn = focused == line.driverNumber
                     Button {
@@ -200,9 +215,6 @@ struct F1LapChartView: View {
                     .accessibilityLabel("Highlight \(line.name)")
                     .accessibilityAddTraits(isOn ? .isSelected : [])
                 }
-            }
-        }
-        .sensoryFeedback(.selection, trigger: focused)
     }
 }
 

@@ -1104,6 +1104,7 @@ public class GameViewModel: NSObject {
         // haven't moved), so they'd sit at the /live value until the socket reconnects.
         // The schedule merge above still runs, so the REST fetch isn't wasted.
         if webSocketTask == nil {
+            liveInfo = Self.carryingRecords(into: liveInfo, from: currentLiveInfo)
             self.currentLiveInfo = liveInfo
             currentLiveSignature = liveInfo.contentSignature
         }
@@ -1828,6 +1829,7 @@ public class GameViewModel: NSObject {
                     var pruned = newLiveInfo
                     pruned.removeNonStarting()
                     pruned.removeOtherInfo()
+                    pruned = Self.carryingRecords(into: pruned, from: currentLiveInfo)
                     // No withAnimation: this fires every ~5s during live games and used to
                     // bundle all 10 batch-assigned @Observable mutations into a single SwiftUI
                     // animation transaction, re-evaluating observer bodies mid-scroll and
@@ -1862,6 +1864,34 @@ public class GameViewModel: NSObject {
     
     /// Merges live WebSocket data into totalGames so schedule rows reflect current scores/status.
     /// Called before removeNonStarting() so completed games also get their final scores merged.
+    /// `fresh` with each game's team records ("7-2") filled in from `previous` where a
+    /// tick came without them. Not every source and merge path carries records, so the
+    /// record line under a live row blinked out and back between ticks.
+    static func carryingRecords(into fresh: LiveScore, from previous: LiveScore?) -> LiveScore {
+        guard let previous else { return fresh }
+        var result = fresh
+        let buckets: [WritableKeyPath<LiveScore, LiveEvent?>] = [\.soccer, \.nba, \.nhl, \.mlb, \.nfl]
+        for keyPath in buckets {
+            guard let events = result[keyPath: keyPath]?.events,
+                  events.contains(where: { $0.homeRecord == nil || $0.awayRecord == nil }) else { continue }
+            var before: [String: Game] = [:]
+            for game in previous[keyPath: keyPath]?.events ?? [] {
+                if let id = game.idEvent { before[id] = game }
+            }
+            var touched = false
+            let carried = events.map { game -> Game in
+                guard game.homeRecord == nil || game.awayRecord == nil,
+                      let id = game.idEvent, let old = before[id],
+                      old.homeRecord != nil || old.awayRecord != nil else { return game }
+                touched = true
+                return game.updated(homeRecord: game.homeRecord ?? old.homeRecord,
+                                    awayRecord: game.awayRecord ?? old.awayRecord)
+            }
+            if touched { result[keyPath: keyPath] = LiveEvent(events: carried) }
+        }
+        return result
+    }
+
     func mergeLiveIntoSchedule(_ liveScore: LiveScore) {
         guard var games = totalGames, !games.isEmpty else { return }
 
@@ -1959,6 +1989,8 @@ public class GameViewModel: NSObject {
                 // that a live tick's ESPN-only sessions don't carry.
                 sessions: live.sessions?.carryingEnrichment(from: scheduled.sessions) ?? scheduled.sessions,
                 venueName: live.venueName ?? scheduled.venueName,
+                homeRecord: live.homeRecord ?? scheduled.homeRecord,
+                awayRecord: live.awayRecord ?? scheduled.awayRecord,
                 circuitInfo: live.circuitInfo ?? scheduled.circuitInfo,
                 // Par and hole pars come with the live board; purse / cut only with
                 // the schedule's enrichment.

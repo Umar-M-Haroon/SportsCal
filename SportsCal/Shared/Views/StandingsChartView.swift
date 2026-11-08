@@ -252,7 +252,9 @@ struct StandingsChartView: View {
 
 // MARK: - Flow Layout
 
-private struct FlowLayout: Layout {
+/// Lays subviews left to right, wrapping onto new rows. Shared by the standings chart
+/// legend and the F1 lap chart's driver chips.
+struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

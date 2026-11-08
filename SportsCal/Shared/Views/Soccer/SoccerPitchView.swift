@@ -24,6 +24,7 @@ struct SoccerPitchView: View {
 
     /// Width over length of a 68 × 105 m pitch.
     private static let aspectRatio: CGFloat = 68 / 105
+    private static let maxWidth: CGFloat = 440
 
     var body: some View {
         GeometryReader { geo in
@@ -52,6 +53,10 @@ struct SoccerPitchView: View {
         .aspectRatio(Self.aspectRatio, contentMode: .fit)
         .background(PitchMarkings.turf, in: RoundedRectangle(cornerRadius: 10))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+        // A portrait pitch as wide as an iPad detail column was ~1,400pt tall: taller
+        // than the screen. Phone width, centred.
+        .frame(maxWidth: Self.maxWidth)
+        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Starting lineups")
     }

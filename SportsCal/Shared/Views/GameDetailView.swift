@@ -11,6 +11,9 @@ import NukeUI
 #if os(iOS)
 import EventKit
 import EventKitUI
+#if canImport(ActivityKit) && os(iOS)
+import ActivityKit
+#endif
 #endif
 
 // MARK: - Sections loader model
@@ -517,6 +520,7 @@ struct GameDetailView: View {
 
             #if canImport(ActivityKit) && os(iOS)
             autoFollowAction
+            liveFollowAction
             #endif
 
             #if os(iOS)
@@ -537,6 +541,8 @@ struct GameDetailView: View {
             }
             #endif
 
+            // Its options are all "before it starts"; a live game offers Follow instead.
+            if game.strStatus != "in", !isGameCompleted(game) {
             Menu {
                 NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
             } label: {
@@ -550,6 +556,7 @@ struct GameDetailView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
+            }
         }
         .padding()
         .background(Color.secondaryGroupedBackground)
@@ -557,6 +564,29 @@ struct GameDetailView: View {
     }
 
     #if canImport(ActivityKit) && os(iOS)
+    /// Follow a game that's already on with a Live Activity. Before kickoff,
+    /// `autoFollowAction` asks the server for a push-to-start instead.
+    @ViewBuilder
+    private var liveFollowAction: some View {
+        if game.idEvent != nil, game.strStatus == "in" {
+            let isFollowing = Activity<LiveSportActivityAttributes>.activities.contains { $0.attributes.eventID == game.idEvent }
+            Menu {
+                LiveActivityFollowMenu(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
+                    .environment(viewModel)
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: isFollowing ? "clock.badge.checkmark.fill" : "clock.badge")
+                        .font(.title3)
+                        .foregroundColor(isFollowing ? .accentColor : .secondary)
+                    Text(isFollowing ? "Following" : "Follow")
+                        .font(.caption2)
+                        .foregroundColor(isFollowing ? .accentColor : .secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
     @ViewBuilder
     private var autoFollowAction: some View {
         if game.idEvent != nil, !isGameCompleted(game), game.strStatus != "in" {
@@ -643,6 +673,17 @@ struct GameDetailSections: View {
     @ScaledMetric(relativeTo: .caption) private var boxTeamWidth: CGFloat = 60
     @ScaledMetric(relativeTo: .caption) private var boxPeriodWidth: CGFloat = 36
     @ScaledMetric(relativeTo: .caption) private var boxTotalWidth: CGFloat = 40
+    /// The box score's visible width, so a short line score spreads across the card
+    /// instead of huddling in its left two-thirds.
+    @State private var boxAvailableWidth: CGFloat = 0
+
+    /// Period column width: the fixed minimum, widened to share the card's spare width
+    /// (capped, so a two-half soccer line doesn't stretch edge to edge).
+    private func boxColumnWidth(periods: Int, totals: Int) -> CGFloat {
+        guard periods > 0, boxAvailableWidth > 0 else { return boxPeriodWidth }
+        let spare = boxAvailableWidth - 8 - boxTeamWidth - boxTotalWidth * CGFloat(totals)
+        return min(max(boxPeriodWidth, spare / CGFloat(periods)), boxPeriodWidth * 1.75)
+    }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -810,6 +851,7 @@ struct GameDetailSections: View {
             let labels = game.periodLabels(count: periodCount)
             let homeTotal = homeLs.reduce(0, +)
             let awayTotal = awayLs.reduce(0, +)
+            let periodWidth = boxColumnWidth(periods: periodCount, totals: showsHitsAndErrors ? 3 : 1)
 
             VStack(alignment: .leading, spacing: 12) {
                 Text("Box Score")
@@ -822,7 +864,7 @@ struct GameDetailSections: View {
                                 .frame(width: boxTeamWidth, alignment: .leading)
                             ForEach(Array(labels.enumerated()), id: \.offset) { _, label in
                                 Text(label)
-                                    .frame(width: boxPeriodWidth, alignment: .center)
+                                    .frame(width: periodWidth, alignment: .center)
                             }
                             Text(showsHitsAndErrors ? "R" : "T")
                                 .frame(width: boxTotalWidth, alignment: .center)
@@ -839,18 +881,21 @@ struct GameDetailSections: View {
                         boxScoreRow(
                             name: Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam, idTeam: awayTeam.idTeam),
                             scores: awayLs, padTo: periodCount, total: awayTotal, isLeading: awayTotal > homeTotal,
-                            hitsAndErrors: showsHitsAndErrors ? (game.awayHits, game.awayErrors) : nil
+                            hitsAndErrors: showsHitsAndErrors ? (game.awayHits, game.awayErrors) : nil,
+                            periodWidth: periodWidth
                         )
                         boxScoreRow(
                             name: Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam, idTeam: homeTeam.idTeam),
                             scores: homeLs, padTo: periodCount, total: homeTotal, isLeading: homeTotal > awayTotal,
-                            hitsAndErrors: showsHitsAndErrors ? (game.homeHits, game.homeErrors) : nil
+                            hitsAndErrors: showsHitsAndErrors ? (game.homeHits, game.homeErrors) : nil,
+                            periodWidth: periodWidth
                         )
                     }
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .padding(.horizontal, 4)
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { boxAvailableWidth = $0 }
                 // One summary instead of a grid of bare numbers.
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(boxScoreAccessibilityLabel(labels: labels, home: homeLs, away: awayLs,
@@ -868,17 +913,18 @@ struct GameDetailSections: View {
     }
 
     private func boxScoreRow(name: String, scores: [Double], padTo count: Int, total: Double, isLeading: Bool,
-                             hitsAndErrors: (hits: Int?, errors: Int?)? = nil) -> some View {
+                             hitsAndErrors: (hits: Int?, errors: Int?)? = nil,
+                             periodWidth: CGFloat) -> some View {
         HStack(spacing: 0) {
             Text(name)
                 .frame(width: boxTeamWidth, alignment: .leading)
             ForEach(Array(scores.enumerated()), id: \.offset) { _, score in
                 Text(formatLinescoreValue(score))
-                    .frame(width: boxPeriodWidth, alignment: .center)
+                    .frame(width: periodWidth, alignment: .center)
             }
             ForEach(0..<max(0, count - scores.count), id: \.self) { _ in
                 Text("-")
-                    .frame(width: boxPeriodWidth, alignment: .center)
+                    .frame(width: periodWidth, alignment: .center)
             }
             Text(formatLinescoreValue(total))
                 .fontWeight(isLeading ? .bold : .regular)
@@ -1001,8 +1047,11 @@ struct GameDetailSections: View {
 
     private var homeShortName: String { homeTeam.strTeamShort ?? homeTeam.strTeam ?? game.strHomeTeam }
     private var awayShortName: String { awayTeam.strTeamShort ?? awayTeam.strTeam ?? game.strAwayTeam }
-    private var homeColor: Color { game.homeTeamColor.map { Color(hex: $0) } ?? .blue }
-    private var awayColor: Color { game.awayTeamColor.map { Color(hex: $0) } ?? .red }
+    @Environment(\.self) private var colorEnvironment
+    // Legible against the background: the soccer momentum, shot map and box score
+    // draw with these, and a navy kit disappeared on the dark iPad board.
+    private var homeColor: Color { (game.homeTeamColor.map { Color(hex: $0) } ?? .blue).legible(in: colorEnvironment) }
+    private var awayColor: Color { (game.awayTeamColor.map { Color(hex: $0) } ?? .red).legible(in: colorEnvironment) }
 
     @ViewBuilder
     private var liveSituationSection: some View {
