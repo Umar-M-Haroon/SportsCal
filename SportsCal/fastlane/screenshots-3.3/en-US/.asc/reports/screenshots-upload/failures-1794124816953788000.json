@@ -1,0 +1,47 @@
+{
+  "versionLocalizationId": "b264d2d6-5a16-4250-b0b3-09f74138fa61",
+  "path": ".asc/reports/screenshots-upload/failures-1794124816953788000.json",
+  "deviceType": "IPHONE_67",
+  "displayType": "APP_IPHONE_67",
+  "replace": true,
+  "setId": "a3ac201f-0d75-45b9-8eb2-1d26953cf5cf",
+  "files": [
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_01.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_02.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_03.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_04.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_05.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_06.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_07.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_08.png"
+  ],
+  "orderedIds": [
+    "7e800005-e307-80e0-8005-dc8e3c1e61c6"
+  ],
+  "pendingFiles": [
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_02.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_03.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_04.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_05.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_06.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_07.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_08.png"
+  ],
+  "results": [
+    {
+      "fileName": "APP_IPHONE_69_01.png",
+      "filePath": "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_01.png",
+      "assetId": "7e800005-e307-80e0-8005-dc8e3c1e61c6",
+      "state": "COMPLETE"
+    }
+  ],
+  "failures": [
+    {
+      "fileName": "APP_IPHONE_69_02.png",
+      "filePath": "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/en-US/APP_IPHONE_69_02.png",
+      "error": "timed out waiting for asset 6dc00005-e307-80e0-8029-57bd279f1bbe delivery: context deadline exceeded"
+    }
+  ],
+  "error": "timed out waiting for asset 6dc00005-e307-80e0-8029-57bd279f1bbe delivery: context deadline exceeded",
+  "generatedAt": "2026-11-08T08:00:16Z"
+}

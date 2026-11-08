@@ -1,0 +1,29 @@
+{
+  "versionLocalizationId": "d8e6a49f-4613-4e9d-9490-b7f40b76cab5",
+  "path": ".asc/reports/screenshots-upload/failures-1794125098341413000.json",
+  "deviceType": "IPAD_PRO_3GEN_129",
+  "displayType": "APP_IPAD_PRO_3GEN_129",
+  "replace": true,
+  "setId": "415bdf76-2158-4b20-9933-8cb99b5e03e5",
+  "files": [
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/ipad13/IPAD_01.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/ipad13/IPAD_02.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/ipad13/IPAD_03.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/ipad13/IPAD_04.png"
+  ],
+  "pendingFiles": [
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/ipad13/IPAD_01.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/ipad13/IPAD_02.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/ipad13/IPAD_03.png",
+    "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/ipad13/IPAD_04.png"
+  ],
+  "failures": [
+    {
+      "fileName": "IPAD_01.png",
+      "filePath": "/Users/umar/Developer/SportsCalMonoRepo/worktrees/growth/SportsCal/fastlane/screenshots-3.3/ipad13/IPAD_01.png",
+      "error": "upload operation 0 failed: Put \"https://northamerica-1.object-storage.apple.com/itms-assets-prod-200001/PurpleSource211/v4/b7/ec/74/b7ec749f-fb4f-c5b8-9add-9aef26d4f10c/uwPx0-ulsj5fdpLlVjdG8h0IU_GXCfV1WLy2U-Zaf7o_U003d-1794125095600?partNumber=1\u0026uploadId=15914c70-db4b-11f1-90d7-6ae1b8ee215f\u0026apple-asset-repo-correlation-key=LHQKIWRDB2WVZOFJXJ2PUKRMNM\u0026X-Amz-Algorithm=AWS4-HMAC-SHA256\u0026X-Amz-Date=20261108T080455Z\u0026X-Amz-SignedHeaders=host\u0026X-Amz-Credential=PKIAI0ZGNAD8WKMSOOX0%2F20261108%2Fnorthamerica-1%2Fs3%2Faws4_request\u0026X-Amz-Expires=604800\u0026X-Amz-Signature=74a2081238e8c13943d26f1ae32bf346e352a0c679ca0491ff2e6ce8847e41cb\": write tcp 10.0.0.57:62319-\u003e17.156.98.27:443: write: broken pipe"
+    }
+  ],
+  "error": "upload operation 0 failed: Put \"https://northamerica-1.object-storage.apple.com/itms-assets-prod-200001/PurpleSource211/v4/b7/ec/74/b7ec749f-fb4f-c5b8-9add-9aef26d4f10c/uwPx0-ulsj5fdpLlVjdG8h0IU_GXCfV1WLy2U-Zaf7o_U003d-1794125095600?partNumber=1\u0026uploadId=15914c70-db4b-11f1-90d7-6ae1b8ee215f\u0026apple-asset-repo-correlation-key=LHQKIWRDB2WVZOFJXJ2PUKRMNM\u0026X-Amz-Algorithm=AWS4-HMAC-SHA256\u0026X-Amz-Date=20261108T080455Z\u0026X-Amz-SignedHeaders=host\u0026X-Amz-Credential=PKIAI0ZGNAD8WKMSOOX0%2F20261108%2Fnorthamerica-1%2Fs3%2Faws4_request\u0026X-Amz-Expires=604800\u0026X-Amz-Signature=74a2081238e8c13943d26f1ae32bf346e352a0c679ca0491ff2e6ce8847e41cb\": write tcp 10.0.0.57:62319-\u003e17.156.98.27:443: write: broken pipe",
+  "generatedAt": "2026-11-08T08:04:58Z"
+}
