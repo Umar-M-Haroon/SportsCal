@@ -1,12 +1,19 @@
 #!/bin/zsh
 # usage: run_tour.sh <tag> <panel>   tag: outer | inner | ...   panel: outer | inner
+# env:   UDID (default: the first available "iPhone Duo" simulator)
+#        S    (scratch folder for builds, logs and shots; default $TMPDIR/duo-tour)
+#        WT   (checkout to build; default: this script's repo)
+#        APPEARANCE=light|dark (default: leave the simulator as it is)
 set -u
+export DEVELOPER_DIR=${DEVELOPER_DIR:-/Applications/Xcode-27.2.0-Release.Candidate.app/Contents/Developer}
 TAG=$1
 PANEL=$2
-S=/private/tmp/claude-501/-Users-umar-Developer-SportsCalMonoRepo-worktrees-main/9a15edc1-585b-4808-bdbb-f5ebd4a00e29/scratchpad
-WT=${WT:-/Users/umar/Developer/SportsCalMonoRepo/worktrees/duo-support}
-UDID=E9DDA573-CD05-4F46-B3E1-838EEB8BAB76
-export DEVELOPER_DIR=/Applications/Xcode-27.2.0-Release.Candidate.app/Contents/Developer
+S=${S:-${TMPDIR:-/tmp}/duo-tour}
+WT=${WT:-$(cd ${0:A:h}/../.. && pwd)}
+UDID=${UDID:-$(xcrun simctl list devices available | awk -F '[()]' '/iPhone Duo/{print $2; exit}')}
+[ -n "$UDID" ] || { echo "No iPhone Duo simulator; set UDID"; exit 1; }
+mkdir -p $S
+[ -n "${APPEARANCE:-}" ] && xcrun simctl ui $UDID appearance $APPEARANCE
 # Display UUIDs change every boot; find each panel by its native width.
 panel_id() { xcrun simctl io $UDID enumerate | grep -B8 "Default width: $1\$" | awk '/UUID:/{print $2}' | tail -1; }
 [ "$PANEL" = inner ] && DISPLAY_ID=$(panel_id 2007) || DISPLAY_ID=$(panel_id 1398)

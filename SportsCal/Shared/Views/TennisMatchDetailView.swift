@@ -46,18 +46,15 @@ struct TennisMatchDetailView: View {
 
     // MARK: - Body
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                matchHeader
-                gameInfo
-                actionsRow
-                setScoresSection
-                headToHeadSection
-            }
-            .padding()
-            .readableWidth()
+        PinnedDetailLayout {
+            matchHeader
+            gameInfo
+            actionsRow
+        } details: {
+            setScoresSection
+            headToHeadSection
         }
-        .detailNavigationTitle(league?.leagueName ?? "Match Details")
+        .navigationTitle(league?.leagueName ?? "Match Details")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

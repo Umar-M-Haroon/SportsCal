@@ -17,13 +17,30 @@ struct GameDetailWindow: View {
 
     @Environment(GameViewModel.self) private var viewModel
     @Environment(Favorites.self) private var favorites
+    /// The last game this window resolved, kept on screen while its id is briefly
+    /// missing (a live tick between feeds) so pushed team pages survive.
+    @State private var lastGame: Game?
 
     /// Live games often carry a different id (ESPN) than their schedule row
-    /// (TheSportsDB), so look in both.
+    /// (TheSportsDB), so look in both, then match the fixture of the game last
+    /// shown: a finished live game leaves the live feed, and its schedule row
+    /// has the other id.
     private var game: Game? {
         guard let gameID else { return nil }
-        return viewModel.allLiveEvents.first { $0.id == gameID }
-            ?? (viewModel.totalGames ?? []).first { $0.id == gameID }
+        if let match = viewModel.allLiveEvents.first(where: { $0.id == gameID })
+            ?? (viewModel.totalGames ?? []).first(where: { $0.id == gameID }) {
+            return match
+        }
+        guard let lastGame else { return nil }
+        if let live = viewModel.allLiveEvents.first(where: { $0.id == lastGame.id }) {
+            return live
+        }
+        let home = lastGame.strHomeTeam.lowercased(), away = lastGame.strAwayTeam.lowercased()
+        let schedule = (viewModel.totalGames ?? []).filter {
+            $0.strHomeTeam.lowercased() == home && $0.strAwayTeam.lowercased() == away
+        }
+        let index = LiveFixtureIndex(live: [lastGame], schedule: schedule)
+        return schedule.first { index.contains($0) } ?? lastGame
     }
 
     var body: some View {
@@ -35,6 +52,10 @@ struct GameDetailWindow: View {
                         .environment(viewModel)
                         .environment(favorites)
                 }
+            } else if gameID != nil && viewModel.totalGames == nil {
+                // A restored window opens before the schedule has loaded.
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ContentUnavailableView(
                     "Game Not Found",
@@ -47,6 +68,9 @@ struct GameDetailWindow: View {
         .frame(minWidth: 380, idealWidth: 460, minHeight: 480, idealHeight: 660)
         #endif
         .navigationTitle(game.map { "\($0.strAwayTeam) @ \($0.strHomeTeam)" } ?? "Game")
+        .onChange(of: game, initial: true) { _, newGame in
+            if let newGame { lastGame = newGame }
+        }
     }
 
     @ViewBuilder

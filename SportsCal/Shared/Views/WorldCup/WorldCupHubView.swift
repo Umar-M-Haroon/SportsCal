@@ -217,6 +217,7 @@ struct WorldCupHubView: View {
                 }
             }
         }
+        .readableScrollWidth()
         .navigationTitle("World Cup 2026")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -275,6 +276,8 @@ struct WorldCupHubView: View {
                     .padding(.horizontal, .appSpace4)
                     .padding(.vertical, .appSpace2)
                 }
+                // The list's readable margins are for its rows, not this rail.
+                .contentMargins(.horizontal, 0, for: .scrollContent)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
             } header: {

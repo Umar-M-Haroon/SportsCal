@@ -430,10 +430,18 @@ extension Scene {
 private struct WindowAdScope: ViewModifier {
     @Environment(SubscriptionManager.self) private var subscriptionManager
     @State private var adManager = NativeAdManager()
+    @State private var showPaywall = false
 
     func body(content: Content) -> some View {
         content
             .environment(adManager)
+            // The ad card's "Remove ads with Pro" presents in its own window. The
+            // main window's ContentView sets its own action; this one serves
+            // windows without it, like a popped-out game.
+            .environment(\.requestPaywall, RequestPaywallAction { showPaywall = true })
+            .sheet(isPresented: $showPaywall) {
+                SubscriptionSheet(subscriptionPresented: $showPaywall)
+            }
             .task {
                 guard !subscriptionManager.isPro, AdConfiguration.isEnabled else { return }
                 // Defer ad preloading off the launch-critical window. Each

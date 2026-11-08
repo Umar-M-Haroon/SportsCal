@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duo Merge Readiness</title>
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #ffffff; --ink: #1c1c1e; --muted: #6b6b70; --line: #e4e4e2;
+  --p0: #c4352b; --p0-bg: #fdeceb; --p1: #b26a00; --p1-bg: #fff4e0; --p2: #3a6fb0; --p2-bg: #eaf1fb;
+  --ok: #2f7d4f; --ok-bg: #e8f5ed; --opp: #6d4bb5; --opp-bg: #f1ecfb; --code: #f3f3f1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111113; --panel: #1b1b1e; --ink: #ececee; --muted: #9a9aa2; --line: #2c2c31;
+    --p0: #ff6b5f; --p0-bg: #3a1714; --p1: #f0a640; --p1-bg: #35260f; --p2: #79a8e8; --p2-bg: #16243a;
+    --ok: #5cc98a; --ok-bg: #12291c; --opp: #a98bec; --opp-bg: #241b38; --code: #232327;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111113; --panel: #1b1b1e; --ink: #ececee; --muted: #9a9aa2; --line: #2c2c31;
+  --p0: #ff6b5f; --p0-bg: #3a1714; --p1: #f0a640; --p1-bg: #35260f; --p2: #79a8e8; --p2-bg: #16243a;
+  --ok: #5cc98a; --ok-bg: #12291c; --opp: #a98bec; --opp-bg: #241b38; --code: #232327;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+main { max-width: 1080px; margin: 0 auto; padding: 40px 16px 80px; }
+h1 { font-size: 32px; line-height: 1.15; margin: 0 0 6px; letter-spacing: -0.02em; }
+h2 { font-size: 22px; margin: 48px 0 12px; letter-spacing: -0.01em; }
+h3 { font-size: 17px; margin: 0 0 6px; }
+h4 { font-size: 15px; margin: 22px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-size: 12px; }
+p { margin: 0 0 12px; }
+.sub { color: var(--muted); margin-bottom: 24px; }
+code { font: 13px ui-monospace, "SF Mono", Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+a { color: var(--p2); }
+.verdict { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+.verdict ul { margin: 8px 0 0; padding-left: 20px; }
+.verdict li { margin: 4px 0; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 16px 0 0; }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.kpi b { display: block; font-size: 24px; letter-spacing: -0.02em; }
+.kpi span { color: var(--muted); font-size: 13px; }
+table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+.scroll { overflow-x: auto; }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.p0 { color: var(--p0); background: var(--p0-bg); }
+.p1 { color: var(--p1); background: var(--p1-bg); }
+.p2 { color: var(--p2); background: var(--p2-bg); }
+.ok { color: var(--ok); background: var(--ok-bg); }
+.opp { color: var(--opp); background: var(--opp-bg); }
+.na { color: var(--muted); background: var(--code); }
+.finding { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; margin: 12px 0; }
+.finding .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+.finding .where { color: var(--muted); font-size: 13px; }
+.finding p:last-child { margin-bottom: 0; }
+.note { border-left: 3px solid var(--line); padding: 4px 0 4px 14px; color: var(--muted); font-size: 14px; }
+details { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 20px; }
+details summary { cursor: pointer; font-weight: 600; }
+details ul { margin: 12px 0 4px; padding-left: 20px; }
+details li { margin: 8px 0; }
+details li span { color: var(--muted); }
+.checklist { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; margin: 12px 0; }
+.checklist h3 { margin-bottom: 8px; }
+.checklist label { display: flex; gap: 10px; align-items: flex-start; margin: 7px 0; cursor: pointer; }
+.checklist input { margin-top: 4px; flex: 0 0 auto; }
+@media (max-width: 600px) { h1 { font-size: 26px; } }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Duo support: merge readiness</h1>
+<p class="sub">Readiness pass · 7 Nov 2026 · branch <code>duo-support</code> @ 0013b59 (4 commits on <code>main</code> 8652b7e) plus uncommitted review fixes · companion to the <a href="index.html">device audit</a></p>
+
+<div class="verdict">
+  <h3>Verdict</h3>
+  <p><b>Not ready to merge today, but close on the code side.</b> All three committed intermediate commits build on their own, and this pass fixed every confirmed code finding: 20 fully and 3 partly, with two follow-up corrections from the checker. The iOS build-for-testing is green and <code>AdaptiveLayoutTests</code> pass. Two things still block a merge. (1) The fixes, including a P1 regression on ordinary iPhones in landscape and a P1 broken Add to Calendar / paywall in the calendar day sheet, exist only as uncommitted changes in the worktree, so the branch as committed still carries those regressions. (2) The Duo-specific paths that matter most have never run on the Duo: half-fold, fold/unfold with a second window, and rail sheets. Commit the fixes and work through the checklist at the bottom. If that passes, the branch is mergeable. The screenshot pipeline and book-posture alignment can follow later.</p>
+  <div class="kpis">
+    <div class="kpi"><b>3/3</b><span>intermediate commits build</span></div>
+    <div class="kpi"><b>23</b><span>code findings addressed</span></div>
+    <div class="kpi"><b>3</b><span>partly applied</span></div>
+    <div class="kpi"><b>2</b><span>P1 regressions fixed</span></div>
+    <div class="kpi"><b>8</b><span>findings rejected</span></div>
+    <div class="kpi"><b>0</b><span>runs on Duo half-fold</span></div>
+  </div>
+</div>
+
+<h2 id="builds">Per-commit build check</h2>
+<p>Each commit was checked out in its own temporary detached worktree, with <code>Constants.swift</code> copied in and a separate derived-data folder. Build: headless iOS Simulator <code>build-for-testing</code>, signing off. None of the logs contained a <code>.swift:N:N: error</code> line. The temporary worktrees were removed afterwards, and the <code>duo-support</code> branch was left untouched.</p>
+<div class="scroll">
+<table>
+  <tr><th>Commit</th><th>Subject</th><th>Result</th><th>Errors</th><th>Log</th></tr>
+  <tr><td><code>26114b0</code></td><td>Multi-window hygiene</td><td><span class="pill ok">TEST BUILD SUCCEEDED</span></td><td>none</td><td><code>scratchpad/build-26114b0.log</code></td></tr>
+  <tr><td><code>a062f3c</code></td><td>Width-driven Games layout, wide detail, toolbar blob fix</td><td><span class="pill ok">TEST BUILD SUCCEEDED</span></td><td>none</td><td><code>scratchpad/build-a062f3c.log</code></td></tr>
+  <tr><td><code>a08c3e0</code></td><td>Calendar re-present fix, side-by-side, tests</td><td><span class="pill ok">TEST BUILD SUCCEEDED</span></td><td>none</td><td><code>scratchpad/build-a08c3e0.log</code></td></tr>
+  <tr><td><code>0013b59</code></td><td>Duo tour harness + docs</td><td><span class="pill na">not rebuilt</span></td><td>–</td><td>Branch tip, built earlier</td></tr>
+  <tr><td>worktree (uncommitted)</td><td>This pass's fixes</td><td><span class="pill ok">iOS TEST BUILD SUCCEEDED</span> <span class="pill ok">macOS BUILD SUCCEEDED</span></td><td>none</td><td><code>scratchpad/review-ios.log</code>, <code>fix-mac.log</code></td></tr>
+</table>
+</div>
+<p class="note">The scratchpad is <code>/private/tmp/claude-501/-Users-umar-Developer-SportsCalMonoRepo-worktrees-main/9a15edc1-585b-4808-bdbb-f5ebd4a00e29/scratchpad</code>.<br>
+Tests (<code>SportsCalTests</code>, iPhone 18 Pro Max sim): 224 run, 2 skipped, 5 failures, all of which existed before this pass. <code>ScheduleFilterTests.testFilterShowsAllSportsWhenAllEnabled</code> is the known failure. Both <code>PushToStartRegistrationTests</code> cases also fail on the a08c3e0 build. The two <code>ScreenSnapshotTests</code> fail because this worktree has no reference images. <code>StoreKitIntegrationTests</code> stalled for about 20 minutes in <code>testDowngrade_yearlyToMonthly</code> and was skipped in the rerun, so it has <b>no result</b>. <code>GameViewModelCoreFixTests.testExpiredLaunchCacheIsShownAndFlaggedStale</code> failed once and passed twice, so it looks flaky. All 7 <code>AdaptiveLayoutTests</code> pass.</p>
+
+<h2 id="fixed">Fixed in this pass</h2>
+<p>All of these are uncommitted in <code>worktrees/duo-support</code> (22 tracked files, +538/−207). Paths are under <code>SportsCal/Shared/Views/</code> unless they say otherwise.</p>
+<div class="scroll">
+<table>
+  <tr><th>#</th><th>Finding</th><th>Status</th><th>Fix</th><th>Files</th></tr>
+  <tr><td>1</td><td>Ordinary iPhones in landscape got split layout + an inspector sheet that couldn't be dismissed <span class="pill p0">P1</span></td><td><span class="pill ok">fixed</span></td><td><code>GamesLayout</code> takes both size classes and returns <code>.list</code> unless both are regular. Calendar <code>isWide</code> uses the same check. New tests: 734/750 compact, 832 regular, Pro Max landscape, nil size classes, <code>DetailLayout.isSideBySide</code> 759/760.</td><td><code>AdaptiveLayout.swift</code>, <code>DayPage.swift</code>, <code>CalendarPage.swift</code>, <code>SportsCalTests/AdaptiveLayoutTests.swift</code></td></tr>
+  <tr><td>2</td><td>Calendar day sheet: Add to Calendar and the paywall never presented <span class="pill p0">P1</span></td><td><span class="pill ok">fixed</span></td><td>A private <code>CalendarDaySheet</code> owns its own <code>sheetType</code> and presents <code>.calendar</code> and <code>.paywall</code> itself.</td><td><code>CalendarPage.swift</code></td></tr>
+  <tr><td>3</td><td>The same NativeAd shown twice in split layout</td><td><span class="pill ok">fixed</span></td><td>Embedded detail uses slot <code>AdConfiguration.maxAdsPerScreen</code> (2). The feed only uses 0 and 1, and 3 ads are already loaded.</td><td><code>GameDetailView.swift</code></td></tr>
+  <tr><td>4</td><td>Remove ads with Pro did nothing in the pop-out window</td><td><span class="pill ok">fixed</span></td><td><code>WindowAdScope</code> provides a <code>requestPaywall</code> action and a <code>SubscriptionSheet</code>. ContentView's own action still wins in the main window.</td><td><code>SportsCal/Shared/SportsCalApp.swift</code></td></tr>
+  <tr><td>5</td><td>Soccer alert tap pushed "Game not found"</td><td><span class="pill ok">fixed</span> (+ checker)</td><td>New <code>GameViewModel.game(forEventID:)</code> checks live games first, then schedule <code>idEvent</code>. The checker corrected a cold-launch regression: the handler now switches tabs immediately, then retries every 500ms for up to 8s and pushes once the id resolves.</td><td><code>SceneEnvironment.swift</code>, <code>DayPage.swift</code>, <code>ContentView.swift</code></td></tr>
+  <tr><td>6</td><td>Calendar jumped back to today when crossing 720pt</td><td><span class="pill ok">fixed</span></td><td>The month column now stays at one place in the view tree (a single HStack).</td><td><code>CalendarPage.swift</code></td></tr>
+  <tr><td>7</td><td>Unfolding didn't move the open game into the detail column</td><td><span class="pill ok">fixed</span>*</td><td>Each link destination records the game it pushed (<code>listPushedGame</code>), and the hand-off moves it into the column. *The pushed screen itself may stay open full screen after unfolding, showing the same game.</td><td><code>DayPage.swift</code></td></tr>
+  <tr><td>8</td><td>iPad rotation between split and board lost the game</td><td><span class="pill ok">fixed</span></td><td>Added the (.split→.board) and (.board→.split) hand-offs.</td><td><code>DayPage.swift</code></td></tr>
+  <tr><td>9</td><td>Default split game jumped on live ticks</td><td><span class="pill ok">fixed</span></td><td>The default is pinned in <code>splitPinnedGame</code> and reset when the date changes. If it leaves the live feed, <code>LiveFixtureIndex</code> finds its schedule row.</td><td><code>DayPage.swift</code></td></tr>
+  <tr><td>10</td><td>PinnedDetailLayout rebuilt sections (double fetch) when the arrangement changed</td><td><span class="pill ok">fixed</span></td><td><code>AnyLayout</code>. Details always sit in the trailing ScrollView; only the summary moves.</td><td><code>AdaptiveLayout.swift</code></td></tr>
+  <tr><td>11</td><td>Half-fold: bottom pane started inside the crease</td><td><span class="pill p1">partial</span></td><td>A spacer the height of the division now sits between the panes. Book-posture (vertical fold) column alignment was not done.</td><td><code>AdaptiveLayout.swift</code></td></tr>
+  <tr><td>12</td><td>Calendar didn't hand off the selected day on fold/unfold</td><td><span class="pill ok">fixed</span></td><td><code>onChange(of: isWide)</code> turns an open day sheet into the inline day.</td><td><code>CalendarPage.swift</code></td></tr>
+  <tr><td>13</td><td>Notification/Spotlight pushes ignored the split layout</td><td><span class="pill ok">fixed</span> (+ checker)</td><td>In split, a resolvable id selects the game in the column (<code>spotlightPushID</code> hides the push). The checker re-keyed the <code>onChange</code> on the resolved game's id, so a late-resolving id no longer pops without selecting anything.</td><td><code>DayPage.swift</code></td></tr>
+  <tr><td>14</td><td>Pop-out window showed "Game Not Found" while loading</td><td><span class="pill ok">fixed</span></td><td>Spinner while the schedule is nil, the last resolved game is cached, plus a fixture-match fallback.</td><td><code>MacGameDetailWindow.swift</code></td></tr>
+  <tr><td>15</td><td>Notification claimed by the wrong window</td><td><span class="pill p1">partial</span></td><td>The active window claims immediately; inactive windows wait 0.5s. If two windows are both active, the first subscriber still gets it (no <code>targetScene</code> routing).</td><td><code>ContentView.swift</code></td></tr>
+  <tr><td>16</td><td>Per-row highlight recomputed full-day passes on every tick</td><td><span class="pill ok">fixed</span></td><td><code>highlightedRowID</code> is resolved once per update.</td><td><code>DayPage.swift</code></td></tr>
+  <tr><td>17</td><td>Calendar filtered every game on every tick</td><td><span class="pill ok">fixed</span></td><td><code>dayGames(for:)</code> binary-searches the date-sorted <code>calendarGames</code>.</td><td><code>CalendarPage.swift</code></td></tr>
+  <tr><td>18</td><td>Race / tennis / golf detail didn't use the pinned or half-fold layout</td><td><span class="pill ok">fixed</span></td><td>Moved onto <code>PinnedDetailLayout</code>, which gained a <code>spacing</code> parameter.</td><td><code>RaceDetailView.swift</code>, <code>NASCARViews.swift</code>, <code>TennisMatchDetailView.swift</code>, <code>TournamentDetailView.swift</code></td></tr>
+  <tr><td>19</td><td>Unvisited detail screens stretched edge to edge</td><td><span class="pill ok">fixed</span></td><td>New <code>readableScrollWidth()</code> (horizontal content margins).</td><td><code>TeamDetailView.swift</code>, <code>WorldCupHubView.swift</code>, <code>SoccerPlayerView.swift</code>, <code>SoccerCompetitionHubView.swift</code>, <code>F1DriverView.swift</code>, <code>AdaptiveLayout.swift</code></td></tr>
+  <tr><td>20</td><td>VoiceOver not told which split row is selected</td><td><span class="pill ok">fixed</span></td><td><code>.isSelected</code> trait, plus a hint in split layout.</td><td><code>DayPage.swift</code></td></tr>
+  <tr><td>21</td><td>Filter toolbar items had no VoiceOver value</td><td><span class="pill ok">fixed</span></td><td>"All sports" or the sport name, plus "N live" only when it's above zero.</td><td><code>DayPage.swift</code>, <code>CalendarPage.swift</code>, <code>SportChipFilterView.swift</code></td></tr>
+  <tr><td>22</td><td>Inline calendar tip squeezed the month grid</td><td><span class="pill ok">fixed</span></td><td>The inline tip shows only at ≥640pt tall and non-accessibility Dynamic Type; otherwise it falls back to the popover. <code>CalendarFavoritesTip</code> is not shown in that fallback.</td><td><code>CalendarPage.swift</code></td></tr>
+  <tr><td>23</td><td>Store screenshot pipeline couldn't produce Duo captures</td><td><span class="pill p1">partial</span></td><td>The Snapfile targets <code>testAppStoreScreenshots</code>, which now finds tabs on the side rail. <code>run_tour.sh</code> reads its settings from environment variables. No store mode yet, and <code>SnapshotHelper.swift</code> isn't in the UI test target.</td><td><code>SportsCal/fastlane/Snapfile</code>, <code>SportsCal/SportsCalUITests/SportsCalUITests.swift</code>, <code>docs/duo/run_tour.sh</code></td></tr>
+</table>
+</div>
+
+<h2 id="open">Still open</h2>
+
+<h4>Code</h4>
+<div class="finding"><div class="meta"><span class="pill p0">blocker</span><b>Commit the review fixes</b></div>
+<p>The committed branch still has the iPhone-landscape inspector sheet and the broken calendar Add to Calendar / paywall. Only the uncommitted worktree is fixed. Commit before merging, and don't squash away the per-commit build history unless you mean to.</p></div>
+<div class="finding"><div class="meta"><span class="pill ok">done</span><b>macOS rebuilt after the checker's edits</b><span class="where">ContentView.swift</span></div>
+<p>The first rebuild failed: the macOS compiler timed out type-checking the notification handler the fixer had inlined into the modifier chain. It is now its own method, <code>openGameFromNotification(_:)</code>, and both macOS and iOS build. Unit tests: duo-support fails exactly the same 14 tests as main (snapshot, PushToStart and ScheduleFilter), so the branch adds no new failures.</p></div>
+<div class="finding"><div class="meta"><span class="pill p2">P2</span><b>Book posture: fold doesn't line up with the list/detail boundary</b><span class="where">AdaptiveLayout.swift (FoldState)</span></div>
+<p>Half-open with a vertical division in inner landscape is still ignored (<code>isHalfFoldedAcross</code> requires width > height). The fix: expose the vertical division and set <code>inspectorColumnWidth</code> to width − division.maxX.</p></div>
+<div class="finding"><div class="meta"><span class="pill p2">P3</span><b>Store-mode screenshot capture</b><span class="where">docs/duo/run_tour.sh, SportsCalUITests target</span></div>
+<p>Add <code>SnapshotHelper.swift</code> to the UI test target, and add a seeded-data, per-appearance store mode that exports per-panel PNGs into <code>fastlane/screenshots/&lt;locale&gt;/</code>. Until then <code>fastlane snapshot</code> collects nothing. Duo sets are required from April 2027.</p></div>
+<div class="finding"><div class="meta"><span class="pill p2">P3</span><b>Two active windows: notification goes to the first subscriber</b><span class="where">ContentView.swift</span></div>
+<p>Routing by <code>UNNotificationResponse.targetScene</code>, or turning the tap into a URL handled by <code>onOpenURL</code>, would fully fix this.</p></div>
+<div class="finding"><div class="meta"><span class="pill p2">P3</span><b>Pushed detail may stay full screen after unfolding</b><span class="where">DayPage.swift</span></div>
+<p>It shows the correct game, and going back shows the split with that game. This is acceptable, but confirm on device that it isn't confusing. Pushing through <code>NavigationLink(value:)</code> state would let the hand-off pop it.</p></div>
+<div class="finding"><div class="meta"><span class="pill na">tests</span><b>StoreKitIntegrationTests has no result; PushToStartRegistrationTests failing</b></div>
+<p>StoreKit stalled for about 20 minutes and was skipped, so run it on its own. The two PushToStart failures also happen at a08c3e0 but weren't checked against <code>main</code>, so confirm they predate the branch.</p></div>
+
+<h4>Needs you</h4>
+<div class="finding"><div class="meta"><span class="pill p0">P1</span><b>DeviceHub / hardware verification</b><span class="where">docs/duo/index.html → Not covered</span></div>
+<p>Half-fold (<code>FoldReader</code> → <code>reservedRegions(.division)</code> → <code>.halfFolded</code>) has never run. Also untested: fold/unfold with a pop-out window or Split View, text-only Done buttons in sheets while the toolbar is a rail, the RevenueCat paywall at 678×466 and as a 951×669 form sheet, Live Activity / Dynamic Island / StandBy on both panels (StandBy needs hardware), and the VoiceOver back label in the rail. See the checklist below.</p></div>
+<div class="finding"><div class="meta"><span class="pill p2">product</span><b>Should split layout auto-fill the detail pane?</b><span class="where">DayPage.swift splitGame</span></div>
+<p>The detail pane now stays on one game (fix 9), but each day swipe still fully loads a game the user never opened (summary, match centre, standings). The choice is between keeping auto-fill (maybe loading only the summary) and showing a "Pick a game" empty state.</p></div>
+<div class="finding"><div class="meta"><span class="pill p2">account</span><b>Upload Duo screenshot sets to App Store Connect</b></div>
+<p>Inner 2007×2853 and outer 1398×2034, for en-US and en-GB. The store-mode capture has to land first.</p></div>
+
+<h4>Out of scope</h4>
+<div class="finding"><div class="meta"><span class="pill na">later</span><b>Hardware-keyboard support on iOS</b></div><p>This predates the branch (<code>.commands</code> / <code>onKeyPress</code> are macOS-only). It's an iPad feature request.</p></div>
+<div class="finding"><div class="meta"><span class="pill na">system</span><b>Unlabeled back button in the rail; Live Activity tint</b></div><p>The back button is system-drawn, so file Feedback if it reproduces on device. A Live Activity tint would restyle every iPhone's Lock Screen.</p></div>
+
+<h2 id="rejected">Rejected findings</h2>
+<details>
+  <summary>8 findings rejected or merged</summary>
+  <ul>
+    <li><b>Selecting another game doesn't update the split column while a team page is pushed.</b> <span>Removing the presenting destination link via <code>.id(gwt.id)</code> most likely pops the pushed page. Not established.</span></li>
+    <li><b>AdaptiveLayoutTests miss the real failure cases.</b> <span>Not a defect on its own. The cases it asked for were added with the P1 landscape fix.</span></li>
+    <li><b>Duplicate reports of the iPhone landscape split/inspector-sheet issue.</b> <span>Merged into the single P1 (fix 1).</span></li>
+    <li><b>Duplicate reports of the calendar sheet, paywall no-op, calendar rebuild and PinnedDetailLayout rebuild issues.</b> <span>Merged into fixes 2, 4, 6 and 10.</span></li>
+    <li><b>GameDetailWindow lacks handlesExternalEvents, so deep links may land in the detail window.</b> <span>Marked plausible by its own reviewer and not shown; SwiftUI's default routing wasn't verified.</span></li>
+    <li><b>FoldReader can get stuck with division nil after a hinge update.</b> <span>Speculative and untestable without a device. The confirmed crease geometry issue was kept (fix 11).</span></li>
+    <li><b>No hardware-keyboard support on iOS.</b> <span>Predates the branch and doesn't block Duo readiness.</span></li>
+    <li><b>Live Activity needs supplementalActivityFamilies([.small]).</b> <span><code>.small</code> targets the Watch Smart Stack and CarPlay, not StandBy, so the fix doesn't match the scenario. Device checking is covered under Needs you.</span></li>
+  </ul>
+</details>
+
+<h2 id="checklist">Before you merge: run these</h2>
+<p class="note">The checkboxes are for your own use and aren't saved. Record the results in <a href="index.html#gaps">index.html → Not covered</a>.</p>
+
+<div class="checklist"><h3>0 · Housekeeping</h3>
+  <label><input type="checkbox"> Review and commit the uncommitted fixes in <code>worktrees/duo-support</code>.</label>
+  <label><input type="checkbox"> Build the macOS scheme from that commit; build-for-testing iOS once more.</label>
+  <label><input type="checkbox"> Run <code>StoreKitIntegrationTests</code> on its own; check <code>PushToStartRegistrationTests</code> on <code>main</code>.</label>
+</div>
+
+<div class="checklist"><h3>1 · Ordinary iPhone (regression guard)</h3>
+  <label><input type="checkbox"> iPhone 16 / 17 Pro in landscape: Games shows the plain list, tapping a row pushes, and no sheet appears.</label>
+  <label><input type="checkbox"> Same phone in landscape: Calendar is the single-column month, not side-by-side.</label>
+  <label><input type="checkbox"> Pro Max landscape: list layout.</label>
+  <label><input type="checkbox"> Calendar → tap day → long-press game → Add to Calendar presents; the Pro alert → Subscribe opens the paywall.</label>
+  <label><input type="checkbox"> Tap a soccer goal alert, both cold and warm launch: it opens the match (or just the Games tab if the id can't be resolved), never "Game not found".</label>
+</div>
+
+<div class="checklist"><h3>2 · Duo outer display (466×678)</h3>
+  <label><input type="checkbox"> No glass blob, the filter stays visible in the rail, and the chips aren't under the rail.</label>
+  <label><input type="checkbox"> Sheets (sport picker, settings, subscription) have reachable Done buttons with the rail toolbar.</label>
+  <label><input type="checkbox"> The RevenueCat paywall at 678×466 landscape doesn't clip.</label>
+  <label><input type="checkbox"> Outer landscape calendar: the tip falls back to a popover and the month grid is fully visible.</label>
+</div>
+
+<div class="checklist"><h3>3 · Duo inner display (669×951 / 951×669)</h3>
+  <label><input type="checkbox"> Inner portrait: list layout with search and an ad. Inner landscape: list + detail split.</label>
+  <label><input type="checkbox"> In split, leave the auto-picked game open for a few live ticks: it stays put. Swipe days: it re-picks.</label>
+  <label><input type="checkbox"> Free user in split: the list ad and the detail ad are different creatives.</label>
+  <label><input type="checkbox"> Open a game while folded, then unfold: that game is in the detail column (a full-screen push may remain, showing the same game).</label>
+  <label><input type="checkbox"> Pick a game in split, then fold: it's pushed full screen.</label>
+  <label><input type="checkbox"> Calendar: page to another month, rotate portrait ↔ landscape, and the month is kept. With a day sheet open on the outer display, unfold: it becomes the inline day.</label>
+  <label><input type="checkbox"> Spotlight result / game notification while in split: it selects in the column instead of pushing.</label>
+  <label><input type="checkbox"> F1, NASCAR, tennis and golf detail pushed full width: summary pinned beside the leaderboard. Team, World Cup hub, player, competition hub and F1 driver pages are capped at a readable width.</label>
+  <label><input type="checkbox"> A wide game detail opens without a visible stacked → side-by-side flip, and the plays/match-centre requests fire once (watch the console).</label>
+  <label><input type="checkbox"> The paywall as a 951×669 form sheet renders correctly.</label>
+</div>
+
+<div class="checklist"><h3>4 · Half-fold (DeviceHub, never run)</h3>
+  <label><input type="checkbox"> Tabletop (horizontal crease) with game detail open: scoreboard above the fold, sections start below the crease (not on it).</label>
+  <label><input type="checkbox"> Toggle partiallyOpen ↔ fullyOpen repeatedly: no scroll reset or refetch, and the layout always settles.</label>
+  <label><input type="checkbox"> Half-fold with F1 / golf detail: header above, leaderboard below.</label>
+  <label><input type="checkbox"> Book posture (vertical crease): note where the fold falls relative to the list/detail boundary (known open item).</label>
+</div>
+
+<div class="checklist"><h3>5 · Multi-window</h3>
+  <label><input type="checkbox"> Open in New Window from a game, then fold and unfold with it open: both windows survive and stay correct.</label>
+  <label><input type="checkbox"> Pop-out window, free user: Remove ads with Pro opens the paywall.</label>
+  <label><input type="checkbox"> Relaunch with the pop-out restored: a spinner shows, then the game, never "Game Not Found".</label>
+  <label><input type="checkbox"> Two main windows: a tapped notification opens in the visible one.</label>
+</div>
+
+<div class="checklist"><h3>6 · Hardware / accessibility</h3>
+  <label><input type="checkbox"> Live Activity and Dynamic Island on both panels; StandBy on hardware.</label>
+  <label><input type="checkbox"> VoiceOver: the selected split row reads "selected", the filter reads the sport plus "N live", and check the rail back-button label.</label>
+  <label><input type="checkbox"> AX5 Dynamic Type on the inline calendar: the tip yields to the grid.</label>
+</div>
+
+</main>
+</body>
+</html>

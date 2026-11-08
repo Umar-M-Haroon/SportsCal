@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import SportsCalModel
 
 // MARK: - Scene-local paywall
 
@@ -50,5 +51,15 @@ enum SceneEventClaim {
     /// True for exactly one caller per `token`.
     static func claim(_ token: String) -> Bool {
         claimed.insert(token).inserted
+    }
+}
+
+extension GameViewModel {
+    /// The game a notification, Spotlight result or link names. Alerts sent from
+    /// live data carry the ESPN id, which only the live copy shares; schedule rows
+    /// for TheSportsDB leagues carry TheSportsDB ids.
+    func game(forEventID id: String) -> Game? {
+        allLiveEvents.first { $0.id == id }
+            ?? totalGames?.first { $0.idEvent == id }
     }
 }

@@ -19,4 +19,12 @@ enum SportChipFilter: Equatable, Hashable {
             return game.sportType == sportType
         }
     }
+
+    /// The active filter as VoiceOver reads it on the filter buttons.
+    var accessibilityName: String {
+        switch self {
+        case .all: return "All sports"
+        case .sport(let sport): return sport.displayName
+        }
+    }
 }

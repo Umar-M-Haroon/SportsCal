@@ -55,38 +55,37 @@ struct RaceDetailView: View {
     }
 
     private var f1Body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                circuitImageSection
-                raceHeader
-                if hasSessions {
-                    F1SessionPicker(sessions: game.sessions ?? [], selectedIndex: $selectedSessionIndex)
-                }
-                gameInfo
-                actionsRow
-                NASCARPromoCard()
-                if hasSessions {
-                    gapRibbonSection
-                    if let sessionDetail, !sessionDetail.lapPositions.isEmpty {
-                        F1LapChartView(detail: sessionDetail)
-                    }
-                    sessionLeaderboard
-                    raceTimingSection
-                    weekendSchedule
-                } else {
-                    gapRibbonSection
-                    legacyLeaderboard
-                    raceTimingSection
-                }
-                if let standings = viewModel.f1Standings {
-                    F1TitleFightCard(standings: standings)
-                }
-                standingsSection
+        // The header and session picker pin beside (wide) or above (half-folded
+        // Duo) the leaderboard and standings.
+        PinnedDetailLayout {
+            circuitImageSection
+            raceHeader
+            if hasSessions {
+                F1SessionPicker(sessions: game.sessions ?? [], selectedIndex: $selectedSessionIndex)
             }
-            .padding()
-            .readableWidth()
+            gameInfo
+            actionsRow
+        } details: {
+            NASCARPromoCard()
+            if hasSessions {
+                gapRibbonSection
+                if let sessionDetail, !sessionDetail.lapPositions.isEmpty {
+                    F1LapChartView(detail: sessionDetail)
+                }
+                sessionLeaderboard
+                raceTimingSection
+                weekendSchedule
+            } else {
+                gapRibbonSection
+                legacyLeaderboard
+                raceTimingSection
+            }
+            if let standings = viewModel.f1Standings {
+                F1TitleFightCard(standings: standings)
+            }
+            standingsSection
         }
-        .detailNavigationTitle("Formula 1")
+        .navigationTitle("Formula 1")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

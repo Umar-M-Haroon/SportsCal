@@ -152,7 +152,7 @@ struct GameDetailView: View {
                 model: sectionsModel
             )
         }
-        .detailNavigationTitle(league?.leagueName ?? "Game Details")
+        .navigationTitle(league?.leagueName ?? "Game Details")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

@@ -26,66 +26,58 @@ extension View {
         frame(maxWidth: maxWidth)
             .frame(maxWidth: .infinity)
     }
+
+    /// `readableWidth` for a List or ScrollView: insets its content to the same
+    /// centered measure while the background and scroll area stay full width.
+    func readableScrollWidth(_ maxWidth: CGFloat = 700) -> some View {
+        modifier(ReadableScrollWidth(maxWidth: maxWidth))
+    }
 }
 
-// MARK: - Embedded detail
-
-extension EnvironmentValues {
-    /// True when a detail screen is shown beside a list (the split layout's
-    /// detail column) rather than pushed. It then leaves the window's title alone.
-    @Entry var isEmbeddedDetail = false
-}
-
-private struct DetailNavigationTitle: ViewModifier {
-    let title: String
-    @Environment(\.isEmbeddedDetail) private var isEmbeddedDetail
+private struct ReadableScrollWidth: ViewModifier {
+    let maxWidth: CGFloat
+    @State private var width: CGFloat = 0
 
     func body(content: Content) -> some View {
-        if isEmbeddedDetail {
-            content
-        } else {
-            content.navigationTitle(title)
-        }
+        content
+            .contentMargins(.horizontal, max(0, (width - maxWidth) / 2), for: .scrollContent)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }
 
-extension View {
-    /// A detail screen's title, skipped when the screen is embedded beside a list,
-    /// where it would replace the window's own title.
-    func detailNavigationTitle(_ title: String) -> some View {
-        modifier(DetailNavigationTitle(title: title))
-    }
-}
-
-// MARK: - Games layout
+// MARK: - Layout rules
 
 /// How the Games tab lays out for a given width (iOS).
 enum GamesLayout: Equatable {
     /// One scrolling list. iPhone, the Duo's outer display, narrow Split View.
     case list
-    /// List with the selected game's detail beside it. The Duo unfolded in
-    /// landscape, iPad portrait, mid-size windows. Below 720pt two columns are too
-    /// cramped (and iOS floats the detail column over the list instead of beside
-    /// it), so the Duo unfolded in portrait (669pt) keeps the single list.
-    case split
-    /// A column per sport. Wide iPad and Mac windows.
+    /// A column per sport across the whole width. The Duo unfolded in either
+    /// orientation, iPad, and Mac windows.
     case board
 
-    static let splitMinWidth: CGFloat = 720
-    static let boardMinWidth: CGFloat = 1100
+    /// Two 280pt board columns, the 12pt gap between them, and 16pt margins.
+    static let boardMinWidth: CGFloat = 604
 
-    init(width: CGFloat) {
-        switch width {
-        case ..<Self.splitMinWidth: self = .list
-        case ..<Self.boardMinWidth: self = .split
-        default: self = .board
+    /// Width decides only within a regular/regular window. Ordinary iPhones in
+    /// landscape reach 724–750pt but stay horizontally compact; Plus/Pro Max
+    /// landscape is regular-width but only ~440pt tall. Both keep the phone list.
+    init(width: CGFloat, horizontalSizeClass: UserInterfaceSizeClass?, verticalSizeClass: UserInterfaceSizeClass?) {
+        guard horizontalSizeClass == .regular, verticalSizeClass == .regular,
+              width >= Self.boardMinWidth else {
+            self = .list
+            return
         }
+        self = .board
     }
 }
 
 /// Width at which a detail screen has room for two columns.
 enum DetailLayout {
     static let sideBySideMinWidth: CGFloat = 760
+
+    static func isSideBySide(width: CGFloat) -> Bool {
+        width >= sideBySideMinWidth
+    }
 }
 
 // MARK: - Fold state
@@ -179,6 +171,7 @@ struct FoldReader: UIViewRepresentable {
 /// - **half-folded**: the summary above the fold, the body scrolling below it
 ///   (the Duo stood half-open on a table, iOS 27.1+).
 struct PinnedDetailLayout<Summary: View, Details: View>: View {
+    var spacing: CGFloat = 24
     @ViewBuilder var summary: Summary
     @ViewBuilder var details: Details
 
@@ -187,55 +180,60 @@ struct PinnedDetailLayout<Summary: View, Details: View>: View {
 
     private static var summaryColumnWidth: CGFloat { 360 }
 
-    private enum Arrangement: Equatable { case stacked, sideBySide, halfFolded(foldY: CGFloat) }
+    private enum Arrangement: Equatable { case stacked, sideBySide, halfFolded(division: CGRect) }
 
     private var arrangement: Arrangement {
         if fold.isHalfFoldedAcross, let division = fold.division {
-            return .halfFolded(foldY: division.minY)
+            return .halfFolded(division: division)
         }
-        return size.width >= DetailLayout.sideBySideMinWidth ? .sideBySide : .stacked
+        return DetailLayout.isSideBySide(width: size.width) ? .sideBySide : .stacked
     }
 
+    private var isStacked: Bool { arrangement == .stacked }
+
     var body: some View {
-        Group {
+        // `details` keeps one place in the tree (the last scroll view) in every
+        // arrangement; only the summary moves. Rebuilding the details would reset
+        // their state and restart their loading tasks on every rotation, hinge
+        // change, and the first measured frame.
+        let layout = if case .halfFolded = arrangement {
+            AnyLayout(VStackLayout(spacing: 0))
+        } else {
+            AnyLayout(HStackLayout(alignment: .top, spacing: 0))
+        }
+        layout {
             switch arrangement {
             case .stacked:
-                ScrollView {
-                    VStack(spacing: 24) {
-                        summary
-                        details
-                    }
-                    .padding()
-                    .readableWidth()
-                }
+                EmptyView()
             case .sideBySide:
-                HStack(alignment: .top, spacing: 0) {
+                HStack(spacing: 0) {
                     ScrollView {
-                        VStack(spacing: 24) { summary }
+                        VStack(spacing: spacing) { summary }
                             .padding()
                     }
                     .frame(width: Self.summaryColumnWidth)
                     Divider()
-                    ScrollView {
-                        VStack(spacing: 24) { details }
-                            .padding()
-                            .readableWidth()
-                    }
                 }
-            case .halfFolded(let foldY):
+            case .halfFolded(let division):
                 VStack(spacing: 0) {
                     ScrollView {
-                        VStack(spacing: 24) { summary }
+                        VStack(spacing: spacing) { summary }
                             .padding()
                             .readableWidth()
                     }
-                    .frame(height: max(foldY, 0))
-                    ScrollView {
-                        VStack(spacing: 24) { details }
-                            .padding()
-                            .readableWidth()
-                    }
+                    .frame(height: max(division.minY, 0))
+                    // The division's frame includes its margins: keep the body
+                    // off the crease.
+                    Color.clear.frame(height: division.height)
                 }
+            }
+            ScrollView {
+                VStack(spacing: spacing) {
+                    if isStacked { summary }
+                    details
+                }
+                .padding()
+                .readableWidth()
             }
         }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }

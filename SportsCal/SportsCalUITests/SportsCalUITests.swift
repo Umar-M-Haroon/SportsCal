@@ -97,12 +97,23 @@ class SportsCalUITests: XCTestCase {
         capture("01_Games", app: app)
 
         func tab(_ label: String, _ shot: String) {
-            let button = app.tabBars.buttons[label].firstMatch
-            if button.waitForExistence(timeout: 5) {
-                button.tap()
-                sleep(3)
-                capture(shot, app: app)
+            // Tabs are in a tab bar, or (iPhone Duo, iOS 27.1) a trailing rail
+            // outside any tab bar: fall back to the edge-most button so
+            // "Calendar" can't hit a game's Add to Calendar.
+            var button = app.tabBars.buttons[label].firstMatch
+            if !button.waitForExistence(timeout: 5) {
+                let window = app.windows.firstMatch.frame
+                func edgeness(_ element: XCUIElement) -> CGFloat {
+                    max(element.frame.maxX / max(window.width, 1), element.frame.maxY / max(window.height, 1))
+                }
+                guard let edgeMost = app.buttons.matching(NSPredicate(format: "label == %@", label))
+                    .allElementsBoundByIndex.filter(\.exists)
+                    .max(by: { edgeness($0) < edgeness($1) }) else { return }
+                button = edgeMost
             }
+            button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            sleep(3)
+            capture(shot, app: app)
         }
         tab("Browse", "02_Browse")
         tab("Calendar", "03_Calendar")

@@ -70,6 +70,7 @@ struct SoccerPlayerView: View {
                     .padding(.top, 80)
             }
         }
+        .readableScrollWidth()
         .background(Color.appBackground.ignoresSafeArea())
         .overlay { if isLoading && profile == nil { ProgressView() } }
         .navigationTitle(profile?.name ?? name)

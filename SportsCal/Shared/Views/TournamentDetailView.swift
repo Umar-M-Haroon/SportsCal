@@ -48,20 +48,17 @@ struct TournamentDetailView: View {
 
     // MARK: - Body
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                tournamentHeader
-                roundProgressBar
-                gameInfo
-                actionsRow
-                leaderboardSection
-                scorecardSection
-                courseDifficultySection
-            }
-            .padding()
-            .readableWidth()
+        PinnedDetailLayout {
+            tournamentHeader
+            roundProgressBar
+            gameInfo
+            actionsRow
+        } details: {
+            leaderboardSection
+            scorecardSection
+            courseDifficultySection
         }
-        .detailNavigationTitle(league?.leagueName ?? "Tournament")
+        .navigationTitle(league?.leagueName ?? "Tournament")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

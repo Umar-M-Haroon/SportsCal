@@ -205,40 +205,39 @@ struct MotorsportRaceDetailView<Actions: View>: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                header
-                if let state = raceSession?.raceState, raceHasStarted, NASCARRaceStateBar.applies(to: state) {
-                    NASCARRaceStateBar(state: state, isLive: raceSession?.status == "in")
-                }
-                actions()
-                if sessions.count > 1 {
-                    F1SessionPicker(sessions: sessions, selectedIndex: $selectedSessionIndex)
-                }
-                if let selectedSession {
-                    NASCARLeaderboard(session: selectedSession)
-                }
-                if selectedSession?.sessionType == "race", let detail {
-                    if !detail.stages.isEmpty { NASCARStagesCard(stages: detail.stages) }
-                    if !detail.lapPositions.isEmpty { NASCARLapChart(detail: detail) }
-                    if !detail.notes.isEmpty { notesCard(detail.notes) }
-                    if !detail.cautions.isEmpty { NASCARCautionsCard(cautions: detail.cautions) }
-                    if !detail.pitStops.isEmpty { NASCARPitStopsCard(stops: detail.pitStops) }
-                }
-                switch standings {
-                case .drivers(let table):
-                    NASCARStandingsCard(standings: table, showAll: $showAllStandings)
-                case .classes(let tables):
-                    ClassStandingsCard(standings: tables)
-                case nil:
-                    EmptyView()
-                }
-                weekendSchedule
+        // The header and session picker pin beside (wide) or above (half-folded
+        // Duo) the leaderboard, race detail and standings.
+        PinnedDetailLayout(spacing: 20) {
+            header
+            if let state = raceSession?.raceState, raceHasStarted, NASCARRaceStateBar.applies(to: state) {
+                NASCARRaceStateBar(state: state, isLive: raceSession?.status == "in")
             }
-            .padding()
-            .readableWidth()
+            actions()
+            if sessions.count > 1 {
+                F1SessionPicker(sessions: sessions, selectedIndex: $selectedSessionIndex)
+            }
+        } details: {
+            if let selectedSession {
+                NASCARLeaderboard(session: selectedSession)
+            }
+            if selectedSession?.sessionType == "race", let detail {
+                if !detail.stages.isEmpty { NASCARStagesCard(stages: detail.stages) }
+                if !detail.lapPositions.isEmpty { NASCARLapChart(detail: detail) }
+                if !detail.notes.isEmpty { notesCard(detail.notes) }
+                if !detail.cautions.isEmpty { NASCARCautionsCard(cautions: detail.cautions) }
+                if !detail.pitStops.isEmpty { NASCARPitStopsCard(stops: detail.pitStops) }
+            }
+            switch standings {
+            case .drivers(let table):
+                NASCARStandingsCard(standings: table, showAll: $showAllStandings)
+            case .classes(let tables):
+                ClassStandingsCard(standings: tables)
+            case nil:
+                EmptyView()
+            }
+            weekendSchedule
         }
-        .detailNavigationTitle(seriesName)
+        .navigationTitle(seriesName)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

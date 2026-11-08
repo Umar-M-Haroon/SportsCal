@@ -291,13 +291,7 @@ struct ContentView: View {
                 sheetType = .paywall
             }
             #endif
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenGameFromNotification"))) { note in
-                // A tapped game notification opens that game, in one window only.
-                guard let eventID = note.userInfo?["eventID"] as? String,
-                      SceneEventClaim.claim(note.userInfo?["token"] as? String ?? eventID) else { return }
-                spotlightGameID = eventID
-                selectedTab = 0
-            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenGameFromNotification")), perform: openGameFromNotification)
             .onReceive(NotificationCenter.default.publisher(for: .favoritesDidChange)) { _ in
                 // One-time activation signal — emitted here (app target) rather
                 // than in Favorites, which also compiles into watch/widget where
@@ -316,6 +310,37 @@ struct ContentView: View {
                 handleSpotlightActivity(activity)
             }
             #endif
+    }
+
+    /// A tapped game notification opens that game, in one window only:
+    /// the active one, or (on a cold launch, before any is active) the
+    /// first to claim it a moment later.
+    private func openGameFromNotification(_ note: Notification) {
+        guard let eventID = note.userInfo?["eventID"] as? String else { return }
+        let token = note.userInfo?["token"] as? String ?? eventID
+        let open = {
+            guard SceneEventClaim.claim(token) else { return }
+            selectedTab = 0
+            // A cold launch has neither the schedule nor the live feed yet,
+            // and live alerts carry an ESPN id only the live feed shares:
+            // give the id a few seconds to resolve. One that never does (a
+            // finished live game) would push a bare "Game not found", so it
+            // just shows the Games tab.
+            Task { @MainActor in
+                for _ in 0..<16 {
+                    if viewModel.game(forEventID: eventID) != nil {
+                        spotlightGameID = eventID
+                        return
+                    }
+                    try? await Task.sleep(for: .milliseconds(500))
+                }
+            }
+        }
+        if scenePhase == .active {
+            open()
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: open)
+        }
     }
 
     // MARK: - Platform Navigation
