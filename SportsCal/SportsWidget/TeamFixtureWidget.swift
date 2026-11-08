@@ -520,28 +520,23 @@ struct TeamFixtureEntryView: View {
             if entry.team == nil {
                 chooseTeamPrompt
             } else if let game = entry.game {
-                HStack(spacing: 6) {
-                    badge(teamID: entry.team?.id, name: entry.team?.name ?? "", size: 22)
-                    Text(teamCode)
-                        .font(.system(.subheadline, design: .rounded).weight(.bold))
-                        .foregroundStyle(WidgetTokens.ink)
+                HStack {
+                    if let league = leagueName(game) {
+                        Text(league.uppercased())
+                            .font(.system(size: 9, design: .monospaced).weight(.semibold))
+                            .tracking(1)
+                            .foregroundStyle(WidgetTokens.inkFaint)
+                            .lineLimit(1)
+                    }
                     Spacer(minLength: 0)
                     sportIcon(game)
                 }
                 Spacer(minLength: 0)
-                Text(versus)
-                    .font(.system(.caption, design: .rounded).weight(.semibold))
-                    .foregroundStyle(WidgetTokens.inkSoft)
-                HStack(spacing: 8) {
-                    badge(teamID: opponentID(entry.opponentName), name: entry.opponentName ?? "", size: 30)
-                    Text(entry.opponentName ?? "")
-                        .font(.system(.headline, design: .rounded))
-                        .foregroundStyle(WidgetTokens.ink)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
-                }
+                compactMatchup(game)
                 Spacer(minLength: 0)
                 status(game)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
             } else {
                 noGames
             }
@@ -619,6 +614,37 @@ struct TeamFixtureEntryView: View {
         }
         .padding(WidgetTokens.space3)
         .background(WidgetTokens.surface, in: RoundedRectangle(cornerRadius: WidgetTokens.radiusMD))
+    }
+
+    /// Both teams side by side, home on the right, centred in the panel. Used by the
+    /// small widget and the medium widget's left half so the matchup is balanced
+    /// (it used to show our team as a tiny header and the opponent as a big name).
+    private func compactMatchup(_ game: Game) -> some View {
+        let home = entry.isHome
+        let us = (id: entry.team?.id, name: entry.team?.name ?? "", code: teamCode)
+        let them = (id: opponentID(entry.opponentName), name: entry.opponentName ?? "", code: opponentCode)
+        let left = home ? them : us
+        let right = home ? us : them
+        return HStack(spacing: 6) {
+            compactSide(id: left.id, name: left.name, code: left.code)
+            Text("@")
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(WidgetTokens.inkSoft)
+            compactSide(id: right.id, name: right.name, code: right.code)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func compactSide(id: String?, name: String, code: String) -> some View {
+        VStack(spacing: 3) {
+            badge(teamID: id, name: name, size: 36)
+            Text(code)
+                .font(.system(.caption, design: .rounded).weight(.bold))
+                .foregroundStyle(WidgetTokens.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(width: 52)
     }
 
     private func heroSide(id: String?, name: String, code: String) -> some View {

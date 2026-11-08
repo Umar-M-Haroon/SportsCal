@@ -169,3 +169,43 @@ struct WidgetUpdatedLabel: View {
             .accessibilityLabel(Text("Last updated \(WidgetUpdated.ago(date))"))
     }
 }
+
+// MARK: - Two-column game grid
+
+/// Games two to a row. An odd game out spans the full width instead of leaving
+/// an empty column, so one or three upcoming games sit centred rather than
+/// hugging the left edge (a plain two-column LazyVGrid left the right half blank).
+struct WidgetGameGrid<Cell: View>: View {
+    let games: [Game]
+    var spacing: CGFloat = 4
+    @ViewBuilder let cell: (Game) -> Cell
+
+    private var rows: [[Game]] {
+        stride(from: 0, to: games.count, by: 2).map { Array(games[$0..<min($0 + 2, games.count)]) }
+    }
+
+    var body: some View {
+        VStack(spacing: spacing) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: spacing) {
+                    ForEach(row) { game in
+                        cell(game).frame(maxWidth: .infinity)
+                    }
+                }
+                // Cells use maxHeight: .infinity to match heights within a row; pin
+                // the row to its content so a lone game doesn't fill the widget.
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+extension Game {
+    /// In progress right now. Finished games ("Final", "FT", "post") and
+    /// not-started ones ("NS", "pre") are not live even though they carry scores.
+    var widgetIsLive: Bool {
+        guard let status = strStatus?.trimmingCharacters(in: .whitespaces), !status.isEmpty else { return false }
+        if isCompleted == true || hasDoneStatus { return false }
+        return intHomeScore != nil && intAwayScore != nil
+    }
+}

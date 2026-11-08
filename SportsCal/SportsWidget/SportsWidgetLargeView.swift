@@ -79,13 +79,8 @@ struct SportsWidgetLargeView: View {
             // Multi-game grid (2x3 = 6 games)
             if let games = entry.game, !games.isEmpty {
                 let displayGames = Array(games.prefix(6))
-                LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: 6),
-                    GridItem(.flexible(), spacing: 6)
-                ], spacing: 6) {
-                    ForEach(displayGames) { game in
-                        gameCellView(game: game)
-                    }
+                WidgetGameGrid(games: displayGames, spacing: 6) { game in
+                    gameCellView(game: game)
                 }
             } else {
                 Spacer()
@@ -136,11 +131,7 @@ struct LargeCompactGameCell: View {
 
     private var sportType: SportType { game.sportType ?? .basketball }
 
-    private var isLive: Bool {
-        guard let status = game.strStatus?.lowercased() else { return false }
-        return !status.isEmpty && status != "ft" && status != "aet" && status != "not started" && status != "ns"
-            && game.intHomeScore != nil && game.intAwayScore != nil
-    }
+    private var isLive: Bool { game.widgetIsLive }
 
     private var isGameCompleted: Bool {
         if game.isCompleted == true { return true }
@@ -160,12 +151,14 @@ struct LargeCompactGameCell: View {
                 // Time or status
                 if let statusText = game.displayStatus {
                     HStack(spacing: 3) {
-                        Circle()
-                            .fill(WidgetTokens.live)
-                            .frame(width: 5, height: 5)
+                        if isLive {
+                            Circle()
+                                .fill(WidgetTokens.live)
+                                .frame(width: 5, height: 5)
+                        }
                         Text(statusText)
                             .font(.system(size: 9, design: .monospaced).weight(.semibold))
-                            .foregroundStyle(WidgetTokens.live)
+                            .foregroundStyle(isLive ? WidgetTokens.live : WidgetTokens.inkSoft)
                     }
                 } else if let gameDate = game.standardDate {
                     Text(gameDate.formatToTime() ?? "")
@@ -215,7 +208,7 @@ struct LargeCompactGameCell: View {
             }
         }
         .padding(6)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(WidgetTokens.alt)
         .clipShape(RoundedRectangle(cornerRadius: WidgetTokens.radiusSM, style: .continuous))
         .overlay(alignment: .leading) {

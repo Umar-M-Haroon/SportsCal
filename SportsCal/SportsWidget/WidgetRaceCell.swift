@@ -62,7 +62,7 @@ struct WidgetRaceCell: View {
             }
         }
         .padding(compact ? 4 : 6)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(WidgetTokens.alt)
         .clipShape(RoundedRectangle(cornerRadius: compact ? WidgetTokens.radiusSM : WidgetTokens.radiusMD, style: .continuous))
         .overlay(alignment: .leading) {

@@ -335,6 +335,8 @@ struct TinyWidgetTeamView: View {
                 configuration: SportsWidgetIntent(),
                 game: [
                     Game(idLiveScore: nil, idEvent: "1001", strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: "103", intAwayScore: "100", strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "FT", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2022-11-03T00:30:00+00:00", isoDate: nil),
+                    Game(idLiveScore: nil, idEvent: "1002", strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134880", idAwayTeam: "134875", strHomeTeam: "Utah Jazz", strAwayTeam: "Dallas Mavericks", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: nil, intAwayScore: nil, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "NS", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2030-11-08T02:00:00+00:00", isoDate: nil),
+                    Game(idLiveScore: nil, idEvent: "1003", strSport: nil, idLeague: "4387", strLeague: "NBA", idHomeTeam: "134875", idAwayTeam: "134880", strHomeTeam: "Dallas Mavericks", strAwayTeam: "Utah Jazz", strHomeTeamBadge: nil, strAwayTeamBadge: nil, intHomeScore: nil, intAwayScore: nil, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: "NS", strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: "2030-11-09T01:30:00+00:00", isoDate: nil),
                 ],
                 images: nil,
                 teams: [

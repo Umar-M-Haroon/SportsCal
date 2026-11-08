@@ -80,13 +80,8 @@ struct SportsWidgetMediumView: View {
             // Compact multi-game grid (2x2 = 4 games)
             if let games = entry.game, !games.isEmpty {
                 let displayGames = Array(games.prefix(4))
-                LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: 4),
-                    GridItem(.flexible(), spacing: 4)
-                ], spacing: 4) {
-                    ForEach(displayGames) { game in
-                        gameCellView(game: game)
-                    }
+                WidgetGameGrid(games: displayGames, spacing: 4) { game in
+                    gameCellView(game: game)
                 }
             } else {
                 Spacer()
@@ -144,11 +139,7 @@ struct CompactGameCell: View {
 
     private var sportType: SportType { game.sportType ?? .basketball }
 
-    private var isLive: Bool {
-        guard let status = game.strStatus?.lowercased() else { return false }
-        return !status.isEmpty && status != "ft" && status != "aet" && status != "not started" && status != "ns"
-            && game.intHomeScore != nil && game.intAwayScore != nil
-    }
+    private var isLive: Bool { game.widgetIsLive }
 
     var body: some View {
         let accent = WidgetTokens.sport(sportType)
@@ -196,7 +187,7 @@ struct CompactGameCell: View {
             }
         }
         .padding(4)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(WidgetTokens.alt)
         .clipShape(RoundedRectangle(cornerRadius: WidgetTokens.radiusSM, style: .continuous))
         .overlay(alignment: .leading) {
