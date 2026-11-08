@@ -65,7 +65,8 @@ extension Game {
     /// In practice the fallback almost never runs: both `Game.init` and its `Codable`
     /// decoder already populate `isoDate` from `strTimestamp` via `DateParsers`.
     var standardDate: Date? {
-        if let isoDate { return isoDate }
+        // A TBD kickoff reads as its day (noon ET), not the midnight-ET placeholder.
+        if let isoDate { return isTimeTBD ? Game.tbdAnchorDate(isoDate) : isoDate }
         guard let strTimestamp else { return nil }
         return DateParsers.parse(strTimestamp)
     }

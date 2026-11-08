@@ -290,6 +290,11 @@ enum PublicPages {
         if game.sportType == .golf {
             let last = PublicGame.endDate(game).map { $0.addingTimeInterval(-86_400) } ?? start
             timing = .allDay(start: start, endExclusive: dayAfter(max(last, start)))
+        } else if game.isTimeTBD {
+            // Kickoff not set: an all-day entry on the game's day, not ESPN's midnight-ET
+            // placeholder (9 PM the night before on the West Coast). Midnight ET is
+            // 04:00/05:00 UTC, so the UTC day is the Eastern day.
+            timing = .allDay(start: start, endExclusive: dayAfter(start))
         } else {
             timing = .timed(start: start, end: start.addingTimeInterval(PublicGame.duration(game)))
         }
@@ -430,7 +435,8 @@ enum PublicPages {
     /// reader's own time zone.
     static func timeTag(_ game: Game, long: Bool) -> String {
         guard let start = PublicGame.start(game) else { return "TBD" }
-        let dateOnly = game.sportType == .golf
+        let isTBD = game.isTimeTBD
+        let dateOnly = game.sportType == .golf || isTBD
         let iso = isoFormatter.string(from: start)
         let label: String
         if dateOnly {
@@ -441,6 +447,7 @@ enum PublicPages {
         var out = "<time datetime=\"" + iso + "\" data-t=\""
         out += dateOnly ? "d" : (long ? "l" : "s")
         out += "\">" + WebEscape.html(label) + "</time>"
+        if isTBD { out += " · Time TBD" }
         return out
     }
 

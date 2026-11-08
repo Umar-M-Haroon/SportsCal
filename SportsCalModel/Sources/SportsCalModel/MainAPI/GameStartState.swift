@@ -14,10 +14,18 @@ public extension Game {
         return status == "pre" || status == "NS"
     }
 
-    /// The score to keep for a game in `status`. ESPN reports "0" for both sides before
-    /// kickoff, which rows rendered as a real 0–0, so a not-started game keeps none.
-    static func scoreIfStarted(_ score: String?, status: String?) -> String? {
-        isNotStarted(status: status) ? nil : score
+    /// The scores to keep for a game in `status`. ESPN reports "0" for both sides before
+    /// kickoff, which rows rendered as a real 0–0, so a not-started game's 0–0 is dropped.
+    /// Only that placeholder: TheSportsDB leaves some finished games at "NS" with their
+    /// real result, and dropping every NS score erased those results for good once the
+    /// server wrote the copy back.
+    static func scoresIfStarted(home: String?, away: String?, status: String?) -> (home: String?, away: String?) {
+        guard isNotStarted(status: status) else { return (home, away) }
+        func isPlaceholder(_ score: String?) -> Bool {
+            guard let score = score?.trimmingCharacters(in: .whitespaces), !score.isEmpty else { return true }
+            return Int(score) == 0
+        }
+        return isPlaceholder(home) && isPlaceholder(away) ? (nil, nil) : (home, away)
     }
 
     /// The kickoff time isn't set yet: show "TBD" instead of a clock time.
@@ -32,11 +40,25 @@ public extension Game {
         return Game.isMidnightEastern(date)
     }
 
-    internal static func isMidnightEastern(_ date: Date) -> Bool {
-        guard let eastern = TimeZone(identifier: "America/New_York") else { return false }
+    /// Where a TBD game sits on the clock: noon Eastern on its day. The source parks it
+    /// at midnight Eastern, which is the evening before anywhere west of New York, so
+    /// rows, day grouping and the detail header put it on the wrong day. Noon Eastern is
+    /// the same calendar day from Hawaii to New Zealand.
+    static func tbdAnchorDate(_ placeholder: Date) -> Date {
+        let calendar = easternCalendar
+        let day = calendar.startOfDay(for: placeholder)
+        return calendar.date(byAdding: .hour, value: 12, to: day) ?? placeholder
+    }
+
+    /// Gregorian in America/New_York, built once: `isTimeTBD` runs inside sort comparators.
+    private static let easternCalendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = eastern
-        let parts = calendar.dateComponents([.hour, .minute, .second], from: date)
+        calendar.timeZone = TimeZone(identifier: "America/New_York") ?? .current
+        return calendar
+    }()
+
+    internal static func isMidnightEastern(_ date: Date) -> Bool {
+        let parts = easternCalendar.dateComponents([.hour, .minute, .second], from: date)
         return parts.hour == 0 && parts.minute == 0 && (parts.second ?? 0) == 0
     }
 }

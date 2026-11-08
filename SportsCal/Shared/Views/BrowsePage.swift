@@ -24,7 +24,9 @@ struct BrowsePage: View {
     private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16)]
 
     var body: some View {
-        let summaries = sportSummaries()
+        // Once per body: every card and summary reads it.
+        let liveCounts = browseLiveCounts
+        let summaries = sportSummaries(liveCounts: liveCounts)
         ScrollView {
             if WorldCupSeason.isActive {
                 NavigationLink {
@@ -74,7 +76,7 @@ struct BrowsePage: View {
                     NavigationLink {
                         sportPage(sport)
                     } label: {
-                        SportCard(sport: sport, liveCount: browseLiveCounts[sport] ?? 0,
+                        SportCard(sport: sport, liveCount: liveCounts[sport] ?? 0,
                                   summary: summaries[sport])
                     }
                     .buttonStyle(.plain)
@@ -165,7 +167,7 @@ struct BrowsePage: View {
 
     /// One line per sport card — what's live, how much is on today, or when it's next on.
     /// One pass over the schedule rather than a filter per sport: this runs on every live tick.
-    private func sportSummaries() -> [SportType: String] {
+    private func sportSummaries(liveCounts: [SportType: Int]) -> [SportType: String] {
         let now = Date()
         let calendar = Calendar.current
         let endOfToday = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
@@ -197,7 +199,7 @@ struct BrowsePage: View {
         }
         var result: [SportType: String] = [:]
         for sport in SportType.allCases {
-            let live = browseLiveCounts[sport] ?? 0
+            let live = liveCounts[sport] ?? 0
             // Every game dated today, finished ones included — what the sport's page lists.
             let today = todayCounts[sport] ?? 0
             let laterToday = laterTodayCounts[sport] ?? 0

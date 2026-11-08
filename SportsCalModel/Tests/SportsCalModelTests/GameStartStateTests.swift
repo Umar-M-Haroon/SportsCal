@@ -89,6 +89,18 @@ final class GameStartStateTests: XCTestCase {
         XCTAssertNil(game.intAwayScore)
     }
 
+    /// TheSportsDB leaves some finished games at "NS" with the real result. Only the
+    /// 0–0 placeholder goes; a real score survives, on init and on decode.
+    func testStaleNotStartedStatusKeepsARealResult() throws {
+        let game = Game(idEvent: "ns-1", strHomeTeam: "Home", strAwayTeam: "Away",
+                        intHomeScore: "2", intAwayScore: "0", strStatus: "NS", isoDate: nil)
+        XCTAssertEqual(game.intHomeScore, "2")
+        XCTAssertEqual(game.intAwayScore, "0")
+        let decoded = try JSONDecoder().decode(Game.self, from: JSONEncoder().encode(game))
+        XCTAssertEqual(decoded.intHomeScore, "2")
+        XCTAssertEqual(decoded.intAwayScore, "0")
+    }
+
     func testStartedAndFinishedScoresAreKept() {
         let live = Game(strHomeTeam: "A", strAwayTeam: "B", intHomeScore: "0", intAwayScore: "0", strStatus: "in", isoDate: nil)
         XCTAssertEqual(live.intHomeScore, "0")
@@ -120,6 +132,17 @@ final class GameStartStateTests: XCTestCase {
         let decodedStarted = try JSONDecoder().decode(Game.self, from: JSONEncoder().encode(started))
         XCTAssertNil(decodedStarted.timeTBD)
         XCTAssertFalse(decodedStarted.isTimeTBD)
+    }
+
+    /// Baylor at BYU is parked at 05:00Z on Nov 14 (midnight ET). Its anchor is noon
+    /// ET that day, which is Nov 14 in Los Angeles too.
+    func testTBDAnchorIsTheGamesDayEverywhere() throws {
+        let placeholder = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-14T05:00:00Z"))
+        let anchor = Game.tbdAnchorDate(placeholder)
+        XCTAssertEqual(anchor, ISO8601DateFormatter().date(from: "2026-11-14T17:00:00Z"))
+        var pacific = Calendar(identifier: .gregorian)
+        pacific.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+        XCTAssertEqual(pacific.component(.day, from: anchor), 14)
     }
 
     func testOldServerMidnightEasternCollegeGameIsTBD() {

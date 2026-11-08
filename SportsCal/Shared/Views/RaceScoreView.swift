@@ -284,7 +284,7 @@ struct SessionIndicatorStrip: View {
     var body: some View {
         // Wraps onto a second line rather than scrolling: inside a tappable list row the
         // horizontal scroll didn't scroll, so the faded edge just cut pills off ("Race Ve…").
-        SessionPillFlow(spacing: 6) {
+        FlowLayout(spacing: 6) {
             ForEach(Array(sessions.enumerated()), id: \.offset) { _, session in
                 pill(for: session)
             }
@@ -372,43 +372,5 @@ struct SessionIndicatorStrip: View {
         default:
             return nil
         }
-    }
-}
-
-/// Left-to-right rows that wrap, each pill at its natural width.
-private struct SessionPillFlow: Layout {
-    var spacing: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        arrange(width: proposal.width ?? .infinity, subviews: subviews).size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = arrange(width: bounds.width, subviews: subviews)
-        for (index, point) in result.positions.enumerated() {
-            subviews[index].place(at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y),
-                                  proposal: .unspecified)
-        }
-    }
-
-    private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
-        var positions: [CGPoint] = []
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var rowHeight: CGFloat = 0
-        var widest: CGFloat = 0
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x > 0, x + size.width > width {
-                x = 0
-                y += rowHeight + spacing
-                rowHeight = 0
-            }
-            positions.append(CGPoint(x: x, y: y))
-            rowHeight = max(rowHeight, size.height)
-            x += size.width + spacing
-            widest = max(widest, x - spacing)
-        }
-        return (CGSize(width: widest, height: y + rowHeight), positions)
     }
 }

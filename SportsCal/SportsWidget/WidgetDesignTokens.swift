@@ -205,7 +205,9 @@ extension Game {
     /// not-started ones ("NS", "pre") are not live even though they carry scores.
     var widgetIsLive: Bool {
         guard let status = strStatus?.trimmingCharacters(in: .whitespaces), !status.isEmpty else { return false }
-        if isCompleted == true || hasDoneStatus { return false }
+        // `isFinalStatus` also knows soccer's AET / PEN / "Match Finished", which
+        // `hasDoneStatus` doesn't; a cup tie settled in extra time isn't live.
+        if isCompleted == true || hasDoneStatus || isFinalStatus || isCalledOff { return false }
         return intHomeScore != nil && intAwayScore != nil
     }
 }

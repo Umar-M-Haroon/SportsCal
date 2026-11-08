@@ -265,11 +265,26 @@ struct PickTeamsPage: View {
     @Environment(Favorites.self) private var favorites
     @State private var search = ""
     @State private var picked: Set<String> = []
+    /// Built once per schedule/teams/sports change, not on every body pass: each
+    /// keystroke and star toggle used to re-group the whole schedule.
+    @State private var sections: [OnboardingTeamSection] = []
 
-    private var sections: [OnboardingTeamSection] {
-        OnboardingTeamSection.build(games: viewModel.totalGames ?? [],
-                                    enabled: appStorage.enabledSports,
-                                    teams: viewModel.getTeams(for:))
+    /// What `sections` depends on. Live ticks patch scores in place and leave it alone.
+    private struct SectionsKey: Hashable {
+        let games: Int
+        let teams: Int
+        let enabled: [SportType]
+    }
+
+    private var sectionsKey: SectionsKey {
+        SectionsKey(games: viewModel.totalGames?.count ?? 0, teams: viewModel.teams.count,
+                    enabled: appStorage.enabledSports)
+    }
+
+    /// Still waiting on the schedule, as opposed to a schedule with no team games in it.
+    private var isLoadingSchedule: Bool {
+        guard let games = viewModel.totalGames, !games.isEmpty else { return true }
+        return viewModel.isFetching && sections.isEmpty
     }
 
     private func filtered(_ section: OnboardingTeamSection) -> [Team] {
@@ -282,13 +297,18 @@ struct PickTeamsPage: View {
     }
 
     var body: some View {
-        let sections = sections
         List {
             if sections.isEmpty {
                 Section {
-                    HStack(spacing: 12) {
-                        ProgressView()
-                        Text("Loading teams…").foregroundStyle(.secondary)
+                    if isLoadingSchedule {
+                        HStack(spacing: 12) {
+                            ProgressView()
+                            Text("Loading teams…").foregroundStyle(.secondary)
+                        }
+                    } else {
+                        // Only golf/tennis/racing picked, or nothing scheduled yet: not loading.
+                        Text("No teams to pick for these sports right now. You can follow teams any time from Browse.")
+                            .foregroundStyle(.secondary)
                     }
                 } footer: {
                     Text("Golf, tennis and racing don't have teams. You can follow players and drivers from any event.")
@@ -307,6 +327,11 @@ struct PickTeamsPage: View {
         }
         .searchable(text: $search, prompt: "Search teams")
         .navigationTitle("Your Teams")
+        .task(id: sectionsKey) {
+            sections = OnboardingTeamSection.build(games: viewModel.totalGames ?? [],
+                                                   enabled: appStorage.enabledSports,
+                                                   teams: viewModel.getTeams(for:))
+        }
         .safeAreaInset(edge: .bottom) {
             Button {
                 finish()

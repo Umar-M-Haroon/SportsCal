@@ -93,7 +93,9 @@ final class LiveMergeTests: XCTestCase {
 
         XCTAssertTrue(result.changedEventIDs.isEmpty)
         let game = result.liveScore.soccer!.events[0]
-        XCTAssertEqual(game.intHomeScore, "0")
+        // Not the fresh copy's 3; a not-started game carries no score at all (`Game`
+        // drops ESPN's pre-game "0").
+        XCTAssertNil(game.intHomeScore)
         XCTAssertEqual(game.strStatus, "pre")
     }
 

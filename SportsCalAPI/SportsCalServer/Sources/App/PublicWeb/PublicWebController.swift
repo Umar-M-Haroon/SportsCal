@@ -50,7 +50,9 @@ struct PublicWebController: RouteCollection {
 
     func boot(routes: RoutesBuilder) throws {
         // Pages: generous for a person, tight enough that a scraper can't spin the CPU.
-        let pages = routes.grouped(RateLimitMiddleware(limit: 120, windowSeconds: 60, keyPrefix: "rl:web"))
+        // Browsers send no X-Install-ID, so the IP ceiling is the real limit; without it
+        // a made-up install ID per request walked straight past the per-identity bucket.
+        let pages = routes.grouped(RateLimitMiddleware(limit: 120, windowSeconds: 60, keyPrefix: "rl:web", ipCeiling: 120))
         pages.get("team", ":teamID", use: team)
         pages.get("team", ":teamID", ":slug", use: team)
         pages.get("league", ":leagueID", use: league)
@@ -61,7 +63,7 @@ struct PublicWebController: RouteCollection {
 
         // Feeds: Google Calendar fetches every subscriber's feeds from a small pool of
         // shared IPs, so the per-IP limit here is much higher than for pages.
-        let feeds = routes.grouped(RateLimitMiddleware(limit: 1200, windowSeconds: 60, keyPrefix: "rl:cal"))
+        let feeds = routes.grouped(RateLimitMiddleware(limit: 1200, windowSeconds: 60, keyPrefix: "rl:cal", ipCeiling: 1200))
         feeds.get("cal", "team", ":file", use: teamFeed)
         feeds.get("cal", "league", ":file", use: leagueFeed)
     }
@@ -119,7 +121,12 @@ struct PublicWebController: RouteCollection {
     func teamFeed(_ req: Request) async throws -> Response {
         guard let id = Self.feedID(req.parameters.get("file")) else { throw Abort(.notFound) }
         let schedule = try await currentPublicSchedule(req)
-        guard let team = schedule.teams[id] else { throw Abort(.notFound) }
+        guard let team = schedule.teams[id] else {
+            // A team with nothing in the window (the offseason, before TheSportsDB posts
+            // the next season) still answers with an empty calendar: a 404 made Calendar
+            // fail the subscription, or drop one that already existed.
+            return Self.emptyCalendar()
+        }
         return await cached(req, key: "cal:team:" + id, schedule: schedule, contentType: Self.calendarType, maxAge: 3600) {
             PublicPages.teamCalendar(team, site: site, now: Date()).render(stamp: Self.dayStamp())
         }
@@ -128,7 +135,7 @@ struct PublicWebController: RouteCollection {
     func leagueFeed(_ req: Request) async throws -> Response {
         guard let id = Self.feedID(req.parameters.get("file")) else { throw Abort(.notFound) }
         let schedule = try await currentPublicSchedule(req)
-        guard let league = schedule.leagues[id] else { throw Abort(.notFound) }
+        guard let league = schedule.leagues[id] else { return Self.emptyCalendar() }
         return await cached(req, key: "cal:league:" + id, schedule: schedule, contentType: Self.calendarType, maxAge: 3600) {
             PublicPages.leagueCalendar(league, site: site, now: Date()).render(stamp: Self.dayStamp())
         }
@@ -140,6 +147,16 @@ struct PublicWebController: RouteCollection {
     static let calendarType = HTTPMediaType(type: "text", subType: "calendar", parameters: ["charset": "utf-8"])
 
     /// "134867.ics" → "134867".
+    /// A valid, eventless VCALENDAR, cached for an hour like a real feed.
+    static func emptyCalendar() -> Response {
+        let body = ICSCalendar(name: PublicSite.brand, description: nil, url: nil, events: [])
+            .render(stamp: dayStamp())
+        var headers = HTTPHeaders()
+        headers.contentType = calendarType
+        headers.replaceOrAdd(name: .cacheControl, value: "public, max-age=3600")
+        return Response(status: .ok, headers: headers, body: .init(string: body))
+    }
+
     static func feedID(_ file: String?) -> String? {
         guard let file, file.hasSuffix(".ics") else { return nil }
         let id = String(file.dropLast(4))

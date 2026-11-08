@@ -793,8 +793,9 @@ public struct Game: Identifiable, Equatable, Hashable {
         self.strAwayTeamBadge = strAwayTeamBadge
         // ESPN reports "0"–"0" for a game that hasn't kicked off; a not-started game
         // has no score, so drop it here and every row shows the start time instead.
-        self.intHomeScore = Game.scoreIfStarted(intHomeScore, status: strStatus)
-        self.intAwayScore = Game.scoreIfStarted(intAwayScore, status: strStatus)
+        let scores = Game.scoresIfStarted(home: intHomeScore, away: intAwayScore, status: strStatus)
+        self.intHomeScore = scores.home
+        self.intAwayScore = scores.away
         self.strStatus = strStatus
         self.strProgress = strProgress
         self.strTimestamp = strTimestamp
@@ -1025,8 +1026,11 @@ extension Game: Codable {
         strHomeTeamBadge = try container.decodeIfPresent(String.self, forKey: .strHomeTeamBadge)
         strAwayTeamBadge = try container.decodeIfPresent(String.self, forKey: .strAwayTeamBadge)
         let status = try container.decodeIfPresent(String.self, forKey: .strStatus)
-        intHomeScore = Game.scoreIfStarted(try container.decodeIfPresent(String.self, forKey: .intHomeScore), status: status)
-        intAwayScore = Game.scoreIfStarted(try container.decodeIfPresent(String.self, forKey: .intAwayScore), status: status)
+        let scores = Game.scoresIfStarted(home: try container.decodeIfPresent(String.self, forKey: .intHomeScore),
+                                          away: try container.decodeIfPresent(String.self, forKey: .intAwayScore),
+                                          status: status)
+        intHomeScore = scores.home
+        intAwayScore = scores.away
         strStatus = status
         strProgress = try container.decodeIfPresent(String.self, forKey: .strProgress)
         strTimestamp = try container.decodeIfPresent(String.self, forKey: .strTimestamp)
