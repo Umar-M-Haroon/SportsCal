@@ -828,7 +828,10 @@ struct GameDetailSections: View {
                     series: series,
                     homeName: homeShortName, awayName: awayShortName,
                     homeColor: homeColor, awayColor: awayColor,
-                    league: league
+                    league: league,
+                    // While live, headline the same number as the Live bar above; the
+                    // series comes from a separate, less frequent fetch and lags it.
+                    current: game.strStatus == "in" ? game.situation?.homeWinProbability : nil
                 )
             }
             .padding()

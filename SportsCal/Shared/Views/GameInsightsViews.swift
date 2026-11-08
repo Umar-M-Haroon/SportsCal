@@ -179,6 +179,9 @@ struct WinProbabilityChart: View {
     let awayColor: Color
     /// Names the periods on the boundary marks ("Q2", "H2", "OT"); nil hides the labels.
     var league: Leagues? = nil
+    /// The live home win probability; when set, the header shows it instead of the
+    /// series' last point so it always matches the Live bar.
+    var current: Double? = nil
 
     @Environment(\.self) private var environment
     private var homeTint: Color { homeColor.legible(in: environment) }
@@ -198,7 +201,7 @@ struct WinProbabilityChart: View {
             HStack {
                 Label(awayName, systemImage: "circle.fill").foregroundStyle(awayTint)
                 Spacer()
-                if let last = series.home.last {
+                if let last = current ?? series.home.last {
                     WinProbabilityLabel(home: last, homeName: homeName, awayName: awayName)
                         .font(.caption.weight(.semibold))
                 }

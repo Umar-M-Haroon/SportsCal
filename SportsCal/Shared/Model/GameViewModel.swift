@@ -2604,8 +2604,21 @@ public class GameViewModel: NSObject {
     private func runDerivedSideEffects() {
         lastSideEffectRun = Date()
 
-        // Write trimmed snapshot for widget extension off main actor
-        let snapshotGames = filteredGames ?? []
+        // Write trimmed snapshot for widget extension off main actor.
+        // With "Hide past events" on (the default) `filteredGames` starts at *now*, so
+        // games already under way today would vanish from the widget the moment they
+        // tip off. Add today's started games back from the unwindowed preference list.
+        var widgetGames = filteredGames ?? []
+        if appStorage.hidePastEvents {
+            let now = Date()
+            let startOfToday = Calendar.current.startOfDay(for: now)
+            let startedToday = getGamesFromUserPreferences().filter { game in
+                guard let date = game.standardDate else { return false }
+                return date >= startOfToday && date < now
+            }
+            widgetGames = startedToday + widgetGames
+        }
+        let snapshotGames = widgetGames
         let snapshotTeams = teams
         Task.detached(priority: .utility) {
             WidgetDataStore.writeSnapshot(games: snapshotGames, teams: snapshotTeams)

@@ -608,3 +608,52 @@ final class InstallCohortTests: XCTestCase {
         XCTAssertEqual(ActivationSignals.notificationDecision(.provisional), true)
     }
 }
+
+// MARK: - Widget snapshot selection
+
+final class WidgetSnapshotSelectionTests: XCTestCase {
+    private let utc: Calendar = {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        return cal
+    }()
+
+    private func game(_ id: String, _ iso: String, status: String, scored: Bool = false) -> Game {
+        Game(idLiveScore: nil, idEvent: id, strSport: nil, idLeague: "4387", strLeague: "NBA",
+             idHomeTeam: "h\(id)", idAwayTeam: "a\(id)", strHomeTeam: "Home \(id)", strAwayTeam: "Away \(id)",
+             strHomeTeamBadge: nil, strAwayTeamBadge: nil,
+             intHomeScore: scored ? "10" : nil, intAwayScore: scored ? "8" : nil,
+             strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil,
+             strStatus: status, strProgress: nil, strEventTime: nil, dateEvent: nil, updated: nil,
+             strTimestamp: iso, isoDate: nil)
+    }
+
+    private var now: Date { ISO8601DateFormatter().date(from: "2026-11-07T20:00:00Z")! }
+
+    func testKeepsTodaysLiveAndFinishedGames() {
+        let games = [
+            game("final", "2026-11-07T15:00:00Z", status: "FT", scored: true),
+            game("live", "2026-11-07T19:30:00Z", status: "in", scored: true),
+            game("later", "2026-11-07T23:00:00Z", status: "NS"),
+            game("yesterday", "2026-11-06T23:00:00Z", status: "FT", scored: true),
+        ]
+        let ids = WidgetDataStore.selectGames(games, now: now, calendar: utc).compactMap(\.idEvent)
+        XCTAssertEqual(ids, ["final", "live", "later"], "today's started games stay; yesterday drops")
+    }
+
+    func testBusyDayCannotCrowdOutTomorrow() {
+        let today = (0..<40).map { game("t\($0)", "2026-11-07T21:\(String(format: "%02d", $0 % 60)):00Z", status: "NS") }
+        let tomorrow = [game("tomorrow", "2026-11-08T18:00:00Z", status: "NS")]
+        let picked = WidgetDataStore.selectGames(today + tomorrow, now: now, calendar: utc)
+        XCTAssertEqual(picked.filter { $0.idEvent?.hasPrefix("t") == true && $0.idEvent != "tomorrow" }.count,
+                       WidgetDataStore.gamesPerDay)
+        XCTAssertTrue(picked.contains { $0.idEvent == "tomorrow" })
+    }
+
+    func testLiveGamesWinTheDayCap() {
+        let finals = (0..<30).map { game("f\($0)", "2026-11-07T0\($0 % 9):00:00Z", status: "FT", scored: true) }
+        let live = game("live", "2026-11-07T19:00:00Z", status: "in", scored: true)
+        let picked = WidgetDataStore.selectGames(finals + [live], now: now, calendar: utc)
+        XCTAssertTrue(picked.contains { $0.idEvent == "live" })
+    }
+}

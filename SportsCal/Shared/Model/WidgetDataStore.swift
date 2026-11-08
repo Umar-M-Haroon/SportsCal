@@ -88,17 +88,53 @@ enum WidgetDataStore {
 
     // MARK: - Write (called by main app)
 
+    /// Days the widget can page through (today plus the next six).
+    static let snapshotDays = 7
+    /// Games kept per day. The widget shows at most six; the rest are headroom for its
+    /// favourites-first sort and per-sport tabs.
+    static let gamesPerDay = 20
+
+    /// Picks the games the widget can show: today (including games already under way
+    /// or finished) through `snapshotDays`, capped per day so a busy day can't crowd
+    /// the later days out. Within a day: live first, then upcoming by start time,
+    /// then finished, most recent first. Pure so it can be tested.
+    static func selectGames(_ games: [Game], now: Date, calendar: Calendar = .current) -> [Game] {
+        let today = calendar.startOfDay(for: now)
+        guard let end = calendar.date(byAdding: .day, value: snapshotDays, to: today) else { return [] }
+        var byDay: [Date: [Game]] = [:]
+        var seen = Set<String>()
+        for game in games {
+            guard let date = game.standardDate, date >= today, date < end else { continue }
+            if let id = game.idEvent, !seen.insert(id).inserted { continue }
+            byDay[calendar.startOfDay(for: date), default: []].append(game)
+        }
+        // 0 live, 1 upcoming, 2 finished.
+        func rank(_ game: Game) -> Int {
+            let status = game.strStatus ?? ""
+            if status == "NS" || status == "pre" || status.isEmpty { return 1 }
+            if game.isCompleted == true || game.hasDoneStatus { return 2 }
+            return game.intHomeScore != nil ? 0 : 1
+        }
+        return byDay.keys.sorted().flatMap { day -> [Game] in
+            let dayGames = byDay[day] ?? []
+            let ordered = dayGames.sorted { lhs, rhs in
+                let l = rank(lhs), r = rank(rhs)
+                if l != r { return l < r }
+                let ld = lhs.standardDate ?? .distantFuture, rd = rhs.standardDate ?? .distantFuture
+                return l == 2 ? ld > rd : ld < rd
+            }
+            return Array(ordered.prefix(gamesPerDay))
+                .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
+        }
+    }
+
     /// Writes the next upcoming games + relevant teams to the app group container.
     /// Call this after schedule data is refreshed or sport filters change.
     static func writeSnapshot(games: [Game], teams: [Team]) {
         guard let url = fileURL else { return }
 
-        // Keep ~30 upcoming games so the widget can navigate a few days ahead
         let now = Date()
-        let upcoming = games
-            .filter { ($0.standardDate ?? .distantPast) >= Calendar.current.startOfDay(for: now) }
-            .sorted { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) }
-            .prefix(30)
+        let upcoming = selectGames(games, now: now)
 
         // Strip heavy fields to reduce snapshot size and widget decode memory
         let strippedGames = upcoming.map { stripGame($0) }
