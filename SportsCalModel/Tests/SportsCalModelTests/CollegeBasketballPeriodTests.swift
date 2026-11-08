@@ -9,7 +9,7 @@ final class CollegeBasketballPeriodTests: XCTestCase {
     }
 
     func testMensCollegeBasketballUsesHalves() {
-        XCTAssertEqual(game(league: .ncaaMBBTournament).periodLabels(count: 4), ["H1", "H2", "OT", "OT2"])
+        XCTAssertEqual(game(league: .ncaaMBBTournament).periodLabels(count: 4), ["H1", "H2", "OT", "2OT"])
         XCTAssertEqual(Leagues.ncaaMBBTournament.periodName(2), "H2")
         XCTAssertEqual(Leagues.ncaaMBBTournament.periodName(3), "OT")
     }

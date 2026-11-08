@@ -13,11 +13,46 @@ public struct GolfCourseInfo: Codable, Equatable, Hashable {
     public let courseName: String
     public let par: Int
     public let holePars: [Int]?
+    /// Tournament context from ESPN's golf leaderboard feed (`GolfEnrichmentJob`). All
+    /// optional: the scoreboard alone fills none of them.
+    /// "$6,000,000".
+    public var purse: String?
+    public var defendingChampion: String?
+    /// Rounds the event is scheduled for (4 on most tours, 3 on LIV).
+    public var numberOfRounds: Int?
+    /// The round after which the cut is made, the (projected while that round is being
+    /// played) cut score to par, and how many players are inside it.
+    public var cutRound: Int?
+    public var cutScore: Int?
+    public var cutCount: Int?
+    public var yardage: Int?
 
-    public init(courseName: String, par: Int, holePars: [Int]? = nil) {
+    public init(courseName: String, par: Int, holePars: [Int]? = nil, purse: String? = nil, defendingChampion: String? = nil,
+                numberOfRounds: Int? = nil, cutRound: Int? = nil, cutScore: Int? = nil, cutCount: Int? = nil, yardage: Int? = nil) {
         self.courseName = courseName
         self.par = par
         self.holePars = holePars
+        self.purse = purse
+        self.defendingChampion = defendingChampion
+        self.numberOfRounds = numberOfRounds
+        self.cutRound = cutRound
+        self.cutScore = cutScore
+        self.cutCount = cutCount
+        self.yardage = yardage
+    }
+
+    /// This course info with `other`'s tournament context filled in where this has none.
+    public func withContext(from other: GolfCourseInfo?) -> GolfCourseInfo {
+        guard let other else { return self }
+        var merged = self
+        merged.purse = purse ?? other.purse
+        merged.defendingChampion = defendingChampion ?? other.defendingChampion
+        merged.numberOfRounds = numberOfRounds ?? other.numberOfRounds
+        merged.cutRound = cutRound ?? other.cutRound
+        merged.cutScore = cutScore ?? other.cutScore
+        merged.cutCount = cutCount ?? other.cutCount
+        merged.yardage = yardage ?? other.yardage
+        return merged
     }
 }
 
@@ -68,7 +103,7 @@ public struct GolfRoundDetail: Codable, Equatable, Hashable {
     public let roundNumber: Int
     public let totalScore: Int?
     public let stats: GolfRoundStats?
-    public let holeScores: [GolfHoleScore]?
+    public var holeScores: [GolfHoleScore]?
 
     public init(roundNumber: Int, totalScore: Int? = nil, stats: GolfRoundStats? = nil, holeScores: [GolfHoleScore]? = nil) {
         self.roundNumber = roundNumber

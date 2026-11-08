@@ -32,8 +32,19 @@ struct RaceScoreView: View {
             return progress
         }
         if hasSessionStrip {
-            if case .finished = game.raceWeekendStatus { return "Final" }
-            return nil
+            switch game.raceWeekendStatus {
+            case .finished: return "Final"
+            case .live(let name):
+                // F1 laps when the feed has them ("Race · Lap 23/57").
+                if let state = game.liveSessionEntry?.raceState, state.lap > 0 {
+                    return "\(name) · \(state.totalLaps > 0 ? state.lapLabel : "Lap \(state.lap)")"
+                }
+                return nil
+            case .upcoming(let label, let date):
+                // When the next session starts; the strip only marks which one it is.
+                return "Next: \(label) \(Self.startText(date))"
+            case .none: return nil
+            }
         }
         switch game.raceWeekendStatus {
         case .live(let name):
@@ -47,6 +58,35 @@ struct RaceScoreView: View {
         }
     }
 
+    /// "in 45 min" within the hour, the time today, else "Sat 3:00 PM".
+    static func startText(_ date: Date, now: Date = Date()) -> String {
+        let interval = date.timeIntervalSince(now)
+        if interval > 0, interval < 3600 { return "in \(max(Int(interval / 60), 1)) min" }
+        if Calendar.current.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
+        return date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+    }
+
+    /// The session the mini leaderboard comes from (live, else the most important one
+    /// finished), so a Friday row says "FP2" and a sprint Saturday "Sprint Qualifying".
+    private var topThreeSource: EventSession? {
+        guard let featured = game.featuredSession, !featured.leaderboard.isEmpty else { return nil }
+        return featured
+    }
+
+    private var topThree: [LeaderboardEntry] {
+        if let source = topThreeSource {
+            return Array(source.leaderboard.filter { $0.position > 0 }.sorted { $0.position < $1.position }.prefix(3))
+        }
+        return Array(game.resolvedLeaderboard.prefix(3))
+    }
+
+    /// P1's label: "Winner" for a finished race or sprint, "Fastest" for practice and
+    /// qualifying, "Leader" while a race runs.
+    private var leaderLabel: String {
+        if let source = topThreeSource { return source.leaderTitle }
+        return game.displayStatus == "Final" ? "Winner" : "Leader"
+    }
+
     /// One VoiceOver sentence: "Monaco Grand Prix, live, Monte Carlo, Monaco,
     /// 1 Verstappen, leader, 2 Norris, +1.2s, 3 …".
     private var accessibilityLabel: String {
@@ -55,10 +95,11 @@ struct RaceScoreView: View {
         if let circuit = game.circuitInfo { parts.append("\(circuit.locality), \(circuit.country)") }
         else if let venue = game.venueName, game.isMotorsportSeries { parts.append(venue) }
         if let status = raceStatusText { parts.append(status) }
-        let entries = game.resolvedLeaderboard.prefix(3)
+        let entries = topThree
         if !entries.isEmpty {
+            if let source = topThreeSource { parts.append("\(source.displayName) top three") }
             for (index, entry) in entries.enumerated() {
-                let gap = index == 0 ? "leader" : (entry.gap ?? entry.score)
+                let gap = index == 0 ? leaderLabel.lowercased() : (entry.gap ?? entry.score)
                 parts.append("\(entry.position) \(entry.name), \(gap)")
             }
         } else if game.strAwayTeam != "TBD" {
@@ -132,10 +173,17 @@ struct RaceScoreView: View {
                     }
                 }
 
-                // Mini leaderboard (top 3 drivers)
-                let entries = Array(game.resolvedLeaderboard.prefix(3))
+                // Mini leaderboard (top 3 drivers), labelled with the session it's from
+                let entries = topThree
                 if !entries.isEmpty {
                     VStack(spacing: 4) {
+                        if let source = topThreeSource {
+                            Text(source.status == "in" ? "\(source.displayName) · live" : source.displayName)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .textCase(.uppercase)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                         ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
                             HStack(spacing: 6) {
                                 Text("\(entry.position)")
@@ -160,7 +208,7 @@ struct RaceScoreView: View {
                                         .lineLimit(1)
                                 }
                                 Spacer()
-                                Text(index == 0 ? game.raceTopLabel : (entry.gap ?? entry.score))
+                                Text(index == 0 ? leaderLabel : (entry.gap ?? entry.score))
                                     .font(.subheadline)
                                     .fontWeight(index == 0 ? .semibold : .regular)
                                     .foregroundColor(index == 0 ? .primary : .secondary)
@@ -266,9 +314,16 @@ struct SessionIndicatorStrip: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+            } else if !isDone, let start = session.startDate, start > Date() {
+                // Upcoming sessions say when.
+                Text(RaceScoreView.startText(start))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
         }
         .fixedSize()
+        .accessibilityElement(children: .combine)
         .foregroundStyle(isDone && !isFocused ? Color.secondary : Color.primary)
         .padding(.horizontal, 7)
         .padding(.vertical, 3)

@@ -20,6 +20,16 @@ struct NotifyButton: View {
     @Binding var sheetType: SheetType?
     var game: Game
     @State private var scheduledNotifications: Set<NotificationDuration> = []
+    /// Race weekends: `EventSession.reminderKey`s with a pending per-session reminder.
+    @State private var scheduledSessions: Set<String> = []
+
+    /// Race weekends' other sessions still to come (Quali, Sprint…); the duration
+    /// options above them time to the headline session (the Race).
+    private var extraSessions: [EventSession] {
+        guard game.isRace else { return [] }
+        let headlineKey = game.headlineSession?.reminderKey
+        return game.upcomingSessions().filter { $0.reminderKey != headlineKey }
+    }
 
     var body: some View {
         Menu {
@@ -28,7 +38,7 @@ struct NotifyButton: View {
                 scheduleNotification(duration: .gameStarting)
             } label: {
                 HStack {
-                    Text("When game starts")
+                    Text(game.isRace ? "When the \((game.headlineSession?.shortName ?? "race").lowercased()) starts" : "When game starts")
                     if scheduledNotifications.contains(.gameStarting) {
                         Image(systemName: "checkmark")
                     } else if isGated(.gameStarting) {
@@ -81,10 +91,29 @@ struct NotifyButton: View {
                 }
             }
 
+            if !extraSessions.isEmpty {
+                Section("Other sessions") {
+                    ForEach(extraSessions, id: \.reminderKey) { session in
+                        Button {
+                            toggleSessionReminder(session)
+                        } label: {
+                            HStack {
+                                Text(sessionLabel(session))
+                                if scheduledSessions.contains(session.reminderKey) {
+                                    Image(systemName: "checkmark")
+                                } else if isGated(.gameStarting) {
+                                    Image(systemName: "lock.fill")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Divider()
 
             // Cancel all notifications
-            if !scheduledNotifications.isEmpty {
+            if !scheduledNotifications.isEmpty || !scheduledSessions.isEmpty {
                 Button(role: .destructive) {
                     cancelAllNotifications()
                 } label: {
@@ -92,7 +121,8 @@ struct NotifyButton: View {
                 }
             }
         } label: {
-            Label(scheduledNotifications.isEmpty ? "Notify Me" : "Notifying", systemImage: scheduledNotifications.isEmpty ? "bell.badge" : "bell.badge.fill")
+            let isNotifying = !scheduledNotifications.isEmpty || !scheduledSessions.isEmpty
+            Label(isNotifying ? "Notifying" : "Notify Me", systemImage: isNotifying ? "bell.badge.fill" : "bell.badge")
         }
         .onAppear {
             checkScheduledNotifications()
@@ -160,7 +190,8 @@ struct NotifyButton: View {
             }
             return
         }
-        guard let gameDate = game.standardDate else { return }
+        // A race weekend's own date is FP1: time the reminder to its Race.
+        guard let gameDate = game.headlineSession?.startDate ?? game.standardDate else { return }
 
         NotificationManager.addLocalNotification(date: gameDate, item: game, duration: duration)
         scheduledNotifications.insert(duration)
@@ -171,10 +202,42 @@ struct NotifyButton: View {
         }
     }
 
+    /// "Qualifying · Sat 3:00 PM".
+    private func sessionLabel(_ session: EventSession) -> String {
+        guard let start = session.startDate else { return session.displayName }
+        return "\(session.displayName) · \(start.formatted(.dateTime.weekday(.abbreviated).hour().minute()))"
+    }
+
+    /// One "starting now" reminder per extra session; gated like a game-start reminder.
+    private func toggleSessionReminder(_ session: EventSession) {
+        guard let gameID = game.idEvent else { return }
+        let key = session.reminderKey
+        if scheduledSessions.contains(key) {
+            UNUserNotificationCenter.current().removePendingNotificationRequests(
+                withIdentifiers: [NotificationManager.sessionIdentifier(gameID: gameID, session: session)])
+            scheduledSessions.remove(key)
+            return
+        }
+        let decision = gateDecision(for: .gameStarting)
+        guard decision.isAllowed else {
+            if let feature = decision.blockedFeature {
+                MonetizationTelemetry.gateHit(feature)
+            }
+            UpsellCoordinator.shared.request(.freeReminderCapHit) {
+                shouldShowSportsCalProAlert = true
+            }
+            return
+        }
+        guard let start = session.startDate else { return }
+        NotificationManager.addLocalNotification(date: start, item: game, duration: .gameStarting, session: session)
+        scheduledSessions.insert(key)
+    }
+
     private func cancelAllNotifications() {
         if let gameID = game.idEvent {
             NotificationManager.cancelNotifications(for: gameID)
             scheduledNotifications.removeAll()
+            scheduledSessions.removeAll()
             if !subscriptionManager.isPro, let favKey = favoriteTeamKey {
                 storage.releaseFreeReminderTeam(favKey)
             }
@@ -183,6 +246,11 @@ struct NotifyButton: View {
 
     private func checkScheduledNotifications() {
         guard let gameID = game.idEvent else { return }
+        if game.isRace {
+            NotificationManager.scheduledSessionKeys(for: gameID) { keys in
+                DispatchQueue.main.async { scheduledSessions = keys }
+            }
+        }
         for duration in NotificationDuration.allCases {
             NotificationManager.isNotificationScheduled(for: gameID, duration: duration) { isScheduled in
                 DispatchQueue.main.async {

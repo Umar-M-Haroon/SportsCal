@@ -821,10 +821,11 @@ struct ContentView: View {
         let eventStore = EKEventStore()
         AppLogger.calendar.info("Making calendar event for game \(game.strAwayTeam) @ \(game.strHomeTeam)")
         let event = EKEvent(eventStore: eventStore)
-        event.title = "\(game.strAwayTeam) @ \(game.strHomeTeam)"
-        if let gameDate = game.standardDate {
+        // Race weekends: "Dutch Grand Prix — Race" at the Race's start, not FP1's.
+        event.title = game.eventTitle()
+        if let gameDate = game.eventStartDate() ?? game.standardDate {
             event.startDate = gameDate
-            event.endDate = gameDate.afterHoursFromNow(hours: 2)
+            event.endDate = gameDate.afterHoursFromNow(hours: game.eventDurationHours())
         }
         return CalendarRepresentable(eventStore: eventStore, event: event)
     }

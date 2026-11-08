@@ -16,6 +16,27 @@ private func resolvedBadgeURL(_ urlString: String) -> URL? {
     return URL(string: urlString)
 }
 
+/// A team name with its seed or rank. A playoff seed reads "(5) Bills"; a college
+/// AP / CFP rank is a small raised number before the name, the way polls print it,
+/// so it isn't mistaken for a seed.
+enum SeededName {
+    static func text(_ name: String, seed: Int?, isRank: Bool) -> Text {
+        guard let seed else { return Text(name) }
+        guard isRank else { return Text("(\(seed)) \(name)") }
+        let rank = Text("\(seed)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .baselineOffset(4)
+        return Text("\(rank)\u{2009}\(name)")
+    }
+
+    /// "Number 5 Ohio State" / "5 seed Bills", for an accessibility label.
+    static func spoken(_ name: String, seed: Int?, isRank: Bool) -> String {
+        guard let seed else { return name }
+        return isRank ? "Number \(seed) \(name)" : "\(seed) seed \(name)"
+    }
+}
+
 struct IndividualTeamView: View {
     var teamURL: String?
     var shortName: String?
@@ -25,6 +46,10 @@ struct IndividualTeamView: View {
     var isAway: Bool
     var record: String? = nil
     var seed: Int? = nil
+    /// The seed is a college poll rank (see `SeededName`).
+    var seedIsRank: Bool = false
+    /// Soccer red cards, drawn as a card glyph beside the name.
+    var redCards: Int = 0
     var data: Data? = nil
     /// Score / fallback-code sizes track Dynamic Type; 24pt / 14pt at the default size.
     @ScaledMetric(relativeTo: .title2) private var scoreSize: CGFloat = 24
@@ -147,26 +172,21 @@ struct IndividualTeamView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
-            if let shortName {
-                // Never let a score wrap ("10 / 7"): it keeps its width, the code shrinks.
-                Text(seed != nil ? "(\(seed!)) \(shortName)" : shortName)
-                    .font(.headline)
-                    .fontWeight(isWinning ? .bold : .regular)
-                    .foregroundColor(isWinning ? .primary : .secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
-            } else if let longName {
-                // A full name in half a row: one line, shrunk to fit. Wrapping let SwiftUI
-                // break a long word mid-way ("Vanderbilt Com-modores").
-                Text(seed != nil ? "(\(seed!)) \(longName)" : longName)
-                    .foregroundColor(isWinning ? .primary : .secondary)
-                    .font(.headline)
-                    .fontWeight(isWinning ? .bold : .regular)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                    .allowsTightening(true)
-            .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
+            if let name = shortName ?? longName {
+                HStack(spacing: 4) {
+                    if !isAway { redCardMark }
+                    // One line, shrunk to fit: wrapping let SwiftUI break a long word
+                    // mid-way ("Vanderbilt Com-modores").
+                    SeededName.text(name, seed: seed, isRank: seedIsRank)
+                        .font(.headline)
+                        .fontWeight(isWinning ? .bold : .regular)
+                        .foregroundColor(isWinning ? .primary : .secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(shortName != nil ? 0.7 : 0.6)
+                        .allowsTightening(true)
+                    if isAway { redCardMark }
+                }
+                .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             }
             if let record {
                 Text(record)
@@ -175,6 +195,35 @@ struct IndividualTeamView: View {
                     .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             }
         }
+    }
+}
+
+extension IndividualTeamView {
+    @ViewBuilder
+    fileprivate var redCardMark: some View {
+        if redCards > 0 {
+            SoccerRedCardMark(count: redCards)
+        }
+    }
+}
+
+/// A red card, with a count past one. Sits beside a team's name on rows.
+struct SoccerRedCardMark: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 1) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(Color.red)
+                .frame(width: 7, height: 10)
+            if count > 1 {
+                Text("\(count)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.red)
+            }
+        }
+        .accessibilityElement()
+        .accessibilityLabel(count == 1 ? "1 red card" : "\(count) red cards")
     }
 }
 

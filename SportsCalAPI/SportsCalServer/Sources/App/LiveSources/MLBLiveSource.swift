@@ -69,27 +69,87 @@ struct MLBGame: Content {
     let status: MLBStatus?
     let teams: MLBTeams?
     let linescore: MLBLinescore?
+    /// 1 or 2 on a doubleheader day.
+    let gameNumber: Int?
+    /// "N" for a single game, "Y" (traditional) or "S" (split) for a doubleheader.
+    let doubleHeader: String?
+
+    /// What ESPN would say for this state, so the two sources racing for a game don't
+    /// flip its status between formats: "Bot 9th", "Mid 3rd", "Rain Delay", "Final".
+    struct ESPNStyleStatus: Equatable {
+        var strStatus: String
+        var progress: String?
+        var completed: Bool
+    }
+
+    static func espnStyleStatus(abstract: String?, detailed: String?, inning: Int?, inningState: String?, inningOrdinal: String?) -> ESPNStyleStatus? {
+        let detail = (detailed ?? "").lowercased()
+        switch abstract {
+        case "Live":
+            // Delays stay in progress (ESPN keeps them "in"), but read as the delay,
+            // not as an inning.
+            if detail.hasPrefix("delayed") || detail.hasPrefix("delay") {
+                return ESPNStyleStatus(strStatus: "in", progress: detail.contains("rain") ? "Rain Delay" : "Delayed", completed: false)
+            }
+            if detail.hasPrefix("suspended") {
+                return ESPNStyleStatus(strStatus: "post", progress: "Suspended", completed: false)
+            }
+            return ESPNStyleStatus(strStatus: "in", progress: inningText(inning: inning, state: inningState, ordinal: inningOrdinal), completed: false)
+        case "Final":
+            // A suspended game is over for today but not finished: it resumes on
+            // another day, so it must not be archived as a final.
+            if detail.hasPrefix("suspended") {
+                return ESPNStyleStatus(strStatus: "post", progress: "Suspended", completed: false)
+            }
+            if detail.hasPrefix("postponed") || detail.hasPrefix("cancelled") || detail.hasPrefix("canceled") {
+                return nil
+            }
+            return ESPNStyleStatus(strStatus: "post", progress: nil, completed: true)
+        default:
+            return nil   // Preview / other → not a live update
+        }
+    }
+
+    /// "Top 9th" / "Bot 9th" / "Mid 9th" / "End 9th", ESPN's shortDetail format.
+    static func inningText(inning: Int?, state: String?, ordinal: String?) -> String? {
+        guard let inning else { return nil }
+        let number = ordinal ?? Self.ordinal(inning)
+        let half: String
+        switch state?.lowercased() {
+        case "top": half = "Top"
+        case "bottom": half = "Bot"
+        case "middle": half = "Mid"
+        case "end": half = "End"
+        default: return number
+        }
+        return "\(half) \(number)"
+    }
+
+    static func ordinal(_ n: Int) -> String {
+        let suffix: String
+        switch (n % 10, n % 100) {
+        case (_, 11...13): suffix = "th"
+        case (1, _): suffix = "st"
+        case (2, _): suffix = "nd"
+        case (3, _): suffix = "rd"
+        default: suffix = "th"
+        }
+        return "\(n)\(suffix)"
+    }
 
     func toGame() -> Game? {
         guard let teams = teams,
               let homeName = teams.home?.team?.name,
               let awayName = teams.away?.team?.name,
-              let state = status?.abstractGameState else { return nil }
-
-        let strStatus: String
-        let completed: Bool
-        switch state {
-        case "Live":  strStatus = "in";   completed = false
-        case "Final": strStatus = "post"; completed = true
-        default: return nil   // Preview / other → not a live update
-        }
-
-        // "Bot 9" / "Top 3" while live.
-        var progress: String? = nil
-        if strStatus == "in", let inning = linescore?.currentInning {
-            let half = (linescore?.inningState?.prefix(3)).map(String.init) ?? ""
-            progress = half.isEmpty ? "\(inning)" : "\(half) \(inning)"
-        }
+              let state = Self.espnStyleStatus(
+                abstract: status?.abstractGameState,
+                detailed: status?.detailedState,
+                inning: linescore?.currentInning,
+                inningState: linescore?.inningState,
+                inningOrdinal: linescore?.currentInningOrdinal
+              ) else { return nil }
+        let strStatus = state.strStatus
+        let isDoubleheader = doubleHeader == "Y" || doubleHeader == "S"
 
         return Game(
             idEvent: gamePk.map { "mlb-\($0)" },
@@ -99,11 +159,15 @@ struct MLBGame: Content {
             intHomeScore: teams.home?.score.map(String.init),
             intAwayScore: teams.away?.score.map(String.init),
             strStatus: strStatus,
-            strProgress: progress,
+            strProgress: state.progress,
             strTimestamp: gameDate,
-            isCompleted: completed,
+            isCompleted: state.completed,
             isoDate: nil,
-            situation: strStatus == "in" ? linescore?.situation : nil
+            // No count or runners through a delay.
+            situation: strStatus == "in" && state.progress?.contains("Delay") != true ? linescore?.situation : nil,
+            // Only to tell a doubleheader's games apart in the merge; a partial
+            // source's extras never replace ESPN's.
+            scoreboardExtras: isDoubleheader ? gameNumber.map { ScoreboardExtras(doubleheaderGame: $0) } : nil
         )
     }
 }
@@ -129,6 +193,8 @@ struct MLBTeamRef: Content {
 
 struct MLBLinescore: Content {
     let currentInning: Int?
+    /// "9th"
+    let currentInningOrdinal: String?
     let inningState: String?
     let balls: Int?
     let strikes: Int?

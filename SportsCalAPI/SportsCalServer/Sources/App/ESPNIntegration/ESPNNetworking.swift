@@ -536,20 +536,16 @@ class ESPNNetworking {
             return [:]
         }
 
-        var constructorMap: [String: String] = [:]
-        for competitor in competitors {
-            let urlString = "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/events/\(event.id)/competitions/\(competition.id)/competitors/\(competitor.id)?lang=en&region=us"
-            do {
-                let response = try await performGet(req, URI(string: urlString))
-                let coreCompetitor = try response.content.decode(CoreCompetitor.self)
-                if let manufacturer = coreCompetitor.vehicle?.manufacturer, !manufacturer.isEmpty {
-                    constructorMap[competitor.id] = manufacturer
-                }
-            } catch {
-                logger.warning("Failed to fetch F1 constructor for competitor \(competitor.id)", metadata: [
-                    "error": "\(error)"
-                ])
-            }
+        // Concurrently, then one more pass for the stragglers: ESPN's core API drops
+        // the odd per-driver request, and a single miss left that driver (often P8+)
+        // without a team for the whole refresh.
+        let ids = competitors.map(\.id)
+        var constructorMap = await fetchF1Constructors(req: req, eventID: event.id, competitionID: competition.id, competitorIDs: ids)
+        let missing = ids.filter { constructorMap[$0] == nil }
+        if !missing.isEmpty, currentGlobalCooldown() == nil {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            let retried = await fetchF1Constructors(req: req, eventID: event.id, competitionID: competition.id, competitorIDs: missing)
+            constructorMap.merge(retried) { current, _ in current }
         }
 
         logger.info("F1 constructor map fetched", metadata: [
@@ -557,6 +553,34 @@ class ESPNNetworking {
             "total": "\(competitors.count)"
         ])
         return constructorMap
+    }
+
+    /// Manufacturer per competitor for one competition; failures are left out.
+    private static func fetchF1Constructors(req: some Client, eventID: String, competitionID: String,
+                                            competitorIDs: [String]) async -> [String: String] {
+        await withTaskGroup(of: (String, String?).self) { group in
+            for competitorID in competitorIDs {
+                group.addTask {
+                    let urlString = "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/events/\(eventID)/competitions/\(competitionID)/competitors/\(competitorID)?lang=en&region=us"
+                    do {
+                        let response = try await performGet(req, URI(string: urlString))
+                        let coreCompetitor = try response.content.decode(CoreCompetitor.self)
+                        let manufacturer = coreCompetitor.vehicle?.manufacturer
+                        return (competitorID, manufacturer?.isEmpty == false ? manufacturer : nil)
+                    } catch {
+                        logger.debug("Failed to fetch F1 constructor for competitor \(competitorID)", metadata: [
+                            "error": "\(error)"
+                        ])
+                        return (competitorID, nil)
+                    }
+                }
+            }
+            var map: [String: String] = [:]
+            for await (competitorID, manufacturer) in group {
+                if let manufacturer { map[competitorID] = manufacturer }
+            }
+            return map
+        }
     }
 
     /// Fetches timing/gap data for all completed F1 sessions from the ESPN core API statistics endpoint.
@@ -586,39 +610,20 @@ class ESPNNetworking {
 
         for item in work {
             // Fetch all competitors for this competition concurrently
-            var competitionTiming: [String: String] = [:]
-            await withTaskGroup(of: (String, String?).self) { group in
-                for competitor in item.competitors {
-                    group.addTask {
-                        let urlString = "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/events/\(item.eventId)/competitions/\(item.competitionId)/competitors/\(competitor.id)/statistics?lang=en&region=us"
-                        do {
-                            let response = try await performGet(req, URI(string: urlString))
-                            let stats = try response.content.decode(CoreStatistics.self)
-                            // P1 shows total time, P2+ show gap behind leader
-                            if let behind = stats.statValue(named: "behindTime"), behind != "+0.000" {
-                                return (competitor.id, behind)
-                            } else if let total = stats.statValue(named: "totalTime") {
-                                return (competitor.id, total)
-                            }
-                            // Fallback: check for laps behind or status (DNF/DNS/+N Laps)
-                            if let lapsDown = stats.statValue(named: "lapsDown"), !lapsDown.isEmpty, lapsDown != "0" {
-                                return (competitor.id, "+\(lapsDown) Lap\(lapsDown == "1" ? "" : "s")")
-                            }
-                            if let status = stats.statValue(named: "status"), !status.isEmpty,
-                               status != "Running" && status != "Active" {
-                                return (competitor.id, status) // e.g. "DNF", "DNS", "Retired"
-                            }
-                            return (competitor.id, nil)
-                        } catch {
-                            return (competitor.id, nil)
-                        }
-                    }
-                }
-                for await (competitorId, gap) in group {
-                    if let gap {
-                        competitionTiming[competitorId] = gap
-                    }
-                }
+            var (competitionTiming, failed) = await fetchF1Timing(req: req, eventID: item.eventId, competitionID: item.competitionId,
+                                                                  competitorIDs: item.competitors.map(\.id))
+            // One retry for requests that errored (not ones that had no gap): a dropped
+            // call used to leave a hole in the table until the next refresh.
+            if !failed.isEmpty, currentGlobalCooldown() == nil {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                let retried = await fetchF1Timing(req: req, eventID: item.eventId, competitionID: item.competitionId, competitorIDs: failed)
+                competitionTiming.merge(retried.timing) { current, _ in current }
+                failed = retried.failed
+            }
+            if !failed.isEmpty {
+                logger.debug("F1 timing still missing after retry", metadata: [
+                    "competition": "\(item.competitionId)", "competitors": "\(failed.count)"
+                ])
             }
             if !competitionTiming.isEmpty {
                 timingMap[item.competitionId] = competitionTiming
@@ -629,6 +634,81 @@ class ESPNNetworking {
             "competitions": "\(timingMap.count)"
         ])
         return timingMap
+    }
+
+    private struct CoreEventCircuitRef: Decodable {
+        struct Ref: Decodable { let ref: String; enum CodingKeys: String, CodingKey { case ref = "$ref" } }
+        let circuit: Ref?
+    }
+    private struct CoreCircuit: Decodable {
+        let laps: Int?
+    }
+
+    /// Grand Prix distance in laps per ESPN event id, from the event's circuit (two core
+    /// calls an event; the scoreboard only has laps run so far). Events that fail are
+    /// left out so the next run retries them.
+    static func getF1RaceLaps(req: some Client, eventIDs: [String]) async -> [String: Int] {
+        await withTaskGroup(of: (String, Int?).self) { group in
+            for eventID in eventIDs {
+                group.addTask {
+                    let eventURL = "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/events/\(eventID)?lang=en&region=us"
+                    guard let event = try? await performGet(req, URI(string: eventURL)).content.decode(CoreEventCircuitRef.self),
+                          let circuitURL = event.circuit?.ref.replacingOccurrences(of: "http://", with: "https://"),
+                          let circuit = try? await performGet(req, URI(string: circuitURL)).content.decode(CoreCircuit.self),
+                          let laps = circuit.laps, laps > 0 else { return (eventID, nil) }
+                    return (eventID, laps)
+                }
+            }
+            var laps: [String: Int] = [:]
+            for await (eventID, count) in group {
+                if let count { laps[eventID] = count }
+            }
+            return laps
+        }
+    }
+
+    /// Gap per competitor for one competition, plus the competitors whose request failed.
+    private static func fetchF1Timing(req: some Client, eventID: String, competitionID: String,
+                                      competitorIDs: [String]) async -> (timing: [String: String], failed: [String]) {
+        await withTaskGroup(of: (String, String?, Bool).self) { group in
+            for competitorID in competitorIDs {
+                group.addTask {
+                    let urlString = "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/events/\(eventID)/competitions/\(competitionID)/competitors/\(competitorID)/statistics?lang=en&region=us"
+                    do {
+                        let response = try await performGet(req, URI(string: urlString))
+                        let stats = try response.content.decode(CoreStatistics.self)
+                        return (competitorID, f1Gap(from: stats), false)
+                    } catch {
+                        return (competitorID, nil, true)
+                    }
+                }
+            }
+            var timing: [String: String] = [:]
+            var failed: [String] = []
+            for await (competitorID, gap, didFail) in group {
+                if let gap { timing[competitorID] = gap }
+                if didFail { failed.append(competitorID) }
+            }
+            return (timing, failed)
+        }
+    }
+
+    /// P1 shows total time, P2+ the gap behind the leader; else laps down or a status.
+    private static func f1Gap(from stats: CoreStatistics) -> String? {
+        if let behind = stats.statValue(named: "behindTime"), behind != "+0.000" {
+            return behind
+        } else if let total = stats.statValue(named: "totalTime") {
+            return total
+        }
+        // Fallback: check for laps behind or status (DNF/DNS/+N Laps)
+        if let lapsDown = stats.statValue(named: "lapsDown"), !lapsDown.isEmpty, lapsDown != "0" {
+            return "+\(lapsDown) Lap\(lapsDown == "1" ? "" : "s")"
+        }
+        if let status = stats.statValue(named: "status"), !status.isEmpty,
+           status != "Running" && status != "Active" {
+            return status // e.g. "DNF", "DNS", "Retired"
+        }
+        return nil
     }
 
     // MARK: - Play-by-Play Summary (NBA / NFL / NHL / MLB)
@@ -732,6 +812,53 @@ class ESPNNetworking {
             ])
             throw error
         }
+    }
+
+    // MARK: - Golf Leaderboard (tournament context)
+
+    /// ESPN's web leaderboard for one golf event: purse, defending champion, rounds,
+    /// the (projected) cut, and the host course's par and yardage by hole. The site
+    /// `summary` endpoint answers 404 "Summary not supported for sport 'golf'".
+    static func getGolfLeaderboard(req: some Client, eventId: String, tour: Leagues = .pga) async throws -> GolfLeaderboardResponse {
+        let slug = tour.isGolf ? (tour.espnSlug ?? "pga") : "pga"
+        let uri = URI(string: "https://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard?league=\(slug)&event=\(eventId)")
+        return try await performGet(req, uri).content.decode(GolfLeaderboardResponse.self)
+    }
+
+    struct GolfLeaderboardResponse: Codable {
+        var events: [GolfLeaderboardEvent]?
+    }
+
+    struct GolfLeaderboardEvent: Codable {
+        var id: String?
+        var displayPurse: String?
+        var tournament: GolfLeaderboardTournament?
+        var defendingChampion: GolfLeaderboardChampion?
+        var courses: [GolfLeaderboardCourse]?
+    }
+
+    struct GolfLeaderboardTournament: Codable {
+        var numberOfRounds: Int?
+        var cutRound: Int?
+        var cutScore: Int?
+        var cutCount: Int?
+    }
+
+    struct GolfLeaderboardChampion: Codable {
+        struct Athlete: Codable { var displayName: String? }
+        var athlete: Athlete?
+    }
+
+    struct GolfLeaderboardCourse: Codable {
+        struct Hole: Codable {
+            var number: Int
+            var shotsToPar: Int?
+        }
+        var name: String?
+        var shotsToPar: Int?
+        var totalYards: Int?
+        var host: Bool?
+        var holes: [Hole]?
     }
 
     // MARK: - Golf Summary Response Models

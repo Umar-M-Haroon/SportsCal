@@ -112,7 +112,7 @@ class SportBrowseViewModel {
         seasonsCache = [:]
         leagueGamesCache = [:]
         leagues = counts.keys.sorted {
-            let (rankA, rankB) = (Self.soccerChipRank[$0] ?? .max, Self.soccerChipRank[$1] ?? .max)
+            let (rankA, rankB) = (Self.soccerChipRank($0) ?? .max, Self.soccerChipRank($1) ?? .max)
             if rankA != rankB { return rankA < rankB }
             return counts[$0] != counts[$1] ? counts[$0]! > counts[$1]! : $0.leagueName < $1.leagueName
         }
@@ -120,16 +120,8 @@ class SportBrowseViewModel {
 
     /// Soccer chips lead with the top flights and the Champions League; busiest-first alone put
     /// the Championship and the cups (more fixtures) ahead of the Premier League. Leagues not
-    /// listed, and every other sport, fall back to busiest-first.
-    private static let soccerChipRank: [Leagues: Int] = {
-        let order: [Leagues] = [
-            .English_Premier_League, .La_Liga, .UEFA_Champions_League, .German_Bundesliga, .Serie_A,
-            .Ligue_1, .MLS, .FIFA_World_Cup, .Womens_World_Cup, .UEFA_Europa_League,
-            .UEFA_Conference_League, .Liga_MX, .Eredivisie, .A_League, .English_League_Championship,
-            .UEFA_Nations_League, .Copa_America, .FA_Cup, .Copa_del_Rey, .DFB_Pokal, .Coupe_De_France,
-        ]
-        return Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
-    }()
+    /// ranked (`Leagues.soccerDisplayRank`), and every other sport, fall back to busiest-first.
+    private static func soccerChipRank(_ league: Leagues) -> Int? { league.soccerDisplayRank }
 
     /// Days with games, optionally for one league — the day strip's dots.
     func datesWithGames(league: Leagues?) -> Set<DateComponents> {

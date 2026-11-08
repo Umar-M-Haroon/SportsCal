@@ -99,7 +99,7 @@ final class ClutchMomentEdgeTests: XCTestCase {
         XCTAssertEqual(ClutchMoment.defaultLeague(for: .hockey), .nhl)
         XCTAssertNil(ClutchMoment.defaultLeague(for: .soccer))
         XCTAssertNil(Leagues.English_Premier_League.regulationPeriods)
-        XCTAssertEqual(Leagues.English_Premier_League.periodName(2), "2")
+        XCTAssertEqual(Leagues.English_Premier_League.periodName(2), "2H")
     }
 }
 
@@ -147,6 +147,19 @@ final class TeamStatComparisonEdgeTests: XCTestCase {
         XCTAssertEqual(possession.home, "61.4%")
         XCTAssertEqual(possession.away, "38.6%", "no doubled sign")
         XCTAssertNil(stats.rows.first { $0.name == "passPct" }, "a zero denominator yields no row")
+    }
+
+    /// ESPN's NHL box (2026-11-02 VGK @ BOS): power plays read as goals over chances.
+    func testHockeyPowerPlayReadsAsGoalsOverChances() throws {
+        let b = try box("""
+        {"teams":[\(side("home", [("powerPlayGoals", "1"), ("powerPlayOpportunities", "3"), ("shortHandedGoals", "0")])),\
+        \(side("away", [("powerPlayGoals", "1"), ("powerPlayOpportunities", "4"), ("shortHandedGoals", "1")]))]}
+        """)
+        let stats = try XCTUnwrap(TeamStatComparison(boxscore: b, sport: .hockey))
+        XCTAssertEqual(stats.rows.map(\.name), ["powerPlay", "shortHandedGoals"])
+        XCTAssertEqual(stats.rows[0].home, "1/3")
+        XCTAssertEqual(stats.rows[0].away, "1/4")
+        XCTAssertEqual(stats.rows[0].homeValue, 1, "bars compare goals")
     }
 
     func testIndividualSportsHaveNoSpecs() {

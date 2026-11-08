@@ -198,16 +198,16 @@ actor PBPArchive {
             try? JSONDecoder().decode(CachedPlaysExtras.self, from: Data($0.readableBytesView))
         }
 
-        return CachedPlays(
+        var cached = CachedPlays(
             eventID: clientEventID,
             lastPlayId: lastPlayID,
             plays: plays,
             isFinal: isFinal,
             fetchedAt: Date(timeIntervalSince1970: TimeInterval(fetchedSeconds)),
-            winProbability: extras?.winProbability,
-            teamStats: extras?.teamStats,
-            excitement: extras?.excitement
+            extras: extras
         )
+        if let extras { cached.apply(extras) }
+        return cached
     }
 }
 

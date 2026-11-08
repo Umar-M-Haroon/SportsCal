@@ -18,6 +18,8 @@ struct GolfScorecardView: View {
 
     @State private var selectedRound: Int?
     @State private var showGlossary = false
+    @ScaledMetric(relativeTo: .caption2) private var holeCellWidth: CGFloat = 28
+    @ScaledMetric(relativeTo: .caption2) private var holeCellHeight: CGFloat = 20
 
     private var topEntries: [LeaderboardEntry] {
         entries.prefix(maxPlayers).filter { $0.roundDetails != nil && !($0.roundDetails?.isEmpty ?? true) }
@@ -91,11 +93,11 @@ struct GolfScorecardView: View {
                         showGlossary = true
                     } label: {
                         Image(systemName: "info.circle")
-                            .font(.system(size: 11))
+                            .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
-                .font(.system(size: 9))
+                .font(.caption2)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .popover(isPresented: $showGlossary) {
                     GolfGlossaryView()
@@ -112,17 +114,17 @@ struct GolfScorecardView: View {
     private var headerRow: some View {
         HStack(spacing: 0) {
             Text("Player")
-                .font(.system(size: 9, weight: .bold))
+                .font(.caption2.weight(.bold))
                 .frame(width: 90, alignment: .leading)
             ForEach(1...9, id: \.self) { hole in
                 holeHeader(hole: hole)
             }
             VStack(spacing: 1) {
                 Text("OUT")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.caption2.weight(.bold))
                 if let hp = resolvedHolePars, hp.count >= 9 {
                     Text("\(hp[0..<9].reduce(0, +))")
-                        .font(.system(size: 7))
+                        .font(.caption2)
                 }
             }
             .frame(width: 32)
@@ -131,24 +133,24 @@ struct GolfScorecardView: View {
             }
             VStack(spacing: 1) {
                 Text("IN")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.caption2.weight(.bold))
                 if let hp = resolvedHolePars, hp.count >= 18 {
                     Text("\(hp[9..<18].reduce(0, +))")
-                        .font(.system(size: 7))
+                        .font(.caption2)
                 }
             }
             .frame(width: 32)
             VStack(spacing: 1) {
                 Text("TOT")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.caption2.weight(.bold))
                 if let hp = resolvedHolePars, hp.count >= 18 {
                     Text("\(hp.reduce(0, +))")
-                        .font(.system(size: 7))
+                        .font(.caption2)
                 }
             }
             .frame(width: 32)
             Text("+/-")
-                .font(.system(size: 8, weight: .bold))
+                .font(.caption2.weight(.bold))
                 .frame(width: 32)
         }
         .foregroundColor(.secondary)
@@ -174,10 +176,10 @@ struct GolfScorecardView: View {
     private func holeHeader(hole: Int) -> some View {
         VStack(spacing: 1) {
             Text("\(hole)")
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
             if let hp = resolvedHolePars, hole <= hp.count {
                 Text("P\(hp[hole - 1])")
-                    .font(.system(size: 8, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .foregroundColor(.secondary)
             }
         }
@@ -194,11 +196,11 @@ struct GolfScorecardView: View {
             // Player name
             HStack(spacing: 3) {
                 Text("\(entry.position)")
-                    .font(.system(size: 8))
+                    .font(.caption2)
                     .foregroundColor(.secondary)
                     .frame(width: 16)
                 Text(entry.name.components(separatedBy: " ").last ?? entry.name)
-                    .font(.system(size: 9, weight: isLeader ? .bold : .regular))
+                    .font(.caption2.weight(isLeader ? .bold : .regular))
                     .lineLimit(1)
             }
             .frame(width: 90, alignment: .leading)
@@ -210,7 +212,7 @@ struct GolfScorecardView: View {
             // Front 9 total
             let front9 = holeScores.filter { $0.hole >= 1 && $0.hole <= 9 }.compactMap(\.score)
             Text(front9.isEmpty ? "-" : "\(front9.reduce(0, +))")
-                .font(.system(size: 8, weight: .bold))
+                .font(.caption2.weight(.bold))
                 .frame(width: 32)
 
             // Back 9
@@ -220,24 +222,24 @@ struct GolfScorecardView: View {
             // Back 9 total
             let back9 = holeScores.filter { $0.hole >= 10 && $0.hole <= 18 }.compactMap(\.score)
             Text(back9.isEmpty ? "-" : "\(back9.reduce(0, +))")
-                .font(.system(size: 8, weight: .bold))
+                .font(.caption2.weight(.bold))
                 .frame(width: 32)
 
             // Round total
             Text(roundDetail?.totalScore.map { "\($0)" } ?? "-")
-                .font(.system(size: 8, weight: .bold))
+                .font(.caption2.weight(.bold))
                 .frame(width: 32)
 
             // +/- vs par
             if let total = roundDetail?.totalScore, let par = coursePar {
                 let diff = total - par
                 Text(diff == 0 ? "E" : (diff > 0 ? "+\(diff)" : "\(diff)"))
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.caption2.weight(.bold))
                     .foregroundColor(diff < 0 ? .green : (diff == 0 ? .secondary : .red))
                     .frame(width: 32)
             } else {
                 Text("-")
-                    .font(.system(size: 8))
+                    .font(.caption2)
                     .foregroundColor(.secondary)
                     .frame(width: 32)
             }
@@ -251,18 +253,22 @@ struct GolfScorecardView: View {
             let diff = score - hole.par
             let isAce = score == 1
             Text("\(score)")
-                .font(.system(size: 9, weight: diff != 0 ? .bold : .regular))
+                .font(.caption2.weight(diff != 0 ? .bold : .regular))
                 .foregroundColor(isAce ? .black : (diff == 0 ? .primary : .white))
-                .frame(width: 28, height: 20)
+                .frame(width: holeCellWidth, height: holeCellHeight)
                 .background(
                     RoundedRectangle(cornerRadius: 3)
                         .fill(isAce ? Color.yellow : holeCellColor(diff: diff))
                 )
+                .overlay(GolfScoreMark(diff: diff).foregroundStyle(isAce ? Color.black : Color.white.opacity(0.9)).padding(1.5))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(GolfScoreStyle.holeLabel(hole: holeNum, score: score, par: hole.par))
         } else {
             Text("-")
-                .font(.system(size: 9))
+                .font(.caption2)
                 .foregroundColor(.secondary)
-                .frame(width: 28, height: 20)
+                .frame(width: holeCellWidth, height: holeCellHeight)
+                .accessibilityLabel("Hole \(holeNum), not played")
         }
     }
 

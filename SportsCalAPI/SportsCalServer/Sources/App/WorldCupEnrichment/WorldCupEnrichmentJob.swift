@@ -193,20 +193,31 @@ struct WorldCupEnrichmentJob: AsyncScheduledJob {
         let homeScore = home?.score
         let awayScore = away?.score
 
+        // ESPN's `winner` is the only thing that knows who went through on penalties;
+        // the score decides only when ESPN leaves it out.
         var winner: BracketSide?
-        if completed, let h = homeScore.flatMap({ Int($0) }), let a = awayScore.flatMap({ Int($0) }) {
+        if home?.winner == true {
+            winner = .home
+        } else if away?.winner == true {
+            winner = .away
+        } else if completed, let h = homeScore.flatMap({ Int($0) }), let a = awayScore.flatMap({ Int($0) }) {
             if h > a { winner = .home } else if a > h { winner = .away }
-            // equal regulation score → likely decided on penalties; leave nil unless aggregate decides
         }
 
-        // Aggregate goals for two-leg ties (rare at WC, but ESPN exposes the field).
-        var aggregate: String?
+        // Aggregate goals for two-leg ties (rare at WC, but ESPN exposes the field) and
+        // the shootout, home first like the bracket card: "Agg: 3-3 · 4-2 pens".
+        var notes: [String] = []
         if let series = competition.series?.competitors, series.count == 2,
            let h = series.first(where: { $0.id == home?.id })?.aggregateScore,
            let a = series.first(where: { $0.id == away?.id })?.aggregateScore {
-            aggregate = "Agg: \(Int(h))-\(Int(a))"
+            notes.append("Agg: \(Int(h))-\(Int(a))")
             if winner == nil { if h > a { winner = .home } else if a > h { winner = .away } }
         }
+        if let h = home?.shootoutScore?.value, let a = away?.shootoutScore?.value, h + a > 0 {
+            notes.append("\(Int(h))-\(Int(a)) pens")
+            if winner == nil, completed { if h > a { winner = .home } else if a > h { winner = .away } }
+        }
+        let aggregate: String? = notes.isEmpty ? nil : notes.joined(separator: " · ")
 
         return WorldCupBracketMatch(
             eventID: event.id,

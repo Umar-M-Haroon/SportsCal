@@ -43,10 +43,11 @@ struct RoundHeatmapView: View {
                 .foregroundColor(.secondary)
 
                 // Player rows
+                let labels = entries.golfPositionLabels()
                 ForEach(Array(topEntries.enumerated()), id: \.offset) { index, entry in
                     HStack(spacing: 0) {
                         HStack(spacing: 4) {
-                            Text("\(entry.position)")
+                            Text(index < labels.count ? labels[index] : "\(entry.position)")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                                 .frame(width: 18, alignment: .trailing)
@@ -68,7 +69,7 @@ struct RoundHeatmapView: View {
                                     if let par = coursePar {
                                         let diff = score - par
                                         Text(diff == 0 ? "E" : (diff > 0 ? "+\(diff)" : "\(diff)"))
-                                            .font(.system(size: 8))
+                                            .font(.caption2)
                                     }
                                 }
                                 .frame(maxWidth: .infinity)

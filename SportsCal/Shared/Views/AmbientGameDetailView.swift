@@ -469,7 +469,7 @@ struct AmbientGameDetailView: View {
 
     private var pbpLeagueSlug: String? {
         switch sportType {
-        case .basketball: return "nba"
+        case .basketball: return league?.espnSlug ?? "nba"
         case .nfl:        return league?.espnSlug ?? "nfl"
         case .hockey:     return "nhl"
         case .mlb:        return "mlb"

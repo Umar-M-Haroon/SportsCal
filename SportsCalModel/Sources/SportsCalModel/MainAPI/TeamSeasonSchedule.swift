@@ -93,9 +93,11 @@ public struct TeamSeasonSchedule: Equatable {
 
 public extension TeamSeasonSchedule.PhaseGroup {
     /// "12–5" (or "12–5–1" with ties) from this team's finished games in the group;
-    /// nil until a game with a score has been played.
+    /// nil until a game with a score has been played. NHL records are W–L–OTL: a loss
+    /// in overtime or a shootout is its own column, as the standings count it.
     func record(forTeamID teamID: String?, teamNames: Set<String>) -> String? {
-        var wins = 0, losses = 0, ties = 0
+        var wins = 0, losses = 0, ties = 0, overtimeLosses = 0
+        var countsOvertimeLosses = false
         for game in games where game.isFinalStatus {
             guard let home = game.intHomeScore.flatMap({ Int($0) }),
                   let away = game.intAwayScore.flatMap({ Int($0) }) else { continue }
@@ -105,11 +107,38 @@ public extension TeamSeasonSchedule.PhaseGroup {
             } else {
                 isHome = teamNames.contains(game.strHomeTeam)
             }
+            let isNHL = game.idLeague == "\(Leagues.nhl.rawValue)"
+            if isNHL { countsOvertimeLosses = true }
             let (ours, theirs) = isHome ? (home, away) : (away, home)
-            if ours > theirs { wins += 1 } else if ours < theirs { losses += 1 } else { ties += 1 }
+            if ours > theirs {
+                wins += 1
+            } else if ours < theirs {
+                if isNHL && game.endedPastRegulation { overtimeLosses += 1 } else { losses += 1 }
+            } else {
+                ties += 1
+            }
         }
-        guard wins + losses + ties > 0 else { return nil }
+        guard wins + losses + ties + overtimeLosses > 0 else { return nil }
+        if countsOvertimeLosses { return "\(wins)–\(losses)–\(overtimeLosses)" }
         return ties > 0 ? "\(wins)–\(losses)–\(ties)" : "\(wins)–\(losses)"
+    }
+}
+
+public extension Game {
+    /// Whether a finished game went past regulation (overtime or a shootout), from the
+    /// status — TheSportsDB's AOT/AP, ESPN's "Final/OT", "Final/2OT", "Final/SO" — or,
+    /// failing that, from more period scores than regulation has.
+    var endedPastRegulation: Bool {
+        for value in [strStatus, strProgress] {
+            guard let value = value?.uppercased() else { continue }
+            if value == "AOT" || value == "AP" || value == "AET" || value == "PEN" { return true }
+            if value.hasPrefix("FINAL"), value.contains("OT") || value.contains("SO") { return true }
+        }
+        if scoreboardExtras?.homeShootoutScore != nil { return true }
+        let league = idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))
+        guard let regulation = league?.regulationPeriods else { return false }
+        let periods = max(homeLinescores?.count ?? 0, awayLinescores?.count ?? 0)
+        return periods > regulation
     }
 }
 

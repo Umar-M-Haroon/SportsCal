@@ -95,6 +95,9 @@ struct DayPage: View {
     /// Tennis tournament groups the user expanded or collapsed by hand, keyed by name.
     /// Unset groups fall back to expanded-for-Grand-Slams.
     @State private var tournamentExpansion: [String: Bool] = [:]
+    /// Soccer competition groups the user expanded or collapsed by hand, keyed by league.
+    /// Unset groups fall back to `soccerGroupStartsExpanded`.
+    @State private var competitionExpansion: [Leagues: Bool] = [:]
     @State private var sportFilter: SportChipFilter = .all
     @State private var showSportPicker: Bool = false
     @State private var browseSport: SportType?
@@ -821,10 +824,10 @@ struct DayPage: View {
         }
 
         // Live games (only on today)
-        LiveGamesSection(games: filteredLiveEvents) { gameRow(for: $0, isLive: true) }
+        LiveGamesSection(games: filteredLiveEvents, isFollowed: isFollowedTennisMatch) { gameRow(for: $0, isLive: true, showsCompetition: true) }
 
         // Favorites for this day
-        YourTeamsSection(games: filteredFavorites) { gameRow(for: $0, isLive: false) }
+        YourTeamsSection(games: filteredFavorites) { gameRow(for: $0, isLive: false, showsCompetition: true) }
 
         // Suggested for you
         if storage.showSuggestedForYou, !filteredSuggested.isEmpty {
@@ -1054,15 +1057,18 @@ struct DayPage: View {
     // MARK: - Game Row
 
     @ViewBuilder
-    private func gameRow(for gameWithTeams: GameWithTeams, isLive: Bool) -> some View {
-        gameRowContent(for: gameWithTeams, isLive: isLive)
+    /// `showsCompetition`: name a soccer row's competition, in sections that mix them
+    /// (Live, Your Teams). The Soccer section's own groups already say it.
+    private func gameRow(for gameWithTeams: GameWithTeams, isLive: Bool, showsCompetition: Bool = false) -> some View {
+        gameRowContent(for: gameWithTeams, isLive: isLive, showsCompetition: showsCompetition)
             .gameCard(game: gameWithTeams.game, isLive: isLive)
     }
 
     @ViewBuilder
-    private func gameRowContent(for gameWithTeams: GameWithTeams, isLive: Bool) -> some View {
+    private func gameRowContent(for gameWithTeams: GameWithTeams, isLive: Bool, showsCompetition: Bool = false) -> some View {
         @Bindable var bindableStorage = storage
         let game = gameWithTeams.game
+        let competitionLabel = showsCompetition && game.sportType == .soccer ? game.knownLeague?.soccerShortName : nil
         if game.isRace {
             NavigationLink {
                 RaceDetailView(game: game)
@@ -1110,7 +1116,8 @@ struct DayPage: View {
                     game: game,
                     shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
                     sheetType: $sheetType,
-                    isLive: isLive
+                    isLive: isLive,
+                    competitionLabel: competitionLabel
                 )
                 .environment(favorites)
                 .environment(viewModel)
@@ -1123,7 +1130,8 @@ struct DayPage: View {
                     shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
                     sheetType: $sheetType,
                     dateFormat: storage.dateFormat,
-                    isFavorite: favorites.contains(game)
+                    isFavorite: favorites.contains(game),
+                    competitionLabel: competitionLabel
                 )
                 .environment(favorites)
             }
@@ -1413,10 +1421,11 @@ struct DayPage: View {
     private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         let event = EKEvent(eventStore: eventStore)
-        event.title = "\(game.strAwayTeam) @ \(game.strHomeTeam)"
-        if let gameDate = game.standardDate {
+        // Race weekends: "Dutch Grand Prix — Race" at the Race's start, not FP1's.
+        event.title = game.eventTitle()
+        if let gameDate = game.eventStartDate() ?? game.standardDate {
             event.startDate = gameDate
-            event.endDate = gameDate.afterHoursFromNow(hours: 2)
+            event.endDate = gameDate.afterHoursFromNow(hours: game.eventDurationHours())
         }
         return CalendarRepresentable(eventStore: eventStore, event: event)
     }
@@ -1431,18 +1440,80 @@ struct DayPage: View {
             // Tennis groups games into per-tournament disclosure groups; we
             // don't inline ads inside those nested lists.
             tennisTournamentContent(games: games)
+        } else if games.first?.game.sportType == .soccer {
+            soccerCompetitionContent(games: games, region: region, adPlan: adPlan)
         } else {
             flatGameList(games: games, region: region, adPlan: adPlan)
         }
     }
 
+    /// Soccer, one disclosure group per competition, like tennis's tournaments. Ads
+    /// keep their planned slots: each group's rows count on from the group before.
+    @ViewBuilder
+    private func soccerCompetitionContent(games: [GameWithTeams], region: String?, adPlan: FeedAdPlan) -> some View {
+        let groups = groupedByCompetition(games)
+        ForEach(Array(groups.enumerated()), id: \.element.league) { index, group in
+            let startsExpanded = soccerGroupStartsExpanded(group.league, groupCount: groups.count)
+            DisclosureGroup(isExpanded: Binding(
+                get: { competitionExpansion[group.league] ?? startsExpanded },
+                set: { competitionExpansion[group.league] = $0 }
+            )) {
+                flatGameList(games: group.matches, region: region, adPlan: adPlan,
+                             rowOffset: groups.prefix(index).reduce(0) { $0 + $1.matches.count })
+            } label: {
+                HStack {
+                    Text(group.league.soccerShortName)
+                        .font(.subheadline.weight(.medium))
+                    Text("(\(group.matches.count))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+
+    /// Competitions with a favourite team playing today first, then the big leagues
+    /// (`Leagues.soccerDisplayRank`), then the order they first kick off.
+    private func groupedByCompetition(_ games: [GameWithTeams]) -> [(league: Leagues, matches: [GameWithTeams])] {
+        var result: [(league: Leagues, matches: [GameWithTeams])] = []
+        var seen: [Leagues: Int] = [:]
+        for gwt in games {
+            guard let league = gwt.game.knownLeague else { continue }
+            if let index = seen[league] {
+                result[index].matches.append(gwt)
+            } else {
+                seen[league] = result.count
+                result.append((league: league, matches: [gwt]))
+            }
+        }
+        let favoriteLeagues = Set(filteredFavorites.compactMap(\.game.knownLeague))
+        return result.enumerated().sorted { lhs, rhs in
+            let lFav = favoriteLeagues.contains(lhs.element.league), rFav = favoriteLeagues.contains(rhs.element.league)
+            if lFav != rFav { return lFav }
+            let lRank = lhs.element.league.soccerDisplayRank ?? .max
+            let rRank = rhs.element.league.soccerDisplayRank ?? .max
+            return lRank != rRank ? lRank < rRank : lhs.offset < rhs.offset
+        }.map(\.element)
+    }
+
+    /// A busy matchday opens on the leagues people follow most; a quiet one opens fully.
+    private func soccerGroupStartsExpanded(_ league: Leagues, groupCount: Int) -> Bool {
+        if groupCount <= 3 { return true }
+        if filteredFavorites.contains(where: { $0.game.knownLeague == league }) { return true }
+        return (league.soccerDisplayRank ?? .max) < 8
+    }
+
     @ViewBuilder
     private func tennisTournamentContent(games: [GameWithTeams]) -> some View {
         let grouped = groupedByTournament(games)
+        let liveByTournament = liveTennisCounts
         ForEach(grouped, id: \.key) { tournamentName, matches in
             let isMajor = Self.tier(of: matches) == .major
+            // Open by default for a Slam, or when a followed player is on the day's card.
+            let hasFollowed = matches.contains { isFollowedTennisMatch($0.game) }
+            let liveCount = liveByTournament[tournamentName] ?? 0
             DisclosureGroup(isExpanded: Binding(
-                get: { tournamentExpansion[tournamentName] ?? isMajor },
+                get: { tournamentExpansion[tournamentName] ?? (isMajor || hasFollowed) },
                 set: { tournamentExpansion[tournamentName] = $0 }
             )) {
                 flatGameList(games: matches, region: nil, adPlan: FeedAdPlan())
@@ -1453,9 +1524,36 @@ struct DayPage: View {
                     Text("(\(matches.count))")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    if liveCount > 0 {
+                        Text("· \(liveCount) live")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.red)
+                    }
+                    if hasFollowed {
+                        Image(systemName: "star.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.yellow)
+                            .accessibilityLabel("Following")
+                    }
                 }
             }
         }
+    }
+
+    /// A followed player (or pair) is in this tennis match.
+    private func isFollowedTennisMatch(_ game: Game) -> Bool {
+        guard game.isTennisMatch else { return false }
+        return favorites.contains(game) || favorites.containsPlayer(game.strHomeTeam) || favorites.containsPlayer(game.strAwayTeam)
+    }
+
+    /// Live tennis matches per tournament. They sit in the Live section, not the
+    /// tournament groups below, so the groups' "· 3 live" comes from here.
+    private var liveTennisCounts: [String: Int] {
+        var counts: [String: Int] = [:]
+        for gwt in filteredLiveEvents where gwt.game.isTennisMatch {
+            counts[gwt.game.tournamentName ?? gwt.game.strLeague ?? "Tennis", default: 0] += 1
+        }
+        return counts
     }
 
     private func groupedByTournament(_ games: [GameWithTeams]) -> [(key: String, matches: [GameWithTeams])] {
@@ -1485,12 +1583,12 @@ struct DayPage: View {
     }
 
     @ViewBuilder
-    private func flatGameList(games: [GameWithTeams], region: String?, adPlan: FeedAdPlan) -> some View {
+    private func flatGameList(games: [GameWithTeams], region: String?, adPlan: FeedAdPlan, rowOffset: Int = 0) -> some View {
         ForEach(Array(games.enumerated()), id: \.element.id) { index, gameWithTeams in
             gameRow(for: gameWithTeams, isLive: false)
             #if os(iOS)
             if let region,
-               let slot = adPlan.slot(region: region, row: index),
+               let slot = adPlan.slot(region: region, row: rowOffset + index),
                let ad = adManager.adForSlot(slot) {
                 NativeAdCardView(nativeAd: ad)
             }

@@ -24,32 +24,37 @@ enum NotificationType: String {
 }
 
 struct NotificationManager {
-    static public func addLocalNotification(date: Date, item: Game, duration: NotificationDuration) {
+    /// `session` schedules a reminder for one session of a race weekend (Qualifying,
+    /// Sprint); nil means the event itself — for a race weekend, its Race.
+    static public func addLocalNotification(date: Date, item: Game, duration: NotificationDuration, session: EventSession? = nil) {
         requestNotificationAccessIfNeeded()
         let notiContent = UNMutableNotificationContent()
 
         var interval: TimeInterval
+        // "Dutch Grand Prix — Race", never "Lando Norris @ Dutch Grand Prix".
+        let title = item.eventTitle(session: session)
+        let kind = item.isRace ? "Race" : (item.strSport ?? "Sports")
 
         switch duration {
         case .gameStarting:
-            notiContent.title = "Game Starting Now!"
-            notiContent.body = "\(item.strAwayTeam) @ \(item.strHomeTeam) is about to begin"
+            notiContent.title = item.isRace ? "Starting Now!" : "Game Starting Now!"
+            notiContent.body = "\(title) is about to begin"
             // Fire 1 minute before game start
             guard let notificationDate = Calendar.current.date(byAdding: .minute, value: -1, to: date) else { return }
             interval = notificationDate.timeIntervalSince(Date())
         case .thirtyMinutes:
-            notiContent.title = "Upcoming \(item.strSport ?? "Sports") Event"
-            notiContent.body = "Check out \(item.strAwayTeam) @ \(item.strHomeTeam) in 30 minutes"
+            notiContent.title = "Upcoming \(kind) Event"
+            notiContent.body = "Check out \(title) in 30 minutes"
             guard let notificationDate = Calendar.current.date(byAdding: .minute, value: -30, to: date) else { return }
             interval = notificationDate.timeIntervalSince(Date())
         case .oneHour:
-            notiContent.title = "Upcoming \(item.strSport ?? "Sports") Event"
-            notiContent.body = "Check out \(item.strAwayTeam) @ \(item.strHomeTeam) in 1 hour"
+            notiContent.title = "Upcoming \(kind) Event"
+            notiContent.body = "Check out \(title) in 1 hour"
             guard let notificationDate = Calendar.current.date(byAdding: .hour, value: -1, to: date) else { return }
             interval = notificationDate.timeIntervalSince(Date())
         case .twoHour:
-            notiContent.title = "Upcoming \(item.strSport ?? "Sports") Event"
-            notiContent.body = "Check out \(item.strAwayTeam) @ \(item.strHomeTeam) in 2 hours"
+            notiContent.title = "Upcoming \(kind) Event"
+            notiContent.body = "Check out \(title) in 2 hours"
             guard let notificationDate = Calendar.current.date(byAdding: .hour, value: -2, to: date) else { return }
             interval = notificationDate.timeIntervalSince(Date())
         }
@@ -65,12 +70,14 @@ struct NotificationManager {
 
         AppLogger.notifications.info("Scheduling notification in \(interval) seconds")
         let trig = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
-        let notificationIdentifier = "\(item.idEvent ?? UUID().uuidString)_\(duration.rawValue)"
+        let notificationIdentifier = session.flatMap { session in
+            item.idEvent.map { sessionIdentifier(gameID: $0, session: session) }
+        } ?? "\(item.idEvent ?? UUID().uuidString)_\(duration.rawValue)"
         AppLogger.notifications.info("Firing notification \(notificationIdentifier) at \(Date(timeIntervalSinceNow: interval))")
         let request = UNNotificationRequest(identifier: notificationIdentifier, content: notiContent, trigger: trig)
         let notiCenter = UNUserNotificationCenter.current()
         // Don't fire twice: this reminder replaces a team alert for the same game.
-        if duration == .gameStarting, let eventID = item.idEvent {
+        if duration == .gameStarting, session == nil, let eventID = item.idEvent {
             notiCenter.removePendingNotificationRequests(withIdentifiers: [TeamAlertScheduler.identifierPrefix + eventID])
         }
         notiCenter.add(request) { (error) in
@@ -104,12 +111,32 @@ struct NotificationManager {
         }
     }
 
-    /// Cancel all notifications for a specific game
+    /// Identifier of a race weekend's per-session reminder ("<id>_session_ss").
+    static func sessionIdentifier(gameID: String, session: EventSession) -> String {
+        "\(gameID)_session_\(session.reminderKey)"
+    }
+
+    /// Cancel all notifications for a specific game, including per-session reminders.
     static public func cancelNotifications(for gameID: String) {
         let notiCenter = UNUserNotificationCenter.current()
         let identifiersToRemove = NotificationDuration.allCases.map { "\(gameID)_\($0.rawValue)" }
         notiCenter.removePendingNotificationRequests(withIdentifiers: identifiersToRemove)
+        let sessionPrefix = "\(gameID)_session_"
+        notiCenter.getPendingNotificationRequests { requests in
+            let sessionIDs = requests.map(\.identifier).filter { $0.hasPrefix(sessionPrefix) }
+            if !sessionIDs.isEmpty {
+                notiCenter.removePendingNotificationRequests(withIdentifiers: sessionIDs)
+            }
+        }
         AppLogger.notifications.info("Cancelled notifications for game \(gameID)")
+    }
+
+    /// Session reminder keys (`EventSession.reminderKey`) pending for a race weekend.
+    static func scheduledSessionKeys(for gameID: String, completion: @escaping (Set<String>) -> Void) {
+        let sessionPrefix = "\(gameID)_session_"
+        UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+            completion(Set(requests.map(\.identifier).filter { $0.hasPrefix(sessionPrefix) }.map { String($0.dropFirst(sessionPrefix.count)) }))
+        }
     }
 
     static public func requestNotificationAccessIfNeeded() {
@@ -149,7 +176,8 @@ enum TeamAlertScheduler {
             .compactMap { game -> (identifier: String, game: Game, date: Date)? in
                 guard !allowed.isEmpty,
                       let eventID = game.idEvent, !eventID.isEmpty,
-                      let date = game.standardDate,
+                      // A race weekend's own date is its first practice; time to the Race.
+                      let date = game.headlineSession?.startDate ?? game.standardDate,
                       date > now.addingTimeInterval(2 * 60),
                       date < now.addingTimeInterval(horizon),
                       involves(game, anyOf: allowed) else { return nil }
@@ -174,8 +202,8 @@ enum TeamAlertScheduler {
                 if pending.contains(manualID) { continue }
 
                 let content = UNMutableNotificationContent()
-                content.title = "Game Starting Now!"
-                content.body = "\(item.game.strAwayTeam) @ \(item.game.strHomeTeam) is about to begin"
+                content.title = item.game.isRace ? "Starting Now!" : "Game Starting Now!"
+                content.body = "\(item.game.eventTitle()) is about to begin"
                 content.sound = .default
                 content.categoryIdentifier = NotificationType.gameReminder.rawValue
                 // Re-adding under the same identifier replaces the request, which

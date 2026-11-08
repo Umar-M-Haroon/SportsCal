@@ -64,7 +64,7 @@ struct GolfScoreSparkline: View {
                         .foregroundColor(.secondary.opacity(0.4))
 
                         Text("E")
-                            .font(.system(size: 8))
+                            .font(.caption2)
                             .foregroundColor(.secondary.opacity(0.5))
                             .position(x: 8, y: zeroY - 8)
                     }
@@ -94,7 +94,7 @@ struct GolfScoreSparkline: View {
                             .position(x: x, y: y)
 
                         Text(formatValue(val))
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.caption2.weight(.medium))
                             .foregroundColor(.secondary)
                             .position(x: x, y: y + 12)
                     }

@@ -97,20 +97,20 @@ struct GolfCourseDifficultyView: View {
                         Text("💀")
                             .frame(width: 28)
                     }
-                    .font(.system(size: 9))
+                    .font(.caption2)
                     .foregroundColor(.secondary)
 
                     ForEach(holeStats) { hole in
                         HStack(spacing: 0) {
                             Text("#\(hole.id)")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.caption.weight(.medium))
                                 .frame(width: 34, alignment: .leading)
                             Text("\(hole.par)")
-                                .font(.system(size: 10))
+                                .font(.caption)
                                 .foregroundColor(.secondary)
                                 .frame(width: 26)
                             Text(String(format: "%.2f", hole.avgScore))
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.caption.weight(.medium))
                                 .foregroundColor(hole.avgVsPar < -0.05 ? .green : (hole.avgVsPar > 0.05 ? .red : .secondary))
                                 .frame(width: 36)
 
@@ -150,15 +150,15 @@ struct GolfCourseDifficultyView: View {
 
                             // Counts
                             Text(hole.eagles > 0 ? "\(hole.eagles)" : "-")
-                                .font(.system(size: 9))
+                                .font(.caption2)
                                 .foregroundColor(hole.eagles > 0 ? Color(red: 0, green: 0.5, blue: 0.7) : .secondary.opacity(0.3))
                                 .frame(width: 28)
                             Text("\(hole.birdies)")
-                                .font(.system(size: 9))
+                                .font(.caption2)
                                 .foregroundColor(.green)
                                 .frame(width: 28)
                             Text("\(hole.bogeys + hole.doubles)")
-                                .font(.system(size: 9))
+                                .font(.caption2)
                                 .foregroundColor(.red)
                                 .frame(width: 28)
                         }
@@ -170,25 +170,25 @@ struct GolfCourseDifficultyView: View {
                     HStack(spacing: 16) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Hardest")
-                                .font(.system(size: 9))
+                                .font(.caption2)
                                 .foregroundColor(.secondary)
                             Text("Hole \(hardest.id) (Par \(hardest.par))")
                                 .font(.caption.bold())
                                 .foregroundColor(.red)
                             Text(String(format: "Avg %.2f (+%.2f)", hardest.avgScore, hardest.avgVsPar))
-                                .font(.system(size: 9))
+                                .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
                         VStack(alignment: .trailing, spacing: 2) {
                             Text("Easiest")
-                                .font(.system(size: 9))
+                                .font(.caption2)
                                 .foregroundColor(.secondary)
                             Text("Hole \(easiest.id) (Par \(easiest.par))")
                                 .font(.caption.bold())
                                 .foregroundColor(.green)
                             Text(String(format: "Avg %.2f (%.2f)", easiest.avgScore, easiest.avgVsPar))
-                                .font(.system(size: 9))
+                                .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
                     }

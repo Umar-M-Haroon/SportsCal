@@ -114,6 +114,19 @@ public extension Game {
         return Team.shortCode(strTeamShort: nil, name: name)
     }
 
+    /// NFL or college football.
+    var isFootballLeague: Bool {
+        idLeague.flatMap { Int($0) }.flatMap(Leagues.init(rawValue:))?.isFootball ?? false
+    }
+
+    /// The regular-season week ("Week 8"), for NFL and college games. Nil for preseason
+    /// and postseason games and for every other league.
+    var footballWeek: Int? {
+        guard isFootballLeague, let round = sportsDBRound, (1..<100).contains(round),
+              resolvedSeasonPhase == .regular else { return nil }
+        return round
+    }
+
     /// Both teams' conferences, home first. Unknown values (a newer server) drop out.
     var collegeConferences: [CollegeConference] {
         [homeConference, awayConference].compactMap { $0.flatMap(CollegeConference.init(rawValue:)) }

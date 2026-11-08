@@ -67,11 +67,30 @@ enum StandingsLeagueSelection: String, AppEnum {
         }
     }
 
-    /// Whether this league uses points (soccer) vs W-L record (US sports)
-    var usesPoints: Bool {
-        switch self {
-        case .nba, .nfl, .nhl, .mlb: return false
-        case .premierLeague, .laLiga, .bundesliga, .serieA, .ligue1, .mls, .aLeague: return true
+    var league: Leagues? {
+        Int(leagueID).flatMap(Leagues.init(rawValue:))
+    }
+
+    /// Ranking and columns, shared with the app's standings tables.
+    var style: StandingsStyle {
+        league.map(StandingsStyle.init(league:)) ?? .soccer
+    }
+
+    /// The widget's narrow columns: the app's minus games played and the wide ones,
+    /// which move to `largeExtra`.
+    var columns: [StandingsColumn] {
+        switch style {
+        case .soccer: return [.wins, .draws, .losses, .points]
+        case .hockey: return [.wins, .losses, .otLosses, .points]
+        default: return [.wins, .losses]
+        }
+    }
+
+    var largeExtra: StandingsColumn? {
+        switch style {
+        case .soccer: return .goalDifference
+        case .hockey: return nil
+        default: return .winPercent
         }
     }
 }
@@ -94,7 +113,10 @@ struct StandingsEntry: TimelineEntry {
     let date: Date
     let leagueName: String
     let teams: [StandingsTeamRow]
-    let usesPoints: Bool
+    /// Stat columns every size shows, after rank and team (e.g. W L OTL PTS for the NHL).
+    let columns: [StandingsColumn]
+    /// One more column the large size has room for (PCT, GD).
+    let largeExtra: StandingsColumn?
 }
 
 struct StandingsTeamRow: Identifiable {
@@ -102,11 +124,10 @@ struct StandingsTeamRow: Identifiable {
     let rank: Int
     let name: String
     let abbreviation: String
-    let wins: String
-    let losses: String
-    let draws: String?
-    let points: String?
-    let extra: String? // PCT, GB, GD, etc.
+    /// Cell text for `StandingsEntry.columns`, in order.
+    let values: [String]
+    /// Cell text for `StandingsEntry.largeExtra`.
+    let extra: String?
 }
 
 // MARK: - Standings Cache
@@ -144,11 +165,13 @@ private enum StandingsCache {
 
 struct StandingsProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> StandingsEntry {
-        StandingsEntry(date: .now, leagueName: "League", teams: [], usesPoints: true)
+        StandingsEntry(date: .now, leagueName: "League", teams: [], columns: StandingsLeagueSelection.premierLeague.columns,
+                       largeExtra: StandingsLeagueSelection.premierLeague.largeExtra)
     }
 
     func snapshot(for configuration: StandingsWidgetIntent, in context: Context) async -> StandingsEntry {
-        StandingsEntry(date: .now, leagueName: configuration.league.leagueName, teams: [], usesPoints: configuration.league.usesPoints)
+        StandingsEntry(date: .now, leagueName: configuration.league.leagueName, teams: [],
+                       columns: configuration.league.columns, largeExtra: configuration.league.largeExtra)
     }
 
     func timeline(for configuration: StandingsWidgetIntent, in context: Context) async -> Timeline<StandingsEntry> {
@@ -167,7 +190,7 @@ struct StandingsProvider: AppIntentTimelineProvider {
         }
 
         if let standing {
-            rows = parseStandings(standing, maxTeams: maxTeams, usesPoints: league.usesPoints)
+            rows = parseStandings(standing, maxTeams: maxTeams, league: league)
         }
 
         // Date the entry now so it displays immediately; refresh hourly via the policy.
@@ -176,70 +199,26 @@ struct StandingsProvider: AppIntentTimelineProvider {
             date: now,
             leagueName: league.leagueName,
             teams: rows,
-            usesPoints: league.usesPoints
+            columns: league.columns,
+            largeExtra: league.largeExtra
         )
 
         return Timeline(entries: [entry], policy: .after(now.addingTimeInterval(3600)))
     }
 
-    private func parseStandings(_ standing: Standing, maxTeams: Int, usesPoints: Bool) -> [StandingsTeamRow] {
-        // Collect all entries from all divisions/conferences
-        // Use fully qualified type to avoid conflict with StandingsEntry
-        var allEntries: [(standingsEntry: SportsCalModel.Entry, division: String?)] = []
-
-        if let children = standing.standings.children {
-            for child in children {
-                if let entries = child.standings?.entries {
-                    for e in entries {
-                        allEntries.append((e, child.name))
-                    }
-                }
-            }
-        }
-
-        // Sort by standings order
-        if usesPoints {
-            allEntries.sort { (lhs: (standingsEntry: SportsCalModel.Entry, division: String?), rhs: (standingsEntry: SportsCalModel.Entry, division: String?)) in
-                let lhsPoints = lhs.standingsEntry.stats?.first(where: { $0.name == "points" })?.value ?? 0
-                let rhsPoints = rhs.standingsEntry.stats?.first(where: { $0.name == "points" })?.value ?? 0
-                return lhsPoints > rhsPoints
-            }
-        } else {
-            allEntries.sort { (lhs: (standingsEntry: SportsCalModel.Entry, division: String?), rhs: (standingsEntry: SportsCalModel.Entry, division: String?)) in
-                let lhsWins = lhs.standingsEntry.stats?.first(where: { $0.name == "wins" })?.value ?? 0
-                let rhsWins = rhs.standingsEntry.stats?.first(where: { $0.name == "wins" })?.value ?? 0
-                if lhsWins != rhsWins { return lhsWins > rhsWins }
-                let lhsLosses = lhs.standingsEntry.stats?.first(where: { $0.name == "losses" })?.value ?? 0
-                let rhsLosses = rhs.standingsEntry.stats?.first(where: { $0.name == "losses" })?.value ?? 0
-                return lhsLosses < rhsLosses
-            }
-        }
-
-        return allEntries.prefix(maxTeams).enumerated().map { index, item in
-            let e = item.standingsEntry
-            let stats = e.stats ?? []
-
-            let wins = stats.first(where: { $0.name == "wins" })?.displayValue ?? "-"
-            let losses = stats.first(where: { $0.name == "losses" })?.displayValue ?? "-"
-            let draws = stats.first(where: { $0.name == "ties" || $0.name == "draws" })?.displayValue
-            let points = stats.first(where: { $0.name == "points" })?.displayValue
-
-            let extra: String?
-            if usesPoints {
-                extra = stats.first(where: { $0.name == "goalDifference" || $0.name == "pointDifferential" })?.displayValue
-            } else {
-                extra = stats.first(where: { $0.name == "winPercent" || $0.name == "gamesBehind" })?.displayValue
-            }
-
+    private func parseStandings(_ standing: Standing, maxTeams: Int, league: StandingsLeagueSelection) -> [StandingsTeamRow] {
+        // Every conference/division in one league-wide list, ordered the way the app's
+        // tables order them (the NHL by points, not wins).
+        let allEntries = standing.groups.flatMap(\.entries)
+        let ranked = league.style.ranked(allEntries, combined: true)
+        return ranked.prefix(maxTeams).map { row in
+            let e = row.entry
             return StandingsTeamRow(
-                rank: index + 1,
+                rank: row.rank,
                 name: e.team?.displayName ?? e.team?.name ?? "Unknown",
                 abbreviation: e.team?.abbreviation ?? "???",
-                wins: wins,
-                losses: losses,
-                draws: draws,
-                points: points,
-                extra: extra
+                values: league.columns.map { $0.value(for: e) },
+                extra: league.largeExtra.map { $0.value(for: e) }
             )
         }
     }
@@ -304,25 +283,23 @@ struct StandingsWidgetView: View {
                 .frame(width: 18, alignment: .leading)
             Text("Team")
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("W")
-                .frame(width: isLarge ? 28 : 24, alignment: .trailing)
-            if entry.usesPoints {
-                Text("D")
-                    .frame(width: isLarge ? 28 : 24, alignment: .trailing)
+            ForEach(entry.columns, id: \.self) { column in
+                Text(column.title)
+                    .frame(width: columnWidth(column), alignment: .trailing)
             }
-            Text("L")
-                .frame(width: isLarge ? 28 : 24, alignment: .trailing)
-            if entry.usesPoints {
-                Text("Pts")
-                    .frame(width: isLarge ? 32 : 28, alignment: .trailing)
-            }
-            if isLarge, let _ = entry.teams.first?.extra {
-                Text(entry.usesPoints ? "GD" : "PCT")
+            if isLarge, let extra = entry.largeExtra {
+                Text(extra.title)
                     .frame(width: 36, alignment: .trailing)
             }
         }
         .font(.system(size: 8, weight: .medium))
         .foregroundColor(.secondary)
+    }
+
+    private func columnWidth(_ column: StandingsColumn) -> CGFloat {
+        let isLarge = family == .systemLarge
+        if column == .points || column == .otLosses { return isLarge ? 32 : 28 }
+        return isLarge ? 28 : 24
     }
 
     @ViewBuilder
@@ -340,24 +317,10 @@ struct StandingsWidgetView: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(team.wins)
-                .font(.system(size: 9))
-                .frame(width: isLarge ? 28 : 24, alignment: .trailing)
-
-            if entry.usesPoints {
-                Text(team.draws ?? "-")
-                    .font(.system(size: 9))
-                    .frame(width: isLarge ? 28 : 24, alignment: .trailing)
-            }
-
-            Text(team.losses)
-                .font(.system(size: 9))
-                .frame(width: isLarge ? 28 : 24, alignment: .trailing)
-
-            if entry.usesPoints {
-                Text(team.points ?? "-")
-                    .font(.system(size: 9, weight: .medium))
-                    .frame(width: isLarge ? 32 : 28, alignment: .trailing)
+            ForEach(Array(entry.columns.enumerated()), id: \.offset) { index, column in
+                Text(index < team.values.count ? team.values[index] : "-")
+                    .font(.system(size: 9, weight: column == .points ? .medium : .regular))
+                    .frame(width: columnWidth(column), alignment: .trailing)
             }
 
             if isLarge, let extra = team.extra {

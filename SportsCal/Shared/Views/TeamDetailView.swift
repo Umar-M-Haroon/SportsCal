@@ -91,7 +91,10 @@ struct TeamDetailView: View {
                 ForEach(seasons.seasons) { season in
                     ForEach(season.phases) { group in
                         Section {
-                            ForEach(group.games) { game in
+                            ForEach(Array(group.games.enumerated()), id: \.element.id) { index, game in
+                                ForEach(Self.byeWeeks(in: group.games, before: index), id: \.self) { week in
+                                    byeRow(week)
+                                }
                                 gameRow(game)
                                     .id(game.id)
                             }
@@ -306,7 +309,8 @@ struct TeamDetailView: View {
                         HStack(spacing: 10) {
                             badge(opponent.strTeamBadge, size: 40)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("\(isHome ? "vs" : "@") \(opponent.strTeam ?? (isHome ? game.strAwayTeam : game.strHomeTeam))")
+                                Text(TeamFixtureLabel.text(game: game, isHome: isHome,
+                                                           opponent: opponent.strTeam ?? (isHome ? game.strAwayTeam : game.strHomeTeam)))
                                     .font(.headline)
                                     .lineLimit(1)
                                 if let league = game.strLeague {
@@ -390,6 +394,30 @@ struct TeamDetailView: View {
 
     // MARK: - Rows
 
+    /// The football weeks this team sits out between the game before `index` and the
+    /// one at it — the bye. Empty outside a football regular season.
+    static func byeWeeks(in games: [Game], before index: Int) -> [Int] {
+        guard index > 0, let week = games[index].footballWeek,
+              let previous = games[index - 1].footballWeek, week > previous + 1 else { return [] }
+        return Array((previous + 1)..<week)
+    }
+
+    private func byeRow(_ week: Int) -> some View {
+        HStack(spacing: 10) {
+            Text("BYE")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 26)
+            Text("Week \(week)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Week \(week), bye")
+    }
+
     @ViewBuilder
     private func gameRow(_ game: Game) -> some View {
         if let teams = viewModel.getTeams(for: game) {
@@ -453,7 +481,7 @@ struct TeamDetailView: View {
                         LeagueStandingsTable(
                             name: group.name,
                             entries: group.entries,
-                            isSoccer: league.isSoccer,
+                            league: league,
                             isHighlighted: isThisTeam
                         )
                     }
@@ -491,10 +519,7 @@ struct TeamDetailView: View {
     }
 
     private var standingGroups: [(name: String?, entries: [Entry])]? {
-        standing?.standings.children?.compactMap { child in
-            guard let entries = child.standings?.entries, !entries.isEmpty else { return nil }
-            return (child.name, entries)
-        }
+        standing?.groups
     }
 
     /// Whether a standings row (ESPN naming) is this team (TheSportsDB naming).
@@ -690,8 +715,7 @@ struct TeamDetailView: View {
     private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         let event = EKEvent(eventStore: eventStore)
-        let separator = (game.playoff?.isNeutralSite == true) ? " vs " : " @ "
-        event.title = "\(game.strAwayTeam)\(separator)\(game.strHomeTeam)"
+        event.title = game.matchupTitle
         if let gameDate = game.standardDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 2)
@@ -795,6 +819,15 @@ private struct TeamSchedule {
 
 // MARK: - Form strip
 
+/// "vs Chelsea" / "@ Chelsea" from a team's side of a fixture; soccer writes it the
+/// way a fixture list does, "Chelsea (H)" / "Chelsea (A)".
+enum TeamFixtureLabel {
+    static func text(game: Game, isHome: Bool, opponent: String) -> String {
+        if game.displaysHomeFirst { return "\(opponent) (\(isHome ? "H" : "A"))" }
+        return "\(isHome ? "vs" : "@") \(opponent)"
+    }
+}
+
 /// The last few results as coloured W / D / L chips, oldest on the left.
 private struct FormStrip: View {
     enum Result {
@@ -808,7 +841,10 @@ private struct FormStrip: View {
                   let away = game.intAwayScore.flatMap({ Int($0) }) else { return nil }
             let ours = isHome ? home : away
             let theirs = isHome ? away : home
-            if ours == theirs {
+            if ours == theirs, game.shootoutScore != nil, let winner = game.winningSide {
+                // A knockout tie settled on penalties: ESPN's winner went through.
+                self = (winner == .home) == isHome ? .win : .loss
+            } else if ours == theirs {
                 self = .level(isSoccer: game.sportType == .soccer)
             } else {
                 self = ours > theirs ? .win : .loss
@@ -863,11 +899,14 @@ private struct TeamScheduleRow: View {
 
     private var hasScores: Bool { homeScore != nil && awayScore != nil }
 
-    /// This team's score first, so "W 102–98" always reads as a win.
+    /// This team's score first, so "W 102–98" always reads as a win. A shootout adds
+    /// its own score the same way: "W 1–1 (4–3 P)".
     private var scoreText: String {
         let ours = (isHome ? homeScore : awayScore) ?? 0
         let theirs = (isHome ? awayScore : homeScore) ?? 0
-        return "\(ours)–\(theirs)"
+        guard let pens = game.shootoutScore else { return "\(ours)–\(theirs)" }
+        let side: GameSituation.Side = isHome ? .home : .away
+        return "\(ours)–\(theirs) (\(pens[side])–\(pens[side.opposite]) P)"
     }
 
     /// In progress: has a score but isn't final, postponed, or a scheduled "pre" 0–0.
@@ -882,11 +921,13 @@ private struct TeamScheduleRow: View {
                 HStack(spacing: 10) {
                     TeamBadgeImage(urlString: opponent.strTeamBadge, size: 26)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("\(isHome ? "vs" : "@") \(opponent.strTeam ?? (isHome ? game.strAwayTeam : game.strHomeTeam))")
+                        Text(TeamFixtureLabel.text(game: game, isHome: isHome,
+                                                   opponent: opponent.strTeam ?? (isHome ? game.strAwayTeam : game.strHomeTeam)))
                             .font(.subheadline)
                             .lineLimit(1)
                         if let date = game.standardDate {
-                            Text(date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                            let day = date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+                            Text(game.footballWeek.map { "Week \($0) · \(day)" } ?? day)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }

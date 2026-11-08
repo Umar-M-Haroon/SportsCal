@@ -729,6 +729,9 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
     //MARK: - Play-by-Play (per-event)
     // Three-tier lookup: (1) Redis hot cache for live/in-progress games, (2) SQLite archive
     // for finalized games, (3) on-demand ESPN fetch using the `ESPN-Event-Map` or query params.
+    // The player box score and scoring summary are stored with the plays (same ESPN
+    // fetch, archived with finals) but only sent with `players=1`: game detail asks for
+    // them, while the watch, the widget and older apps keep the plays-only payload.
     routes.get("plays", ":eventID") { req async throws -> String in
         guard let eventID = req.parameters.get("eventID"), !eventID.isEmpty else {
             throw Abort(.badRequest)
@@ -740,7 +743,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         ) else {
             throw Abort(.notFound)
         }
-        return encodeResult(res: cached)
+        let wantsPlayers = (try? req.query.get(Int.self, at: "players")) == 1
+        return encodeResult(res: wantsPlayers ? cached : cached.withoutPlayerDetail)
     }
 
     //MARK: - F1 session detail (lap chart, safety cars, weather, tyres)
@@ -1830,7 +1834,11 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                     rounds: [],
                     constructor: entry.constructor,
                     gap: entry.gap,
-                    movement: entry.movement
+                    isCut: entry.isCut,
+                    movement: entry.movement,
+                    teeTime: entry.teeTime,
+                    today: entry.today,
+                    teeTimeDate: entry.teeTimeDate
                 )
             }
 
@@ -1871,7 +1879,9 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 awayConference: game.awayConference,
                 playoff: game.playoff,
                 season: game.season, seasonPhase: game.seasonPhase,
+                sportsDBRound: game.sportsDBRound,
                 situation: game.situation, excitement: game.excitement,
+                scoreboardExtras: game.scoreboardExtras?.withoutHeavyDetail,
                 homeAbbreviation: game.homeAbbreviation, awayAbbreviation: game.awayAbbreviation,
                 timeTBD: game.timeTBD
             )

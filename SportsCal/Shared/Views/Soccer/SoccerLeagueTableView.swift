@@ -4,7 +4,8 @@
 //
 //  A soccer table, FotMob-style: a coloured band for each qualification or
 //  relegation zone, rank movement, played / goal difference / points, and each
-//  side's last five results. A legend explains the zones underneath.
+//  side's last five results. A legend explains the zones underneath. Given a team
+//  lookup, a row opens that team's page; the user's teams are picked out.
 //
 
 import SwiftUI
@@ -13,6 +14,9 @@ import SportsCalModel
 struct SoccerLeagueTableView: View {
     let groups: [SoccerTableGroup]
     let zones: [SoccerTableZone]
+    /// The app's team for a row, to link it to the team page. Nil: rows don't link.
+    var team: ((SoccerTableRow) -> Team?)? = nil
+    var isFavorite: ((SoccerTableRow) -> Bool)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: .appSpace5) {
@@ -23,7 +27,7 @@ struct SoccerLeagueTableView: View {
                     }
                     headerRow
                     ForEach(group.rows) { row in
-                        tableRow(row)
+                        linkedRow(row)
                         if row.id != group.rows.last?.id { Divider().opacity(0.5) }
                     }
                 }
@@ -59,7 +63,20 @@ struct SoccerLeagueTableView: View {
         .padding(.leading, 7)
     }
 
-    private func tableRow(_ row: SoccerTableRow) -> some View {
+    @ViewBuilder
+    private func linkedRow(_ row: SoccerTableRow) -> some View {
+        let favorite = isFavorite?(row) ?? false
+        if let linked = team?(row) {
+            TeamDetailLink(team: linked) {
+                tableRow(row, isFavorite: favorite).contentShape(Rectangle())
+            }
+            .accessibilityHint("Opens \(row.teamName)'s team page")
+        } else {
+            tableRow(row, isFavorite: favorite)
+        }
+    }
+
+    private func tableRow(_ row: SoccerTableRow, isFavorite: Bool) -> some View {
         HStack(spacing: 6) {
             HStack(spacing: 1) {
                 Text("\(row.rank)")
@@ -78,8 +95,15 @@ struct SoccerLeagueTableView: View {
                         .minimumScaleFactor(0.85)
                 }
                 .font(.subheadline)
+                .fontWeight(isFavorite ? .semibold : .regular)
                 .lineLimit(1)
                 .accessibilityLabel(row.teamName)
+                if isFavorite {
+                    Image(systemName: "star.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.yellow)
+                        .accessibilityHidden(true)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -99,6 +123,11 @@ struct SoccerLeagueTableView: View {
         .monospacedDigit()
         .padding(.vertical, 3)
         .padding(.leading, 7)
+        .background {
+            if isFavorite {
+                RoundedRectangle(cornerRadius: 6).fill(Color.yellow.opacity(0.12))
+            }
+        }
         .overlay(alignment: .leading) {
             // The zone band runs down the left edge.
             if let zone = row.zone {
@@ -108,7 +137,7 @@ struct SoccerLeagueTableView: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityLabel(row))
+        .accessibilityLabel(accessibilityLabel(row) + (isFavorite ? ", your team" : ""))
     }
 
     @ViewBuilder

@@ -33,6 +33,11 @@ final class GameDetailSectionsModel {
     /// Ride along with the plays on the same fetch.
     var winProbability: WinProbabilitySeries?
     var teamStats: TeamStatComparison?
+    var players: PlayerBoxScore?
+    var scoringSummary: ScoringSummary?
+    /// Football drive headers and baseball's current series, from the same payload.
+    var drives: [DriveSummary]?
+    var series: SeriesContext?
 
     var soccerMatch: SoccerMatchDetail?
     var soccerMatchLoading = false
@@ -72,7 +77,7 @@ final class GameDetailSectionsModel {
         defer { playsLoading = false }
         do {
             let cached = try await NetworkHandler.fetchPlayByPlay(
-                eventID: eventID, sport: sport, league: league
+                eventID: eventID, sport: sport, league: league, includePlayers: true
             )
             plays = cached.plays
             playsAvailable = true
@@ -80,6 +85,10 @@ final class GameDetailSectionsModel {
             // box score mid-game shouldn't blank the panel.
             winProbability = cached.winProbability ?? winProbability
             teamStats = cached.teamStats ?? teamStats
+            players = cached.players ?? players
+            scoringSummary = cached.scoringSummary ?? scoringSummary
+            drives = cached.drives ?? drives
+            series = cached.series ?? series
         } catch is NetworkHandler.PlayByPlayNotAvailable {
             plays = []
             playsAvailable = false
@@ -160,8 +169,8 @@ struct GameDetailView: View {
             if let id = game.idEvent, let url = DeepLink.url(for: .game(idEvent: id)) {
                 ShareLink(
                     item: url,
-                    subject: Text("\(game.strAwayTeam) @ \(game.strHomeTeam)"),
-                    message: Text("Follow \(game.strAwayTeam) @ \(game.strHomeTeam) live on Scoreline")
+                    subject: Text(game.matchupTitle),
+                    message: Text("Follow \(game.matchupTitle) live on Scoreline")
                 ) {
                     Image(systemName: "square.and.arrow.up")
                 }
@@ -232,7 +241,7 @@ struct GameDetailView: View {
 
     private var pbpLeagueSlug: String? {
         switch sportType {
-        case .basketball: return "nba"
+        case .basketball: return league?.espnSlug ?? "nba"
         case .nfl:        return league?.espnSlug ?? "nfl"
         case .hockey:     return "nhl"
         case .mlb:        return "mlb"
@@ -242,39 +251,40 @@ struct GameDetailView: View {
     }
 
     // MARK: - Classic hero
+    /// The hero's left and right teams: away then home, home then away for soccer.
+    private var heroFirst: Team { game.displaysHomeFirst ? homeTeam : awayTeam }
+    private var heroSecond: Team { game.displaysHomeFirst ? awayTeam : homeTeam }
+
     private var gameHeader: some View {
         VStack(spacing: 12) {
             HStack(alignment: .top) {
-                teamLink(awayTeam) {
-                    teamBadge(url: awayTeam.strTeamBadge, name: awayTeam.strTeamShort ?? awayTeam.strTeam, size: 60)
+                teamLink(heroFirst) {
+                    teamBadge(url: heroFirst.strTeamBadge, name: heroFirst.strTeamShort ?? heroFirst.strTeam, size: 60)
                 }
                 Spacer()
-                scoreOrTime
+                VStack(spacing: 4) {
+                    scoreOrTime
+                    HeroShotsOnGoalLine(sport: sportType, stats: sectionsModel.teamStats, awayName: awayTeam.strTeamShort ?? game.strAwayTeam, homeName: homeTeam.strTeamShort ?? game.strHomeTeam)
+                }
                 Spacer()
-                teamLink(homeTeam) {
-                    teamBadge(url: homeTeam.strTeamBadge, name: homeTeam.strTeamShort ?? homeTeam.strTeam, size: 60)
+                teamLink(heroSecond) {
+                    teamBadge(url: heroSecond.strTeamBadge, name: heroSecond.strTeamShort ?? heroSecond.strTeam, size: 60)
                 }
             }
 
-            HStack {
-                teamLink(awayTeam) {
-                    Text(awayTeam.strTeam ?? "Away")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity)
+            HStack(alignment: .top) {
+                teamLink(heroFirst) {
+                    heroTeamName(heroFirst, side: game.displayedSides.first)
                 }
                 Spacer()
-                teamLink(homeTeam) {
-                    Text(homeTeam.strTeam ?? "Home")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity)
+                teamLink(heroSecond) {
+                    heroTeamName(heroSecond, side: game.displayedSides.second)
                 }
             }
 
-            // `scoreOrTime` already prints the status under a score; repeat it here
-            // only when no score is shown (e.g. "Postponed" under the kickoff time).
-            if !headerShowsScore, let statusText = game.displayStatus {
+            // `scoreOrTime` already shows the status under the score (or in place of a
+            // missing date); show it here only beside a kickoff time.
+            if heroScores == nil, game.standardDate != nil, let statusText = game.displayStatus {
                 Text(statusText)
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -301,10 +311,52 @@ struct GameDetailView: View {
         .cornerRadius(12)
     }
 
-    /// True when `scoreOrTime` renders the score branch (which carries the status line).
-    private var headerShowsScore: Bool {
-        guard let home = game.intHomeScore, let away = game.intAwayScore else { return false }
-        return Int(home) != nil && Int(away) != nil
+    /// A hero team name with its rank or seed, record, the ball when it has it, and
+    /// soccer red cards.
+    private func heroTeamName(_ team: Team, side: GameSituation.Side) -> some View {
+        let isHome = side == .home
+        let name = team.strTeam ?? (isHome ? "Home" : "Away")
+        let seed = isHome ? game.homeSeed : game.awaySeed
+        let record = isHome ? game.homeRecord : game.awayRecord
+        let redCards = game.redCards(side)
+        let hasBall = game.strStatus == "in" && game.situation?.possession == side
+        return VStack(spacing: 2) {
+            HStack(spacing: 4) {
+                if hasBall {
+                    Image(systemName: "football.fill")
+                        .imageScale(.small)
+                        .foregroundStyle(.secondary)
+                }
+                SeededName.text(name, seed: seed, isRank: game.isCollegeFootball)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .multilineTextAlignment(.center)
+                if redCards > 0 {
+                    SoccerRedCardMark(count: redCards)
+                }
+            }
+            if let record, !game.isIndividualSport {
+                Text(record)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([
+            SeededName.spoken(name, seed: seed, isRank: game.isCollegeFootball),
+            record,
+            hasBall ? "has the ball" : nil,
+            redCards > 0 ? (redCards == 1 ? "1 red card" : "\(redCards) red cards") : nil
+        ].compactMap { $0 }.joined(separator: ", "))
+    }
+
+    /// The hero's numeric score, when the game has one.
+    private var heroScores: (home: Int, away: Int)? {
+        guard let home = game.intHomeScore.flatMap({ Int($0) }),
+              let away = game.intAwayScore.flatMap({ Int($0) }) else { return nil }
+        return (home, away)
     }
 
     /// ESPN's last play is often just the period boundary ("End of the 3rd Quarter",
@@ -316,25 +368,30 @@ struct GameDetailView: View {
 
     @ViewBuilder
     private var scoreOrTime: some View {
-        if let homeScore = game.intHomeScore, let awayScore = game.intAwayScore,
-           let home = Int(homeScore), let away = Int(awayScore) {
+        if let scores = heroScores {
+            // Bold the winner by ESPN's call, so a shootout winner reads on a level score.
+            let winner = game.winningSide
+            let sides = game.displayedSides
+            let first = sides.first == .home ? scores.home : scores.away
+            let second = sides.first == .home ? scores.away : scores.home
             VStack(spacing: 4) {
                 HStack(spacing: 16) {
-                    Text("\(away)")
-                        .font(.system(size: 36, weight: away > home ? .heavy : .regular))
-                        .foregroundColor(away > home ? .primary : .secondary)
+                    Text("\(first)")
+                        .font(.system(size: 36, weight: winner == sides.first ? .heavy : .regular))
+                        .foregroundColor(winner == sides.first ? .primary : .secondary)
                     Text("-")
                         .font(.system(size: 28, weight: .light))
                         .foregroundColor(.secondary)
-                    Text("\(home)")
-                        .font(.system(size: 36, weight: home > away ? .heavy : .regular))
-                        .foregroundColor(home > away ? .primary : .secondary)
+                    Text("\(second)")
+                        .font(.system(size: 36, weight: winner == sides.second ? .heavy : .regular))
+                        .foregroundColor(winner == sides.second ? .primary : .secondary)
                 }
                 if let statusText = game.displayStatus {
                     Text(statusText)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                SoccerScoreNotes(game: game)
             }
         } else if let date = game.standardDate {
             VStack(spacing: 4) {
@@ -397,24 +454,48 @@ struct GameDetailView: View {
     }
 
     private var gameInfo: some View {
-        HStack(spacing: 12) {
-            if let sport = sportType {
-                Image(systemName: sport.systemImage)
-                    .foregroundColor(sport.color)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                if let sport = sportType {
+                    Image(systemName: sport.systemImage)
+                        .foregroundColor(sport.color)
+                }
+                if let leagueName = league?.leagueName {
+                    Text(leagueName)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                if let date = game.standardDate {
+                    GameTimeLabel(date: date, includeDate: true, isTBD: game.isTimeTBD)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
-            if let leagueName = league?.leagueName {
-                Text(leagueName)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-            if let date = game.standardDate {
-                GameTimeLabel(date: date, includeDate: true, isTBD: game.isTimeTBD)
+            let context = gameContextLine
+            if !context.isEmpty {
+                Text(context.joined(separator: " · "))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+            // Where to watch, until it's over.
+            if !game.hasDoneStatus, let networks = game.broadcasts, !networks.isEmpty {
+                Label(networks.prefix(3).joined(separator: ", "), systemImage: "tv")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .accessibilityLabel("On \(networks.prefix(3).joined(separator: ", "))")
+            }
         }
         .padding(.horizontal, 4)
+    }
+
+    /// "Week 8", "Game 2 of a doubleheader", "Game 2 of 3 · PHI leads series 1-0".
+    private var gameContextLine: [String] {
+        var parts: [String] = []
+        if let week = game.footballWeek { parts.append("Week \(week)") }
+        if let number = game.doubleheaderGame { parts.append("Game \(number) of a doubleheader") }
+        if game.playoff == nil, let series = sectionsModel.series { parts.append(series.displayText) }
+        return parts
     }
 
     private var actionsRow: some View {
@@ -509,8 +590,7 @@ struct GameDetailView: View {
     private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         let event = EKEvent(eventStore: eventStore)
-        let separator = (game.playoff?.isNeutralSite == true) ? " vs " : " @ "
-        event.title = "\(game.strAwayTeam)\(separator)\(game.strHomeTeam)"
+        event.title = game.matchupTitle
         if let gameDate = game.standardDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 2)
@@ -518,6 +598,24 @@ struct GameDetailView: View {
         return CalendarRepresentable(eventStore: eventStore, event: event)
     }
     #endif
+}
+
+/// "(4–3 pens)" and "Agg 3–2" under a soccer hero score. Empty for other sports.
+struct SoccerScoreNotes: View {
+    let game: Game
+
+    var body: some View {
+        if let pens = game.shootoutLine {
+            Text("(\(pens))")
+                .font(.caption.weight(.medium))
+                .foregroundColor(.secondary)
+        }
+        if let aggregate = game.aggregateLine {
+            Text(aggregate)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
 }
 
 // MARK: - GameDetailSections
@@ -541,16 +639,24 @@ struct GameDetailSections: View {
     @Environment(SubscriptionManager.self) private var subscriptionManager
     #endif
 
+    // Box-score columns grow with Dynamic Type (the grid scrolls sideways when it outgrows the card).
+    @ScaledMetric(relativeTo: .caption) private var boxTeamWidth: CGFloat = 60
+    @ScaledMetric(relativeTo: .caption) private var boxPeriodWidth: CGFloat = 36
+    @ScaledMetric(relativeTo: .caption) private var boxTotalWidth: CGFloat = 40
+
     var body: some View {
         VStack(spacing: 24) {
             liveSituationSection
             playoffSeriesSection
             boxScoreSection
+            PlayerBoxScoreSection(box: model.players, sport: sportType, homeName: homeShortName, awayName: awayShortName, homeColor: homeColor, awayColor: awayColor)
+            pitchersSection
             soccerMatchSection
             winProbabilitySection
             momentumChartSection
             teamStatsSection
             keyPlayersSection
+            ScoringSummarySection(summary: model.scoringSummary, game: game, homeName: homeShortName, awayName: awayShortName, homeColor: homeColor, awayColor: awayColor)
             playByPlaySection
             injuriesSection
             headToHeadSection
@@ -573,6 +679,11 @@ struct GameDetailSections: View {
             Task { await reloadPlays() }
             Task { await reloadSoccerMatch() }
         }
+        // Soccer's lastPlay rarely changes; a goal, a card or the clock moving does.
+        .onChange(of: soccerLiveKey) { _, _ in
+            Task { await reloadSoccerMatch() }
+        }
+        .task(id: soccerPollID) { await pollSoccerMatchWhileLive() }
         .onChange(of: model.plays) { _, newPlays in
             let newAvailable = Set(newPlays.compactMap { $0.period?.number })
             if let current = model.selectedPeriod, newAvailable.contains(current) {
@@ -708,57 +819,42 @@ struct GameDetailSections: View {
                     VStack(spacing: 6) {
                         HStack(spacing: 0) {
                             Text("")
-                                .frame(width: 60, alignment: .leading)
+                                .frame(width: boxTeamWidth, alignment: .leading)
                             ForEach(Array(labels.enumerated()), id: \.offset) { _, label in
                                 Text(label)
-                                    .frame(width: 36, alignment: .center)
+                                    .frame(width: boxPeriodWidth, alignment: .center)
                             }
-                            Text("T")
-                                .frame(width: 40, alignment: .center)
+                            Text(showsHitsAndErrors ? "R" : "T")
+                                .frame(width: boxTotalWidth, alignment: .center)
+                            if showsHitsAndErrors {
+                                Text("H").frame(width: boxTotalWidth, alignment: .center)
+                                Text("E").frame(width: boxTotalWidth, alignment: .center)
+                            }
                         }
                         .font(.caption2)
                         .foregroundColor(.secondary)
 
                         Divider()
 
-                        HStack(spacing: 0) {
-                            Text(Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam, idTeam: awayTeam.idTeam))
-                                .frame(width: 60, alignment: .leading)
-                                .lineLimit(1)
-                            ForEach(Array(awayLs.enumerated()), id: \.offset) { _, score in
-                                Text(formatLinescoreValue(score))
-                                    .frame(width: 36, alignment: .center)
-                            }
-                            ForEach(0..<max(0, homeLs.count - awayLs.count), id: \.self) { _ in
-                                Text("-")
-                                    .frame(width: 36, alignment: .center)
-                            }
-                            Text(formatLinescoreValue(awayTotal))
-                                .fontWeight(awayTotal > homeTotal ? .bold : .regular)
-                                .frame(width: 40, alignment: .center)
-                        }
-                        .font(.caption)
-
-                        HStack(spacing: 0) {
-                            Text(Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam, idTeam: homeTeam.idTeam))
-                                .frame(width: 60, alignment: .leading)
-                                .lineLimit(1)
-                            ForEach(Array(homeLs.enumerated()), id: \.offset) { _, score in
-                                Text(formatLinescoreValue(score))
-                                    .frame(width: 36, alignment: .center)
-                            }
-                            ForEach(0..<max(0, awayLs.count - homeLs.count), id: \.self) { _ in
-                                Text("-")
-                                    .frame(width: 36, alignment: .center)
-                            }
-                            Text(formatLinescoreValue(homeTotal))
-                                .fontWeight(homeTotal > awayTotal ? .bold : .regular)
-                                .frame(width: 40, alignment: .center)
-                        }
-                        .font(.caption)
+                        boxScoreRow(
+                            name: Team.shortCode(strTeamShort: awayTeam.strTeamShort, name: game.strAwayTeam, idTeam: awayTeam.idTeam),
+                            scores: awayLs, padTo: periodCount, total: awayTotal, isLeading: awayTotal > homeTotal,
+                            hitsAndErrors: showsHitsAndErrors ? (game.awayHits, game.awayErrors) : nil
+                        )
+                        boxScoreRow(
+                            name: Team.shortCode(strTeamShort: homeTeam.strTeamShort, name: game.strHomeTeam, idTeam: homeTeam.idTeam),
+                            scores: homeLs, padTo: periodCount, total: homeTotal, isLeading: homeTotal > awayTotal,
+                            hitsAndErrors: showsHitsAndErrors ? (game.homeHits, game.homeErrors) : nil
+                        )
                     }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .padding(.horizontal, 4)
                 }
+                // One summary instead of a grid of bare numbers.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(boxScoreAccessibilityLabel(labels: labels, home: homeLs, away: awayLs,
+                                                               homeTotal: homeTotal, awayTotal: awayTotal))
             }
             .padding()
             .background(Color.secondaryGroupedBackground)
@@ -766,8 +862,121 @@ struct GameDetailSections: View {
         }
     }
 
+    /// Baseball's line score ends R / H / E, once ESPN has sent the hits.
+    private var showsHitsAndErrors: Bool {
+        sportType == .mlb && (game.homeHits != nil || game.awayHits != nil)
+    }
+
+    private func boxScoreRow(name: String, scores: [Double], padTo count: Int, total: Double, isLeading: Bool,
+                             hitsAndErrors: (hits: Int?, errors: Int?)? = nil) -> some View {
+        HStack(spacing: 0) {
+            Text(name)
+                .frame(width: boxTeamWidth, alignment: .leading)
+            ForEach(Array(scores.enumerated()), id: \.offset) { _, score in
+                Text(formatLinescoreValue(score))
+                    .frame(width: boxPeriodWidth, alignment: .center)
+            }
+            ForEach(0..<max(0, count - scores.count), id: \.self) { _ in
+                Text("-")
+                    .frame(width: boxPeriodWidth, alignment: .center)
+            }
+            Text(formatLinescoreValue(total))
+                .fontWeight(isLeading ? .bold : .regular)
+                .frame(width: boxTotalWidth, alignment: .center)
+            if let hitsAndErrors {
+                Text(hitsAndErrors.hits.map(String.init) ?? "-")
+                    .frame(width: boxTotalWidth, alignment: .center)
+                Text(hitsAndErrors.errors.map(String.init) ?? "-")
+                    .frame(width: boxTotalWidth, alignment: .center)
+            }
+        }
+        .font(.caption)
+        .monospacedDigit()
+    }
+
+    /// "Box score. Celtics: Q1 28, Q2 31, …, total 112. Lakers: …"
+    private func boxScoreAccessibilityLabel(labels: [String], home: [Double], away: [Double],
+                                            homeTotal: Double, awayTotal: Double) -> String {
+        func line(_ name: String, _ scores: [Double], _ total: Double, hits: Int?, errors: Int?) -> String {
+            let periods = zip(labels, scores).map { "\($0) \(formatLinescoreValue($1))" }
+            var totals = [showsHitsAndErrors ? "\(formatLinescoreValue(total)) runs" : "total \(formatLinescoreValue(total))"]
+            if showsHitsAndErrors {
+                if let hits { totals.append("\(hits) hits") }
+                if let errors { totals.append("\(errors) errors") }
+            }
+            return "\(name): " + (periods + totals).joined(separator: ", ")
+        }
+        let awayName = awayTeam.strTeam ?? game.strAwayTeam
+        let homeName = homeTeam.strTeam ?? game.strHomeTeam
+        return "Box score. " + line(awayName, away, awayTotal, hits: game.awayHits, errors: game.awayErrors)
+            + ". " + line(homeName, home, homeTotal, hits: game.homeHits, errors: game.homeErrors)
+    }
+
     private func formatLinescoreValue(_ value: Double) -> String {
         value.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(value))" : "\(value)"
+    }
+
+    // MARK: Pitchers
+
+    /// Baseball: the probable starters before first pitch, the pitchers of record after.
+    @ViewBuilder
+    private var pitchersSection: some View {
+        if sportType == .mlb {
+            if game.hasDoneStatus, let pitchers = game.featuredPitchers, !pitchers.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Pitchers of Record").font(.headline)
+                    ForEach(Array(pitchers.enumerated()), id: \.offset) { _, pitcher in
+                        HStack(spacing: 8) {
+                            Text(pitcher.role == .save ? "S" : pitcher.role.rawValue)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.secondary)
+                                .frame(minWidth: 16, alignment: .leading)
+                            Text(pitcher.name).font(.subheadline)
+                            if let line = pitcher.line {
+                                Text(line).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                            }
+                            Spacer(minLength: 0)
+                            if let side = pitcher.side {
+                                Text(side == .home ? homeShortName : awayShortName)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .background(Color.secondaryGroupedBackground)
+                .cornerRadius(12)
+            } else if game.strStatus != "in", !game.hasDoneStatus,
+                      game.homeProbable != nil || game.awayProbable != nil {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Probable Pitchers").font(.headline)
+                    probableRow(team: awayShortName, pitcher: game.awayProbable)
+                    probableRow(team: homeShortName, pitcher: game.homeProbable)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .background(Color.secondaryGroupedBackground)
+                .cornerRadius(12)
+            }
+        }
+    }
+
+    private func probableRow(team: String, pitcher: ProbablePitcher?) -> some View {
+        HStack(spacing: 8) {
+            Text(team)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 40, alignment: .leading)
+            Text(pitcher?.name ?? "TBA").font(.subheadline)
+            Spacer(minLength: 0)
+            if let record = pitcher?.record {
+                Text(record).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Momentum chart
@@ -798,13 +1007,15 @@ struct GameDetailSections: View {
     @ViewBuilder
     private var liveSituationSection: some View {
         if game.strStatus == "in", let situation = game.situation,
-           situation.hasBaseballState || situation.hasFootballState || situation.homeWinProbability != nil {
+           situation.hasBaseballState || situation.hasFootballState || situation.homeWinProbability != nil
+            || situation.hasHoopsHockeyDisplay {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Live").font(.headline)
                 LiveSituationPanel(
                     situation: situation, sport: sportType,
                     homeName: homeShortName, awayName: awayShortName,
-                    homeColor: homeColor, awayColor: awayColor
+                    homeColor: homeColor, awayColor: awayColor,
+                    league: league
                 )
             }
             .padding()
@@ -878,7 +1089,10 @@ struct GameDetailSections: View {
                                 .foregroundColor(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .center)
 
-                            HStack {
+                            HStack(spacing: 8) {
+                                if let headshot = pair.awayLeader.headshot {
+                                    HeadshotView(url: headshot, size: 32).accessibilityHidden(true)
+                                }
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(pair.awayLeader.playerName)
                                         .font(.subheadline)
@@ -900,6 +1114,9 @@ struct GameDetailSections: View {
                                         .foregroundColor(.secondary)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .trailing)
+                                if let headshot = pair.homeLeader.headshot {
+                                    HeadshotView(url: headshot, size: 32).accessibilityHidden(true)
+                                }
                             }
                         }
 
@@ -923,7 +1140,9 @@ struct GameDetailSections: View {
     }
 
     private func matchedLeaderCategories(away: [GameLeader], home: [GameLeader]) -> [LeaderPair] {
-        away.compactMap { awayLeader in
+        // ESPN's basketball "Rating" is an opaque composite ("27 PTS, 9 REB…" restated as
+        // one number); the points/rebounds/assists rows already say it.
+        away.filter { !(sportType == .basketball && $0.category == "rating") }.compactMap { awayLeader in
             guard let homeLeader = home.first(where: { $0.category == awayLeader.category }) else { return nil }
             return LeaderPair(category: awayLeader.category, categoryDisplay: awayLeader.categoryDisplay,
                               awayLeader: awayLeader, homeLeader: homeLeader)
@@ -1212,11 +1431,12 @@ struct GameDetailSections: View {
                         Spacer()
                     }
                     .padding(.vertical, 8)
-                } else if let children = model.standing?.standings.children, !children.isEmpty {
-                    ForEach(Array(children.enumerated()), id: \.offset) { _, child in
-                        if let entries = child.standings?.entries, !entries.isEmpty {
-                            standingsGroup(name: child.name, entries: entries)
-                        }
+                } else if let groups = model.standing?.groups, !groups.isEmpty {
+                    // Just the group(s) the two teams are in — every NCAA conference
+                    // is far too much under one game.
+                    let own = groups.filter { $0.entries.contains(where: isTeamInGame(entry:)) }
+                    ForEach(Array((own.isEmpty ? groups : own).enumerated()), id: \.offset) { _, group in
+                        standingsGroup(name: group.name, entries: group.entries)
                     }
                 } else {
                     VStack(spacing: 8) {
@@ -1248,8 +1468,8 @@ struct GameDetailSections: View {
     }
 
     private func standingsGroup(name: String?, entries: [Entry]) -> some View {
-        LeagueStandingsTable(name: name, entries: entries, isSoccer: league?.isSoccer == true,
-                           isHighlighted: isTeamInGame(entry:))
+        LeagueStandingsTable(name: name, entries: entries, league: league,
+                             isHighlighted: isTeamInGame(entry:))
     }
 
     private func isTeamInGame(entry: Entry) -> Bool {
@@ -1299,7 +1519,8 @@ struct GameDetailSections: View {
                         ProgressView()
                             .controlSize(.small)
                     } else {
-                        Text("\(model.plays.count) plays")
+                        // Baseball counts what's listed, not ESPN's ~600 pitch rows.
+                        Text("\(model.plays.displayedPlayCount(isBaseball: sportType == .mlb)) plays")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -1314,6 +1535,10 @@ struct GameDetailSections: View {
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 8)
+                } else if sportType == .mlb {
+                    baseballPlays(visible)
+                } else if sportType == .nfl {
+                    footballPlays()
                 } else {
                     LazyVStack(alignment: .leading, spacing: 8) {
                         ForEach(Array(visible.enumerated()), id: \.offset) { _, play in
@@ -1326,6 +1551,78 @@ struct GameDetailSections: View {
             .background(Color.secondaryGroupedBackground)
             .cornerRadius(12)
         }
+    }
+
+    /// While a game is on, the latest play leads; afterwards it reads in order.
+    private var newestFirst: Bool { game.strStatus == "in" }
+
+    /// Baseball: results only, under "Top 3rd" / "Bottom 3rd" headers, each with its
+    /// pitches folded underneath.
+    @ViewBuilder
+    private func baseballPlays(_ plays: [Play]) -> some View {
+        let halves = plays.baseballHalfInnings()
+        let ordered = newestFirst ? Array(halves.reversed()) : halves
+        LazyVStack(alignment: .leading, spacing: 8) {
+            ForEach(ordered) { half in
+                Text("\(half.isTop ? "Top" : "Bottom") \(Leagues.mlb.periodName(half.inning))")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+                    .accessibilityAddTraits(.isHeader)
+                let atBats = newestFirst ? Array(half.atBats.reversed()) : half.atBats
+                ForEach(atBats) { atBat in
+                    BaseballAtBatRow(atBat: atBat)
+                }
+            }
+        }
+    }
+
+    /// Football: plays under a header per drive ("KC · Touchdown · 8 plays, 75 yards,
+    /// 4:12"), limited to the selected quarter.
+    @ViewBuilder
+    private func footballPlays() -> some View {
+        let groups = model.plays.groupedIntoDrives(model.drives).compactMap { group -> PlayDriveGroup? in
+            var group = group
+            if let selected = model.selectedPeriod {
+                group.plays = group.plays.filter { $0.period?.number == selected }
+            }
+            if newestFirst { group.plays.reverse() }
+            return group.plays.isEmpty ? nil : group
+        }
+        let ordered = newestFirst ? Array(groups.reversed()) : groups
+        LazyVStack(alignment: .leading, spacing: 8) {
+            ForEach(ordered) { group in
+                if let drive = group.drive {
+                    driveHeader(drive)
+                }
+                ForEach(Array(group.plays.enumerated()), id: \.offset) { _, play in
+                    playRow(play)
+                }
+            }
+        }
+    }
+
+    private func driveHeader(_ drive: DriveSummary) -> some View {
+        HStack(spacing: 6) {
+            if let team = drive.team {
+                Text(team).font(.caption.weight(.bold))
+            }
+            Text(drive.result ?? "Drive in progress")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(drive.isScore == true ? Color.accentColor : .primary)
+            if let summary = drive.summary {
+                Text(summary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 
     private func reloadPlays() async {
@@ -1346,10 +1643,48 @@ struct GameDetailSections: View {
         await model.loadSoccerMatch(game: game, leagueSlug: league?.espnSlug)
     }
 
+    /// Changes with the score, the clock and red cards of a live soccer match.
+    private var soccerLiveKey: String {
+        guard isSoccer, game.strStatus == "in" else { return "" }
+        return [game.intHomeScore ?? "", game.intAwayScore ?? "", game.strProgress ?? "",
+                "\(game.redCards(.home))", "\(game.redCards(.away))"].joined(separator: "|")
+    }
+
+    private var soccerPollID: String { "\(game.idEvent ?? "")|\(game.strStatus ?? "")" }
+
+    /// The match centre is live while its own status says so (it's fresher than a game
+    /// copy that a non-live list handed over), or the game's when it has none yet.
+    private var soccerMatchIsLive: Bool {
+        if let state = model.soccerMatch?.status?.state { return state == "in" }
+        return game.strStatus == "in"
+    }
+
+    /// Refetch while the match is live: every 45s, a little over the server's 30s
+    /// cache, so a screen opened from a list that doesn't tick still moves.
+    private func pollSoccerMatchWhileLive() async {
+        guard isSoccer, game.idEvent != nil else { return }
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(45))
+            guard !Task.isCancelled, soccerMatchIsLive else { return }
+            await reloadSoccerMatch()
+        }
+    }
+
     @ViewBuilder
     private var soccerMatchSection: some View {
         if isSoccer, let match = model.soccerMatch, !match.isEmpty {
             SoccerMatchCentreView(match: match, game: game)
+        } else if isSoccer, model.soccerMatchLoading, game.idEvent != nil {
+            HStack(spacing: 10) {
+                ProgressView()
+                Text("Loading match centre…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.secondaryGroupedBackground)
+            .cornerRadius(12)
         }
     }
 
@@ -1415,23 +1750,9 @@ struct GameDetailSections: View {
         .padding(.vertical, 2)
     }
 
+    /// Shared with the box score, so OT reads "OT"/"2OT" and NCAA halves "H1"/"H2".
     private func periodAbbreviation(_ period: Int) -> String {
-        if league == .ncaaMBBTournament { return league?.periodName(period) ?? "H\(period)" }
-        switch sportType {
-        case .basketball, .nfl: return "Q\(period)"
-        case .hockey: return period > 3 ? (period == 4 ? "OT" : "SO") : "P\(period)"
-        case .mlb: return "\(period)"
-        case .soccer:
-            switch period {
-            case 1: return "1H"
-            case 2: return "2H"
-            case 3: return "ET1"
-            case 4: return "ET2"
-            case 5: return "PEN"
-            default: return "\(period)"
-            }
-        default: return "\(period)"
-        }
+        game.periodLabel(period)
     }
 
     private var pbpSportPath: String? {
@@ -1447,7 +1768,7 @@ struct GameDetailSections: View {
 
     private var pbpLeagueSlug: String? {
         switch sportType {
-        case .basketball: return "nba"
+        case .basketball: return league?.espnSlug ?? "nba"
         case .nfl:        return league?.espnSlug ?? "nfl"
         case .hockey:     return "nhl"
         case .mlb:        return "mlb"
@@ -1458,17 +1779,90 @@ struct GameDetailSections: View {
 }
 
 
+// MARK: - Baseball play-by-play row
+
+/// One plate appearance: the result, with its pitches a tap away.
+private struct BaseballAtBatRow: View {
+    let atBat: BaseballAtBat
+    @State private var showsPitches = false
+
+    var body: some View {
+        let play = atBat.result
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(play.text ?? "")
+                        .font(.caption)
+                        .foregroundColor(play.scoringPlay == true ? .primary : .secondary)
+                        .fontWeight(play.scoringPlay == true ? .semibold : .regular)
+                    if play.scoringPlay == true, let away = play.awayScore, let home = play.homeScore {
+                        Text("\(away) – \(home)")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.accentColor)
+                            .monospacedDigit()
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if !atBat.pitches.isEmpty {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { showsPitches.toggle() }
+                    } label: {
+                        HStack(spacing: 2) {
+                            Text("\(atBat.pitches.count)")
+                                .monospacedDigit()
+                            Image(systemName: showsPitches ? "chevron.up" : "chevron.down")
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(showsPitches ? "Hide \(atBat.pitches.count) pitches" : "Show \(atBat.pitches.count) pitches")
+                }
+            }
+            if showsPitches {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(atBat.pitches) { pitch in
+                        Text(pitch.text ?? pitch.type?.text ?? "")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.leading, 10)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
 // MARK: - Standings table
 
-/// One standings group (a conference, division or league table). Shared by the game
-/// detail and the team page; `isHighlighted` bolds the rows being looked at.
+/// One standings group (a conference, division or league table), ranked and with the
+/// columns its sport reads by (see `StandingsStyle`). Shared by the game detail, the
+/// team page and the league hub; `isHighlighted` bolds the rows being looked at.
 struct LeagueStandingsTable: View {
     let name: String?
     let entries: [Entry]
-    let isSoccer: Bool
+    let style: StandingsStyle
     var isHighlighted: (Entry) -> Bool = { _ in false }
 
+    @ScaledMetric(relativeTo: .caption) private var rankWidth: CGFloat = 24
+    @ScaledMetric(relativeTo: .caption) private var statWidth: CGFloat = 30
+    @ScaledMetric(relativeTo: .caption) private var wideStatWidth: CGFloat = 40
+
+    init(name: String?, entries: [Entry], league: Leagues?, isHighlighted: @escaping (Entry) -> Bool = { _ in false }) {
+        self.name = name
+        self.entries = entries
+        self.style = league.map(StandingsStyle.init(league:)) ?? .basketball
+        self.isHighlighted = isHighlighted
+    }
+
     var body: some View {
+        let rows = style.ranked(entries)
+        let columns = style.columns(for: entries)
         VStack(alignment: .leading, spacing: 6) {
             if let name {
                 Text(name)
@@ -1476,56 +1870,96 @@ struct LeagueStandingsTable: View {
                     .fontWeight(.semibold)
                     .foregroundColor(.secondary)
             }
-
-            HStack(spacing: 0) {
-                Text("#")
-                    .frame(width: 24, alignment: .leading)
-                Text("Team")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("W")
-                    .frame(width: 32, alignment: .center)
-                Text("L")
-                    .frame(width: 32, alignment: .center)
-                if isSoccer {
-                    Text("D")
-                        .frame(width: 32, alignment: .center)
-                    Text("Pts")
-                        .frame(width: 36, alignment: .center)
+            // The streak column only when the table still fits with it.
+            if let extra = style.optionalColumn, entries.contains(where: { $0.streak != nil }) {
+                ViewThatFits(in: .horizontal) {
+                    table(rows: rows, columns: columns + [extra])
+                    table(rows: rows, columns: columns)
                 }
-            }
-            .font(.caption2)
-            .foregroundColor(.secondary)
-
-            ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
-                let highlighted = isHighlighted(entry)
-                HStack(spacing: 0) {
-                    Text("\(index + 1)")
-                        .frame(width: 24, alignment: .leading)
-                    Text(entry.team?.shortDisplayName ?? entry.team?.displayName ?? "-")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .lineLimit(1)
-                    Text(Self.statValue(entry: entry, name: "wins"))
-                        .frame(width: 32, alignment: .center)
-                    Text(Self.statValue(entry: entry, name: "losses"))
-                        .frame(width: 32, alignment: .center)
-                    if isSoccer {
-                        Text(Self.statValue(entry: entry, name: "ties"))
-                            .frame(width: 32, alignment: .center)
-                        Text(Self.statValue(entry: entry, name: "points"))
-                            .frame(width: 36, alignment: .center)
-                    }
-                }
-                .font(.caption)
-                .fontWeight(highlighted ? .bold : .regular)
-                .foregroundColor(highlighted ? .primary : .secondary)
+            } else {
+                table(rows: rows, columns: columns)
             }
         }
         .padding(.vertical, 4)
     }
 
-    static func statValue(entry: Entry, name: String) -> String {
-        guard let stats = entry.stats,
-              let stat = stats.first(where: { $0.name == name }) else { return "-" }
-        return stat.displayValue ?? (stat.value.map { "\(Int($0))" } ?? "-")
+    private func table(rows: [RankedStandingsEntry], columns: [StandingsColumn]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 0) {
+                Text("#")
+                    .frame(width: rankWidth, alignment: .leading)
+                Text("Team")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                ForEach(columns, id: \.self) { column in
+                    Text(column.title)
+                        .frame(width: width(column), alignment: .center)
+                }
+            }
+            .font(.caption2)
+            .foregroundColor(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .accessibilityHidden(true)
+
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                standingsRow(row, columns: columns)
+            }
+        }
+    }
+
+    private func standingsRow(_ row: RankedStandingsEntry, columns: [StandingsColumn]) -> some View {
+        let entry = row.entry
+        let highlighted = isHighlighted(entry)
+        let teamName = entry.team?.shortDisplayName ?? entry.team?.displayName ?? "-"
+        return HStack(spacing: 0) {
+            Text("\(row.rank)")
+                .frame(width: rankWidth, alignment: .leading)
+            HStack(spacing: 2) {
+                Text(teamName)
+                    .lineLimit(1)
+                if let marker = entry.clinchMarker {
+                    Text(marker)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            ForEach(columns, id: \.self) { column in
+                Text(column.value(for: entry))
+                    .frame(width: width(column), alignment: .center)
+                    .fontWeight(column == .points ? .semibold : nil)
+            }
+        }
+        .font(.caption)
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .fontWeight(highlighted ? .bold : .regular)
+        .foregroundColor(highlighted ? .primary : .secondary)
+        .overlay(alignment: .leading) {
+            // Soccer qualification / relegation zone, from ESPN's note colour.
+            if style.isSoccer, let color = Color(hex: entry.note?.color) {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(color)
+                    .frame(width: 3)
+                    .offset(x: -6)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel(row, teamName: teamName, columns: columns))
+    }
+
+    private func width(_ column: StandingsColumn) -> CGFloat {
+        column.isWide ? wideStatWidth : statWidth
+    }
+
+    private func accessibilityLabel(_ row: RankedStandingsEntry, teamName: String, columns: [StandingsColumn]) -> String {
+        var parts = ["\(row.rank). \(teamName)"]
+        for column in columns {
+            let value = column.value(for: row.entry)
+            if value != "-" { parts.append("\(value) \(column.spokenName)") }
+        }
+        if let zone = row.entry.note?.description, style.isSoccer { parts.append(zone) }
+        return parts.joined(separator: ", ")
     }
 }

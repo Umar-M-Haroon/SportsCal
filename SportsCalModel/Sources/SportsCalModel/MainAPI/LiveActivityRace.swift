@@ -21,22 +21,74 @@ public struct LiveActivityRace: Codable, Hashable, Sendable {
         public var gap: String?
         /// Team colour hex without "#".
         public var teamColor: String?
+        /// Golf: the position as shown ("T3"), and where the player is ("Thru 14", "F").
+        public var label: String?
+        public var detail: String?
 
-        public init(position: Int, code: String, gap: String? = nil, teamColor: String? = nil) {
+        public init(position: Int, code: String, gap: String? = nil, teamColor: String? = nil, label: String? = nil, detail: String? = nil) {
             self.position = position
             self.code = code
             self.gap = gap
             self.teamColor = teamColor
+            self.label = label
+            self.detail = detail
         }
     }
 
-    /// Short session label ("Race", "Sprint", "Quali", "FP2").
+    /// Short session label ("Race", "Sprint", "Quali", "FP2"; "Round 2" for golf).
     public var session: String
     public var leaders: [Driver]
+    /// "golf" for a golf leaderboard; nil for racing (every activity before golf had one).
+    public var sport: String?
+    /// Golf: the player the activity follows, when they aren't already in `leaders`.
+    public var following: Driver?
 
-    public init(session: String, leaders: [Driver]) {
+    public init(session: String, leaders: [Driver], sport: String? = nil, following: Driver? = nil) {
         self.session = session
         self.leaders = leaders
+        self.sport = sport
+        self.following = following
+    }
+
+    public var isGolf: Bool { sport == "golf" }
+
+    /// Golf Live Activity content: the round, the top three (with ties) and, when the
+    /// activity follows a player outside them, that player's line. `following` is the
+    /// activity's `awayTeam` attribute — a player name, or the tour name when it
+    /// follows the tournament as a whole.
+    public init?(golf game: Game, following: String?) {
+        let entries = game.leaderboardEntries ?? []
+        guard game.golfTour != nil, !entries.isEmpty else { return nil }
+        let labels = entries.golfPositionLabels()
+        func driver(_ index: Int) -> Driver {
+            let entry = entries[index]
+            let detail: String?
+            if entry.isOnCourse, let thru = entry.thruHole {
+                detail = "Thru \(thru)"
+            } else if entry.thruHole == "F" {
+                detail = "F"
+            } else {
+                detail = nil
+            }
+            return Driver(position: entry.position, code: Self.golfName(entry.name),
+                          gap: entry.score, label: labels[index], detail: detail)
+        }
+        let top = (0..<Swift.min(Self.leaderCount, entries.count)).map(driver)
+        self.session = game.golfCurrentRound.map { "Round \($0)" } ?? "Leaderboard"
+        self.leaders = top
+        self.sport = "golf"
+        if let following, let index = entries.firstIndex(where: { $0.name == following }), index >= Self.leaderCount {
+            self.following = driver(index)
+        } else {
+            self.following = nil
+        }
+    }
+
+    /// "Scottie Scheffler" → "S. Scheffler".
+    static func golfName(_ name: String) -> String {
+        let parts = name.split(separator: " ")
+        guard parts.count >= 2, let initial = parts.first?.first else { return name }
+        return "\(initial). \(parts.dropFirst().joined(separator: " "))"
     }
 
     public static let leaderCount = 3
@@ -62,15 +114,38 @@ public struct LiveActivityRace: Codable, Hashable, Sendable {
         } else {
             self.session = session?.shortName ?? "Race"
         }
+        // Endurance cars carry a crew ("Cameron / Nasr / Tandy"), so initials of the
+        // first driver read as nonsense ("CAM"); the car number is what fans follow.
+        let usesCarNumber = game.isEnduranceRacing
         self.leaders = top.map { entry in
             Driver(
                 position: entry.position,
-                code: standings?.driverCode(for: entry.name) ?? Self.fallbackCode(entry.name),
+                code: Self.code(for: entry, usesCarNumber: usesCarNumber, standings: standings),
                 gap: entry.position == 1 ? nil : Self.shortGap(entry.gap),
                 teamColor: entry.stockCar.flatMap { NASCARVocabulary.manufacturerColorHex($0.manufacturer) }
                     ?? entry.constructor.flatMap { standings?.teamColorHex(for: $0) }
             )
         }
+    }
+
+    /// Short series code for the Dynamic Island slots, where a race has no team
+    /// abbreviation ("F1", "CUP", "INDY", "IMSA", "WEC"). Shared by the app's own
+    /// starts and the server's push-to-start so both label the activity the same.
+    public static func seriesCode(for game: Game) -> String {
+        switch game.racingSeries {
+        case .nascarCup: "CUP"
+        case .indycar: "INDY"
+        case .imsa: "IMSA"
+        case .wec: "WEC"
+        default: "F1"
+        }
+    }
+
+    static func code(for entry: LeaderboardEntry, usesCarNumber: Bool, standings: F1Standings?) -> String {
+        if usesCarNumber, let number = entry.stockCar?.carNumber, !number.isEmpty {
+            return "#\(number)"
+        }
+        return standings?.driverCode(for: entry.name) ?? fallbackCode(entry.name)
     }
 
     static func fallbackCode(_ name: String) -> String {

@@ -37,12 +37,12 @@ struct GolfHoleGridView: View {
                 // Hole numbers
                 HStack(spacing: 2) {
                     Text(label)
-                        .font(.system(size: 8, weight: .bold))
+                        .font(.caption2.weight(.bold))
                         .foregroundColor(.secondary)
                         .frame(width: 22)
                     ForEach(holes, id: \.hole) { hole in
                         Text("\(hole.hole)")
-                            .font(.system(size: 7))
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity)
                     }
@@ -53,18 +53,18 @@ struct GolfHoleGridView: View {
                 // Par row
                 HStack(spacing: 2) {
                     Text("Par")
-                        .font(.system(size: 7))
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                         .frame(width: 22)
                     ForEach(holes, id: \.hole) { hole in
                         Text("\(hole.par)")
-                            .font(.system(size: 8))
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity)
                     }
                     let parTotal = holes.map(\.par).reduce(0, +)
                     Text("\(parTotal)")
-                        .font(.system(size: 8, weight: .bold))
+                        .font(.caption2.weight(.bold))
                         .foregroundColor(.secondary)
                         .frame(width: 24)
                 }
@@ -76,7 +76,7 @@ struct GolfHoleGridView: View {
                     ForEach(holes, id: \.hole) { hole in
                         if let score = hole.score {
                             Text("\(score)")
-                                .font(.system(size: 9, weight: .medium))
+                                .font(.caption2.weight(.medium))
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 2)
@@ -84,9 +84,12 @@ struct GolfHoleGridView: View {
                                     RoundedRectangle(cornerRadius: 3)
                                         .fill(holeColor(score: score, par: hole.par))
                                 )
+                                .overlay(GolfScoreMark(diff: score - hole.par).foregroundStyle(.white.opacity(0.9)).padding(1))
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(GolfScoreStyle.holeLabel(hole: hole.hole, score: score, par: hole.par))
                         } else {
                             Text("-")
-                                .font(.system(size: 9))
+                                .font(.caption2)
                                 .foregroundColor(.secondary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 2)
@@ -95,11 +98,11 @@ struct GolfHoleGridView: View {
                     let scoreTotal = holes.compactMap(\.score).reduce(0, +)
                     if holes.contains(where: { $0.score != nil }) {
                         Text("\(scoreTotal)")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.caption2.weight(.bold))
                             .frame(width: 24)
                     } else {
                         Text("-")
-                            .font(.system(size: 9))
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                             .frame(width: 24)
                     }
@@ -118,5 +121,71 @@ struct GolfHoleGridView: View {
         case 1:       return Color(red: 0.85, green: 0.35, blue: 0.15) // bogey (dark orange)
         default:      return Color(red: 0.8, green: 0.15, blue: 0.15)  // double+ (red)
         }
+    }
+}
+
+/// The scorecard convention, so a hole reads without colour: circled under par (twice for
+/// an eagle or better), boxed over par (twice for a double bogey or worse).
+struct GolfScoreMark: View {
+    let diff: Int
+
+    var body: some View {
+        if diff <= -2 {
+            ZStack {
+                Circle().stroke(lineWidth: 1)
+                Circle().inset(by: 2.5).stroke(lineWidth: 1)
+            }
+        } else if diff == -1 {
+            Circle().stroke(lineWidth: 1)
+        } else if diff == 1 {
+            Rectangle().stroke(lineWidth: 1)
+        } else if diff >= 2 {
+            ZStack {
+                Rectangle().stroke(lineWidth: 1)
+                Rectangle().inset(by: 2.5).stroke(lineWidth: 1)
+            }
+        }
+    }
+}
+
+/// Shared golf score presentation for the app's golf views (and the same rule as the
+/// widgets'): under par is green, over par muted.
+enum GolfScoreStyle {
+    static func color(toPar text: String?) -> Color {
+        guard let value = GolfScore.toPar(text) else { return .secondary }
+        if value < 0 { return .green }
+        return value == 0 ? .primary : .secondary
+    }
+
+    static func holeName(score: Int, par: Int) -> String {
+        if score == 1 { return "hole in one" }
+        switch score - par {
+        case ...(-3): return "albatross"
+        case -2: return "eagle"
+        case -1: return "birdie"
+        case 0: return "par"
+        case 1: return "bogey"
+        case 2: return "double bogey"
+        default: return "\(score - par) over par"
+        }
+    }
+
+    /// "Hole 4, birdie, 3".
+    static func holeLabel(hole: Int, score: Int, par: Int) -> String {
+        "Hole \(hole), \(holeName(score: score, par: par)), \(score)"
+    }
+
+    /// "Tied 3rd" from "T3"; the label itself otherwise.
+    static func spokenPosition(_ label: String) -> String {
+        label.hasPrefix("T") ? "tied \(label.dropFirst())" : label
+    }
+
+    /// A tee time in the viewer's time zone ("1:49 PM", or "Sat 1:49 PM" when it isn't today).
+    static func teeTimeText(_ entry: LeaderboardEntry, now: Date = Date()) -> String? {
+        guard let date = entry.teeTimeStart else { return entry.teeTime }
+        if Calendar.current.isDate(date, inSameDayAs: now) {
+            return date.formatted(date: .omitted, time: .shortened)
+        }
+        return date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
     }
 }

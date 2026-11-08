@@ -1916,12 +1916,24 @@ public class GameViewModel: NSObject {
             // Only update if the live data has meaningful status (not pre-game)
             guard live.strStatus != "pre" && live.strStatus != "NS" else { continue }
 
-            // Only update if something actually changed
+            // Only update if something actually changed. Linescores and the situation
+            // count too: a tennis game won mid-set or a new count/runner in baseball
+            // moves neither the score nor the status, and skipping those left Browse and
+            // team pages with a stale set score and diamond.
             if scheduled.intHomeScore == live.intHomeScore &&
                scheduled.intAwayScore == live.intAwayScore &&
                scheduled.strStatus == live.strStatus &&
                scheduled.strProgress == live.strProgress &&
-               scheduled.isCompleted == live.isCompleted { continue }
+               scheduled.isCompleted == live.isCompleted &&
+               // Compared as the rebuild below would merge them (a nil live copy keeps
+               // the scheduled one), so an unchanged game isn't rebuilt every tick.
+               scheduled.homeLinescores == (live.homeLinescores ?? scheduled.homeLinescores) &&
+               scheduled.awayLinescores == (live.awayLinescores ?? scheduled.awayLinescores) &&
+               scheduled.situation == live.situation &&
+               // Tennis serve / tiebreak points, and a golf board below an unchanged
+               // leader, move nothing above either.
+               scheduled.scoreboardExtras == (live.scoreboardExtras ?? scheduled.scoreboardExtras) &&
+               scheduled.leaderboardEntries == (live.leaderboardEntries ?? scheduled.leaderboardEntries) { continue }
 
             games[i] = Game(
                 idLiveScore: scheduled.idLiveScore, idEvent: scheduled.idEvent,
@@ -1943,11 +1955,18 @@ public class GameViewModel: NSObject {
                 isCompleted: live.isCompleted ?? scheduled.isCompleted,
                 isoDate: scheduled.isoDate,
                 leaderboardEntries: live.leaderboardEntries ?? scheduled.leaderboardEntries,
-                sessions: live.sessions ?? scheduled.sessions,
+                // Keep the schedule's F1 enrichment (teams, gaps, Q1–Q3, race distance)
+                // that a live tick's ESPN-only sessions don't carry.
+                sessions: live.sessions?.carryingEnrichment(from: scheduled.sessions) ?? scheduled.sessions,
                 venueName: live.venueName ?? scheduled.venueName,
                 circuitInfo: live.circuitInfo ?? scheduled.circuitInfo,
-                homeSeed: live.homeSeed ?? scheduled.homeSeed,
-                awaySeed: live.awaySeed ?? scheduled.awaySeed,
+                // Par and hole pars come with the live board; purse / cut only with
+                // the schedule's enrichment.
+                golfCourseInfo: live.golfCourseInfo?.withContext(from: scheduled.golfCourseInfo) ?? scheduled.golfCourseInfo,
+                // College ranks come only from ESPN: a team that drops out of the
+                // Top 25 must lose its number, not keep the schedule's stale one.
+                homeSeed: Game.mergedSeed(fresh: live.homeSeed, stale: scheduled.homeSeed, idLeague: scheduled.idLeague),
+                awaySeed: Game.mergedSeed(fresh: live.awaySeed, stale: scheduled.awaySeed, idLeague: scheduled.idLeague),
                 // College football sections key off these; dropping them moved a game
                 // out of its conference section the moment it went live.
                 homeConference: live.homeConference ?? scheduled.homeConference,
@@ -1965,9 +1984,13 @@ public class GameViewModel: NSObject {
                 // playoff game back to "Regular Season" for the duration of the game.
                 season: scheduled.season ?? live.season,
                 seasonPhase: live.seasonPhase ?? scheduled.seasonPhase,
+                // Football's week and soccer's matchday, for the hubs' round grouping.
+                sportsDBRound: scheduled.sportsDBRound ?? live.sportsDBRound,
                 // Live-only: the live copy's or none, never a stale scheduled one.
                 situation: live.situation,
                 excitement: live.excitement ?? scheduled.excitement,
+                // Whole, so a fresh board's nil winner isn't papered over by a stale one.
+                scoreboardExtras: live.scoreboardExtras ?? scheduled.scoreboardExtras,
                 homeAbbreviation: live.homeAbbreviation ?? scheduled.homeAbbreviation,
                 awayAbbreviation: live.awayAbbreviation ?? scheduled.awayAbbreviation
             )
@@ -3235,8 +3258,12 @@ public class GameViewModel: NSObject {
             filteredGames = filteredGames?
                 .filter({ game in
                     if game.isIndividualSport {
+                        // Anyone in the field, not just the leader in strAwayTeam; tennis
+                        // and golf also match the tournament name.
                         return game.strHomeTeam.localizedCaseInsensitiveContains(searchString) ||
-                            game.strAwayTeam.localizedCaseInsensitiveContains(searchString)
+                            game.strAwayTeam.localizedCaseInsensitiveContains(searchString) ||
+                            (game.tournamentName ?? "").localizedCaseInsensitiveContains(searchString) ||
+                            (game.leaderboardEntries ?? []).contains { $0.name.localizedCaseInsensitiveContains(searchString) }
                     }
                     guard let (homeTeam, awayTeam) = getTeams(for: game) else { return false }
                     return (homeTeam.strTeamShort ?? "").localizedCaseInsensitiveContains(searchString) ||
@@ -3331,11 +3358,17 @@ extension GameViewModel {
         // team names like "Philadelphia Flyers" are unique and disambiguate cleanly.
         guard let homeTeamName = homeTeam.strTeam ?? homeTeam.strTeamShort,
               let rawAwayTeamName = awayTeam.strTeam ?? awayTeam.strTeamShort else { throw ModelErrors.unknownTeam(game) }
-        // Races: the "away team" is the leader when you tap Follow; label the activity
-        // with the series ("Formula 1") instead of freezing that driver into its attributes.
-        let awayTeamName = game.isRace ? LiveSportActivityAttributes.raceSubtitle(for: game) : rawAwayTeamName
-        let homeShort = game.isRace ? (game.isNASCAR ? "CUP" : "F1") : homeTeam.strTeamShort
-        let awayShort = game.isRace ? nil : awayTeam.strTeamShort
+        // Races and golf: the "away team" is the leader when you tap Follow; label the
+        // activity with the series ("Formula 1") instead of freezing that driver into its
+        // attributes. Golf follows a favourite player in the field by name instead, so the
+        // activity (and the server's pushes, which read it back) carries their line.
+        let favoriteGolfer = game.golfTour == nil ? nil : (game.leaderboardEntries ?? [])
+            .first { favorites.containsPlayer($0.name) }?.name
+        let awayTeamName = game.usesLeaderboardActivity
+            ? (favoriteGolfer ?? LiveSportActivityAttributes.raceSubtitle(for: game)) : rawAwayTeamName
+        let homeShort = game.usesLeaderboardActivity
+            ? (game.golfTour != nil ? "GOLF" : LiveActivityRace.seriesCode(for: game)) : homeTeam.strTeamShort
+        let awayShort = game.usesLeaderboardActivity ? nil : awayTeam.strTeamShort
 
         // Download and cache badge images independently (don't require both to succeed)
         if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") {
@@ -3348,7 +3381,7 @@ extension GameViewModel {
             }
         }
 
-        let initialContentState = LiveSportActivityAttributes.ContentState.make(for: game, standings: f1Standings)
+        let initialContentState = LiveSportActivityAttributes.ContentState.make(for: game, standings: f1Standings, following: awayTeamName)
         let activityAttributes = LiveSportActivityAttributes(
             homeTeam: homeTeamName,
             awayTeam: awayTeamName,
