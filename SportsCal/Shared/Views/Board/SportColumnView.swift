@@ -34,7 +34,10 @@ struct SportColumnView<GameContent: View>: View {
                 }
             }
         }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        // Not a Material: a material background gives every `.secondary`/hierarchical
+        // style inside the column vibrancy, which blends it through the opaque game
+        // cards — losing scores, team codes and "Final" rendered invisible on iPad/Mac.
+        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
         .onAppear { isCollapsed = UserDefaults.standard.bool(forKey: collapseKey) }
     }
 

@@ -55,10 +55,14 @@ struct IndividualTeamView: View {
                         Text("\(score)")
                             .font(.system(size: scoreSize))
                             .fontWeight(.heavy)
+                            .lineLimit(1)
+                            .fixedSize()
                     } else if let score = score, !isWinning  {
                         Text("\(score)")
                             .font(.system(size: scoreSize))
                             .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .fixedSize()
                     }
                     if let teamURL {
                         LazyImage(request: ImageRequest(url: resolvedBadgeURL(teamURL), processors: [.resize(size: CGSize(width: 40, height: 40))])) { state in
@@ -131,15 +135,20 @@ struct IndividualTeamView: View {
                         Text("\(score)")
                             .font(.system(size: scoreSize))
                             .fontWeight(.heavy)
+                            .lineLimit(1)
+                            .fixedSize()
                     } else if let score = score, !isWinning  {
                         Text("\(score)")
                             .font(.system(size: scoreSize))
                             .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .fixedSize()
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
             if let shortName {
+                // Never let a score wrap ("10 / 7"): it keeps its width, the code shrinks.
                 Text(seed != nil ? "(\(seed!)) \(shortName)" : shortName)
                     .font(.headline)
                     .fontWeight(isWinning ? .bold : .regular)
