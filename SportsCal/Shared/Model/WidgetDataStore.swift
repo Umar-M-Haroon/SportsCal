@@ -57,7 +57,9 @@ enum WidgetDataStore {
 
         return Game(
             idEvent: game.idEvent,
+            strSport: game.strSport,
             idLeague: game.idLeague,
+            strLeague: game.strLeague,
             idHomeTeam: game.idHomeTeam,
             idAwayTeam: game.idAwayTeam,
             strHomeTeam: game.strHomeTeam,
@@ -84,6 +86,13 @@ enum WidgetDataStore {
             awaySeed: game.awaySeed,
             homeConference: game.homeConference,
             awayConference: game.awayConference,
+            // The widget groups tennis by tournament and labels the cell with the
+            // tournament and round; without these the digest silently does nothing and
+            // one draw fills every slot. `endDate` keeps a multi-day event on while it runs.
+            tournamentName: game.tournamentName,
+            round: game.round,
+            drawSlug: game.drawSlug,
+            endDate: game.endDate,
             // Winner and shootout score (a widget row bolds the side that went through);
             // not the goal timeline or pitchers.
             scoreboardExtras: game.scoreboardExtras?.withoutHeavyDetail,
@@ -111,7 +120,17 @@ enum WidgetDataStore {
         var byDay: [Date: [Game]] = [:]
         var seen = Set<String>()
         for game in games {
-            guard let date = game.standardDate, date >= today, date < end else { continue }
+            guard let start = game.standardDate, start < end else { continue }
+            // A golf tournament or race weekend that began before today is still on: it
+            // belongs to today until its last day.
+            let date: Date
+            if start >= today {
+                date = start
+            } else if let last = game.endDateParsed, last >= today {
+                date = today
+            } else {
+                continue
+            }
             if let id = game.idEvent, !seen.insert(id).inserted { continue }
             byDay[calendar.startOfDay(for: date), default: []].append(game)
         }

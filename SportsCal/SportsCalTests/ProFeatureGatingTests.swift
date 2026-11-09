@@ -641,6 +641,15 @@ final class WidgetSnapshotSelectionTests: XCTestCase {
         XCTAssertEqual(ids, ["final", "live", "later"], "today's started games stay; yesterday drops")
     }
 
+    func testTournamentThatStartedEarlierStaysWhileItRuns() {
+        let running = Game(idEvent: "golf-on", idLeague: "4425", strHomeTeam: "The Open", strAwayTeam: "Leader",
+                           strTimestamp: "2026-11-05T12:00:00Z", isoDate: nil, endDate: "2026-11-08T23:00:00Z")
+        let over = Game(idEvent: "golf-done", idLeague: "4425", strHomeTeam: "Last Week", strAwayTeam: "Winner",
+                        strTimestamp: "2026-10-29T12:00:00Z", isoDate: nil, endDate: "2026-11-01T23:00:00Z")
+        let ids = WidgetDataStore.selectGames([running, over], now: now, calendar: utc).compactMap(\.idEvent)
+        XCTAssertEqual(ids, ["golf-on"], "a tournament still under way stays; one that ended drops")
+    }
+
     func testBusyDayCannotCrowdOutTomorrow() {
         let today = (0..<40).map { game("t\($0)", "2026-11-07T21:\(String(format: "%02d", $0 % 60)):00Z", status: "NS") }
         let tomorrow = [game("tomorrow", "2026-11-08T18:00:00Z", status: "NS")]
