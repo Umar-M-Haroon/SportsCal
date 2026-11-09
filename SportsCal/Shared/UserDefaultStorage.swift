@@ -188,6 +188,24 @@ class UserDefaultStorage {
         }
     }
 
+    // MARK: - Golf Alerts
+
+    private static let golfAlertKindsKey = "golfAlertKinds"
+
+    /// Which alerts (teeing off, taking the lead, finishing) the server pushes for
+    /// followed golfers. Every kind until the user turns some off.
+    var golfAlertKinds: Set<GolfAlertKind> {
+        get {
+            guard let raw = UserDefaults(suiteName: Self.suiteName)?.stringArray(forKey: Self.golfAlertKindsKey) else {
+                return Set(GolfAlertKind.allCases)
+            }
+            return Set(raw.compactMap(GolfAlertKind.init(rawValue:)))
+        }
+        set {
+            UserDefaults(suiteName: Self.suiteName)?.set(newValue.map(\.rawValue).sorted(), forKey: Self.golfAlertKindsKey)
+        }
+    }
+
     /// Event IDs of upcoming/in-progress World Cup matches that should be auto-followed
     /// while `followWorldCup` is on. If `followWorldCupTeam` is set, only that team's
     /// matches are returned. Past games are excluded so cleanup doesn't fight us.

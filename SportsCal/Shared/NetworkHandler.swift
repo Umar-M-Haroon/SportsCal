@@ -1363,6 +1363,24 @@ struct NetworkHandler {
         }
     }
 
+    /// Registers this install for golf alerts: the followed players (by leaderboard
+    /// name) and alert kinds. Empty players or kinds unregisters it.
+    static func registerGolfAlerts(_ registration: GolfAlertRegistration) async throws {
+        let url = URL(string: "\(baseURL())/notifications/golf")!
+        let body = try JSONEncoder().encode(registration)
+        let (_, response) = try await performAuthorized(url: url) { request in
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+            request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
+            request.httpBody = body
+        }
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            guard (200..<300).contains(httpResponse.statusCode) else { throw URLError(.badServerResponse) }
+        }
+    }
+
     static func registerPushToStart(token: String, favorites: [String], eventIDs: [String] = []) async throws {
         let url = URL(string: "\(baseURL())/pushToStart/register")!
         let prepared = try await pushToStartRegistrationRequest(token: token, favorites: favorites, eventIDs: eventIDs)

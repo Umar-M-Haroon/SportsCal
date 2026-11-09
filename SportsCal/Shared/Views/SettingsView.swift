@@ -154,6 +154,37 @@ struct SoccerAlertSettingsSection: View {
     }
 }
 
+/// Which alerts to get for followed golfers (teeing off, taking the lead, finishing a
+/// round). Pushed by the server, so changes re-register.
+struct GolfAlertSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+    @Environment(Favorites.self) private var favorites
+    /// `golfAlertKinds` reads straight from UserDefaults, which SwiftUI can't observe;
+    /// mirror it here so the toggles redraw.
+    @State private var kinds: Set<GolfAlertKind> = []
+
+    var body: some View {
+        Section {
+            ForEach(GolfAlertKind.allCases, id: \.self) { kind in
+                Toggle(kind.title, isOn: Binding(
+                    get: { kinds.contains(kind) },
+                    set: { isOn in
+                        if isOn { kinds.insert(kind) } else { kinds.remove(kind) }
+                        appStorage.golfAlertKinds = kinds
+                        let players = favorites.players
+                        Task { await GolfAlertRegistrar.sync(players: players, storage: appStorage) }
+                    }
+                ))
+            }
+        } header: {
+            Text("Golf Player Alerts")
+        } footer: {
+            Text("For golfers you follow. Follow a player from a tournament's leaderboard.")
+        }
+        .onAppear { kinds = appStorage.golfAlertKinds }
+    }
+}
+
 struct ProOptionsSettingsSection: View {
     @Environment(UserDefaultStorage.self) private var appStorage
     @Environment(SubscriptionManager.self) private var subscriptionManager
@@ -509,6 +540,7 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
                 SoccerAlertSettingsSection()
+                GolfAlertSettingsSection()
                 #endif
                 Section(header: Text("Personalization")) {
                     @Bindable var bindableAppStorage = appStorage
