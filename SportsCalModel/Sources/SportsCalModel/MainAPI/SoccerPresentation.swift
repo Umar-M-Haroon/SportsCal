@@ -410,11 +410,24 @@ public struct LiveActivitySoccer: Codable, Hashable, Sendable {
     public var awayRedCards: Int?
     /// "Saka 67'", "van Dijk 80' (OG)".
     public var lastGoal: String?
+    /// The side the latest goal counted for (an own goal sits with the side it
+    /// counted for), so the activity can put it under that team. Nil when unknown,
+    /// and from servers that predate it.
+    public var lastGoalSide: GameSituation.Side?
 
-    public init(homeRedCards: Int? = nil, awayRedCards: Int? = nil, lastGoal: String? = nil) {
+    /// A soccer activity's extras.
+    ///
+    /// - Parameters:
+    ///   - homeRedCards: red cards shown to the home side; nil for none.
+    ///   - awayRedCards: red cards shown to the away side; nil for none.
+    ///   - lastGoal: the latest goal as a row reads it, "Saka 67'".
+    ///   - lastGoalSide: the side that goal counted for.
+    public init(homeRedCards: Int? = nil, awayRedCards: Int? = nil, lastGoal: String? = nil,
+                lastGoalSide: GameSituation.Side? = nil) {
         self.homeRedCards = homeRedCards
         self.awayRedCards = awayRedCards
         self.lastGoal = lastGoal
+        self.lastGoalSide = lastGoalSide
     }
 
     /// Nil for other sports, or a match with no goal or red card yet.
@@ -422,12 +435,15 @@ public struct LiveActivitySoccer: Codable, Hashable, Sendable {
         guard game.sportType == .soccer, let details = game.soccerDetails, !details.isEmpty else { return nil }
         let home = game.redCards(.home), away = game.redCards(.away)
         var lastGoal: String?
+        var lastGoalSide: GameSituation.Side?
         if let goal = details.last(where: { $0.kind == .goal || $0.kind == .penaltyGoal || $0.kind == .ownGoal }) {
             let note = goal.kind == .penaltyGoal ? " (P)" : goal.kind == .ownGoal ? " (OG)" : ""
             let name = Game.rowName(goal.athlete) ?? "Goal"
             lastGoal = [name, goal.clock].compactMap { $0 }.joined(separator: " ") + note
+            lastGoalSide = goal.side
         }
         guard home + away > 0 || lastGoal != nil else { return nil }
-        self.init(homeRedCards: home > 0 ? home : nil, awayRedCards: away > 0 ? away : nil, lastGoal: lastGoal)
+        self.init(homeRedCards: home > 0 ? home : nil, awayRedCards: away > 0 ? away : nil,
+                  lastGoal: lastGoal, lastGoalSide: lastGoalSide)
     }
 }
