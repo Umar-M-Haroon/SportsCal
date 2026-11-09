@@ -1281,7 +1281,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
             awayTeam: awayTeam,
             eventID: eventID,
             homeTeamShort: homeTeamShort,
-            awayTeamShort: awayTeamShort
+            awayTeamShort: awayTeamShort,
+            displaysHomeFirst: game.displaysHomeFirst ? true : nil
         )
         let tennisSets = game.isTennisMatch ? game.tennisSetsWon : nil
         let contentState = ContentState(
@@ -1294,6 +1295,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             lastPlay: game.usesLeaderboardActivity || game.isTennisMatch ? nil : game.lastPlay,
             situation: LiveActivitySituation(game.situation),
             race: APNSJob.leaderboardContent(event: game, f1Standings: nil, following: awayTeam),
+            soccer: LiveActivitySoccer(game: game),
             tennis: LiveActivityTennis(game: game)
         )
 

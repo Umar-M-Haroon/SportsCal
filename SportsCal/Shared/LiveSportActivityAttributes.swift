@@ -75,6 +75,11 @@ struct LiveSportActivityAttributes: ActivityAttributes {
     /// 3 chars of the full name.
     var homeTeamShort: String? = nil
     var awayTeamShort: String? = nil
+    /// Soccer reads home first (`Game.displaysHomeFirst`): the lock screen and the
+    /// Dynamic Island put the home side on the left. Nil (away first) for US sports
+    /// and for activities started before the field existed, so a running activity
+    /// never swaps sides mid-game.
+    var displaysHomeFirst: Bool? = nil
 }
 
 /// Pure decision helper for the dedup funnel — given the eventIDs of currently

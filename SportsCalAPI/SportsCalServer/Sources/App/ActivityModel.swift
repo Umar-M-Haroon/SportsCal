@@ -50,6 +50,9 @@ public struct LiveSportAttributes: Codable, Sendable {
     /// to nil so existing code paths and the iOS Codable decoder both stay happy.
     var homeTeamShort: String? = nil
     var awayTeamShort: String? = nil
+    /// Soccer: the widget puts the home side first. Nil (away first) elsewhere; older
+    /// app builds ignore the key.
+    var displaysHomeFirst: Bool? = nil
 }
 
 /// Which APNS gateway a given device token belongs to. Sandbox tokens come
