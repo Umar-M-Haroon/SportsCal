@@ -96,6 +96,7 @@
 		1D5AB3FF2FD50F6A00BDFA2A /* CompactGameRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB3FE2FD50F6A00BDFA2A /* CompactGameRowView.swift */; };
 		1D5AB4012FD5100000BDFA2A /* TournamentHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB4002FD5100000BDFA2A /* TournamentHubView.swift */; };
 		1D5AB4032FD8FD9400BDFA2A /* WorldCupHeroCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AB4022FD8FD9400BDFA2A /* WorldCupHeroCard.swift */; };
+		ADCA302F31E4E85B25DBFD70 /* TennisDrawView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAC3A225BB9F0AB2744C810 /* TennisDrawView.swift */; };
 		1D5C463126C9C5F900BA827B /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463026C9C5F900BA827B /* SubscriptionManager.swift */; };
 		1D5C463426C9F10400BA827B /* Confetti.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463326C9F10400BA827B /* Confetti.swift */; };
 		1D5C463726C9FB5000BA827B /* SettingsData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5C463626C9FB5000BA827B /* SettingsData.swift */; };
@@ -515,6 +516,7 @@
 		1D5AB4002FD5100000BDFA2A /* TournamentHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TournamentHubView.swift; sourceTree = "<group>"; };
 		1D5AB4022FD8FD9400BDFA2A /* WorldCupHeroCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCupHeroCard.swift; sourceTree = "<group>"; };
 		1D5C463026C9C5F900BA827B /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
+		2CAC3A225BB9F0AB2744C810 /* TennisDrawView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TennisDrawView.swift; sourceTree = "<group>"; };
 		1D5C463326C9F10400BA827B /* Confetti.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Confetti.swift; sourceTree = "<group>"; };
 		1D5C463626C9FB5000BA827B /* SettingsData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsData.swift; sourceTree = "<group>"; };
 		1D5C463926C9FD0800BA827B /* OnboardingPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPage.swift; sourceTree = "<group>"; };
@@ -1025,6 +1027,7 @@
 				1D5AB4002FD5100000BDFA2A /* TournamentHubView.swift */,
 				1D8D4BDA2FE0FE8F00D40105 /* DebugReplayTestView.swift */,
 				1D45B97B2FE9797200FBF2D8 /* MacAboutView.swift */,
+				2CAC3A225BB9F0AB2744C810 /* TennisDrawView.swift */,
 				1D45B97D2FE97BA700FBF2D8 /* MacGameDetailWindow.swift */,
 				76D5045DF8D41342C8DE40A3 /* WhatsNewSheet.swift */,
 				1F42FF48D17EC968747E1967 /* LiveSituationViews.swift */,
@@ -1933,6 +1936,7 @@
 				1D16B06B2FA6B19000490122 /* Shadow.swift in Sources */,
 				1D408090290B862700729FFE /* NotifyButton.swift in Sources */,
 				1D73C62B2F983F5500C98966 /* AmbientStyle.swift in Sources */,
+				ADCA302F31E4E85B25DBFD70 /* TennisDrawView.swift in Sources */,
 				1D5AB3F92FD4FC2C00BDFA2A /* WorldCupFollowButton.swift in Sources */,
 				1DAA10112FA1457C00853609 /* LiveActivityMatcher.swift in Sources */,
 				1D73C62D2F983F6600C98966 /* AmbientBrowsePage.swift in Sources */,

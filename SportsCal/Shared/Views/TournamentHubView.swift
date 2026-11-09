@@ -36,7 +36,11 @@ struct TournamentHubView: View {
     /// `games` with the live feed's copy of any match in play: the list handed in is a
     /// snapshot taken when the hub opened, so without this an open hub froze mid-set.
     private var currentGames: [Game] {
-        let live = viewModel.liveEventsForSport(.tennis)
+        Self.withLiveScores(games, live: viewModel.liveEventsForSport(.tennis))
+    }
+
+    /// `games` with the live feed's copy of each match in play (shared with the draw).
+    static func withLiveScores(_ games: [Game], live: [Game]) -> [Game] {
         guard !live.isEmpty else { return games }
         var liveByID: [String: Game] = [:]
         for game in live {
@@ -48,6 +52,11 @@ struct TournamentHubView: View {
             merged.tournamentName = game.tournamentName ?? fresh.tournamentName
             return merged
         }
+    }
+
+    /// The draw link shows once there are singles matches to lay out.
+    private var hasSinglesDraw: Bool {
+        games.contains { $0.isTennisMatch && !$0.isTennisDoubles }
     }
 
     /// Games for the selected tour (Men's = ATP, Women's = WTA). Falls back to all games when the
@@ -152,6 +161,19 @@ struct TournamentHubView: View {
                     .pickerStyle(.segmented)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                }
+            }
+
+            if hasSinglesDraw {
+                Section {
+                    NavigationLink {
+                        TennisDrawView(tournamentName: tournamentName, games: games,
+                                       tour: toursPresent.count > 1 ? tourBinding.wrappedValue : nil)
+                            .environment(viewModel)
+                            .environment(favorites)
+                    } label: {
+                        Label("Singles Draw", systemImage: "trophy")
+                    }
                 }
             }
 

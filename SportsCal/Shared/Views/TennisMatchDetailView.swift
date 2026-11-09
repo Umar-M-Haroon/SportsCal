@@ -21,6 +21,10 @@ struct TennisMatchDetailView: View {
     @State private var sheetType: SheetType?
     @ScaledMetric(relativeTo: .caption) private var setColumnWidth: CGFloat = 36
     @ScaledMetric(relativeTo: .caption) private var nameColumnWidth: CGFloat = 110
+    /// The players' meetings from the server's results archive (several seasons). Nil
+    /// until it loads, or when it can't, and then the month of results the app holds
+    /// stands in.
+    @State private var archivedHeadToHead: TennisHeadToHead?
 
     private var league: Leagues? {
         guard let id = game.idLeague, let intID = Int(id) else { return nil }
@@ -51,8 +55,13 @@ struct TennisMatchDetailView: View {
             actionsRow
         } details: {
             setScoresSection
-            headToHeadSection
+            if let archivedHeadToHead {
+                archivedHeadToHeadSection(archivedHeadToHead)
+            } else {
+                headToHeadSection
+            }
         }
+        .task(id: game.id) { await loadHeadToHead() }
         .navigationTitle(game.tournamentName ?? league?.leagueName ?? "Match Details")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -341,6 +350,98 @@ struct TennisMatchDetailView: View {
     }
 
     // MARK: - Head-to-Head
+
+    /// Singles only: doubles pairs have no athlete id to look up.
+    private var headToHeadIDs: (player: String, opponent: String)? {
+        guard game.isTennisMatch, !game.isTennisDoubles,
+              let home = game.idHomeTeam, let away = game.idAwayTeam, home != away,
+              [home, away].allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isNumber) && $0 != "0" }) else { return nil }
+        return (home, away)
+    }
+
+    private func loadHeadToHead() async {
+        guard let ids = headToHeadIDs else { return }
+        archivedHeadToHead = try? await NetworkHandler.fetchTennisHeadToHead(player: ids.player, opponent: ids.opponent)
+    }
+
+    /// Every meeting since the archive's first season; this match itself is left out
+    /// once it's finished, so the record is what they brought into it.
+    private func archivedHeadToHeadSection(_ h2h: TennisHeadToHead) -> some View {
+        let meetings = h2h.meetings.filter { $0.id != game.idEvent }
+        let counted = meetings.filter { $0.marker != "w/o" }
+        let homeWins = counted.filter { $0.winnerID == h2h.playerID }.count
+        let awayWins = counted.filter { $0.winnerID == h2h.opponentID }.count
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Head-to-Head")
+                .font(.headline)
+
+            if meetings.isEmpty {
+                Text("First meeting on tour since \(String(h2h.since))")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack {
+                    Text(abbreviatedName(game.strHomeTeam))
+                        .fontWeight(.semibold)
+                    Text("\(homeWins)")
+                        .foregroundColor(homeWins > awayWins ? .primary : .secondary)
+                    Spacer()
+                    Text("\(awayWins)")
+                        .foregroundColor(awayWins > homeWins ? .primary : .secondary)
+                    Text(abbreviatedName(game.strAwayTeam))
+                        .fontWeight(.semibold)
+                }
+                .font(.subheadline)
+                .monospacedDigit()
+                .padding(.horizontal, 4)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Head to head: \(game.strHomeTeam) \(homeWins), \(game.strAwayTeam) \(awayWins)")
+
+                ForEach(meetings.prefix(10)) { meeting in
+                    archivedMeetingRow(meeting, playerID: h2h.playerID)
+                }
+                Text("Tour-level main draws since \(String(h2h.since)). Walkovers aren't counted.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding()
+        .background(Color.secondaryGroupedBackground)
+        .cornerRadius(12)
+    }
+
+    private func archivedMeetingRow(_ meeting: TennisMeeting, playerID: String) -> some View {
+        let winnerName = meeting.winnerID == meeting.homeID ? meeting.homeName : (meeting.winnerID == meeting.awayID ? meeting.awayName : nil)
+        let round = meeting.round.map(TennisDrawBracket.shortLabel(ofRound:))
+        let date = meeting.day?.formatted(.dateTime.month(.abbreviated).year())
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text([meeting.tournament, round].compactMap { $0 }.joined(separator: " · "))
+                    .font(.caption)
+                    .lineLimit(1)
+                if let date {
+                    Text(date)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            if let winnerName {
+                Text(abbreviatedName(winnerName))
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+            }
+            Text(meeting.scoreText(from: meeting.winnerID ?? playerID))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([meeting.tournament, round, date, winnerName.map { "\($0) won" },
+                             meeting.scoreText(from: meeting.winnerID ?? playerID)]
+            .compactMap { $0 }.joined(separator: ", "))
+    }
+
     /// Earlier meetings in the schedule the app holds (about a month of results). Hidden
     /// when there are none, rather than claiming they've never met.
     @ViewBuilder

@@ -836,6 +836,18 @@ struct NetworkHandler {
         return try Self.sharedDecoder.decode(Game.self, from: data)
     }
 
+    /// Two tennis players' singles meetings (ESPN athlete ids) from the server's results
+    /// archive, which reaches back several seasons.
+    static func fetchTennisHeadToHead(player: String, opponent: String) async throws -> TennisHeadToHead {
+        let url = URL(string: "\(baseURL())/tennis/h2h/\(player)/\(opponent)")!
+        let (data, response) = try await performAuthorized(url: url)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        APIVersionChecker.shared.checkVersion(from: httpResponse)
+        return try Self.sharedDecoder.decode(TennisHeadToHead.self, from: data)
+    }
+
     /// Standings for a racing series beyond F1: one driver table (NASCAR, IndyCar) or
     /// a table per class (IMSA). Nil when the series publishes none we can read (WEC).
     enum SeriesStandings {
