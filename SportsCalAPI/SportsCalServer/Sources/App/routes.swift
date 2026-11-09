@@ -615,6 +615,22 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return encodeResult(res: try await GolfTournamentDetail.game(league: league, eventID: event, app: req.application))
     }
 
+    //MARK: - Tennis head-to-head
+    // Two players' singles meetings (ESPN athlete ids), from the archive of ESPN boards
+    // the TennisResultsArchiveJob keeps. Served from memory; an empty list just means
+    // they haven't met since `TennisResultsArchive.firstYear`.
+    routes.get("tennis", "h2h", ":player", ":opponent") { req async throws -> String in
+        guard let player = req.parameters.get("player"), let opponent = req.parameters.get("opponent"),
+              player.count <= 12, opponent.count <= 12, player != opponent,
+              ArchivedTennisMatch.isRealID(player), ArchivedTennisMatch.isRealID(opponent) else {
+            throw Abort(.badRequest)
+        }
+        let h2h = await TennisH2HIndex.shared.headToHead(
+            player: player, opponent: opponent, kv: req.kv, isDebug: req.application.environment == .development
+        )
+        return encodeResult(res: h2h)
+    }
+
     //MARK: - Sport
     // Slicing one sport out of the schedule used to decode the entire multi-MB
     // `LiveScore` per request and re-encode the slice. The slice is a pure function of

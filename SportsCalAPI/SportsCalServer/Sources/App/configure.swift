@@ -214,6 +214,10 @@ public func configure(_ app: Application) async throws {
         app.queues.schedule(golfEnrichmentJob)
             .hourly()
             .at(25)
+        // Tops up the tennis results archive behind /tennis/h2h.
+        app.queues.schedule(TennisResultsArchiveJob())
+            .hourly()
+            .at(20)
         let injuriesEnrichmentJob = InjuriesEnrichmentJob()
         app.queues.schedule(injuriesEnrichmentJob)
             .hourly()
