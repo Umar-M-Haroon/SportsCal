@@ -37,6 +37,24 @@ enum GolfWidgetRows {
     static var favoritePlayers: Set<String> {
         Set(UserDefaults(suiteName: "group.Komodo.SportsCal")?.stringArray(forKey: "FavoritePlayers") ?? [])
     }
+
+    /// The board to pick rows from. The live feed stops at `LiveEvent.golfFieldLimit`
+    /// and the schedule keeps only the top five of a finished tournament, so when a
+    /// followed player isn't on a board cut like that, the whole field comes from
+    /// `/golf/tournament` (cached server-side). One request per timeline refresh, and
+    /// only for widgets with a followed player missing; on failure the cut board is used.
+    static func board(for game: Game, favorites: Set<String>) async -> [LeaderboardEntry] {
+        let board = game.resolvedLeaderboard
+        let isCut = board.count >= LiveEvent.golfFieldLimit || (game.strStatus == "post" && board.count <= 5)
+        guard !favorites.isEmpty, isCut,
+              !favorites.isSubset(of: board.map(\.name)),
+              let league = game.golfTour, let eventID = game.idEvent,
+              let whole = try? await NetworkHandler.fetchGolfTournament(league: league, eventID: eventID) else {
+            return board
+        }
+        let field = whole.resolvedLeaderboard
+        return field.count > board.count ? field : board
+    }
 }
 
 // MARK: - Intent
@@ -118,7 +136,7 @@ struct GolfLeaderboardProvider: AppIntentTimelineProvider {
         if let liveScore = try? await NetworkHandler.getLiveSnapshot(),
            let liveGolf = liveScore.golf?.events,
            let activeGame = WidgetTourFilter.featuredLiveGolfEvent(liveGolf, tour: tour) {
-            return entry(for: activeGame)
+            return await entry(for: activeGame)
         }
 
         // Fall back to snapshot / widget schedule for upcoming tournaments
@@ -138,12 +156,12 @@ struct GolfLeaderboardProvider: AppIntentTimelineProvider {
             return GolfLeaderboardEntry(date: .now, tournamentName: name, venueName: nil, entries: [], status: nil, progress: nil)
         }
 
-        return entry(for: game)
+        return await entry(for: game)
     }
 
-    private func entry(for game: Game) -> GolfLeaderboardEntry {
-        let board = game.resolvedLeaderboard
+    private func entry(for game: Game) async -> GolfLeaderboardEntry {
         let favorites = GolfWidgetRows.favoritePlayers
+        let board = await GolfWidgetRows.board(for: game, favorites: favorites)
         return GolfLeaderboardEntry(
             date: .now,
             tournamentName: game.strHomeTeam,
