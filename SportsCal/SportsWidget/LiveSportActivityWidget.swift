@@ -323,6 +323,189 @@ private struct RaceLockScreenView: View {
     }
 }
 
+// MARK: - Team sports
+
+/// One side of a team-sport activity, with everything drawn beside it.
+private struct ActivitySide {
+    let side: GameSituation.Side
+    let name: String
+    let short: String
+    let score: Int
+    let opponentScore: Int
+    let redCards: Int
+    /// Football timeouts left; nil when the feed doesn't say (and for other sports).
+    let timeouts: Int?
+
+    var isWinning: Bool { score > opponentScore }
+
+    /// "Arsenal 2, 1 red card", for VoiceOver.
+    var spoken: String {
+        var parts = ["\(name) \(score)"]
+        if redCards > 0 { parts.append(redCards == 1 ? "1 red card" : "\(redCards) red cards") }
+        if let timeouts { parts.append("\(timeouts) timeout\(timeouts == 1 ? "" : "s") left") }
+        return parts.joined(separator: ", ")
+    }
+}
+
+/// The two sides in display order: home first for soccer (`Game.displaysHomeFirst`,
+/// carried on the attributes), away first elsewhere. Scores, red cards, timeouts and
+/// the last scorer all hang off these, so they flip together.
+private func activitySides(
+    _ attributes: LiveSportActivityAttributes,
+    _ state: LiveSportActivityAttributes.ContentState
+) -> (first: ActivitySide, second: ActivitySide) {
+    let home = ActivitySide(
+        side: .home, name: attributes.homeTeam,
+        short: shortAbbreviation(short: attributes.homeTeamShort, full: attributes.homeTeam),
+        score: state.homeScore, opponentScore: state.awayScore,
+        redCards: state.soccer?.homeRedCards ?? 0, timeouts: state.situation?.homeTimeouts
+    )
+    let away = ActivitySide(
+        side: .away, name: attributes.awayTeam,
+        short: shortAbbreviation(short: attributes.awayTeamShort, full: attributes.awayTeam),
+        score: state.awayScore, opponentScore: state.homeScore,
+        redCards: state.soccer?.awayRedCards ?? 0, timeouts: state.situation?.awayTimeouts
+    )
+    return attributes.displaysHomeFirst == true ? (home, away) : (away, home)
+}
+
+/// Where a line about one side sits: under the first side on the left, the second on
+/// the right, centred when the side isn't known.
+private func alignment(for side: GameSituation.Side?, first: GameSituation.Side) -> Alignment {
+    guard let side else { return .center }
+    return side == first ? .leading : .trailing
+}
+
+/// Football timeouts left, as three pips (the game detail's style).
+private struct TimeoutPips: View {
+    let name: String
+    let count: Int
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<3, id: \.self) { index in
+                Capsule()
+                    .fill(index < count ? tint : tint.opacity(0.25))
+                    .frame(width: 8, height: 3)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name), \(count) timeout\(count == 1 ? "" : "s") left")
+    }
+}
+
+/// The latest goal, under the side that scored it.
+private struct LastGoalLine: View {
+    let goal: String
+    let alignment: Alignment
+    let tint: Color
+
+    var body: some View {
+        Label(goal, systemImage: "soccerball")
+            .font(.system(.caption2, design: .rounded).weight(.semibold))
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: alignment)
+            .accessibilityLabel("Last goal, \(goal)")
+    }
+}
+
+private struct TeamLockScreenView: View {
+    let attributes: LiveSportActivityAttributes
+    let state: LiveSportActivityAttributes.ContentState
+
+    var body: some View {
+        let sides = activitySides(attributes, state)
+        VStack(spacing: 8) {
+            HStack {
+                team(sides.first, leading: true)
+                progressLabel(for: state)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                team(sides.second, leading: false)
+            }
+            if sides.first.timeouts != nil || sides.second.timeouts != nil {
+                HStack {
+                    timeouts(sides.first)
+                    Spacer(minLength: 8)
+                    timeouts(sides.second)
+                }
+            }
+            if let situation = state.situation {
+                LiveActivitySituationStrip(
+                    situation: situation,
+                    homeName: shortAbbreviation(short: attributes.homeTeamShort, full: attributes.homeTeam),
+                    awayName: shortAbbreviation(short: attributes.awayTeamShort, full: attributes.awayTeam),
+                    tint: WidgetTokens.inkSoft
+                )
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+            if let soccer = state.soccer, let lastGoal = soccer.lastGoal {
+                LastGoalLine(goal: lastGoal, alignment: alignment(for: soccer.lastGoalSide, first: sides.first.side),
+                             tint: WidgetTokens.inkSoft)
+            }
+            if let lastPlay = state.lastPlay, !lastPlay.isEmpty {
+                Text(lastPlay)
+                    .font(.system(.caption2, design: .rounded).weight(.medium))
+                    .foregroundStyle(WidgetTokens.inkSoft)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
+    }
+
+    /// `IndividualTeamView`'s `isAway` lays a side out leading (badge, then score).
+    private func team(_ side: ActivitySide, leading: Bool) -> some View {
+        let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?
+            .appendingPathComponent(side.name)
+        // Long name only: it scales down to fit rather than truncating.
+        return IndividualTeamView(longName: side.name, score: side.score, isWinning: side.isWinning,
+                                  isAway: leading, redCards: side.redCards, data: url.flatMap { try? Data(contentsOf: $0) })
+    }
+
+    @ViewBuilder
+    private func timeouts(_ side: ActivitySide) -> some View {
+        if let count = side.timeouts {
+            TimeoutPips(name: side.short, count: count, tint: WidgetTokens.inkSoft)
+        }
+    }
+}
+
+/// One side in the expanded Dynamic Island: badge on the outside, then the score,
+/// the name and (football) the timeouts left.
+private struct ExpandedIslandSide: View {
+    let side: ActivitySide
+    let leading: Bool
+
+    var body: some View {
+        HStack {
+            if leading { badgeImage(for: side.name, size: 35) }
+            VStack(spacing: 2) {
+                Text("\(side.score)")
+                    .font(.system(size: 24))
+                    .fontWeight(side.isWinning ? .heavy : .regular)
+                    .foregroundStyle(side.isWinning ? Color.primary : Color.secondary)
+                HStack(spacing: 3) {
+                    if !leading, side.redCards > 0 { SoccerRedCardMark(count: side.redCards) }
+                    // A code, on one line: full names ("Kansas City Chiefs") wrapped and
+                    // pushed the island taller, and still truncated when scaled.
+                    Text(side.short)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                    if leading, side.redCards > 0 { SoccerRedCardMark(count: side.redCards) }
+                }
+                if let timeouts = side.timeouts {
+                    TimeoutPips(name: side.short, count: timeouts, tint: WidgetTokens.ink)
+                }
+            }
+            if !leading { badgeImage(for: side.name, size: 35) }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(side.spoken)
+    }
+}
+
 struct LiveSportActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: LiveSportActivityAttributes.self) { context in
@@ -333,47 +516,8 @@ struct LiveSportActivityWidget: Widget {
                 TennisLockScreenView(attributes: context.attributes, state: context.state, tennis: tennis)
                     .padding(16)
             } else {
-            VStack(spacing: 8) {
-                HStack {
-                    if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.awayTeam) {
-                        IndividualTeamView(longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true, redCards: context.state.soccer?.awayRedCards ?? 0, data: try? Data(contentsOf: fileURL))
-                    } else {
-                        IndividualTeamView(longName: context.attributes.awayTeam, score: context.state.awayScore, isWinning: context.state.awayScore > context.state.homeScore, isAway: true, redCards: context.state.soccer?.awayRedCards ?? 0)
-                    }
-                    progressLabel(for: context.state)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(context.attributes.homeTeam) {
-                        IndividualTeamView(longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false, redCards: context.state.soccer?.homeRedCards ?? 0, data: try? Data(contentsOf: fileURL))
-                    } else {
-                        IndividualTeamView(longName: context.attributes.homeTeam, score: context.state.homeScore, isWinning: context.state.homeScore > context.state.awayScore, isAway: false, redCards: context.state.soccer?.homeRedCards ?? 0)
-                    }
-                }
-                if let situation = context.state.situation {
-                    LiveActivitySituationStrip(
-                        situation: situation,
-                        homeName: shortAbbreviation(short: context.attributes.homeTeamShort, full: context.attributes.homeTeam),
-                        awayName: shortAbbreviation(short: context.attributes.awayTeamShort, full: context.attributes.awayTeam),
-                        tint: WidgetTokens.inkSoft
-                    )
-                    .frame(maxWidth: .infinity, alignment: .center)
-                }
-                if let lastGoal = context.state.soccer?.lastGoal {
-                    Label(lastGoal, systemImage: "soccerball")
-                        .font(.system(.caption2, design: .rounded).weight(.semibold))
-                        .foregroundStyle(WidgetTokens.inkSoft)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
-                if let lastPlay = context.state.lastPlay, !lastPlay.isEmpty {
-                    Text(lastPlay)
-                        .font(.system(.caption2, design: .rounded).weight(.medium))
-                        .foregroundStyle(WidgetTokens.inkSoft)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
-            }
-            .padding(16)
+                TeamLockScreenView(attributes: context.attributes, state: context.state)
+                    .padding(16)
             }
         } dynamicIsland: { context in
             DynamicIsland {
@@ -387,24 +531,7 @@ struct LiveSportActivityWidget: Widget {
                             .foregroundStyle(WidgetTokens.ink)
                             .padding(.leading, 6)
                     } else {
-                    HStack {
-                        badgeImage(for: context.attributes.awayTeam, size: 35)
-                        VStack {
-                            if context.state.awayScore > context.state.homeScore {
-                                Text("\(context.state.awayScore)")
-                                    .font(.system(size: 24))
-                                    .fontWeight(.heavy)
-                            } else {
-                                Text("\(context.state.awayScore)")
-                                    .font(.system(size: 24))
-                                    .foregroundColor(.secondary)
-                            }
-                            // A code, on one line: a full name wrapped in the island.
-                            Text(shortAbbreviation(short: context.attributes.awayTeamShort, full: context.attributes.awayTeam))
-                                .font(.caption.weight(.semibold))
-                                .lineLimit(1)
-                        }
-                    }
+                        ExpandedIslandSide(side: activitySides(context.attributes, context.state).first, leading: true)
                     }
                 }
 
@@ -415,24 +542,7 @@ struct LiveSportActivityWidget: Widget {
                             .minimumScaleFactor(0.8)
                             .padding(.trailing, 6)
                     } else {
-                    HStack {
-                        VStack {
-                            if context.state.awayScore < context.state.homeScore {
-                                Text("\(context.state.homeScore)")
-                                    .font(.system(size: 24))
-                                    .fontWeight(.heavy)
-                            } else {
-                                Text("\(context.state.homeScore)")
-                                    .font(.system(size: 24))
-                                    .foregroundColor(.secondary)
-                            }
-                            // A code, on one line: a full name wrapped in the island.
-                            Text(shortAbbreviation(short: context.attributes.homeTeamShort, full: context.attributes.homeTeam))
-                                .font(.caption.weight(.semibold))
-                                .lineLimit(1)
-                        }
-                        badgeImage(for: context.attributes.homeTeam, size: 35)
-                    }
+                        ExpandedIslandSide(side: activitySides(context.attributes, context.state).second, leading: false)
                     }
                 }
                 
@@ -471,6 +581,11 @@ struct LiveSportActivityWidget: Widget {
                             )
                             .frame(maxWidth: .infinity, alignment: .center)
                         }
+                        if let soccer = context.state.soccer, let lastGoal = soccer.lastGoal {
+                            LastGoalLine(goal: lastGoal,
+                                         alignment: alignment(for: soccer.lastGoalSide, first: activitySides(context.attributes, context.state).first.side),
+                                         tint: WidgetTokens.ink)
+                        }
                         if let lastPlay = context.state.lastPlay, !lastPlay.isEmpty {
                             Text(lastPlay)
                                 .font(.system(.caption2, design: .rounded).weight(.medium))
@@ -505,9 +620,11 @@ struct LiveSportActivityWidget: Widget {
                     .font(.system(.caption, design: .rounded).weight(.heavy))
                     .foregroundColor(WidgetTokens.ink)
                 } else {
-                Text(shortAbbreviation(short: context.attributes.awayTeamShort, full: context.attributes.awayTeam))
-                    .font(.system(.caption, design: .rounded).weight(.heavy))
-                    .foregroundColor(WidgetTokens.ink)
+                    let first = activitySides(context.attributes, context.state).first
+                    Text(first.short)
+                        .font(.system(.caption, design: .rounded).weight(.heavy))
+                        .foregroundColor(WidgetTokens.ink)
+                        .accessibilityLabel(first.name)
                 }
             } compactTrailing: {
                 if let race = context.state.race {
@@ -522,11 +639,14 @@ struct LiveSportActivityWidget: Widget {
                         .monospacedDigit()
                         .foregroundColor(WidgetTokens.ink)
                 } else {
+                let sides = activitySides(context.attributes, context.state)
                 HStack(spacing: 3) {
-                    Text("\(context.state.awayScore)-\(context.state.homeScore)")
+                    Text("\(sides.first.score)-\(sides.second.score)")
                         .font(.system(.caption, design: .rounded).weight(.bold))
                         .monospacedDigit()
                         .foregroundColor(WidgetTokens.ink)
+                        // "2-1" reads as "2 minus 1".
+                        .accessibilityLabel("\(sides.first.short) \(sides.first.score), \(sides.second.short) \(sides.second.score)")
                     if let inning = compactInning(context.state.progress) {
                         Text(inning)
                             .font(.system(.caption2, design: .rounded).weight(.semibold))
@@ -547,9 +667,11 @@ struct LiveSportActivityWidget: Widget {
                         .foregroundColor(WidgetTokens.ink)
                 } else {
                 // Same constraint as compact — use abbreviation text.
-                Text(shortAbbreviation(short: context.attributes.awayTeamShort, full: context.attributes.awayTeam))
+                let first = activitySides(context.attributes, context.state).first
+                Text(first.short)
                     .font(.system(size: 11, weight: .heavy, design: .rounded))
                     .foregroundColor(WidgetTokens.ink)
+                    .accessibilityLabel(first.spoken)
                 }
             }
         }
@@ -586,7 +708,35 @@ struct LiveSportActivityWidget: Widget {
     LiveSportActivityWidget()
 } contentStates: {
     LiveSportActivityAttributes.ContentState(homeScore: 20, awayScore: 17, status: "in", progress: "4th 2:31", lastPlay: nil,
-                                             situation: LiveActivitySituation(downDistance: "3rd & 4 at KC 12", possession: .away, redZone: true, homeWinPct: 58))
+                                             situation: LiveActivitySituation(downDistance: "3rd & 4 at KC 12", possession: .away, redZone: true, homeWinPct: 58,
+                                                                              homeTimeouts: 2, awayTimeouts: 1))
+}
+
+#Preview("Notification · Football", as: .content, using: LiveSportActivityAttributes(homeTeam: "Kansas City Chiefs", awayTeam: "Buffalo Bills", eventID: "2", homeTeamShort: "KC", awayTeamShort: "BUF")) {
+    LiveSportActivityWidget()
+} contentStates: {
+    LiveSportActivityAttributes.ContentState(homeScore: 20, awayScore: 17, status: "in", progress: "4th 2:31", lastPlay: nil,
+                                             situation: LiveActivitySituation(downDistance: "3rd & 4 at KC 12", possession: .away, redZone: true, homeWinPct: 58,
+                                                                              homeTimeouts: 2, awayTimeouts: 1))
+}
+
+private let previewSoccerAttributes = LiveSportActivityAttributes(homeTeam: "Arsenal", awayTeam: "Chelsea", eventID: "soccer",
+                                                                  homeTeamShort: "ARS", awayTeamShort: "CHE", displaysHomeFirst: true)
+private let previewSoccerState = LiveSportActivityAttributes.ContentState(
+    homeScore: 2, awayScore: 1, status: "in", progress: "67'",
+    soccer: LiveActivitySoccer(awayRedCards: 1, lastGoal: "Saka 64'", lastGoalSide: .home)
+)
+
+#Preview("Notification · Soccer", as: .content, using: previewSoccerAttributes) {
+    LiveSportActivityWidget()
+} contentStates: {
+    previewSoccerState
+}
+
+#Preview("Island Expanded · Soccer", as: .dynamicIsland(.expanded), using: previewSoccerAttributes) {
+    LiveSportActivityWidget()
+} contentStates: {
+    previewSoccerState
 }
 private let previewGolf = LiveActivityRace(session: "Round 3", leaders: [
     .init(position: 1, code: "S. Scheffler", gap: "-15", label: "1", detail: "Thru 14"),

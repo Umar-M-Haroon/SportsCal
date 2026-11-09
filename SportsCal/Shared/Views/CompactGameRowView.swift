@@ -38,6 +38,11 @@ struct CompactGameRowView: View {
                     let sides = game.displayedSides
                     teamLine(side: sides.first)
                     teamLine(side: sides.second)
+                    // Live and finished soccer: who scored, one truncating line.
+                    if let scorers {
+                        scorers
+                            .padding(.leading, 28) // under the names, past the badge
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -47,14 +52,7 @@ struct CompactGameRowView: View {
             .padding(.vertical, 2)
             .contentShape(Rectangle())
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(Text(GameRowAccessibility.label(
-                game: game,
-                awayName: awayTeam.strTeam ?? game.strAwayTeam,
-                homeName: homeTeam.strTeam ?? game.strHomeTeam,
-                awayScore: awayScore,
-                homeScore: homeScore,
-                isLive: isLive
-            )))
+            .accessibilityLabel(Text(accessibilityLabel))
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -73,6 +71,19 @@ struct CompactGameRowView: View {
             CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
             NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
         }
+    }
+
+    /// Each side's goalscorers. Nil before a goal, and for other sports.
+    private var scorers: SoccerScorerLine? { SoccerScorerLine(game: game, lineLimit: 1) }
+
+    private var accessibilityLabel: String {
+        let awayName = awayTeam.strTeam ?? game.strAwayTeam
+        let homeName = homeTeam.strTeam ?? game.strHomeTeam
+        let base = GameRowAccessibility.label(game: game, awayName: awayName, homeName: homeName,
+                                              awayScore: awayScore, homeScore: homeScore, isLive: isLive)
+        guard let scorers else { return base }
+        let names = game.displayOrdered(home: homeName, away: awayName)
+        return "\(base). \(scorers.spoken(firstName: names.first, secondName: names.second))"
     }
 
     @ViewBuilder

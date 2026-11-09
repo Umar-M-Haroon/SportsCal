@@ -63,6 +63,14 @@ final class SoccerPresentationTests: XCTestCase {
         XCTAssertEqual(game.scorerLine(.away), "van Dijk 80' (OG)")
         XCTAssertEqual(game.redCards(.away), 1)
         XCTAssertEqual(game.redCards(.home), 0)
+
+        // The Live Activity's extras carry the latest goal's side, so it sits under
+        // the team it counted for.
+        let activity = LiveActivitySoccer(game: game)
+        XCTAssertEqual(activity?.lastGoal, "van Dijk 80' (OG)")
+        XCTAssertEqual(activity?.lastGoalSide, .away)
+        XCTAssertEqual(activity?.awayRedCards, 1)
+        XCTAssertNil(activity?.homeRedCards)
     }
 
     func testSoccerRoundRidesTheWireAsTheMatchday() throws {

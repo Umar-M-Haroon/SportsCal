@@ -836,6 +836,18 @@ struct NetworkHandler {
         return try Self.sharedDecoder.decode(Game.self, from: data)
     }
 
+    /// Two tennis players' singles meetings (ESPN athlete ids) from the server's results
+    /// archive, which reaches back several seasons.
+    static func fetchTennisHeadToHead(player: String, opponent: String) async throws -> TennisHeadToHead {
+        let url = URL(string: "\(baseURL())/tennis/h2h/\(player)/\(opponent)")!
+        let (data, response) = try await performAuthorized(url: url)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        APIVersionChecker.shared.checkVersion(from: httpResponse)
+        return try Self.sharedDecoder.decode(TennisHeadToHead.self, from: data)
+    }
+
     /// Standings for a racing series beyond F1: one driver table (NASCAR, IndyCar) or
     /// a table per class (IMSA). Nil when the series publishes none we can read (WEC).
     enum SeriesStandings {
@@ -1337,6 +1349,24 @@ struct NetworkHandler {
     /// carry them) and alert kinds. Empty teams or kinds unregisters it.
     static func registerSoccerAlerts(_ registration: SoccerAlertRegistration) async throws {
         let url = URL(string: "\(baseURL())/notifications/soccer")!
+        let body = try JSONEncoder().encode(registration)
+        let (_, response) = try await performAuthorized(url: url) { request in
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+            request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
+            request.httpBody = body
+        }
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            guard (200..<300).contains(httpResponse.statusCode) else { throw URLError(.badServerResponse) }
+        }
+    }
+
+    /// Registers this install for golf alerts: the followed players (by leaderboard
+    /// name) and alert kinds. Empty players or kinds unregisters it.
+    static func registerGolfAlerts(_ registration: GolfAlertRegistration) async throws {
+        let url = URL(string: "\(baseURL())/notifications/golf")!
         let body = try JSONEncoder().encode(registration)
         let (_, response) = try await performAuthorized(url: url) { request in
             request.httpMethod = "POST"

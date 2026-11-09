@@ -280,27 +280,7 @@ struct GameScoreView: View {
     }
 
     /// Each side's goalscorers, in display order. Nil without a goal.
-    private var soccerScorers: (first: String?, second: String?)? {
-        guard game.sportType == .soccer else { return nil }
-        let first = game.scorerLine(displayed.first.side)
-        let second = game.scorerLine(displayed.second.side)
-        return first == nil && second == nil ? nil : (first, second)
-    }
-
-    private func soccerScorerLine(_ scorers: (first: String?, second: String?)) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(scorers.first ?? "")
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Image(systemName: "soccerball")
-                .opacity(0.6)
-            Text(scorers.second ?? "")
-                .multilineTextAlignment(.trailing)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-        .font(.caption2)
-        .foregroundStyle(.secondary)
-        .lineLimit(2)
-    }
+    private var soccerScorers: SoccerScorerLine? { SoccerScorerLine(game: game) }
 
     var body: some View {
         @Bindable var bindableFavorites = favorites
@@ -359,7 +339,7 @@ struct GameScoreView: View {
                 }
 
                 if let scorers = soccerScorers {
-                    soccerScorerLine(scorers)
+                    scorers
                 }
 
                 if isLive, let situation = game.situation {
@@ -455,5 +435,49 @@ struct GameScoreView: View {
             .gameCard(game: soccerGame, isLive: false)
             .environment(favorites)
             .environment(viewModel)
+    }
+}
+
+/// Each side's goalscorers under a soccer row, in display order: the first side's on
+/// the left, the second's on the right. The full row (`GameScoreView`) wraps to two
+/// lines; the compact row (`CompactGameRowView`) keeps to one and truncates.
+struct SoccerScorerLine: View {
+    let first: String?
+    let second: String?
+    var lineLimit = 2
+
+    /// Nil for other sports, and for a match without a goal yet.
+    init?(game: Game, lineLimit: Int = 2) {
+        guard game.sportType == .soccer else { return nil }
+        let sides = game.displayedSides
+        let first = game.scorerLine(sides.first)
+        let second = game.scorerLine(sides.second)
+        guard first != nil || second != nil else { return nil }
+        self.first = first
+        self.second = second
+        self.lineLimit = lineLimit
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: lineLimit == 1 ? 6 : 12) {
+            Text(first ?? "")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "soccerball")
+                .opacity(0.6)
+            Text(second ?? "")
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(lineLimit)
+        .truncationMode(.tail)
+    }
+
+    /// "Arsenal goals: Saka 12', 67'. Chelsea goals: Palmer 60'", for a row's VoiceOver
+    /// label. The names are the sides in display order.
+    func spoken(firstName: String, secondName: String) -> String {
+        [first.map { "\(firstName) goals: \($0)" }, second.map { "\(secondName) goals: \($0)" }]
+            .compactMap { $0 }.joined(separator: ". ")
     }
 }

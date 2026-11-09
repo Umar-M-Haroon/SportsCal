@@ -297,6 +297,11 @@ struct ContentView: View {
                 // One-time activation signal — emitted here (app target) rather
                 // than in Favorites, which also compiles into watch/widget where
                 // the telemetry helper (and Sentry) aren't available.
+                #if os(iOS)
+                let players = favorites.players
+                Task { await GolfAlertRegistrar.sync(players: players, storage: storage) }
+                #endif
+                // Once per install: the helper owns the "didEmitFirstFavorite" flag.
                 if !favorites.teamIDs.isEmpty {
                     MonetizationTelemetry.activationFirstFavorite()
                 }
@@ -747,6 +752,11 @@ struct ContentView: View {
     #endif
 
     private func reconcileTeamAlerts() {
+        #if os(iOS)
+        // Followed golfers' alerts are pushed too; following is the opt-in.
+        let players = favorites.players
+        Task { await GolfAlertRegistrar.sync(players: players, storage: storage) }
+        #endif
         let teamIDs = storage.teamAlertTeamIDs
         guard let games = viewModel.totalGames, !games.isEmpty else { return }
         #if os(iOS)

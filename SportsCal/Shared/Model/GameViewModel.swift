@@ -3419,7 +3419,8 @@ extension GameViewModel {
             awayTeam: awayTeamName,
             eventID: game.idEvent ?? "",
             homeTeamShort: homeShort,
-            awayTeamShort: awayShort
+            awayTeamShort: awayShort,
+            displaysHomeFirst: game.displaysHomeFirst ? true : nil
         )
         return (activityAttributes, initialContentState)
     }
