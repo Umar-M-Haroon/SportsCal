@@ -78,9 +78,13 @@ private struct TeamLeagueHub: View {
     @State private var sheetType: SheetType?
     @State private var shouldShowProAlert = false
     @State private var layoutWidth: CGFloat = 0
+    /// College only: show one conference's games.
+    @State private var conference: CollegeConference?
 
     /// Matchdays shown per direction; the day strip in Browse reaches the rest.
     private static let matchdayLimit = 14
+    /// Football weeks shown per direction.
+    private static let weekLimit = 4
 
     init(league: Leagues, games: [Game]) {
         self.league = league
@@ -205,10 +209,7 @@ private struct TeamLeagueHub: View {
 
     @ViewBuilder
     private var standings: some View {
-        let groups = (standing?.standings.children ?? []).compactMap { child -> (name: String?, entries: [Entry])? in
-            guard let entries = child.standings?.entries, !entries.isEmpty else { return nil }
-            return (child.name, ranked(entries))
-        }
+        let groups = standing?.groups ?? []
         if !didLoadStandings {
             ProgressView()
                 .frame(maxWidth: .infinity)
@@ -218,28 +219,11 @@ private struct TeamLeagueHub: View {
                                    description: Text("\(league.leagueName) standings aren't available right now."))
         } else {
             ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
-                LeagueStandingsTable(name: group.name, entries: group.entries, isSoccer: false,
+                LeagueStandingsTable(name: group.name, entries: group.entries, league: league,
                                      isHighlighted: isFollowed)
                     .appCard()
             }
         }
-    }
-
-    /// Best first. ESPN's league-level order isn't by record (MLB lists division seeds and
-    /// then the rest), and the table numbers rows as given. Hockey ranks by points (overtime
-    /// losses count), everything else by win percentage; wins break ties.
-    private func ranked(_ entries: [Entry]) -> [Entry] {
-        func stat(_ entry: Entry, _ name: String) -> Double {
-            entry.stats?.first { $0.name == name }?.value ?? -1
-        }
-        let key = sport == .hockey ? "points" : "winPercent"
-        // ESPN's order breaks remaining ties, so a league missing both stats keeps it.
-        return entries.enumerated().sorted {
-            let a = stat($0.element, key), b = stat($1.element, key)
-            if a != b { return a > b }
-            let winsA = stat($0.element, "wins"), winsB = stat($1.element, "wins")
-            return winsA != winsB ? winsA > winsB : $0.offset < $1.offset
-        }.map(\.element)
     }
 
     /// Bolds the rows of teams the user follows.
@@ -255,12 +239,18 @@ private struct TeamLeagueHub: View {
     private var schedule: some View {
         let now = Date()
         let isLive = { (gwt: GameWithTeams) in liveEventIDs.contains(gwt.game.idEvent ?? "") }
-        let live = resolved.filter(isLive)
-        let results = resolved.filter { !isLive($0) && isGameCompleted($0.game) }.reversed()
-        let upcoming = resolved.filter {
+        let filtered = resolved.filter { gwt in
+            guard let conference else { return true }
+            return gwt.game.collegeConferences.contains(conference)
+        }
+        let live = filtered.filter(isLive)
+        let results = filtered.filter { !isLive($0) && isGameCompleted($0.game) }.reversed()
+        let upcoming = filtered.filter {
             !isLive($0) && !isGameCompleted($0.game) && ($0.game.standardDate ?? .distantFuture) >= now
         }
-        let days = Array(groupedByDay(showsResults ? Array(results) : upcoming).prefix(Self.matchdayLimit))
+        let shown = showsResults ? Array(results) : upcoming
+        let days = Array(groupedByDay(shown).prefix(Self.matchdayLimit))
+        let weeks = league.isFootball ? Array(groupedByWeek(shown).prefix(Self.weekLimit)) : []
         return VStack(alignment: .leading, spacing: .appSpace4) {
             Picker("Games", selection: $showsResults) {
                 Text("Upcoming").tag(false)
@@ -269,10 +259,19 @@ private struct TeamLeagueHub: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
+            if league == .ncaaf {
+                conferencePicker
+            }
             if !live.isEmpty {
                 dayCard(title: "Live", games: live, isLive: true)
             }
-            if days.isEmpty {
+            if !weeks.isEmpty {
+                LazyVStack(alignment: .leading, spacing: .appSpace4) {
+                    ForEach(weeks, id: \.id) { week in
+                        weekCard(week)
+                    }
+                }
+            } else if days.isEmpty {
                 Text(showsResults ? "No results yet" : "No upcoming games")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -307,6 +306,119 @@ private struct TeamLeagueHub: View {
         .appCard()
     }
 
+    private var conferencePicker: some View {
+        Menu {
+            Button("All Conferences") { conference = nil }
+            Divider()
+            ForEach(CollegeConference.allCases, id: \.self) { option in
+                Button {
+                    conference = option
+                } label: {
+                    if conference == option {
+                        Label(option.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(option.displayName)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                Text(conference?.displayName ?? "All Conferences")
+                Image(systemName: "chevron.down").imageScale(.small)
+            }
+            .font(.subheadline.weight(.medium))
+        }
+        .accessibilityLabel("Conference: \(conference?.displayName ?? "All Conferences")")
+    }
+
+    /// One football week: its games under a header per kickoff slot, so a college
+    /// Saturday reads as noon / afternoon / night windows instead of one long list.
+    private struct WeekGroup {
+        var id: String
+        var title: String
+        var games: [GameWithTeams]
+    }
+
+    /// Games bucketed by football week, in the order given. Games without a week
+    /// (preseason, bowls, playoffs) group by day.
+    private func groupedByWeek(_ games: [GameWithTeams]) -> [WeekGroup] {
+        var groups: [WeekGroup] = []
+        for gwt in games {
+            let id: String
+            let title: String
+            if let week = gwt.game.footballWeek {
+                id = "\(gwt.game.resolvedSeason ?? "")-w\(week)"
+                title = "Week \(week)"
+            } else {
+                let day = Calendar.current.startOfDay(for: gwt.game.standardDate ?? .distantFuture)
+                id = "d\(day.timeIntervalSince1970)"
+                title = dayTitle(day)
+            }
+            if let index = groups.firstIndex(where: { $0.id == id }) {
+                groups[index].games.append(gwt)
+            } else {
+                groups.append(WeekGroup(id: id, title: title, games: [gwt]))
+            }
+        }
+        return groups
+    }
+
+    private func weekCard(_ week: WeekGroup) -> some View {
+        let slots = groupedByKickoff(week.games)
+        return VStack(alignment: .leading, spacing: .appSpace2) {
+            Text(week.title.uppercased()).appEyebrow().foregroundStyle(Color.app(sport))
+            ForEach(slots, id: \.kickoff) { slot in
+                Text(slotTitle(slot.kickoff))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+                    .accessibilityAddTraits(.isHeader)
+                ForEach(slot.games) { gwt in
+                    CompactGameRowView(
+                        homeTeam: gwt.homeTeam ?? Team(strTeam: gwt.game.strHomeTeam),
+                        awayTeam: gwt.awayTeam ?? Team(strTeam: gwt.game.strAwayTeam),
+                        game: gwt.game,
+                        shouldShowSportsCalProAlert: $shouldShowProAlert,
+                        sheetType: $sheetType,
+                        isLive: false
+                    )
+                    .environment(viewModel)
+                    .environment(favorites)
+                }
+            }
+        }
+        .appCard()
+    }
+
+    /// Games bucketed by kickoff: by the hour for college (whose Saturdays run a
+    /// dozen games a window), by day for the NFL.
+    private func groupedByKickoff(_ games: [GameWithTeams]) -> [(kickoff: Date, games: [GameWithTeams])] {
+        let calendar = Calendar.current
+        var groups: [(kickoff: Date, games: [GameWithTeams])] = []
+        for gwt in games {
+            let date = gwt.game.standardDate ?? .distantFuture
+            let key: Date
+            if league == .ncaaf {
+                key = calendar.dateInterval(of: .hour, for: date)?.start ?? date
+            } else {
+                key = calendar.startOfDay(for: date)
+            }
+            if let index = groups.firstIndex(where: { $0.kickoff == key }) {
+                groups[index].games.append(gwt)
+            } else {
+                groups.append((key, [gwt]))
+            }
+        }
+        return groups
+    }
+
+    private func slotTitle(_ kickoff: Date) -> String {
+        let day = dayTitle(Calendar.current.startOfDay(for: kickoff))
+        guard league == .ncaaf else { return day }
+        return "\(day) · \(kickoff.formatted(date: .omitted, time: .shortened))"
+    }
+
     /// Games bucketed by local calendar day, in the order given.
     private func groupedByDay(_ games: [GameWithTeams]) -> [(day: Date, games: [GameWithTeams])] {
         var groups: [(day: Date, games: [GameWithTeams])] = []
@@ -334,8 +446,7 @@ private struct TeamLeagueHub: View {
     private func makeCalendarEvent(game: Game) -> CalendarRepresentable {
         let eventStore = EKEventStore()
         let event = EKEvent(eventStore: eventStore)
-        let separator = (game.playoff?.isNeutralSite == true) ? " vs " : " @ "
-        event.title = "\(game.strAwayTeam)\(separator)\(game.strHomeTeam)"
+        event.title = game.matchupTitle
         if let gameDate = game.standardDate {
             event.startDate = gameDate
             event.endDate = gameDate.afterHoursFromNow(hours: 3)

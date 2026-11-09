@@ -64,6 +64,24 @@ final class MotorsportSeriesTests: XCTestCase {
         XCTAssertEqual(rows.first?.name.components(separatedBy: " / ").count, 3, "the crew, by surname")
     }
 
+    func testClassGapsMeasureFromTheClassLeader() {
+        func car(_ position: Int, _ number: String, _ cls: String, laps: Int, time: String, retired: Bool = false) -> AlKamelEntry {
+            AlKamelEntry(position: position, number: number, vehicleClass: cls, drivers: [], laps: laps, time: time,
+                         gapFirst: nil, retired: retired)
+        }
+        let rows = MotorsportGameBuilder.enduranceEntries([
+            car(1, "6", "GTP", laps: 300, time: "10:00:01.000"),
+            car(2, "04", "LMP2", laps: 290, time: "10:00:30.000"),
+            car(3, "18", "LMP2", laps: 290, time: "10:00:42.345"),
+            car(4, "52", "LMP2", laps: 287, time: "10:01:00.000"),
+            car(5, "99", "LMP2", laps: 100, time: "4:00:00.000", retired: true),
+        ], isRace: true)
+        XCTAssertNil(rows[1].stockCar?.classGap, "the class leader has no gap")
+        XCTAssertEqual(rows[2].stockCar?.classGap, "+12.345")
+        XCTAssertEqual(rows[3].stockCar?.classGap, "+3 Laps")
+        XCTAssertEqual(rows[4].stockCar?.classGap, "Retired")
+    }
+
     func testIMSAByClassFileIsReordered() throws {
         let (entries, _) = try AlKamelParse.imsaEntries(try fixture("imsa_quali_by_class.json"), isRace: false)
         XCTAssertEqual(entries.map(\.position), Array(1...entries.count), "overall order rebuilt from the per-class lists")

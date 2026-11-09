@@ -29,22 +29,28 @@ enum ScheduleSlice {
 }
 
 /// A golf tournament with its whole field and scorecards, straight from ESPN's board for
-/// that event. Finished tournaments don't change, so they're cached for a week.
+/// that event (the schedule and live feed carry the top `LiveEvent.golfFieldLimit`), plus
+/// the leaderboard feed's purse / cut / defending champion. Finished tournaments don't
+/// change, so they're cached for a week; live ones for a minute.
 enum GolfTournamentDetail {
     static func game(league: Leagues, eventID: String, app: Application) async throws -> Game {
-        let key = "Golf Tournament \(league.rawValue)-\(eventID)"
+        let key = "Golf Tournament v2 \(league.rawValue)-\(eventID)"
         if let cached = try? await app.kv.getJSON(key, as: Game.self) { return cached }
 
         guard let slug = league.espnSlug else { throw Abort(.notFound) }
         let url = "https://site.api.espn.com/apis/site/v2/sports/golf/\(slug)/scoreboard?event=\(eventID)"
         let response = try await ESPNNetworking.performGet(app.client, URI(string: url))
         let board = try response.content.decode(Scoreboard.self)
-        guard let game = LiveEvent(events: board, league: league)?.events.first(where: { $0.idEvent == eventID })
-                ?? LiveEvent(events: board, league: league)?.events.first else {
+        let events = LiveEvent(events: board, league: league, golfFieldLimit: nil)?.events ?? []
+        guard var game = events.first(where: { $0.idEvent == eventID }) ?? events.first else {
             throw Abort(.notFound)
         }
+        if let leaderboard = try? await ESPNNetworking.getGolfLeaderboard(req: app.client, eventId: eventID, tour: league),
+           let info = GolfEnrichmentJob.courseInfo(from: leaderboard, eventID: eventID) {
+            game = GolfEnrichmentJob.applying(info, to: game)
+        }
         let final = ScheduleCalendarVersion.state(of: game) == .final
-        try? await app.kv.setJSON(key, value: game, ttl: final ? 7 * 24 * 3600 : 120)
+        try? await app.kv.setJSON(key, value: game, ttl: final ? 7 * 24 * 3600 : 60)
         return game
     }
 }

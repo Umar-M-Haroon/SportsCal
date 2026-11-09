@@ -74,12 +74,17 @@ extension MotorsportGameBuilder {
                      date: date.map(MotorsportWeekends.iso), leaderboard: enduranceEntries(session.entries, isRace: false))
     }
 
-    /// Rows in overall order, with each car's place in its class.
+    /// Rows in overall order, with each car's place in its class and its gap to the
+    /// class leader (Al Kamel's own gap is to the overall leader, a GTD car's to a GTP).
     static func enduranceEntries(_ entries: [AlKamelEntry], isRace: Bool) -> [LeaderboardEntry] {
         var classCounts: [String: Int] = [:]
+        var classLeaders: [String: AlKamelEntry] = [:]
         return entries.map { entry in
             let cls = entry.vehicleClass ?? ""
             classCounts[cls, default: 0] += 1
+            let classLeader = classLeaders[cls] ?? entry
+            classLeaders[cls] = classLeader
+            let classGap = classCounts[cls] == 1 ? nil : self.classGap(entry, behind: classLeader, isRace: isRace)
             let surnames = entry.drivers.map { $0.split(separator: " ").last.map(String.init) ?? $0 }
             let gap: String? = entry.position == 1 ? nil : (isRace && entry.retired ? "Retired" : entry.gapFirst)
             return LeaderboardEntry(
@@ -92,10 +97,26 @@ extension MotorsportGameBuilder {
                     carNumber: entry.number, manufacturer: entry.manufacturer, lapsCompleted: entry.laps,
                     pitStops: entry.pitStops, status: entry.retired ? "Retired" : "Running",
                     vehicleClass: entry.vehicleClass, classPosition: classCounts[cls], vehicle: entry.vehicle,
-                    drivers: entry.drivers
+                    drivers: entry.drivers, classGap: classGap
                 )
             )
         }
+    }
+
+    /// "+12.345" / "+1:02.345" behind the class leader, "+3 Laps" when down on laps (races
+    /// compare laps then elapsed time; practice and qualifying compare best laps).
+    static func classGap(_ entry: AlKamelEntry, behind leader: AlKamelEntry, isRace: Bool) -> String? {
+        if isRace {
+            if entry.retired { return "Retired" }
+            if let laps = entry.laps, let leaderLaps = leader.laps, leaderLaps > laps {
+                let down = leaderLaps - laps
+                return "+\(down) Lap\(down == 1 ? "" : "s")"
+            }
+        }
+        let mine = AlKamelParse.seconds(isRace ? entry.time : (entry.bestLap ?? entry.time))
+        let theirs = AlKamelParse.seconds(isRace ? leader.time : (leader.bestLap ?? leader.time))
+        guard mine.isFinite, theirs.isFinite, mine >= theirs else { return nil }
+        return RaceGap.gapString(mine - theirs)
     }
 
     /// Local minus UTC for the event, rounded to 15 minutes.

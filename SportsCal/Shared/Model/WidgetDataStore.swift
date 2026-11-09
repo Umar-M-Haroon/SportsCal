@@ -41,7 +41,11 @@ enum WidgetDataStore {
                 rounds: [],
                 constructor: entry.constructor,
                 gap: entry.gap,
-                movement: entry.movement
+                isCut: entry.isCut,
+                movement: entry.movement,
+                teeTime: entry.teeTime,
+                today: entry.today,
+                teeTimeDate: entry.teeTimeDate
             )
         }
 
@@ -77,7 +81,10 @@ enum WidgetDataStore {
             legDisplay: game.legDisplay,
             aggregateScore: game.aggregateScore,
             homeSeed: game.homeSeed,
-            awaySeed: game.awaySeed
+            awaySeed: game.awaySeed,
+            // Winner and shootout score (a widget row bolds the side that went through);
+            // not the goal timeline or pitchers.
+            scoreboardExtras: game.scoreboardExtras?.withoutHeavyDetail
         )
     }
 

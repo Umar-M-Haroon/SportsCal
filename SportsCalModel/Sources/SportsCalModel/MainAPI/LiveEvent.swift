@@ -26,7 +26,13 @@ public struct LiveEvent: Codable, Equatable, Hashable {
         }
     }
 
-    public init?(events: Scoreboard, league: Leagues, constructorMap: [String: String] = [:], timingMap: [String: [String: String]] = [:]) {
+    /// Players kept on a golf board built for the schedule and the live feed. The
+    /// tournament page asks `/golf/tournament` for the whole field (`golfFieldLimit: nil`).
+    public static let golfFieldLimit = 30
+
+    /// `raceLaps`: F1 race distance in laps by ESPN event id (from its circuit), so a
+    /// live race reads "Lap 23/57"; ESPN's scoreboard only carries the lap count so far.
+    public init?(events: Scoreboard, league: Leagues, constructorMap: [String: String] = [:], timingMap: [String: [String: String]] = [:], raceLaps: [String: Int] = [:], golfFieldLimit: Int? = LiveEvent.golfFieldLimit) {
         guard let slug = events.leagues.first?.slug,
               let league = Leagues(slug: slug) else { return nil }
         let sportType = SportType(league: league)
@@ -58,7 +64,7 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 // Playoff detection: season.type == 3 is ESPN's authoritative postseason flag.
                 // Fall back to series presence, and to event/notes text matching, so playoff
                 // context still populates when any one signal is missing.
-                let playoffEligibleTeamLeagues: Set<Leagues> = [.nba, .nhl, .mlb, .nfl, .ncaaMBBTournament]
+                let playoffEligibleTeamLeagues: Set<Leagues> = [.nba, .wnba, .nhl, .mlb, .nfl, .ncaaMBBTournament]
                 let namedAsPostseason: Bool = {
                     let short = event.shortName ?? ""
                     let nameHaystack = (event.name + " " + short).lowercased()
@@ -70,7 +76,7 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     let markers = [
                         "playoff", "postseason", "wild card", "wild-card", "divisional",
                         "conference final", "conference semifinal", "conference quarterfinal",
-                        "nba finals", "stanley cup", "world series", "alcs", "nlcs",
+                        "nba finals", "wnba finals", "stanley cup", "world series", "alcs", "nlcs",
                         "division series", "championship series", "super bowl"
                     ]
                     return markers.contains(where: { haystack.contains($0) })
@@ -94,8 +100,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
 
                 // ESPN overloads SeriesCompetitor.aggregateScore: series wins for NBA/NHL/MLB
                 // versus aggregate goals for soccer knockout rounds. Keep the soccer string rendering,
-                // use the integer wins rendering for the playoff context.
-                let winsFormatLeagues: Set<Leagues> = [.nba, .nhl, .mlb]
+                // use the integer wins rendering for the playoff context. WNBA playoff rounds
+                // are series too, so they read "Leads 2-1", not "Agg: 2-1".
+                let winsFormatLeagues: Set<Leagues> = [.nba, .wnba, .nhl, .mlb]
 
                 // Soccer aggregate rendering (unchanged behaviour for UCL etc.)
                 var aggregateScore: String?
@@ -191,12 +198,22 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     seasonPhase: league.hasSeasonPhases
                         ? (event.season?.type.flatMap(SeasonPhase.init(espnSeasonType:)) ?? (isPlayoff ? .postseason : nil))
                         : nil,
+                    // Football's regular-season week, in TheSportsDB's `intRound` slot so
+                    // ESPN-built rows group by week like the TheSportsDB schedule does.
+                    sportsDBRound: league.isFootball && event.season?.type == 2 ? event.week?.number : nil,
                     situation: GameSituation(
                         espn: competition.situation,
                         status: competition.status ?? event.status,
                         sport: sportType,
                         homeTeamID: homeTeam.id,
                         awayTeamID: awayTeam.id
+                    ),
+                    scoreboardExtras: ScoreboardExtras(
+                        competition: competition,
+                        status: competition.status ?? event.status,
+                        home: home, away: away,
+                        homeTeamID: homeTeam.id,
+                        sport: sportType
                     )
                 )]
             }
@@ -250,7 +267,10 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                             isCompleted: competition.status?.type.completed ?? event.status?.type.completed, isoDate: nil,
                             tournamentName: event.name,
                             round: competition.round?.displayName,
-                            drawSlug: grouping.grouping?.slug
+                            drawSlug: grouping.grouping?.slug,
+                            // ESPN's winner is the only reliable one for a retirement
+                            // or walkover, where the sets don't say who went through.
+                            scoreboardExtras: Self.tennisExtras(competition: competition, home: home, away: away)
                         )
                     }
                 }
@@ -273,22 +293,14 @@ public struct LiveEvent: Codable, Equatable, Hashable {
 
             // 3) Racing: create ONE game per event (Grand Prix weekend) with all sessions
             if league.isRacing, let competitions = event.competitions, !competitions.isEmpty {
-                // Session priority: Race > Sprint > Qual > FP3 > FP2 > FP1
-                let sessionPriority = ["Race": 6, "Sprint": 5, "Qual": 4, "FP3": 3, "FP2": 2, "FP1": 1]
-
                 // Build EventSession array from all competitions
                 let eventSessions: [EventSession] = competitions.map { competition in
                     let sessionType = competition.type?.abbreviation ?? ""
-                    let sessionName: String
-                    switch sessionType {
-                    case "FP1": sessionName = "Free Practice 1"
-                    case "FP2": sessionName = "Free Practice 2"
-                    case "FP3": sessionName = "Free Practice 3"
-                    case "Qual": sessionName = "Qualifying"
-                    case "Sprint": sessionName = "Sprint"
-                    case "Race": sessionName = "Race"
-                    default: sessionName = sessionType.isEmpty ? "Session" : sessionType
-                    }
+                    // ESPN sends sprint weekends as bare "SS"/"SR" codes; the shared
+                    // session table names them (and every other code) properly.
+                    let sessionName = sessionType.isEmpty
+                        ? "Session"
+                        : EventSession(sessionType: sessionType, sessionName: sessionType).displayName
                     let competitionTiming = timingMap[competition.id]
                     let sessionLeaderboard: [LeaderboardEntry] = (competition.competitors ?? []).map { competitor in
                         let name = competitor.athlete?.displayName ?? "TBD"
@@ -316,12 +328,29 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         )
                     }
                     let sessionState = competition.status?.type.state
+                    let probe = EventSession(sessionType: sessionType, sessionName: sessionName)
+                    // ESPN's status.period is laps completed. For a race or sprint, keep it
+                    // as a RaceState (with the distance for the Grand Prix) so the detail
+                    // header and Live Activity can say "Lap 23/57".
+                    let lapsRun = competition.status?.period ?? 0
+                    let hasRun = sessionState == "in" || sessionState == "post"
+                    var raceState: RaceState?
+                    if hasRun, !probe.isTimedLapSession, lapsRun > 0 {
+                        let distance = probe.importance == 6 ? (raceLaps[event.id] ?? 0) : 0
+                        let flag: RaceState.Flag = sessionState == "post" ? .checkered : .none
+                        raceState = RaceState(lap: lapsRun, totalLaps: distance, flag: flag)
+                    }
+                    var progress = sessionState == "pre" ? nil : competition.status?.type.shortDetail
+                    if sessionState == "in", let raceState, progress?.lowercased().contains("lap") != true {
+                        progress = raceState.totalLaps > 0 ? raceState.lapLabel : "Lap \(raceState.lap)"
+                    }
                     return EventSession(
                         sessionType: sessionType, sessionName: sessionName,
                         status: sessionState,
-                        progress: sessionState == "pre" ? nil : competition.status?.type.shortDetail,
+                        progress: progress,
                         date: competition.date,
-                        leaderboard: sessionLeaderboard
+                        leaderboard: sessionLeaderboard,
+                        raceState: raceState
                     )
                 }
 
@@ -332,9 +361,10 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 } else {
                     let completedSessions = eventSessions.filter { $0.status == "post" }
                     if !completedSessions.isEmpty {
-                        primarySession = completedSessions.max(by: {
-                            (sessionPriority[$0.sessionType] ?? 0) < (sessionPriority[$1.sessionType] ?? 0)
-                        }) ?? eventSessions.last!
+                        // Rank by EventSession.importance so a sprint weekend's
+                        // "SR"/"SS" outrank FP1 (they were missing from a local table).
+                        primarySession = completedSessions.max(by: { $0.importance < $1.importance })
+                            ?? eventSessions.last!
                     } else {
                         primarySession = eventSessions.last!
                     }
@@ -397,7 +427,10 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 let progress = golfState == "pre"
                     ? nil
                     : (competition.status?.type.shortDetail ?? event.status?.type.shortDetail)
-                let competitors = Array((competition.competitors ?? []).prefix(30))
+                let allCompetitors = competition.competitors ?? []
+                let competitors = golfFieldLimit.map { Array(allCompetitors.prefix($0)) } ?? allCompetitors
+                let currentPeriod = competition.status?.period ?? event.status?.period ?? 0
+                let eventCompleted = (competition.status?.type.completed ?? event.status?.type.completed) == true
 
                 // Extract course hole pars from the first competitor's first round hole data
                 let holePars: [Int]? = {
@@ -419,10 +452,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 // Par from completed rounds' strokes vs. to-par (every tour's board carries
                 // these). The hole sum is only a fallback, and only for a full 18: summed over
                 // a round still in progress it's the par of the holes played so far.
-                let completedRounds: Int = {
-                    let current = competition.status?.period ?? event.status?.period ?? 0
-                    return golfState == "post" ? current : current - 1
-                }()
+                // A suspended round reads "post" without being complete; only ESPN's
+                // `completed` says the last round is in.
+                let completedRounds = eventCompleted ? currentPeriod : currentPeriod - 1
                 let roundPar = GolfPar.inferred(fromRounds: (competition.competitors ?? []).flatMap { competitor in
                     (competitor.linescores ?? [])
                         .filter { ($0.period ?? .max) <= completedRounds }
@@ -448,8 +480,11 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                     let name = competitor.athlete?.displayName ?? "TBD"
                     let score = competitor.score ?? "--"
                     let headshot = competitor.athlete?.headshot
-                    let thruHole = competitor.statistics?.first(where: { $0.name == "thruHole" })?.displayValue
-                    let rounds = (competitor.linescores ?? []).compactMap { ls -> String? in
+                    // Finished rounds only: a round in progress is `today` + `thruHole`.
+                    let reading = GolfRoundReading(linescores: competitor.linescores ?? [],
+                                                   currentPeriod: currentPeriod, eventCompleted: eventCompleted)
+                    let thruHole = competitor.statistics?.first(where: { $0.name == "thruHole" })?.displayValue ?? reading.thru
+                    let rounds = reading.completed.compactMap { ls -> String? in
                         guard let v = ls.value else { return nil }
                         return v.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(v))" : "\(v)"
                     }
@@ -463,6 +498,7 @@ public struct LiveEvent: Codable, Equatable, Hashable {
 
                     // Tee time for upcoming round
                     let teeTime = competitor.statistics?.first(where: { $0.name == "teeTime" })?.displayValue
+                        ?? reading.teeTime?.displayString
 
                     // Country flag
                     let flagURL = competitor.athlete?.flag?.href
@@ -530,7 +566,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                         movement: movement,
                         flagURL: flagURL, flagAlt: flagAlt,
                         teeTime: teeTime,
-                        roundDetails: roundDetails
+                        roundDetails: roundDetails,
+                        today: reading.today,
+                        teeTimeDate: reading.teeTime?.isoString
                     )
                 }
 
@@ -538,7 +576,9 @@ public struct LiveEvent: Codable, Equatable, Hashable {
                 let leaderboard = competitors.map { competitor in
                     let name = competitor.athlete?.displayName ?? "TBD"
                     let score = competitor.score ?? "--"
-                    let rounds = (competitor.linescores ?? []).compactMap { ls -> String? in
+                    let reading = GolfRoundReading(linescores: competitor.linescores ?? [],
+                                                   currentPeriod: currentPeriod, eventCompleted: eventCompleted)
+                    let rounds = reading.completed.compactMap { ls -> String? in
                         guard let v = ls.value else { return nil }
                         return v.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(v))" : "\(v)"
                     }.joined(separator: ",")
@@ -570,6 +610,15 @@ public struct LiveEvent: Codable, Equatable, Hashable {
     public var events: [Game]
     enum CodingKeys: String, CodingKey {
         case events
+    }
+
+    /// Winner plus set tiebreaks/winners, serve, court and seeds for a tennis match.
+    static func tennisExtras(competition: Competition, home: Competitor, away: Competitor) -> ScoreboardExtras? {
+        let extras = ScoreboardExtras(
+            homeWinner: home.winner, awayWinner: away.winner,
+            tennis: TennisMatchExtras(competition: competition, home: home, away: away)
+        )
+        return extras.isEmpty ? nil : extras
     }
 
     /// `events` is required, but decodes game by game: a malformed game is skipped and
@@ -727,7 +776,7 @@ public enum DateParsers {
 
 // MARK: - Event
 public struct Game: Identifiable, Equatable, Hashable {
-    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, homeConference: String? = nil, awayConference: String? = nil, tournamentName: String? = nil, round: String? = nil, drawSlug: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil, endDate: String? = nil, season: String? = nil, seasonPhase: SeasonPhase? = nil, sportsDBRound: Int? = nil, situation: GameSituation? = nil, excitement: Int? = nil) {
+    public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, homeConference: String? = nil, awayConference: String? = nil, tournamentName: String? = nil, round: String? = nil, drawSlug: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil, endDate: String? = nil, season: String? = nil, seasonPhase: SeasonPhase? = nil, sportsDBRound: Int? = nil, situation: GameSituation? = nil, excitement: Int? = nil, scoreboardExtras: ScoreboardExtras? = nil) {
         self.idLiveScore = idLiveScore
         self.idEvent = idEvent
         self._strSport = strSport
@@ -779,6 +828,7 @@ public struct Game: Identifiable, Equatable, Hashable {
         self.sportsDBRound = sportsDBRound
         self.situation = situation
         self.excitement = excitement
+        self.scoreboardExtras = scoreboardExtras
         // Pre-compute date from strTimestamp if isoDate not provided
         if let isoDate {
             self.isoDate = isoDate
@@ -829,7 +879,7 @@ public struct Game: Identifiable, Equatable, Hashable {
     public let homeRecord: String?
     public let awayRecord: String?
     public let circuitInfo: F1CircuitInfo?
-    public let golfCourseInfo: GolfCourseInfo?
+    public var golfCourseInfo: GolfCourseInfo?
     /// Last day of a multi-day event — a golf tournament's Sunday. Nil for single-day games.
     /// `strTimestamp` stays the start, so an event spans `strTimestamp...endDate`.
     public let endDate: String?
@@ -874,7 +924,9 @@ public struct Game: Identifiable, Equatable, Hashable {
     /// `.regular` is omitted on the wire — read ``resolvedSeasonPhase``.
     public var seasonPhase: SeasonPhase?
     /// TheSportsDB `intRound`, decoded on ingest so ``SeasonPhase/assignPhases(_:league:)``
-    /// can derive `seasonPhase`. Never encoded.
+    /// can derive `seasonPhase`. ESPN-built football rows put the regular-season week
+    /// here too. Encoded for football (the week, read ``footballWeek``) and soccer (the
+    /// matchday) only.
     public let sportsDBRound: Int?
 
     /// Live state beyond the score — count and runners, down and distance, win
@@ -884,6 +936,11 @@ public struct Game: Identifiable, Equatable, Hashable {
     /// "Worth watching" score, 0...100, for a finished game whose league publishes win
     /// probability. Spoiler-free by design: it says how tense the game was, not who won.
     public var excitement: Int?
+    /// ESPN scoreboard extras: winner, shootout goals, R/H/E and pitchers, goals and
+    /// cards, TV. Read through the forwarding properties (`homeWinner`, `soccerDetails`,
+    /// …). Every `Game(...)` rebuild must carry it, like `season`/`seasonPhase`; a merge
+    /// takes a fresh ESPN copy whole. See ``ScoreboardExtras``.
+    public var scoreboardExtras: ScoreboardExtras?
 
     // MARK: - Computed Properties (derived from idLeague)
     // Private storage for backward compatibility when decoding old data
@@ -925,7 +982,9 @@ extension Game: Codable {
         case playoff
         case strSeason, seasonPhase
         case situation, excitement
-        // TheSportsDB schedule round — decoded on ingest, never encoded
+        case scoreboardExtras = "extras"
+        // TheSportsDB schedule round — decoded on ingest, encoded for football (the
+        // week) and soccer (the competition hub's matchdays) only
         case intRound
         // Computed properties - decoded for backward compatibility, not encoded
         case strSport, strLeague
@@ -1003,6 +1062,7 @@ extension Game: Codable {
         // Lenient: these are display extras; an unexpected shape must not fail the game.
         situation = (try? container.decodeIfPresent(GameSituation.self, forKey: .situation)) ?? nil
         excitement = (try? container.decodeIfPresent(Int.self, forKey: .excitement)) ?? nil
+        scoreboardExtras = container.decodeLenient(ScoreboardExtras.self, forKey: .scoreboardExtras)
         // Transient server-side field, not persisted
         lastPlayScoreboardID = nil
         // Decode for backward compatibility with old cached data
@@ -1072,6 +1132,14 @@ extension Game: Codable {
             try container.encodeIfPresent(situation, forKey: .situation)
         }
         try container.encodeIfPresent(excitement, forKey: .excitement)
+        // Football's round is its week, soccer's its matchday. Other leagues' rounds only
+        // feed `seasonPhase` and stay off the wire to keep the schedule small.
+        if let sportsDBRound, isFootballLeague || sportType == .soccer {
+            try container.encode(sportsDBRound, forKey: .intRound)
+        }
+        if let scoreboardExtras, !scoreboardExtras.isEmpty {
+            try container.encode(scoreboardExtras, forKey: .scoreboardExtras)
+        }
         // Note: strSport and strLeague are not encoded - they're computed from idLeague
         // Deprecated fields are not encoded: strPlayer, idPlayer, intEventScore,
         // intEventScoreTotal, strEventTime, dateEvent, updated
@@ -1185,6 +1253,12 @@ extension Game {
         return strSport == "racing"
     }
 
+    /// Live Activities show a leaderboard (`LiveActivityRace`) instead of a score: race
+    /// weekends and golf tournaments.
+    public var usesLeaderboardActivity: Bool {
+        isRace || golfTour != nil
+    }
+
     /// The racing series this game belongs to, or nil when it isn't a race.
     public var racingSeries: Leagues? {
         guard let league = idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:)), league.isRacing else {
@@ -1295,40 +1369,6 @@ extension Game {
         }
     }
 
-    public func periodLabels(count: Int) -> [String] {
-        guard let sport = strSport.flatMap({ SportType(rawValue: $0) }) else {
-            return (1...count).map { "\($0)" }
-        }
-        switch sport {
-        case .basketball, .nfl:
-            // Q1, Q2, Q3, Q4, OT, OT2...
-            return (0..<count).map { i in
-                if i < 4 { return "Q\(i + 1)" }
-                else if i == 4 { return "OT" }
-                else { return "OT\(i - 3)" }
-            }
-        case .hockey:
-            // P1, P2, P3, OT, OT2...
-            return (0..<count).map { i in
-                if i < 3 { return "P\(i + 1)" }
-                else if i == 3 { return "OT" }
-                else { return "OT\(i - 2)" }
-            }
-        case .mlb:
-            return (1...count).map { "\($0)" }
-        case .soccer:
-            // 1H, 2H, ET1, ET2, PEN
-            let labels = ["1H", "2H", "ET1", "ET2", "PEN"]
-            return (0..<count).map { i in
-                i < labels.count ? labels[i] : "\(i + 1)"
-            }
-        case .golf, .tennis:
-            return (1...count).map { "\($0)" }
-        case .racing:
-            return (1...count).map { "Lap \($0)" }
-        }
-    }
-
     /// Whether this is a golf major or a tennis Grand Slam. See `EventTier`.
     public var isMajor: Bool {
         eventTier == .major
@@ -1434,7 +1474,8 @@ public extension Game {
         lastPlayScoreboardID: String? = nil,
         endDate: String? = nil,
         situation: GameSituation? = nil,
-        excitement: Int? = nil
+        excitement: Int? = nil,
+        scoreboardExtras: ScoreboardExtras? = nil
     ) -> Game {
         Game(
             idLiveScore: idLiveScore ?? self.idLiveScore,
@@ -1488,7 +1529,8 @@ public extension Game {
             seasonPhase: self.seasonPhase,
             sportsDBRound: self.sportsDBRound,
             situation: situation ?? self.situation,
-            excitement: excitement ?? self.excitement
+            excitement: excitement ?? self.excitement,
+            scoreboardExtras: scoreboardExtras ?? self.scoreboardExtras
         )
     }
 }

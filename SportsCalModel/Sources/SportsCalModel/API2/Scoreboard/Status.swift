@@ -11,6 +11,8 @@ public struct Status: Codable {
     public var displayClock: String?
     public var period: Int?
     public var type: StatusType
+    /// MLB's winning, losing and saving pitchers once a game is final.
+    public var featuredAthletes: [ESPNFeaturedAthlete]?
 
     public init(clock: Double?, displayClock: String?, period: Int?, type: StatusType) {
         self.clock = clock

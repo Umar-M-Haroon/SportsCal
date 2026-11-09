@@ -22,15 +22,34 @@ struct TournamentDetailView: View {
         self.scheduledGame = game
     }
 
-    private var game: Game { fullGame ?? scheduledGame }
+    /// The fetched full field, with the live feed's (fresher, top-of-board) rows on top
+    /// while the tournament is being played.
+    private var game: Game {
+        guard let fullGame else { return scheduledGame }
+        guard scheduledGame.strStatus == "in" else { return fullGame }
+        var merged = scheduledGame
+        let top = scheduledGame.leaderboardEntries ?? []
+        let names = Set(top.map(\.name))
+        let lastPosition = top.map(\.position).max() ?? 0
+        let rest = (fullGame.leaderboardEntries ?? []).filter { !names.contains($0.name) && $0.position > lastPosition }
+        merged.leaderboardEntries = top + rest
+        merged.golfCourseInfo = (scheduledGame.golfCourseInfo ?? fullGame.golfCourseInfo)?.withContext(from: fullGame.golfCourseInfo)
+        return merged
+    }
 
     @Environment(GameViewModel.self) private var viewModel
     @Environment(Favorites.self) private var favorites
     @State private var shouldShowSportsCalProAlert = false
     @State private var sheetType: SheetType?
-    @State private var expandedPlayers: Set<Int> = []
-    @State private var comparingPlayerIndex: Int?
+    /// Keyed by player name, not row: rows move as the board updates.
+    @State private var expandedPlayers: Set<String> = []
+    @State private var comparingPlayerName: String?
     @State private var comparisonPair: (LeaderboardEntry, LeaderboardEntry)?
+    @ScaledMetric(relativeTo: .caption) private var positionWidth: CGFloat = 34
+    @ScaledMetric(relativeTo: .caption) private var todayWidth: CGFloat = 40
+    @ScaledMetric(relativeTo: .caption) private var thruWidth: CGFloat = 64
+    @ScaledMetric(relativeTo: .caption) private var scoreWidth: CGFloat = 44
+    @ScaledMetric(relativeTo: .caption) private var headshotSize: CGFloat = 28
 
     private var league: Leagues? {
         guard let id = game.idLeague, let intID = Int(id) else { return nil }
@@ -55,6 +74,7 @@ struct TournamentDetailView: View {
             actionsRow
         } details: {
             leaderboardSection
+            roundHeatmapSection
             scorecardSection
             courseDifficultySection
         }
@@ -65,9 +85,20 @@ struct TournamentDetailView: View {
         .task(id: scheduledGame.idEvent) {
             // PGA TOUR rows carry TheSportsDB's ID; the ESPN merge records ESPN's alongside.
             guard let league, league.isGolf,
-                  let eventID = scheduledGame.lastPlayScoreboardID ?? scheduledGame.idEvent,
-                  scheduledGame.hasDoneStatus, (scheduledGame.leaderboardEntries?.count ?? 0) <= 5 else { return }
-            fullGame = try? await NetworkHandler.fetchGolfTournament(league: league, eventID: eventID)
+                  let eventID = scheduledGame.lastPlayScoreboardID ?? scheduledGame.idEvent else { return }
+            // The schedule keeps a finished event's top five and a live one's top
+            // `golfFieldLimit`: the whole field (favourites below the cut-off, the cut
+            // line) comes from `/golf/tournament`, refreshed while play is on.
+            let isLiveNow = scheduledGame.strStatus == "in"
+            let isSlimmed = scheduledGame.hasDoneStatus && (scheduledGame.leaderboardEntries?.count ?? 0) <= 5
+            guard isLiveNow || isSlimmed else { return }
+            while !Task.isCancelled {
+                if let fetched = try? await NetworkHandler.fetchGolfTournament(league: league, eventID: eventID) {
+                    fullGame = fetched
+                }
+                guard scheduledGame.strStatus == "in" else { break }
+                try? await Task.sleep(for: .seconds(90))
+            }
         }
         .sheet(item: $sheetType) { sheet in
             switch sheet {
@@ -85,7 +116,7 @@ struct TournamentDetailView: View {
         }
         .sheet(isPresented: Binding(
             get: { comparisonPair != nil },
-            set: { if !$0 { comparisonPair = nil; comparingPlayerIndex = nil } }
+            set: { if !$0 { comparisonPair = nil; comparingPlayerName = nil } }
         )) {
             if let pair = comparisonPair {
                 GolfPlayerComparisonView(playerA: pair.0, playerB: pair.1, coursePar: game.coursePar)
@@ -122,6 +153,11 @@ struct TournamentDetailView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
+                    if let context = tournamentContextLine {
+                        Text(context)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 Spacer()
                 if isLive {
@@ -136,7 +172,15 @@ struct TournamentDetailView: View {
                 }
             }
 
-            if let progress = game.displayStatus {
+            if let stoppage = game.golfStoppageText {
+                Label(stoppage, systemImage: "cloud.bolt.rain.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                    .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .accessibilityLabel("Play \(stoppage.lowercased())")
+            } else if let progress = game.displayStatus {
                 Text(progress)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -176,49 +220,62 @@ struct TournamentDetailView: View {
     }
 
     // MARK: - Round Progress Bar
+    /// Every scheduled round: played ones filled, the current one highlighted, the rest dimmed.
     @ViewBuilder
     private var roundProgressBar: some View {
         let entries = game.resolvedLeaderboard
-        let maxRounds = entries.map(\.rounds.count).max() ?? 0
-        if maxRounds > 0 {
-            let currentRound = detectCurrentRound(entries: entries, maxRounds: maxRounds)
-            VStack(spacing: 4) {
-                HStack(spacing: 0) {
-                    ForEach(0..<maxRounds, id: \.self) { i in
-                        if i > 0 {
-                            Rectangle()
-                                .fill(i <= currentRound ? Color.accentColor : Color.gray.opacity(0.3))
-                                .frame(height: 2)
-                        }
-                        ZStack {
-                            Circle()
-                                .fill(roundColor(index: i, current: currentRound))
-                                .frame(width: 24, height: 24)
-                            Text("R\(i + 1)")
-                                .font(.caption2)
-                                .fontWeight(i == currentRound ? .bold : .regular)
-                                .foregroundColor(.white)
-                        }
+        let totalRounds = game.golfScheduledRounds
+        if !entries.isEmpty, totalRounds > 0 {
+            let currentRound = detectCurrentRound(entries: entries)
+            HStack(spacing: 0) {
+                ForEach(0..<totalRounds, id: \.self) { i in
+                    if i > 0 {
+                        Rectangle()
+                            .fill(i <= currentRound ? Color.accentColor : Color.gray.opacity(0.3))
+                            .frame(height: 2)
                     }
+                    ZStack {
+                        Circle()
+                            .fill(roundColor(index: i, current: currentRound))
+                            .frame(width: 24, height: 24)
+                        Text("R\(i + 1)")
+                            .font(.caption2)
+                            .fontWeight(i == currentRound ? .bold : .regular)
+                            .foregroundColor(.white)
+                    }
+                    .opacity(i > currentRound ? 0.5 : 1)
                 }
             }
             .padding(.horizontal)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Round \(currentRound + 1) of \(totalRounds)")
         }
     }
 
-    private func detectCurrentRound(entries: [LeaderboardEntry], maxRounds: Int) -> Int {
-        guard let leader = entries.first else { return 0 }
-        let leaderRounds = leader.rounds.count
-        if leader.thruHole != nil && leader.thruHole != "F" {
-            return max(0, leaderRounds - 1)
-        }
-        return max(0, leaderRounds - 1)
+    /// Zero-based index of the round in play (or last played). ESPN's "Round N" status
+    /// first; otherwise the most rounds anyone has finished, plus one if someone is out
+    /// on the course.
+    private func detectCurrentRound(entries: [LeaderboardEntry]) -> Int {
+        if let round = game.golfCurrentRound { return max(0, round - 1) }
+        let finished = entries.map(\.rounds.count).max() ?? 0
+        let onCourse = entries.contains(where: \.isOnCourse)
+        return max(0, onCourse ? finished : finished - 1)
     }
 
     private func roundColor(index: Int, current: Int) -> Color {
         if index < current { return .green }
-        if index == current { return .accentColor }
+        if index == current { return game.hasDoneStatus && game.strStatus != "pre" ? .green : .accentColor }
         return Color.gray.opacity(0.4)
+    }
+
+    /// "$6,000,000 purse · Defending: Ben Griffin".
+    private var tournamentContextLine: String? {
+        guard let info = game.golfCourseInfo else { return nil }
+        var parts: [String] = []
+        if let purse = info.purse, !purse.isEmpty { parts.append("\(purse) purse") }
+        if let champion = info.defendingChampion { parts.append("Defending: \(champion)") }
+        if let yards = info.yardage { parts.append("\(yards.formatted()) yds · Par \(info.par)") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     // MARK: - Game Info
@@ -363,47 +420,22 @@ struct TournamentDetailView: View {
                         .padding(.vertical, 8)
                 }
             } else {
-                let hasRounds = entries.contains(where: { !$0.rounds.isEmpty })
-                let hasThru = entries.contains(where: { $0.thruHole != nil })
-                let hasMovement = entries.contains(where: { $0.movement != nil && $0.movement != 0 })
-                let hasTeeTime = entries.contains(where: { $0.teeTime != nil })
+                let columns = LeaderboardColumns(entries: entries)
+                let labels = entries.golfPositionLabels()
                 let cutIndex = entries.firstIndex(where: { $0.isCut == true })
+                let projectedCutIndex = cutIndex == nil ? projectedCutIndex(entries: entries) : nil
 
-                // Header row
-                HStack(spacing: 0) {
-                    Text("Pos")
-                        .frame(width: 32, alignment: .leading)
-                    // Headshot + flag column spacer
-                    Color.clear.frame(width: 48)
-                    Text("Player")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if hasMovement {
-                        Text("+/-")
-                            .frame(width: 36, alignment: .trailing)
-                    }
-                    if hasThru || hasTeeTime {
-                        Text("Thru")
-                            .frame(width: 48, alignment: .trailing)
-                    }
-                    Text("Score")
-                        .frame(width: 50, alignment: .trailing)
-                    if hasRounds {
-                        Color.clear.frame(width: 24)
-                    }
-                }
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .padding(.bottom, 4)
+                leaderboardHeader(columns: columns)
 
                 // Comparison mode banner
-                if comparingPlayerIndex != nil {
+                if comparingPlayerName != nil {
                     HStack {
                         Image(systemName: "arrow.left.arrow.right")
                         Text("Tap another player to compare")
                             .font(.caption)
                         Spacer()
                         Button("Cancel") {
-                            comparingPlayerIndex = nil
+                            comparingPlayerName = nil
                         }
                         .font(.caption.bold())
                     }
@@ -414,182 +446,312 @@ struct TournamentDetailView: View {
                     .cornerRadius(8)
                 }
 
-                // Player rows
-                ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
-                    let isLeader = index == 0
-                    let isExpanded = expandedPlayers.contains(index)
-                    let isFavPlayer = favorites.containsPlayer(entry.name)
-
-                    // Cut line divider
+                // Player rows, identified by name so expansion follows the player.
+                ForEach(Array(entries.enumerated()), id: \.element.name) { index, entry in
                     if let cutIdx = cutIndex, cutIdx == index, cutIdx > 0 {
-                        HStack(spacing: 8) {
-                            Rectangle().fill(Color.red.opacity(0.4)).frame(height: 1)
-                            Text("CUT")
-                                .font(.caption2.bold())
-                                .foregroundColor(.red.opacity(0.7))
-                            Rectangle().fill(Color.red.opacity(0.4)).frame(height: 1)
-                        }
-                        .padding(.vertical, 4)
+                        cutDivider(text: "CUT", color: .red)
+                    } else if let projected = projectedCutIndex, projected.index == index {
+                        cutDivider(text: "PROJECTED CUT \(GolfScore.format(toPar: projected.score))", color: .orange)
                     }
-
-                    VStack(spacing: 0) {
-                        Button {
-                            if comparingPlayerIndex != nil {
-                                // In comparison mode — select second player
-                                if comparingPlayerIndex != index {
-                                    let playerA = entries[comparingPlayerIndex!]
-                                    comparisonPair = (playerA, entry)
-                                }
-                            } else if !entry.rounds.isEmpty {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    if expandedPlayers.contains(index) {
-                                        expandedPlayers.remove(index)
-                                    } else {
-                                        expandedPlayers.insert(index)
-                                    }
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 0) {
-                                Text("\(entry.position)")
-                                    .frame(width: 32, alignment: .leading)
-                                HeadshotView(url: entry.headshot, size: 28)
-                                    .padding(.trailing, 2)
-                                // Country flag
-                                if let flagURL = entry.flagURL {
-                                    AsyncImage(url: URL(string: flagURL)) { image in
-                                        image.resizable().scaledToFit()
-                                    } placeholder: {
-                                        EmptyView()
-                                    }
-                                    .frame(width: 16, height: 11)
-                                    .padding(.trailing, 2)
-                                }
-                                // Favorite star
-                                if isFavPlayer {
-                                    Image(systemName: "star.fill")
-                                        .font(.system(size: 8))
-                                        .foregroundColor(.yellow)
-                                        .padding(.trailing, 2)
-                                }
-                                Text(entry.name)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .lineLimit(1)
-                                // CUT badge
-                                if entry.isCut == true {
-                                    Text("CUT")
-                                        .font(.system(size: 8, weight: .bold))
-                                        .foregroundStyle(.white)
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 1)
-                                        .background(Color.red.opacity(0.8))
-                                        .clipShape(Capsule())
-                                        .padding(.trailing, 2)
-                                }
-                                // Movement indicator
-                                if hasMovement {
-                                    if let movement = entry.movement, movement != 0 {
-                                        HStack(spacing: 1) {
-                                            Image(systemName: movement < 0 ? "arrow.up" : "arrow.down")
-                                            Text("\(abs(movement))")
-                                        }
-                                        .font(.caption2)
-                                        .foregroundColor(movement < 0 ? .green : .red)
-                                        .frame(width: 36, alignment: .trailing)
-                                    } else {
-                                        Color.clear.frame(width: 36)
-                                    }
-                                }
-                                // Tee time or thru hole
-                                if let teeTime = entry.teeTime, entry.thruHole == nil {
-                                    Text(teeTime)
-                                        .font(.caption2)
-                                        .foregroundColor(.blue)
-                                        .frame(width: 48, alignment: .trailing)
-                                } else if hasThru || hasTeeTime {
-                                    Text(entry.thruHole ?? "-")
-                                        .frame(width: 48, alignment: .trailing)
-                                        .foregroundColor(.secondary)
-                                }
-                                Text(entry.score)
-                                    .frame(width: 50, alignment: .trailing)
-                                if hasRounds && !entry.rounds.isEmpty {
-                                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                        .frame(width: 24)
-                                } else if hasRounds {
-                                    Color.clear.frame(width: 24)
-                                }
-                            }
-                            .font(.caption)
-                            .fontWeight(isLeader || isFavPlayer ? .bold : .regular)
-                            .foregroundColor(isLeader || isFavPlayer ? .primary : .secondary)
-                            .padding(.vertical, 4)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .opacity(entry.isCut == true ? 0.5 : 1.0)
-                        .background(comparingPlayerIndex == index ? Color.accentColor.opacity(0.1) : Color.clear)
-                        .cornerRadius(4)
-                        .contextMenu {
-                            if favorites.containsPlayer(entry.name) {
-                                Button("Remove from Favorites", systemImage: "star.slash") {
-                                    favorites.removePlayer(entry.name)
-                                }
-                            } else {
-                                Button("Add to Favorites", systemImage: "star") {
-                                    favorites.addPlayer(entry.name)
-                                }
-                            }
-                            if !entry.rounds.isEmpty {
-                                Button("Compare", systemImage: "arrow.left.arrow.right") {
-                                    comparingPlayerIndex = index
-                                }
-                            }
-                        }
-
-                        // Inline stats (visible without expanding)
-                        if let details = entry.roundDetails, !details.isEmpty {
-                            let totalBirdies = details.compactMap(\.stats?.birdies).reduce(0, +)
-                            let totalBogeys = details.compactMap(\.stats?.bogeys).reduce(0, +)
-                            let totalEagles = details.compactMap(\.stats?.eagles).reduce(0, +)
-                            let holesInOne = details.flatMap { $0.holeScores ?? [] }.filter { $0.score == 1 }.count
-                            HStack(spacing: 4) {
-                                Color.clear.frame(width: 62) // align under name
-                                if holesInOne > 0 {
-                                    Text("\(holesInOne) hole-in-one\(holesInOne > 1 ? "s" : "")")
-                                        .foregroundColor(.yellow)
-                                        .fontWeight(.bold)
-                                    Text("·").foregroundColor(.secondary)
-                                }
-                                if totalEagles > 0 {
-                                    Text("\(totalEagles) \(totalEagles == 1 ? "eagle" : "eagles")")
-                                        .foregroundColor(Color(red: 0, green: 0.5, blue: 0.7))
-                                    Text("·").foregroundColor(.secondary)
-                                }
-                                Text("\(totalBirdies) \(totalBirdies == 1 ? "birdie" : "birdies")")
-                                    .foregroundColor(.green)
-                                Text("·").foregroundColor(.secondary)
-                                Text("\(totalBogeys) \(totalBogeys == 1 ? "bogey" : "bogeys")")
-                                    .foregroundColor(.red)
-                                Spacer()
-                            }
-                            .font(.system(size: 9))
-                            .padding(.bottom, 2)
-                        }
-
-                        // Expanded round details
-                        if isExpanded && !entry.rounds.isEmpty {
-                            expandedRoundDetail(entry: entry)
-                        }
-                    }
+                    leaderboardRow(entry: entry, index: index, label: labels[index], columns: columns, entries: entries)
                 }
             }
         }
         .padding()
         .background(Color.secondaryGroupedBackground)
         .cornerRadius(12)
+    }
+
+    /// Which optional columns the board has data for.
+    private struct LeaderboardColumns {
+        let hasRounds: Bool
+        let hasThru: Bool
+        let hasToday: Bool
+        let hasMovement: Bool
+
+        init(entries: [LeaderboardEntry]) {
+            hasRounds = entries.contains(where: { !$0.rounds.isEmpty || $0.isOnCourse })
+            hasThru = entries.contains(where: { $0.thruHole != nil || $0.teeTime != nil })
+            hasToday = entries.contains(where: { $0.today != nil })
+            hasMovement = entries.contains(where: { $0.movement != nil && $0.movement != 0 })
+        }
+    }
+
+    private func leaderboardHeader(columns: LeaderboardColumns) -> some View {
+        HStack(spacing: 0) {
+            Text("Pos")
+                .frame(width: positionWidth, alignment: .leading)
+            Color.clear.frame(width: headshotSize + 20)
+            Text("Player")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if columns.hasMovement {
+                Text("+/-")
+                    .frame(width: 36, alignment: .trailing)
+            }
+            if columns.hasToday {
+                Text("Today")
+                    .frame(width: todayWidth, alignment: .trailing)
+            }
+            if columns.hasThru {
+                Text("Thru")
+                    .frame(width: thruWidth, alignment: .trailing)
+            }
+            Text("Score")
+                .frame(width: scoreWidth, alignment: .trailing)
+            if columns.hasRounds {
+                Color.clear.frame(width: 24)
+            }
+        }
+        .font(.caption2)
+        .foregroundColor(.secondary)
+        .padding(.bottom, 4)
+        .accessibilityHidden(true)
+    }
+
+    private func cutDivider(text: String, color: Color) -> some View {
+        HStack(spacing: 8) {
+            Rectangle().fill(color.opacity(0.4)).frame(height: 1)
+            Text(text)
+                .font(.caption2.bold())
+                .foregroundColor(color.opacity(0.8))
+            Rectangle().fill(color.opacity(0.4)).frame(height: 1)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// While the cut round is being played: the first row outside ESPN's projected cut.
+    private func projectedCutIndex(entries: [LeaderboardEntry]) -> (index: Int, score: Int)? {
+        guard let info = game.golfCourseInfo, let cutScore = info.cutScore, let cutRound = info.cutRound,
+              game.strStatus == "in", (game.golfCurrentRound ?? 1) <= cutRound else { return nil }
+        guard let index = entries.firstIndex(where: { (GolfScore.toPar($0.score) ?? .min) > cutScore }), index > 0 else { return nil }
+        return (index, cutScore)
+    }
+
+    @ViewBuilder
+    private func leaderboardRow(entry: LeaderboardEntry, index: Int, label: String, columns: LeaderboardColumns, entries: [LeaderboardEntry]) -> some View {
+        let isLeader = index == 0
+        let isExpanded = expandedPlayers.contains(entry.name)
+        let isFavPlayer = favorites.containsPlayer(entry.name)
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Button {
+                    handleRowTap(entry: entry, entries: entries)
+                } label: {
+                    rowContent(entry: entry, label: label, isLeader: isLeader, isFavPlayer: isFavPlayer,
+                               isExpanded: isExpanded, columns: columns)
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(rowAccessibilityLabel(entry: entry, label: label, isFavorite: isFavPlayer))
+                .accessibilityHint(entry.rounds.isEmpty ? "" : (isExpanded ? "Collapses round details" : "Shows round details"))
+                .accessibilityAction(named: isFavPlayer ? "Remove from Favorites" : "Add to Favorites") {
+                    toggleFavorite(entry.name)
+                }
+                favoriteButton(name: entry.name, isFavorite: isFavPlayer)
+            }
+            .opacity(entry.isCut == true ? 0.5 : 1.0)
+            .background(comparingPlayerName == entry.name ? Color.accentColor.opacity(0.1) : Color.clear)
+            .cornerRadius(4)
+            .contextMenu {
+                Button(isFavPlayer ? "Remove from Favorites" : "Add to Favorites",
+                       systemImage: isFavPlayer ? "star.slash" : "star") {
+                    toggleFavorite(entry.name)
+                }
+                if !entry.rounds.isEmpty {
+                    Button("Compare", systemImage: "arrow.left.arrow.right") {
+                        comparingPlayerName = entry.name
+                    }
+                }
+            }
+
+            inlineStats(entry: entry)
+
+            if isExpanded && (!entry.rounds.isEmpty || entry.isOnCourse) {
+                expandedRoundDetail(entry: entry)
+            }
+        }
+    }
+
+    private func handleRowTap(entry: LeaderboardEntry, entries: [LeaderboardEntry]) {
+        if let comparing = comparingPlayerName {
+            if comparing != entry.name, let playerA = entries.first(where: { $0.name == comparing }) {
+                comparisonPair = (playerA, entry)
+            }
+        } else if !entry.rounds.isEmpty || entry.isOnCourse {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                if expandedPlayers.contains(entry.name) {
+                    expandedPlayers.remove(entry.name)
+                } else {
+                    expandedPlayers.insert(entry.name)
+                }
+            }
+        }
+    }
+
+    private func toggleFavorite(_ name: String) {
+        if favorites.containsPlayer(name) {
+            favorites.removePlayer(name)
+        } else {
+            favorites.addPlayer(name)
+        }
+    }
+
+    /// One tap to follow a player — the long-press menu was the only way before.
+    private func favoriteButton(name: String, isFavorite: Bool) -> some View {
+        Button {
+            toggleFavorite(name)
+        } label: {
+            Image(systemName: isFavorite ? "star.fill" : "star")
+                .font(.caption)
+                .foregroundStyle(isFavorite ? Color.yellow : Color.secondary.opacity(0.5))
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isFavorite ? "Remove \(name) from favorites" : "Add \(name) to favorites")
+        .sensoryFeedback(.selection, trigger: isFavorite)
+    }
+
+    @ViewBuilder
+    private func rowContent(entry: LeaderboardEntry, label: String, isLeader: Bool, isFavPlayer: Bool,
+                            isExpanded: Bool, columns: LeaderboardColumns) -> some View {
+        HStack(spacing: 0) {
+            Text(label)
+                .frame(width: positionWidth, alignment: .leading)
+            HeadshotView(url: entry.headshot, size: headshotSize)
+                .padding(.trailing, 2)
+            Group {
+                if let flagURL = entry.flagURL {
+                    AsyncImage(url: URL(string: flagURL)) { image in
+                        image.resizable().scaledToFit()
+                    } placeholder: {
+                        EmptyView()
+                    }
+                } else {
+                    Color.clear
+                }
+            }
+            .frame(width: 16, height: 11)
+            .padding(.trailing, 2)
+            Text(entry.name)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(1)
+            if entry.isCut == true {
+                Text("CUT")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.red.opacity(0.8))
+                    .clipShape(Capsule())
+                    .padding(.trailing, 2)
+            }
+            if columns.hasMovement {
+                if let movement = entry.movement, movement != 0 {
+                    HStack(spacing: 1) {
+                        Image(systemName: movement < 0 ? "arrow.up" : "arrow.down")
+                        Text("\(abs(movement))")
+                    }
+                    .font(.caption2)
+                    .foregroundColor(movement < 0 ? .green : .red)
+                    .frame(width: 36, alignment: .trailing)
+                } else {
+                    Color.clear.frame(width: 36)
+                }
+            }
+            if columns.hasToday {
+                Text(entry.today ?? "-")
+                    .foregroundColor(entry.today == nil ? .secondary : GolfScoreStyle.color(toPar: entry.today))
+                    .frame(width: todayWidth, alignment: .trailing)
+            }
+            if columns.hasThru {
+                if entry.thruHole == nil, let tee = GolfScoreStyle.teeTimeText(entry) {
+                    Text(tee)
+                        .font(.caption2)
+                        .foregroundColor(.blue)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(width: thruWidth, alignment: .trailing)
+                } else {
+                    Text(entry.thruHole ?? "-")
+                        .frame(width: thruWidth, alignment: .trailing)
+                        .foregroundColor(.secondary)
+                }
+            }
+            Text(entry.score)
+                .foregroundColor(isLeader || isFavPlayer ? GolfScoreStyle.color(toPar: entry.score) : .secondary)
+                .frame(width: scoreWidth, alignment: .trailing)
+            if columns.hasRounds {
+                if !entry.rounds.isEmpty || entry.isOnCourse {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .frame(width: 24)
+                } else {
+                    Color.clear.frame(width: 24)
+                }
+            }
+        }
+        .font(.caption)
+        .fontWeight(isLeader || isFavPlayer ? .bold : .regular)
+        .foregroundColor(isLeader || isFavPlayer ? .primary : .secondary)
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+    }
+
+    /// "Tied 3rd, Scottie Scheffler, 12 under, today 3 under, through 14."
+    private func rowAccessibilityLabel(entry: LeaderboardEntry, label: String, isFavorite: Bool) -> String {
+        var parts = [GolfScoreStyle.spokenPosition(label), entry.name]
+        if isFavorite { parts.append("favorite") }
+        parts.append(spokenToPar(entry.score))
+        if let today = entry.today { parts.append("today \(spokenToPar(today))") }
+        if let thru = entry.thruHole {
+            parts.append(thru == "F" ? "finished round" : "through \(thru.replacingOccurrences(of: "*", with: ""))")
+        } else if let tee = GolfScoreStyle.teeTimeText(entry) {
+            parts.append("tees off \(tee)")
+        }
+        if entry.isCut == true { parts.append("missed the cut") }
+        return parts.joined(separator: ", ")
+    }
+
+    private func spokenToPar(_ text: String) -> String {
+        guard let value = GolfScore.toPar(text) else { return text }
+        if value == 0 { return "even par" }
+        return value < 0 ? "\(-value) under" : "\(value) over"
+    }
+
+    @ViewBuilder
+    private func inlineStats(entry: LeaderboardEntry) -> some View {
+        if let details = entry.roundDetails, !details.isEmpty {
+            let totalBirdies = details.compactMap(\.stats?.birdies).reduce(0, +)
+            let totalBogeys = details.compactMap(\.stats?.bogeys).reduce(0, +)
+            let totalEagles = details.compactMap(\.stats?.eagles).reduce(0, +)
+            let holesInOne = details.flatMap { $0.holeScores ?? [] }.filter { $0.score == 1 }.count
+            HStack(spacing: 4) {
+                Color.clear.frame(width: positionWidth + headshotSize + 20) // align under name
+                if holesInOne > 0 {
+                    Text("\(holesInOne) hole-in-one\(holesInOne > 1 ? "s" : "")")
+                        .foregroundColor(.yellow)
+                        .fontWeight(.bold)
+                    Text("·").foregroundColor(.secondary)
+                }
+                if totalEagles > 0 {
+                    Text("\(totalEagles) \(totalEagles == 1 ? "eagle" : "eagles")")
+                        .foregroundColor(Color(red: 0, green: 0.5, blue: 0.7))
+                    Text("·").foregroundColor(.secondary)
+                }
+                Text("\(totalBirdies) \(totalBirdies == 1 ? "birdie" : "birdies")")
+                    .foregroundColor(.green)
+                Text("·").foregroundColor(.secondary)
+                Text("\(totalBogeys) \(totalBogeys == 1 ? "bogey" : "bogeys")")
+                    .foregroundColor(.red)
+                Spacer()
+            }
+            .font(.caption2)
+            .padding(.bottom, 2)
+            .accessibilityElement(children: .combine)
+        }
     }
 
     // MARK: - Expanded Round Detail
@@ -601,38 +763,24 @@ struct TournamentDetailView: View {
         let hasEnrichment = entry.roundDetails != nil && !(entry.roundDetails?.isEmpty ?? true)
 
         VStack(spacing: 8) {
-            // Sparkline
-            GolfScoreSparkline(rounds: entry.rounds, coursePar: par)
+            // Sparkline (finished rounds only)
+            if !entry.rounds.isEmpty {
+                GolfScoreSparkline(rounds: entry.rounds, coursePar: par)
+            }
 
-            // Round pills
+            // Round pills: finished rounds, then the one being played.
             HStack(spacing: 6) {
                 ForEach(Array(entry.rounds.enumerated()), id: \.offset) { rIndex, round in
                     let score = Int(round)
                     let isBest = score != nil && score == scores.min()
-
-                    VStack(spacing: 2) {
-                        Text("R\(rIndex + 1)")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.8))
-                        Text(round)
-                            .font(.caption.bold())
-                        if let p = par, let s = score {
-                            let diff = s - p
-                            Text(diff == 0 ? "E" : (diff > 0 ? "+\(diff)" : "\(diff)"))
-                                .font(.system(size: 9))
-                        }
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 5)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(roundPillColor(score: score, par: par))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(isBest ? Color.white.opacity(0.6) : Color.clear, lineWidth: 1.5)
-                    )
+                    roundPill(title: "R\(rIndex + 1)", value: round,
+                              detail: par.flatMap { p in score.map { GolfScore.format(toPar: $0 - p) } },
+                              fill: roundPillColor(score: score, par: par), isBest: isBest)
+                }
+                if entry.isOnCourse, let today = entry.today {
+                    roundPill(title: "R\(entry.rounds.count + 1)", value: today,
+                              detail: entry.thruHole.map { "Thru \($0)" }, fill: Color.gray.opacity(0.35), isBest: false)
+                        .accessibilityLabel("Round \(entry.rounds.count + 1) in progress, \(spokenToPar(today))")
                 }
             }
 
@@ -682,7 +830,7 @@ struct TournamentDetailView: View {
                 let total = scores.reduce(0, +)
                 VStack(spacing: 1) {
                     Text("Total")
-                        .font(.system(size: 9))
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                     if let p = par {
                         let totalDiff = total - (p * scores.count)
@@ -698,7 +846,7 @@ struct TournamentDetailView: View {
                 if let best = scores.min(), let bestIdx = scores.firstIndex(of: best) {
                     VStack(spacing: 1) {
                         Text("Best")
-                            .font(.system(size: 9))
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                         if let p = par {
                             let diff = best - p
@@ -718,7 +866,7 @@ struct TournamentDetailView: View {
                     let avg = Double(total) / Double(scores.count)
                     VStack(spacing: 1) {
                         Text("Avg")
-                            .font(.system(size: 9))
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                         Text(String(format: "%.1f", avg))
                             .font(.caption.bold())
@@ -732,13 +880,36 @@ struct TournamentDetailView: View {
         .cornerRadius(8)
     }
 
+    private func roundPill(title: String, value: String, detail: String?, fill: Color, isBest: Bool) -> some View {
+        VStack(spacing: 2) {
+            Text(title)
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.8))
+            Text(value)
+                .font(.caption.bold())
+            if let detail {
+                Text(detail)
+                    .font(.caption2)
+            }
+        }
+        .foregroundColor(.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 6).fill(fill))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(isBest ? Color.white.opacity(0.6) : Color.clear, lineWidth: 1.5)
+        )
+        .accessibilityElement(children: .combine)
+    }
+
     private func inlineStatBadge(count: Int, color: Color) -> some View {
         HStack(spacing: 2) {
             Circle()
                 .fill(color)
                 .frame(width: 6, height: 6)
             Text("\(count)")
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .foregroundColor(color)
         }
     }
@@ -746,16 +917,16 @@ struct TournamentDetailView: View {
     private func statPill(label: String, value: String) -> some View {
         HStack(spacing: 2) {
             Text(label)
-                .font(.system(size: 8))
+                .font(.caption2)
                 .foregroundColor(.secondary)
             Text(value)
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
         }
     }
 
     private func scoringPill(count: Int, label: String, color: Color) -> some View {
         Text("\(count) \(count == 1 ? label : label + "s")")
-            .font(.system(size: 8, weight: .medium))
+            .font(.caption2.weight(.medium))
             .foregroundColor(color)
     }
 
@@ -804,7 +975,8 @@ struct TournamentDetailView: View {
     @ViewBuilder
     private var roundHeatmapSection: some View {
         let entries = game.resolvedLeaderboard
-        let hasRounds = entries.contains(where: { !$0.rounds.isEmpty })
+        // Worth a grid once there's more than one round to compare.
+        let hasRounds = entries.contains(where: { $0.rounds.count >= 2 })
         if hasRounds {
             RoundHeatmapView(entries: entries, coursePar: game.coursePar)
         }
@@ -816,11 +988,25 @@ struct TournamentDetailView: View {
         let eventStore = EKEventStore()
         let event = EKEvent(eventStore: eventStore)
         event.title = game.strHomeTeam
+        event.location = game.golfCourseInfo?.courseName ?? game.venueName
         if let gameDate = game.standardDate {
-            event.startDate = gameDate
-            event.endDate = gameDate.afterHoursFromNow(hours: 4)
+            // A tournament runs Thursday to Sunday: one all-day event across the span.
+            // ESPN's dates are day markers (midnight Eastern, as UTC), so read their UTC
+            // calendar day rather than shifting them into the viewer's zone.
+            let end = game.endDateParsed.map { max($0, gameDate) } ?? gameDate.addingTimeInterval(3 * 24 * 3600)
+            event.isAllDay = true
+            event.startDate = Self.localDay(matching: gameDate)
+            event.endDate = Self.localDay(matching: end).addingTimeInterval(12 * 3600)
         }
         return CalendarRepresentable(eventStore: eventStore, event: event)
+    }
+
+    /// Midnight, in the viewer's calendar, of `date`'s day as written in UTC.
+    private static func localDay(matching date: Date) -> Date {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC") ?? .current
+        let parts = utc.dateComponents([.year, .month, .day], from: date)
+        return Calendar.current.date(from: parts) ?? date
     }
     #endif
 }

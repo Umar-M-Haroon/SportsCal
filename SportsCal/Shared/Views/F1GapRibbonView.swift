@@ -44,6 +44,8 @@ struct F1GapRibbonView: View {
         case time(Double)
         case laps(Int)
         case out
+        /// No value in the feed: listed under the field instead of dropped.
+        case missing
     }
 
     private struct Row: Identifiable {
@@ -55,7 +57,7 @@ struct F1GapRibbonView: View {
             switch gap {
             case .leader: 0
             case .time(let s): s
-            case .laps, .out: nil
+            case .laps, .out, .missing: nil
             }
         }
     }
@@ -65,29 +67,17 @@ struct F1GapRibbonView: View {
             // Unclassified (position 0) sorts after the field.
             (lhs.position == 0 ? Int.max : lhs.position) < (rhs.position == 0 ? Int.max : rhs.position)
         }
-        guard let leader = sorted.first else { return [] }
-        // Sprint qualifying sends absolute lap times with a "+" ("+1:11.608" behind a
-        // "1:11.567" pole). A real gap is never half a lap, so anything that large is a
-        // time: convert it to a gap from the leader's.
-        let leaderTime: Double? = leader.gap.flatMap {
-            if case .time(let t) = Self.parseGap($0) { return t } else { return nil }
-        }
-        func normalized(_ gap: Gap) -> Gap {
-            guard case .time(let value) = gap, let leaderTime, leaderTime > 0, value >= leaderTime * 0.5 else { return gap }
-            return .time(max(value - leaderTime, 0))
-        }
+        // RaceGap turns sprint qualifying's absolute lap times ("+1:11.608" behind a
+        // "1:11.567" pole) into gaps, the same reading the session table uses.
         var timed: [Row] = []
         var trailing: [Row] = []
-        for entry in sorted {
-            if entry == leader {
-                timed.append(Row(entry: entry, gap: .leader))
-                continue
-            }
-            guard let raw = entry.gap else { continue }
-            let gap = normalized(Self.parseGap(raw))
-            switch gap {
-            case .time: timed.append(Row(entry: entry, gap: gap))
-            default: trailing.append(Row(entry: entry, gap: gap))
+        for (entry, reading) in zip(sorted, RaceGap.gaps(for: sorted)) {
+            switch reading {
+            case .leader: timed.append(Row(entry: entry, gap: .leader))
+            case .time(let s), .lapTime(_, let s): timed.append(Row(entry: entry, gap: .time(s)))
+            case .laps(let n): trailing.append(Row(entry: entry, gap: .laps(n)))
+            case .out: trailing.append(Row(entry: entry, gap: .out))
+            case .missing: trailing.append(Row(entry: entry, gap: .missing))
             }
         }
         // Keep the ladder monotonic even if a feed reorders mid-update.
@@ -210,7 +200,7 @@ struct F1GapRibbonView: View {
                             .stroke(color, lineWidth: 1.5)
                             .frame(width: Self.dotSize - 2, height: Self.dotSize - 2)
                             .offset(x: width - Self.dotSize + 1, y: midY - (Self.dotSize - 2) / 2)
-                    case .out:
+                    case .out, .missing:
                         EmptyView()
                     }
                 }
@@ -309,9 +299,10 @@ struct F1GapRibbonView: View {
         case .leader: row.entry.gap ?? "Leader"
         case .time(let seconds):
             // Show the computed gap when the feed sent an absolute time.
-            Self.parseGap(row.entry.gap ?? "") == .time(seconds) ? (row.entry.gap ?? "") : String(format: "+%.3f", seconds)
+            RaceGap.parse(row.entry.gap) == .time(seconds) ? (row.entry.gap ?? "") : String(format: "+%.3f", seconds)
         case .laps: row.entry.gap ?? ""
         case .out: (row.entry.gap ?? "").uppercased() == "RETIRED" ? "DNF" : (row.entry.gap ?? "")
+        case .missing: "—"
         }
     }
 
@@ -323,6 +314,7 @@ struct F1GapRibbonView: View {
         case .time(let s): parts.append(String(format: "%.3f seconds behind", s))
         case .laps(let n): parts.append("\(n) lap\(n == 1 ? "" : "s") down")
         case .out: parts.append(row.entry.gap ?? "not classified")
+        case .missing: parts.append("no time")
         }
         return parts.joined(separator: ", ")
     }
@@ -334,32 +326,6 @@ struct F1GapRibbonView: View {
     private static func formatClock(_ seconds: Double) -> String {
         let minutes = Int(seconds) / 60
         return String(format: "%d:%06.3f", minutes, seconds - Double(minutes * 60))
-    }
-
-    /// Feed formats: "+0.099", "+1:02.345", "+1 Lap", "+2 Laps", "DNF", "DNS", "Retired".
-    private static func parseGap(_ raw: String) -> Gap {
-        let cleaned = raw.trimmingCharacters(in: .whitespaces)
-        if cleaned.lowercased().contains("lap") {
-            let digits = cleaned.filter(\.isNumber)
-            return .laps(Int(digits) ?? 1)
-        }
-        let numeric = cleaned.hasPrefix("+") ? String(cleaned.dropFirst()) : cleaned
-        if let seconds = parseClock(numeric) {
-            return .time(seconds)
-        }
-        return .out
-    }
-
-    /// Parses "ss.sss", "m:ss.sss" or "h:mm:ss.sss" into seconds.
-    private static func parseClock(_ string: String) -> Double? {
-        let components = string.split(separator: ":")
-        guard !components.isEmpty, components.count <= 3 else { return nil }
-        var total = 0.0
-        for component in components {
-            guard let value = Double(component), value >= 0 else { return nil }
-            total = total * 60 + value
-        }
-        return total
     }
 }
 

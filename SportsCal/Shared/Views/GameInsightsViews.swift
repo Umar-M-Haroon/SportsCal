@@ -14,13 +14,16 @@ import SportsCalModel
 // MARK: - Live situation panel
 
 /// The full live state for a detail screen: a large diamond with the count, outs and
-/// matchup in baseball; down, distance, field position and timeouts in football; and
-/// the win-probability split.
+/// matchup in baseball; down, distance, field position and timeouts in football; fouls,
+/// the bonus, timeouts and runs in basketball; power plays and pulled goalies in hockey;
+/// and the win-probability split.
 struct LiveSituationPanel: View {
     let situation: GameSituation
     let sport: SportType?
     let homeName: String
     let awayName: String
+    /// Sets basketball's bonus rule; the NBA's when nil.
+    var league: Leagues? = nil
     private let rawHomeColor: Color
     private let rawAwayColor: Color
 
@@ -28,7 +31,9 @@ struct LiveSituationPanel: View {
     private var homeColor: Color { rawHomeColor.legible(in: environment) }
     private var awayColor: Color { rawAwayColor.legible(in: environment) }
 
-    init(situation: GameSituation, sport: SportType?, homeName: String, awayName: String, homeColor: Color, awayColor: Color) {
+    init(situation: GameSituation, sport: SportType?, homeName: String, awayName: String, homeColor: Color, awayColor: Color,
+         league: Leagues? = nil) {
+        self.league = league
         self.situation = situation
         self.sport = sport
         self.homeName = homeName
@@ -43,6 +48,10 @@ struct LiveSituationPanel: View {
                 baseball
             } else if sport == .nfl, situation.hasFootballState {
                 football
+            } else if sport == .basketball, situation.hasBasketballState {
+                basketball
+            } else if sport == .hockey, situation.hasHoopsHockeyDisplay {
+                hockey
             }
             if let home = situation.homeWinProbability {
                 winProbability(home: home)
@@ -50,7 +59,33 @@ struct LiveSituationPanel: View {
         }
     }
 
+    @ViewBuilder
     private var baseball: some View {
+        if let next = situation.dueUpSide {
+            dueUp(next)
+        } else {
+            atBat
+        }
+    }
+
+    /// Between half-innings: who bats next, instead of the finished half's three outs
+    /// and its last batter.
+    private func dueUp(_ side: GameSituation.Side) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "figure.baseball")
+                .font(.title2)
+                .foregroundStyle(side == .home ? homeColor : awayColor)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("DUE UP").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                Text(side == .home ? homeName : awayName).font(.title3.weight(.semibold))
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(side == .home ? homeName : awayName) due up")
+    }
+
+    private var atBat: some View {
         HStack(alignment: .center, spacing: 16) {
             BaseDiamond(first: situation.onFirst == true, second: situation.onSecond == true,
                         third: situation.onThird == true, size: 44, tint: .primary)
@@ -68,6 +103,11 @@ struct LiveSituationPanel: View {
                             OutsIndicator(outs: outs, dotSize: 9).frame(height: 24)
                         }
                     }
+                }
+                if let batting = situation.inningHalf?.battingSide {
+                    Text("\(batting == .home ? homeName : awayName) batting")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(batting == .home ? homeColor : awayColor)
                 }
                 if let batter = situation.batter {
                     matchupLine(role: "AB", name: batter, line: situation.batterLine)
@@ -90,24 +130,123 @@ struct LiveSituationPanel: View {
                 }
                 Spacer(minLength: 0)
                 if situation.isRedZone == true {
-                    Text("RED ZONE")
-                        .font(.caption2.weight(.heavy))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.red, in: Capsule())
+                    RedZonePill()
                 }
             }
             if let text = situation.downDistanceText ?? situation.shortDownDistanceText {
                 Text(text).font(.title3.weight(.semibold))
             }
+            if let yardLine = situation.yardLine, let possession = situation.possession {
+                FootballFieldView(
+                    yardLine: yardLine, possession: possession, distance: situation.distance,
+                    isRedZone: situation.isRedZone == true,
+                    homeColor: homeColor, awayColor: awayColor
+                )
+            }
+            // An unknown count is left off rather than drawn as none left.
             if situation.homeTimeouts != nil || situation.awayTimeouts != nil {
                 HStack(spacing: 16) {
-                    timeouts(name: awayName, count: situation.awayTimeouts, color: awayColor)
-                    timeouts(name: homeName, count: situation.homeTimeouts, color: homeColor)
+                    if let away = situation.awayTimeouts {
+                        timeouts(name: awayName, count: away, color: awayColor)
+                    }
+                    if let home = situation.homeTimeouts {
+                        timeouts(name: homeName, count: home, color: homeColor)
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var basketball: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                if let side = situation.ballSide {
+                    Label(side == .home ? homeName : awayName, systemImage: "basketball.fill")
+                        .font(.headline)
+                        .foregroundStyle(side == .home ? homeColor : awayColor)
+                        .accessibilityLabel("\(side == .home ? homeName : awayName) ball")
+                }
+                Spacer(minLength: 0)
+                if let side = situation.runSide, let points = situation.runPoints {
+                    SituationChip(text: "\(points)-0 RUN · \(side == .home ? homeName : awayName)", color: .orange)
+                        .accessibilityLabel("\(side == .home ? homeName : awayName) on a \(points) to nothing run")
+                }
+            }
+            if situation.homeFouls != nil || situation.homeTimeouts != nil {
+                VStack(spacing: 6) {
+                    teamFoulsRow(.away, name: awayName, color: awayColor)
+                    teamFoulsRow(.home, name: homeName, color: homeColor)
+                }
+            }
+        }
+    }
+
+    /// "LAL  4 fouls  BONUS  ▮▮▯ timeouts" for one side.
+    private func teamFoulsRow(_ side: GameSituation.Side, name: String, color: Color) -> some View {
+        let fouls = side == .home ? situation.homeFouls : situation.awayFouls
+        let timeoutsLeft = side == .home ? situation.homeTimeouts : situation.awayTimeouts
+        let rules = league ?? .nba
+        let bonus: String? = situation.isInDoubleBonus(side, league: rules) ? "DOUBLE BONUS"
+            : (situation.isInBonus(side, league: rules) == true ? "BONUS" : nil)
+        var spoken = name
+        if let fouls { spoken += ", \(fouls) team foul\(fouls == 1 ? "" : "s")" }
+        if let bonus { spoken += ", in the \(bonus.lowercased())" }
+        if let timeoutsLeft { spoken += ", \(timeoutsLeft) timeout\(timeoutsLeft == 1 ? "" : "s") left" }
+        return HStack(spacing: 10) {
+            Text(name).font(.subheadline.weight(.semibold)).foregroundStyle(color)
+            if let fouls {
+                Text("\(fouls) foul\(fouls == 1 ? "" : "s")").font(.subheadline.monospacedDigit())
+            }
+            if let bonus {
+                Text(bonus).font(.caption2.weight(.heavy)).foregroundStyle(.orange)
+            }
+            Spacer(minLength: 0)
+            if let timeoutsLeft {
+                Text("\(timeoutsLeft) TO").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
+    }
+
+    private var hockey: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let side = situation.powerPlaySide {
+                let team = side == .home ? homeName : awayName
+                HStack(spacing: 8) {
+                    Text("POWER PLAY")
+                        .font(.caption2.weight(.heavy))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange, in: Capsule())
+                    Text(team).font(.headline).foregroundStyle(side == .home ? homeColor : awayColor)
+                    if let strength = situation.strengthText {
+                        Text(strength).font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    if let clock = situation.powerPlayClockText {
+                        Text(clock).font(.title3.weight(.semibold).monospacedDigit())
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(HoopsHockeyStateLine.powerPlayAccessibility(team: team, situation: situation))
+            }
+            if let side = situation.emptyNetSide {
+                let team = side == .home ? homeName : awayName
+                HStack(spacing: 8) {
+                    Text("EMPTY NET")
+                        .font(.caption2.weight(.heavy))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.red, in: Capsule())
+                    Text("\(team) goalie pulled").font(.subheadline)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(team) goalie pulled for an extra attacker")
             }
         }
     }
@@ -151,19 +290,85 @@ struct LiveSituationPanel: View {
         }
     }
 
-    private func timeouts(name: String, count: Int?, color: Color) -> some View {
+    private func timeouts(name: String, count: Int, color: Color) -> some View {
         HStack(spacing: 4) {
             Text(name)
             HStack(spacing: 2) {
                 ForEach(0..<3, id: \.self) { index in
                     Capsule()
-                        .fill(index < (count ?? 0) ? color : Color.secondary.opacity(0.25))
+                        .fill(index < count ? color : Color.secondary.opacity(0.25))
                         .frame(width: 10, height: 3)
                 }
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(name), \(count ?? 0) timeouts left")
+        .accessibilityLabel("\(name), \(count) timeout\(count == 1 ? "" : "s") left")
+    }
+}
+
+// MARK: - Football field
+
+/// A strip of field: the ball at its spot, the line to gain, and the red zone the
+/// offense is driving at. Away's end zone is on the left, matching the away-left
+/// rows; ESPN's `yardLine` counts from the home goal line (0) to the away one (100).
+struct FootballFieldView: View {
+    let yardLine: Int
+    let possession: GameSituation.Side
+    let distance: Int?
+    let isRedZone: Bool
+    let homeColor: Color
+    let awayColor: Color
+
+    /// 0...1 from the left edge of the playing field (between the end zones).
+    private func position(_ line: Int) -> CGFloat {
+        CGFloat(100 - min(max(line, 0), 100)) / 100
+    }
+
+    /// Home drives toward yardLine 100 (left), away toward 0 (right).
+    private var lineToGain: Int? {
+        guard let distance, distance > 0 else { return nil }
+        let target = possession == .home ? yardLine + distance : yardLine - distance
+        return min(max(target, 0), 100)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let endZone = proxy.size.width * 0.08
+            let field = proxy.size.width - endZone * 2
+            let x: (Int) -> CGFloat = { endZone + field * position($0) }
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 4).fill(Color.green.opacity(0.18))
+                // End zones: away on the left, home on the right.
+                Rectangle().fill(awayColor.opacity(0.55)).frame(width: endZone)
+                Rectangle().fill(homeColor.opacity(0.55)).frame(width: endZone)
+                    .offset(x: endZone + field)
+                // The red zone the offense is attacking: the 20 yards before the far goal.
+                Rectangle()
+                    .fill(Color.red.opacity(isRedZone ? 0.28 : 0.1))
+                    .frame(width: field * 0.2)
+                    .offset(x: possession == .home ? endZone : endZone + field * 0.8)
+                ForEach([10, 20, 30, 40, 50, 60, 70, 80, 90], id: \.self) { line in
+                    Rectangle()
+                        .fill(Color.primary.opacity(line == 50 ? 0.35 : 0.15))
+                        .frame(width: 1)
+                        .offset(x: x(line))
+                }
+                if let gain = lineToGain {
+                    Rectangle()
+                        .fill(Color.yellow)
+                        .frame(width: 2)
+                        .offset(x: x(gain) - 1)
+                }
+                Image(systemName: "football.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(possession == .home ? homeColor : awayColor)
+                    .shadow(color: .black.opacity(0.25), radius: 1)
+                    .offset(x: x(yardLine) - 7)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .frame(height: 26)
+        .accessibilityHidden(true)
     }
 }
 

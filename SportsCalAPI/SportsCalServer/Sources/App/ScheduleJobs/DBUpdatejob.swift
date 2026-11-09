@@ -291,7 +291,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                         if let date = game.getDate(), date.timeIntervalSinceNow > 0 {
                             // Only include essential fields - strSport/strLeague are computed from idLeague
                             // Deprecated fields removed: strPlayer, idPlayer, intEventScore, intEventScoreTotal, strEventTime, dateEvent, updated
-                            let newGame = Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: game.idHomeTeam, idAwayTeam: game.idAwayTeam, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: nil, intAwayScore: nil, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: game.strStatus, strProgress: game.strProgress, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: game.strTimestamp, isoDate: game.getDate(), season: game.season, seasonPhase: game.seasonPhase)
+                            let newGame = Game(idLiveScore: game.idLiveScore, idEvent: game.idEvent, strSport: nil, idLeague: game.idLeague, strLeague: nil, idHomeTeam: game.idHomeTeam, idAwayTeam: game.idAwayTeam, strHomeTeam: game.strHomeTeam, strAwayTeam: game.strAwayTeam, strHomeTeamBadge: game.strHomeTeamBadge, strAwayTeamBadge: game.strAwayTeamBadge, intHomeScore: nil, intAwayScore: nil, strPlayer: nil, idPlayer: nil, intEventScore: nil, intEventScoreTotal: nil, strStatus: game.strStatus, strProgress: game.strProgress, strEventTime: nil, dateEvent: nil, updated: nil, strTimestamp: game.strTimestamp, isoDate: game.getDate(), season: game.season, seasonPhase: game.seasonPhase, sportsDBRound: game.sportsDBRound, scoreboardExtras: game.scoreboardExtras)
                             return newGame
                         }
                         return game
@@ -407,9 +407,15 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                     }
                     // Fetch timing/gap data for all completed sessions
                     let f1TimingMap = await ESPNNetworking.getF1TimingMap(req: context.application.client, scoreboards: espnScoreboards)
+                    // Race distances and Jolpica classifications, cached by F1EnrichmentJob.
+                    let f1RaceLaps = (try? await context.application.redis.get(
+                        RedisEndpoint.ESPN.f1RaceLaps.getValue(isDebug: isDebug), asJSON: [String: Int].self)) ?? [:]
+                    let f1RoundResults = (try? await context.application.redis.get(
+                        RedisEndpoint.ESPN.f1RoundResults.getValue(isDebug: isDebug), asJSON: [F1RoundResults].self)) ?? []
                     var espnRacingGames: [Game] = []
                     for scoreboard in espnScoreboards {
-                        if let liveEvent = LiveEvent(events: scoreboard, league: .formula1, constructorMap: f1ConstructorMap, timingMap: f1TimingMap) {
+                        if let liveEvent = LiveEvent(events: scoreboard, league: .formula1, constructorMap: f1ConstructorMap,
+                                                     timingMap: f1TimingMap, raceLaps: f1RaceLaps) {
                             espnRacingGames.append(contentsOf: liveEvent.events)
                         }
                     }
@@ -498,6 +504,11 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                             }
                             schedule.racing = LiveEvent(events: racingGames)
                         }
+                    }
+                    // Fill what ESPN's per-driver calls missed (P8+ gaps, teams) and add Q1–Q3.
+                    if let racingGames = schedule.racing?.events,
+                       let enriched = F1EnrichmentJob.applyRaceResults(to: racingGames, results: f1RoundResults, laps: f1RaceLaps) {
+                        schedule.racing = LiveEvent(events: enriched)
                     }
                     Self.logger.info("Schedule loaded", metadata: ["sport": "racing", "events": "\(schedule.racing?.events.count ?? 0)", "constructors": "\(f1ConstructorMap.count)", "timingCompetitions": "\(f1TimingMap.count)"])
                 default:
@@ -1010,16 +1021,20 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                 awayTeamColor: espnGame.awayTeamColor ?? scheduleGame.awayTeamColor,
                 homeRecord: espnGame.homeRecord ?? scheduleGame.homeRecord,
                 awayRecord: espnGame.awayRecord ?? scheduleGame.awayRecord,
-                homeSeed: espnGame.homeSeed ?? scheduleGame.homeSeed,
-                awaySeed: espnGame.awaySeed ?? scheduleGame.awaySeed,
+                // College ranks come only from ESPN, so its nil is final: a team that
+                // drops out of the Top 25 must not keep the schedule's old number.
+                homeSeed: Game.mergedSeed(fresh: espnGame.homeSeed, stale: scheduleGame.homeSeed, idLeague: scheduleGame.idLeague),
+                awaySeed: Game.mergedSeed(fresh: espnGame.awaySeed, stale: scheduleGame.awaySeed, idLeague: scheduleGame.idLeague),
                 homeConference: espnGame.homeConference ?? scheduleGame.homeConference,
                 awayConference: espnGame.awayConference ?? scheduleGame.awayConference,
                 playoff: espnGame.playoff ?? scheduleGame.playoff,
                 season: scheduleGame.season ?? espnGame.season,
                 // ESPN's season.type is authoritative; TheSportsDB's round codes are the fallback.
                 seasonPhase: espnGame.seasonPhase ?? scheduleGame.seasonPhase,
+                sportsDBRound: scheduleGame.sportsDBRound ?? espnGame.sportsDBRound,
                 situation: espnGame.situation,
-                excitement: espnGame.excitement ?? scheduleGame.excitement
+                excitement: espnGame.excitement ?? scheduleGame.excitement,
+                scoreboardExtras: espnGame.scoreboardExtras ?? scheduleGame.scoreboardExtras
             )
         }
 

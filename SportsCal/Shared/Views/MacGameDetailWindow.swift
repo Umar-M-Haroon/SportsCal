@@ -67,7 +67,7 @@ struct GameDetailWindow: View {
         #if os(macOS)
         .frame(minWidth: 380, idealWidth: 460, minHeight: 480, idealHeight: 660)
         #endif
-        .navigationTitle(game.map { "\($0.strAwayTeam) @ \($0.strHomeTeam)" } ?? "Game")
+        .navigationTitle(game.map { $0.matchupTitle } ?? "Game")
         .onChange(of: game, initial: true) { _, newGame in
             if let newGame { lastGame = newGame }
         }

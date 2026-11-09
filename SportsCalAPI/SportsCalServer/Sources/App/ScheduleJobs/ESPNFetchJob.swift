@@ -157,6 +157,11 @@ struct ESPNFetchJob: AsyncScheduledJob {
             newResult = result
         }
 
+        // The rebuild is ESPN's scoreboard, which never has basketball fouls and runs or
+        // hockey strength: carry them over from the snapshot it replaces (this tick's
+        // play-by-play pass then refreshes the basketball ones).
+        newResult = newResult.map { LiveMerge.carryingSupplementalState(into: $0, from: latestLiveResult) }
+
         // The schedule bridges ESPN event IDs to TheSportsDB ones for play-by-play keys,
         // and is the base the forward-window merge writes onto. Decoded once here; the
         // final write reuses it unless another job wrote the schedule in between.
@@ -166,12 +171,31 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // merged in) BEFORE team ID translation strips `lastPlayScoreboardID` off rebuilt games.
         // Writes to SQLite / Redis under PBP-{id}, and hands back the excitement score of each
         // finished game so the schedule can carry it.
+        //
+        // The ESPN-only basketball leagues (NCAA Tournament, WNBA) are fetched here so their
+        // games get play-by-play under their own ESPN slug, but only join the basketball
+        // bucket after ID translation (below). Their excitement is stamped on directly.
+        var espnOnlyBasketball: [LiveEvent] = []
+        for league in [Leagues.ncaaMBBTournament, .wnba] where active?.contains(league) ?? true {
+            guard let scoreboard = try? await Integrator.getESPNScoreboard(for: league, context.application.client),
+                  let liveEvent = LiveEvent(events: scoreboard, league: league) else { continue }
+            let carried = LiveMerge.carryingSupplementalState(into: LiveScore(nba: liveEvent), from: latestLiveResult)
+            espnOnlyBasketball.append(carried.nba ?? liveEvent)
+        }
+        //
+        // Live basketball games also get their fouls, timeouts and current run, counted
+        // from those plays (ESPN's scoreboard has none of them).
         if let current = newResult {
-            let excitement = await enrichWithPlays(
-                from: current, schedule: scheduleSnapshot?.schedule, context: context, isDebug: isDebug
+            let enrichment = await enrichWithPlays(
+                from: current, extraBasketball: espnOnlyBasketball.flatMap(\.events),
+                schedule: scheduleSnapshot?.schedule, context: context, isDebug: isDebug
             )
-            if !excitement.isEmpty {
-                newResult = Self.applyingExcitement(excitement, to: current)
+            if !enrichment.excitement.isEmpty || !enrichment.tallies.isEmpty {
+                newResult = Self.applyingTallies(enrichment.tallies, to: Self.applyingExcitement(enrichment.excitement, to: current))
+                espnOnlyBasketball = espnOnlyBasketball.map { event in
+                    let score = Self.applyingExcitement(enrichment.excitement, to: LiveScore(nba: event))
+                    return Self.applyingTallies(enrichment.tallies, to: score).nba ?? event
+                }
             }
         }
 
@@ -185,9 +209,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // Merge the ESPN-only basketball leagues (NCAA Tournament, WNBA) into the
         // basketball bucket AFTER ID translation to avoid their ESPN IDs being
         // incorrectly mapped to NBA TheSportsDB IDs.
-        for league in [Leagues.ncaaMBBTournament, .wnba] where active?.contains(league) ?? true {
-            guard let scoreboard = try? await Integrator.getESPNScoreboard(for: league, context.application.client),
-                  let liveEvent = LiveEvent(events: scoreboard, league: league) else { continue }
+        for liveEvent in espnOnlyBasketball {
             var result = newResult ?? LiveScore()
             result.nba = LiveEvent.merging(result.nba, liveEvent)
             newResult = result
@@ -338,20 +360,34 @@ struct ESPNFetchJob: AsyncScheduledJob {
     ///
     /// Conditional on `lastPlay.id` from the scoreboard — if the cached ID already matches,
     /// we skip the ESPN call entirely. Bounded at 6 concurrent fetches to keep ESPN load low.
-    @discardableResult
+    /// What one play-by-play pass hands back, by ESPN event ID.
+    struct PBPEnrichment {
+        var excitement: [String: Int] = [:]
+        var tallies: [String: BasketballPlayTally] = [:]
+
+        mutating func record(_ scored: ScoredEvent?) {
+            guard let scored else { return }
+            if let score = scored.score { excitement[scored.eventID] = score }
+            if let tally = scored.tally { tallies[scored.eventID] = tally }
+        }
+    }
+
     private func enrichWithPlays(
         from liveScore: LiveScore,
+        extraBasketball: [Game] = [],
         schedule: LiveScore?,
         context: Queues.QueueContext,
         isDebug: Bool
-    ) async -> [String: Int] {
+    ) async -> PBPEnrichment {
         // The iOS client carries TheSportsDB event IDs after the schedule merge, while
         // espnResult carries ESPN IDs. The caller's schedule bridges them.
 
         var candidates: [PBPCandidate] = []
-        for game in liveScore.nba?.events ?? [] where shouldEnrichPBP(game) {
+        // Each basketball game is fetched under its own league's slug: a WNBA or NCAA event
+        // ID asked of the "nba" summary comes back empty (or as some other game).
+        for game in (liveScore.nba?.events ?? []) + extraBasketball where shouldEnrichPBP(game) {
             candidates.append(PBPCandidate(
-                game: game, sport: "basketball", league: "nba",
+                game: game, sport: "basketball", league: Self.basketballSlug(for: game),
                 tsdbEventID: findTSDBEventID(for: game, in: schedule?.nba?.events)
             ))
         }
@@ -416,12 +452,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
         candidates += collegeGrant.granted
 
         // Games that needed nothing still report their excitement.
-        var excitementByEvent: [String: Int] = [:]
+        var enrichment = PBPEnrichment()
         for case .skipped(let scored?) in collegeSkips.values {
-            excitementByEvent[scored.eventID] = scored.score
+            enrichment.record(scored)
         }
 
-        guard !candidates.isEmpty else { return excitementByEvent }
+        guard !candidates.isEmpty else { return enrichment }
 
         // Merge new [tsdbID → espnID/sport/league] into the persistent ESPN-Event-Map so the
         // /plays/:eventID on-demand path can resolve a client-supplied TSDB ID back to ESPN.
@@ -451,10 +487,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 switch result {
                 case .fetched(let scored):
                     fetched += 1
-                    if let scored { excitementByEvent[scored.eventID] = scored.score }
+                    enrichment.record(scored)
                 case .skipped(let scored):
                     skipped += 1
-                    if let scored { excitementByEvent[scored.eventID] = scored.score }
+                    enrichment.record(scored)
                 case .failed:
                     failed += 1
                 }
@@ -472,7 +508,23 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 "deferred": "\(collegeGrant.deferred)",
             ])
         }
-        return excitementByEvent
+        return enrichment
+    }
+
+    /// Stamps each live basketball game's play-by-play tally (fouls, timeouts, run) onto
+    /// its situation, by ESPN event ID.
+    static func applyingTallies(_ tallies: [String: BasketballPlayTally], to liveScore: LiveScore) -> LiveScore {
+        guard !tallies.isEmpty, let events = liveScore.nba?.events else { return liveScore }
+        var result = liveScore
+        result.nba = LiveEvent(events: events.map { game in
+            guard game.strStatus == "in", let id = game.idEvent, let tally = tallies[id],
+                  var situation = game.situation else { return game }
+            tally.apply(to: &situation)
+            var stamped = game
+            stamped.situation = situation
+            return stamped
+        })
+        return result
     }
 
     /// Stamps each game's excitement score onto the snapshot, by ESPN event ID.
@@ -490,6 +542,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
         return result
     }
 
+    /// The ESPN league slug for a basketball game: "nba", "wnba" or
+    /// "mens-college-basketball", from its `idLeague`.
+    static func basketballSlug(for game: Game) -> String {
+        game.idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))?.espnSlug ?? "nba"
+    }
+
     /// Whether a game should be considered for PBP enrichment.
     /// Live in-progress games always qualify. Completed games qualify once (to capture the
     /// full final PBP) — callers must additionally check the Redis cache to avoid re-fetching.
@@ -500,10 +558,11 @@ struct ESPNFetchJob: AsyncScheduledJob {
         return false
     }
 
-    /// An excitement score for one event, by its ESPN ID.
-    private struct ScoredEvent {
+    /// An excitement score (finals) or a basketball tally (live) for one event, by its ESPN ID.
+    struct ScoredEvent {
         let eventID: String
-        let score: Int
+        let score: Int?
+        var tally: BasketballPlayTally? = nil
     }
 
     private enum PBPResult {
@@ -588,8 +647,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
         }
         let cached = try? await context.application.redis.get(primaryKey, asJSON: CachedPlays.self)
         let isFinal = (candidate.game.strStatus == "post" && candidate.game.isCompleted == true)
-        func scored(_ score: Int?) -> ScoredEvent? {
-            score.map { ScoredEvent(eventID: espnEventID, score: $0) }
+        func scored(_ score: Int?, tally: BasketballPlayTally? = nil) -> ScoredEvent? {
+            guard score != nil || tally != nil else { return nil }
+            return ScoredEvent(eventID: espnEventID, score: score, tally: tally)
         }
 
         // The cached snapshot matches the current scoreboard lastPlay.id AND its finality
@@ -599,7 +659,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
            let currentLastPlayID = candidate.game.lastPlayScoreboardID,
            cached.lastPlayId == currentLastPlayID,
            cached.isFinal == isFinal {
-            return .skipped(scored(cached.excitement))
+            return .skipped(scored(cached.excitement, tally: isFinal ? nil : cached.basketballTally))
         }
 
         // A final game is moved to the archive and dropped from Redis, so the check above
@@ -635,8 +695,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
         }
 
         let isFinal = (candidate.game.strStatus == "post" && candidate.game.isCompleted == true)
-        func scored(_ score: Int?) -> ScoredEvent? {
-            score.map { ScoredEvent(eventID: espnEventID, score: $0) }
+        func scored(_ score: Int?, tally: BasketballPlayTally? = nil) -> ScoredEvent? {
+            guard score != nil || tally != nil else { return nil }
+            return ScoredEvent(eventID: espnEventID, score: score, tally: tally)
         }
 
         do {
@@ -652,7 +713,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             let clientFacingID = candidate.tsdbEventID ?? espnEventID
             let league = candidate.game.idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))
             let extras = summary.extras(league: league, isFinal: isFinal)
-            let payload = CachedPlays(
+            var payload = CachedPlays(
                 eventID: clientFacingID,
                 // The skip check compares this to the scoreboard's lastPlay.id. Drive play
                 // IDs aren't guaranteed to share that format, so for football record the
@@ -663,10 +724,18 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 plays: plays,
                 isFinal: isFinal,
                 fetchedAt: Date(),
-                winProbability: extras.winProbability,
-                teamStats: extras.teamStats,
-                excitement: extras.excitement
+                extras: extras
             )
+            payload.apply(extras)
+            // Fouls and timeouts need each play's team, which the cached plays don't keep;
+            // count them now (ESPN team IDs: this runs before the TheSportsDB translation).
+            if candidate.sport == "basketball", !isFinal {
+                payload.basketballTally = BasketballPlayTally(
+                    plays: plays, teamIDs: summary.playTeamIDs ?? [],
+                    homeTeamID: candidate.game.idHomeTeam, awayTeamID: candidate.game.idAwayTeam,
+                    league: league
+                )
+            }
             if isFinal {
                 // Final state: persist to the SQLite archive (durable, no TTL) and flush the
                 // hot Redis keys so we don't double-store the same blob. Falls back to a Redis
@@ -715,7 +784,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                     )
                 }
             }
-            return .fetched(scored(extras.excitement))
+            return .fetched(scored(extras.excitement, tally: payload.basketballTally))
         } catch {
             Self.logger.debug("PBP fetch failed", metadata: [
                 "sport": "\(candidate.sport)",
@@ -1154,7 +1223,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
     /// Live Activity `awayTeam` attribute for F1. Must match the app's
     /// `GameViewModel.raceActivitySubtitle` so update matching agrees.
     static func raceActivitySubtitle(for game: Game) -> String {
-        game.racingSeries?.leagueName ?? "Formula 1"
+        if let tour = game.golfTour { return tour.leagueName }
+        return game.racingSeries?.leagueName ?? "Formula 1"
     }
 
     static func sendPushToStartNotification(
@@ -1173,12 +1243,15 @@ struct ESPNFetchJob: AsyncScheduledJob {
     ) async {
         guard let eventID = game.idEvent else { return }
         let homeTeam = game.strHomeTeam
-        // F1's strAwayTeam is whoever leads right now; a static attribute would freeze it.
-        let awayTeam = game.isRace ? Self.raceActivitySubtitle(for: game) : game.strAwayTeam
+        // F1's and golf's strAwayTeam is whoever leads right now; a static attribute would
+        // freeze it. Golf follows the tour's board; the app names a player when one is a favourite.
+        let awayTeam = game.usesLeaderboardActivity ? Self.raceActivitySubtitle(for: game) : game.strAwayTeam
         // Validate the ID-based lookup by name to guard against cross-sport ID collisions
         // (e.g. ESPN NBA ID 18 ≠ ESPN NHL ID 18 — a wrong translation would return "LAC"
         // for the Knicks). Fall back to name-based lookup if the ID resolves to a different team.
-        let homeTeamShort = game.idHomeTeam.flatMap { id -> String? in
+        // Races have no team code: label the island with the series ("INDY", "WEC").
+        let raceShort: String? = game.isRace ? LiveActivityRace.seriesCode(for: game) : nil
+        let homeTeamShort = raceShort ?? game.idHomeTeam.flatMap { id -> String? in
             guard teamNameByID[id] == homeTeam else { return nil }
             return teamShortByID[id]
         } ?? teamShortByName[homeTeam]
@@ -1210,15 +1283,18 @@ struct ESPNFetchJob: AsyncScheduledJob {
             homeTeamShort: homeTeamShort,
             awayTeamShort: awayTeamShort
         )
+        let tennisSets = game.isTennisMatch ? game.tennisSetsWon : nil
         let contentState = ContentState(
-            homeScore: Int(game.intHomeScore ?? "") ?? 0,
-            awayScore: Int(game.intAwayScore ?? "") ?? 0,
+            homeScore: tennisSets?.home ?? Int(game.intHomeScore ?? "") ?? 0,
+            awayScore: tennisSets?.away ?? Int(game.intAwayScore ?? "") ?? 0,
             status: game.strStatus,
             progress: game.strProgress,
-            // F1's lastPlay is the full leaderboard: too big for APNS, and `race` covers it.
-            lastPlay: game.isRace ? nil : game.lastPlay,
+            // F1's and golf's lastPlay is the full leaderboard: too big for APNS, and
+            // `race` covers it.
+            lastPlay: game.usesLeaderboardActivity || game.isTennisMatch ? nil : game.lastPlay,
             situation: LiveActivitySituation(game.situation),
-            race: game.isRace ? LiveActivityRace(game: game, standings: nil) : nil
+            race: APNSJob.leaderboardContent(event: game, f1Standings: nil, following: awayTeam),
+            tennis: LiveActivityTennis(game: game)
         )
 
         do {
@@ -1231,8 +1307,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
                     appID: "com.KomodoLLC.SportsCal",
                     attributes: attributes,
                     contentState: contentState,
-                    alertTitle: game.isRace ? homeTeam : "\(homeTeam) vs \(awayTeam)",
-                    alertBody: game.isRace ? "Session is live" : "Game is starting now!",
+                    alertTitle: game.usesLeaderboardActivity ? homeTeam : "\(homeTeam) vs \(awayTeam)",
+                    alertBody: game.isRace ? "Session is live"
+                        : (game.golfTour != nil ? "Play is under way" : (game.isTennisMatch ? "Match is starting now!" : "Game is starting now!")),
                     timestamp: Int(clock.now.timeIntervalSince1970),
                     environment: env
                 )
@@ -1667,7 +1744,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 isCompleted: espnGame.isCompleted ?? scheduleGame.isCompleted,
                 isoDate: scheduleGame.isoDate,
                 leaderboardEntries: espnGame.leaderboardEntries ?? scheduleGame.leaderboardEntries,
-                sessions: espnGame.sessions ?? scheduleGame.sessions,
+                // Live ticks rebuild sessions from ESPN alone: keep the teams, gaps,
+                // qualifying times and race distance the schedule build added.
+                sessions: espnGame.sessions?.carryingEnrichment(from: scheduleGame.sessions) ?? scheduleGame.sessions,
                 venueName: scheduleGame.venueName ?? espnGame.venueName,
                 homeTeamColor: espnGame.homeTeamColor ?? scheduleGame.homeTeamColor,
                 awayTeamColor: espnGame.awayTeamColor ?? scheduleGame.awayTeamColor,
@@ -1676,11 +1755,15 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 circuitInfo: scheduleGame.circuitInfo ?? espnGame.circuitInfo,
                 // Golf course + pars come only from ESPN; without this the merge stripped
                 // the scorecard off every matched tournament.
-                golfCourseInfo: espnGame.golfCourseInfo ?? scheduleGame.golfCourseInfo,
+                // ESPN's scoreboard has no purse/cut/defending champion: keep the
+                // enrichment job's context on top of each fresh copy.
+                golfCourseInfo: espnGame.golfCourseInfo?.withContext(from: scheduleGame.golfCourseInfo) ?? scheduleGame.golfCourseInfo,
                 legDisplay: espnGame.legDisplay ?? scheduleGame.legDisplay,
                 aggregateScore: espnGame.aggregateScore ?? scheduleGame.aggregateScore,
-                homeSeed: espnGame.homeSeed ?? scheduleGame.homeSeed,
-                awaySeed: espnGame.awaySeed ?? scheduleGame.awaySeed,
+                // College ranks come only from ESPN, so its nil is final: a team that
+                // drops out of the Top 25 must not keep the schedule's old number.
+                homeSeed: Game.mergedSeed(fresh: espnGame.homeSeed, stale: scheduleGame.homeSeed, idLeague: scheduleGame.idLeague),
+                awaySeed: Game.mergedSeed(fresh: espnGame.awaySeed, stale: scheduleGame.awaySeed, idLeague: scheduleGame.idLeague),
                 homeConference: espnGame.homeConference ?? scheduleGame.homeConference,
                 awayConference: espnGame.awayConference ?? scheduleGame.awayConference,
                 // Preserve tournament identity from the structured schedule — without this the
@@ -1703,11 +1786,15 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 season: scheduleGame.season ?? espnGame.season,
                 // ESPN's season.type is authoritative; TheSportsDB's round codes are the fallback.
                 seasonPhase: espnGame.seasonPhase ?? scheduleGame.seasonPhase,
+                sportsDBRound: scheduleGame.sportsDBRound ?? espnGame.sportsDBRound,
                 // Live-only, so ESPN's or nothing: a schedule copy is a stale snapshot.
                 situation: espnGame.situation,
                 // Sticky: ESPN drops a game off its board a day after it ends, and the
                 // schedule copy is then the only place the score lives.
-                excitement: espnGame.excitement ?? scheduleGame.excitement
+                excitement: espnGame.excitement ?? scheduleGame.excitement,
+                // ESPN's copy whole (a fresh nil winner beats a stale one); the schedule's
+                // only once ESPN has dropped the game off its board.
+                scoreboardExtras: espnGame.scoreboardExtras ?? scheduleGame.scoreboardExtras
             )
         }
 
@@ -1807,7 +1894,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             if let foundEvent = events.first(where: {$0.strHomeTeam == event.strHomeTeam && $0.strAwayTeam == event.strAwayTeam}) {
                 // Only include essential fields - strSport/strLeague are computed from idLeague
                 // Deprecated fields removed: strPlayer, idPlayer, intEventScore, intEventScoreTotal, strEventTime, dateEvent, updated
-                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, homeConference: event.homeConference ?? foundEvent.homeConference, awayConference: event.awayConference ?? foundEvent.awayConference, tournamentName: foundEvent.tournamentName ?? event.tournamentName, round: foundEvent.round ?? event.round, drawSlug: foundEvent.drawSlug ?? event.drawSlug, playoff: event.playoff, season: foundEvent.season ?? event.season, seasonPhase: event.seasonPhase ?? foundEvent.seasonPhase, situation: event.situation, excitement: event.excitement ?? foundEvent.excitement)
+                return Game(idLiveScore: foundEvent.idLiveScore, idEvent: foundEvent.idEvent, strSport: nil, idLeague: foundEvent.idLeague, strLeague: nil, idHomeTeam: foundEvent.idHomeTeam, idAwayTeam: foundEvent.idAwayTeam, strHomeTeam: foundEvent.strHomeTeam, strAwayTeam: foundEvent.strAwayTeam, strHomeTeamBadge: foundEvent.strHomeTeamBadge, strAwayTeamBadge: foundEvent.strAwayTeamBadge, intHomeScore: event.intHomeScore, intAwayScore: event.intAwayScore, strStatus: event.strStatus, strProgress: event.strProgress, strTimestamp: foundEvent.strTimestamp, lastPlay: event.lastPlay, homeLinescores: event.homeLinescores, awayLinescores: event.awayLinescores, homeLeaders: event.homeLeaders, awayLeaders: event.awayLeaders, isCompleted: event.isCompleted, isoDate: Game.getDate(timestamp: foundEvent.strTimestamp), leaderboardEntries: event.leaderboardEntries, sessions: event.sessions, venueName: event.venueName, homeTeamColor: event.homeTeamColor, awayTeamColor: event.awayTeamColor, homeRecord: event.homeRecord, awayRecord: event.awayRecord, legDisplay: event.legDisplay, aggregateScore: event.aggregateScore, homeSeed: event.homeSeed, awaySeed: event.awaySeed, homeConference: event.homeConference ?? foundEvent.homeConference, awayConference: event.awayConference ?? foundEvent.awayConference, tournamentName: foundEvent.tournamentName ?? event.tournamentName, round: foundEvent.round ?? event.round, drawSlug: foundEvent.drawSlug ?? event.drawSlug, playoff: event.playoff, season: foundEvent.season ?? event.season, seasonPhase: event.seasonPhase ?? foundEvent.seasonPhase, sportsDBRound: foundEvent.sportsDBRound ?? event.sportsDBRound, situation: event.situation, excitement: event.excitement ?? foundEvent.excitement, scoreboardExtras: event.scoreboardExtras ?? foundEvent.scoreboardExtras)
             } else {
                 return event
             }

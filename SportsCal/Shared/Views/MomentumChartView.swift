@@ -49,16 +49,11 @@ struct MomentumChartView: View {
         return max(game.homeLinescores?.count ?? 0, game.awayLinescores?.count ?? 0)
     }
 
-    /// Expected length of a regulation period (in seconds) for clock-based X positioning.
-    /// Overtime/extra periods fall back to linear index since lengths vary by league/season.
+    /// Expected length of a period (in seconds) for clock-based X positioning: NBA 12,
+    /// WNBA 10, NCAA 20-minute halves, NHL OT 5 in the regular season and 20 in the
+    /// playoffs. Nil (MLB, untimed OT) falls back to the play's order in the period.
     private func periodLengthSeconds(period: Int) -> Double? {
-        guard let sport = game.sportType else { return nil }
-        switch sport {
-        case .basketball: return period <= 4 ? 12 * 60 : 5 * 60   // OT is 5 min
-        case .nfl:        return period <= 4 ? 15 * 60 : 10 * 60  // OT is 10 min
-        case .hockey:     return period <= 3 ? 20 * 60 : 5 * 60   // OT is 5 min
-        default:          return nil                               // MLB has no clock
-        }
+        game.leagueValue?.periodLengthSeconds(period, phase: game.resolvedSeasonPhase)
     }
 
     /// Parses ESPN clock strings like "11:42" or "3:08" into seconds remaining.

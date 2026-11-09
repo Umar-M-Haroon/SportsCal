@@ -205,21 +205,27 @@ struct APNSJob: AsyncScheduledJob {
     ) async {
         let registration = decodeRegistration(from: rawValue)
         guard let event = matchEvent(events: events, registration: registration) else { return }
-        // F1 has no scores (intHomeScore is nil): it carries the running order in `race`
-        // instead, and never `lastPlay`, which for F1 is the whole leaderboard.
+        // Races and golf have no scores (intHomeScore is nil): they carry the running
+        // order in `race` instead, and never `lastPlay`, which for them is the whole
+        // leaderboard. Tennis has no score either: sets won stand in, the games in `tennis`.
         let homeScore: Int
         let awayScore: Int
-        if event.isRace {
+        if event.usesLeaderboardActivity {
             homeScore = 0
             awayScore = 0
+        } else if event.isTennisMatch {
+            let sets = event.tennisSetsWon
+            homeScore = sets.home
+            awayScore = sets.away
         } else {
             guard let home = Int(event.intHomeScore ?? ""),
                   let away = Int(event.intAwayScore ?? "") else { return }
             homeScore = home
             awayScore = away
         }
-        let race = event.isRace ? LiveActivityRace(game: event, standings: f1Standings) : nil
-        let lastPlay = event.isRace ? nil : event.lastPlay
+        let race = Self.leaderboardContent(event: event, f1Standings: f1Standings, following: registration.awayTeam)
+        let tennis = LiveActivityTennis(game: event)
+        let lastPlay = event.usesLeaderboardActivity || event.isTennisMatch ? nil : event.lastPlay
 
         let tokenString = tokenFromKey(key, prefix: keyPrefix)
         let now = Int(clock.now.timeIntervalSince1970)
@@ -238,7 +244,9 @@ struct APNSJob: AsyncScheduledJob {
                 progress: event.strProgress,
                 lastPlay: lastPlay,
                 situation: LiveActivitySituation(event.situation),
-                race: race
+                race: race,
+                soccer: LiveActivitySoccer(game: event),
+                tennis: tennis
             )
             let savedState = try? await kv.getJSON(stateKey, as: ContentState.self)
             guard savedState != contentState else { return }
@@ -322,7 +330,9 @@ struct APNSJob: AsyncScheduledJob {
                 status: event.strStatus,
                 progress: event.strProgress,
                 lastPlay: lastPlay,
-                race: race
+                race: race,
+                soccer: LiveActivitySoccer(game: event),
+                tennis: tennis
             )
             do {
                 let (_, delivered) = try await sendWithEnvironmentFallback(primary: environment) { env in
@@ -353,6 +363,14 @@ struct APNSJob: AsyncScheduledJob {
     }
 
     // MARK: - Helpers (internal for unit tests)
+
+    /// The leaderboard a race or golf activity shows. A golf activity's `awayTeam`
+    /// attribute names the player it follows (or the tour, for the whole board).
+    static func leaderboardContent(event: Game, f1Standings: F1Standings?, following: String?) -> LiveActivityRace? {
+        if event.isRace { return LiveActivityRace(game: event, standings: f1Standings) }
+        if event.golfTour != nil { return LiveActivityRace(golf: event, following: following) }
+        return nil
+    }
 
     /// Builds an alert for an *alerting* Live Activity update when a team's score
     /// has increased since the last state we pushed — i.e. a goal / score just
@@ -394,7 +412,7 @@ struct APNSJob: AsyncScheduledJob {
         let before = previous?.situation?.homeWinPct.map { GameSituation(homeWinProbability: Double($0) / 100) }
         let league = event.idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))
         return ClutchMoment.detect(
-            sport: sport, league: league, situation: situation, previous: before,
+            sport: sport, league: league, phase: event.resolvedSeasonPhase, situation: situation, previous: before,
             homeScore: homeScore, awayScore: awayScore,
             homeName: event.strHomeTeam, awayName: event.strAwayTeam
         )

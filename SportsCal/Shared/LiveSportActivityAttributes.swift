@@ -22,29 +22,47 @@ struct LiveSportActivityAttributes: ActivityAttributes {
         /// Outs and runners, down and distance, win probability. Optional: pushes from
         /// a server that predates it, and activities started before it, decode fine.
         var situation: LiveActivitySituation? = nil
-        /// F1: session + top three. Optional for the same reasons as `situation`.
+        /// F1: session + top three; golf: round + top three (+ the followed player).
+        /// Optional for the same reasons as `situation`.
         var race: LiveActivityRace? = nil
+        /// Soccer: red cards and the latest goal. Optional for the same reasons.
+        var soccer: LiveActivitySoccer? = nil
+        /// Tennis: games per set, tiebreaks, serve; the scores carry sets won.
+        var tennis: LiveActivityTennis? = nil
 
         /// The state for `game` as the app sees it. Mirrors the server's APNS state so a
         /// foreground update and a push agree (and the state diff doesn't flap).
-        static func make(for game: SportsCalModel.Game, standings: F1Standings?) -> ContentState {
-            ContentState(
-                homeScore: Int(game.intHomeScore ?? "") ?? 0,
-                awayScore: Int(game.intAwayScore ?? "") ?? 0,
+        /// `following` is the activity's `awayTeam`: a golf activity's followed player.
+        static func make(for game: SportsCalModel.Game, standings: F1Standings?, following: String? = nil) -> ContentState {
+            let sets = game.isTennisMatch ? game.tennisSetsWon : nil
+            let race: LiveActivityRace?
+            if game.isRace {
+                race = LiveActivityRace(game: game, standings: standings)
+            } else if game.golfTour != nil {
+                race = LiveActivityRace(golf: game, following: following)
+            } else {
+                race = nil
+            }
+            return ContentState(
+                homeScore: sets?.home ?? Int(game.intHomeScore ?? "") ?? 0,
+                awayScore: sets?.away ?? Int(game.intAwayScore ?? "") ?? 0,
                 status: game.strStatus,
                 progress: game.strProgress,
                 lastPlay: nil,
                 situation: LiveActivitySituation(game.situation),
-                race: game.isRace ? LiveActivityRace(game: game, standings: standings) : nil
+                race: race,
+                soccer: LiveActivitySoccer(game: game),
+                tennis: LiveActivityTennis(game: game)
             )
         }
     }
 
-    /// `awayTeam` for race activities. Attributes are fixed at start, and a race's
-    /// strAwayTeam is whoever leads at that moment, so the series name stands in.
-    /// Matches the server's `ESPNFetchJob.raceActivitySubtitle(for:)`.
+    /// `awayTeam` for race and golf activities. Attributes are fixed at start, and the
+    /// strAwayTeam of either is whoever leads at that moment, so the series or tour name
+    /// stands in. Matches the server's `ESPNFetchJob.raceActivitySubtitle(for:)`.
     static func raceSubtitle(for game: SportsCalModel.Game) -> String {
-        game.racingSeries?.leagueName ?? "Formula 1"
+        if let tour = game.golfTour { return tour.leagueName }
+        return game.racingSeries?.leagueName ?? "Formula 1"
     }
 
     var homeTeam: String

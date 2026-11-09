@@ -154,6 +154,77 @@ struct WinProbabilityLabel: View {
     }
 }
 
+// MARK: - Football
+
+/// The RED ZONE pill. A text style rather than a point size, so it grows with
+/// Dynamic Type like the line it sits in.
+struct RedZonePill: View {
+    var font: Font = .caption2.weight(.heavy)
+
+    var body: some View {
+        Text("RED ZONE")
+            .font(font)
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(Color.red, in: Capsule())
+            .accessibilityLabel("Red zone")
+    }
+}
+
+/// The ball and who has it, read as "Chiefs ball" by VoiceOver.
+struct PossessionLabel: View {
+    var name: String
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "football.fill").imageScale(.small)
+            Text(name)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name) ball")
+    }
+}
+
+extension GameSituation {
+    /// "at KC 12" — the field-position part of ESPN's "3rd & 4 at KC 12".
+    var fieldPositionText: String? {
+        guard let text = downDistanceText, let range = text.range(of: " at ") else { return nil }
+        let spot = text[range.upperBound...].trimmingCharacters(in: .whitespaces)
+        return spot.isEmpty ? nil : "at \(spot)"
+    }
+
+    /// Baseball, between half-innings: the side batting next ("Mid 5th" → home).
+    var dueUpSide: Side? {
+        switch inningHalf {
+        case .middle: return .home
+        case .end: return .away
+        default: return nil
+        }
+    }
+
+    /// One VoiceOver phrase for the live state: "2 outs, runner on second" or
+    /// "Chiefs ball, 3rd & 4 at KC 12, red zone". Nil when there's nothing to say.
+    func accessibilityPhrase(sport: SportType?, homeName: String, awayName: String) -> String? {
+        func name(_ side: Side) -> String { side == .home ? homeName : awayName }
+        var parts: [String] = []
+        if sport == .mlb, hasBaseballState {
+            if let next = dueUpSide {
+                parts.append("\(name(next)) due up")
+            } else {
+                if let outs { parts.append("\(outs) out\(outs == 1 ? "" : "s")") }
+                parts.append(BaseDiamond.accessibilityText(first: onFirst == true, second: onSecond == true, third: onThird == true))
+            }
+        } else if sport == .nfl, hasFootballState {
+            if let side = possession { parts.append("\(name(side)) ball") }
+            if let text = downDistanceText ?? shortDownDistanceText { parts.append(text) }
+            if isRedZone == true { parts.append("red zone") }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
+}
+
 // MARK: - Strip
 
 /// One line of live game state for a list row: runners, outs and the count in
@@ -165,6 +236,8 @@ struct GameStateStrip: View {
     var homeName: String
     var awayName: String
     var tint: Color = .secondary
+    /// Sets basketball's bonus rule (college halves); the NBA's when nil.
+    var league: Leagues? = nil
 
     var body: some View {
         if hasContent {
@@ -173,6 +246,9 @@ struct GameStateStrip: View {
                     baseball
                 } else if sport == .nfl, situation.hasFootballState {
                     football
+                } else if sport == .basketball || sport == .hockey, situation.hasHoopsHockeyDisplay {
+                    HoopsHockeyStateLine(situation: situation, sport: sport, league: league,
+                                         homeName: homeName, awayName: awayName, tint: tint)
                 }
                 if let home = situation.homeWinProbability {
                     WinProbabilityLabel(home: home, tie: situation.tieProbability,
@@ -187,39 +263,132 @@ struct GameStateStrip: View {
     private var hasContent: Bool {
         (sport == .mlb && situation.hasBaseballState)
             || (sport == .nfl && situation.hasFootballState)
+            || ((sport == .basketball || sport == .hockey) && situation.hasHoopsHockeyDisplay)
             || situation.homeWinProbability != nil
+    }
+
+    private func name(_ side: GameSituation.Side) -> String {
+        side == .home ? homeName : awayName
     }
 
     @ViewBuilder
     private var baseball: some View {
-        BaseDiamond(first: situation.onFirst == true, second: situation.onSecond == true,
-                    third: situation.onThird == true, size: 20, tint: tint)
-        if let outs = situation.outs {
-            OutsIndicator(outs: outs, tint: tint)
+        if let next = situation.dueUpSide {
+            // Between half-innings the last half's three outs and runners are stale.
+            Text("\(name(next)) due up").lineLimit(1)
+        } else {
+            if let batting = situation.inningHalf?.battingSide {
+                HStack(spacing: 3) {
+                    Image(systemName: "figure.baseball").imageScale(.small)
+                    Text(name(batting))
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(name(batting)) batting")
+            }
+            BaseDiamond(first: situation.onFirst == true, second: situation.onSecond == true,
+                        third: situation.onThird == true, size: 20, tint: tint)
+            if let outs = situation.outs {
+                OutsIndicator(outs: outs, tint: tint)
+            }
         }
     }
 
     @ViewBuilder
     private var football: some View {
         if let side = situation.possession {
-            HStack(spacing: 3) {
-                Image(systemName: "football.fill").imageScale(.small)
-                Text(side == .home ? homeName : awayName)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(side == .home ? homeName : awayName) ball")
+            PossessionLabel(name: name(side))
         }
-        if let text = situation.shortDownDistanceText ?? situation.downDistanceText {
+        if let short = situation.shortDownDistanceText {
+            // "3rd & 4 at KC 12" where it fits, "3rd & 4" where it doesn't.
+            ViewThatFits(in: .horizontal) {
+                Text(situation.fieldPositionText.map { "\(short) \($0)" } ?? short).lineLimit(1)
+                Text(short).lineLimit(1)
+            }
+        } else if let text = situation.downDistanceText {
             Text(text).lineLimit(1)
         }
         if situation.isRedZone == true {
-            Text("RED ZONE")
-                .font(.system(size: 9, weight: .heavy))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 1)
-                .background(Color.red, in: Capsule())
+            RedZonePill()
         }
+    }
+}
+
+// MARK: - Basketball and hockey
+
+/// A small filled capsule for a live state that's an event in itself: a run, a power
+/// play, an empty net, the bonus.
+struct SituationChip: View {
+    let text: String
+    var color: Color
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.weight(.heavy))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(color, in: Capsule())
+    }
+}
+
+/// The row-sized basketball and hockey state: the ball, a scoring run and who's in the
+/// bonus; a power play (with its clock) and a pulled goalie. Timeouts and foul counts
+/// are for the detail panel.
+struct HoopsHockeyStateLine: View {
+    let situation: GameSituation
+    let sport: SportType?
+    var league: Leagues?
+    var homeName: String
+    var awayName: String
+    var tint: Color = .secondary
+
+    private func name(_ side: GameSituation.Side) -> String { side == .home ? homeName : awayName }
+
+    var body: some View {
+        if sport == .hockey {
+            if let side = situation.powerPlaySide {
+                SituationChip(text: ["PP", situation.powerPlayClockText, name(side)].compactMap { $0 }.joined(separator: " · "),
+                              color: .orange)
+                    .accessibilityLabel(Self.powerPlayAccessibility(team: name(side), situation: situation))
+            }
+            if let side = situation.emptyNetSide {
+                SituationChip(text: "EN · \(name(side))", color: .red)
+                    .accessibilityLabel("\(name(side)) goalie pulled")
+            }
+        } else {
+            if let side = situation.ballSide {
+                HStack(spacing: 3) {
+                    Image(systemName: "basketball.fill").imageScale(.small)
+                    Text(name(side))
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(name(side)) ball")
+            }
+            if let side = situation.runSide, let points = situation.runPoints {
+                SituationChip(text: "\(points)-0 run · \(name(side))", color: .orange)
+                    .accessibilityLabel("\(name(side)) on a \(points) to nothing run")
+            }
+            ForEach(bonusSides, id: \.self) { side in
+                Text("BONUS \(name(side))")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(tint)
+                    .lineLimit(1)
+                    .accessibilityLabel("\(name(side)) in the bonus")
+            }
+        }
+    }
+
+    private var bonusSides: [GameSituation.Side] {
+        let rules = league ?? .nba
+        return [GameSituation.Side.away, .home].filter { situation.isInBonus($0, league: rules) == true }
+    }
+
+    static func powerPlayAccessibility(team: String, situation: GameSituation) -> String {
+        var text = "\(team) power play"
+        if let strength = situation.strengthText { text += ", \(strength)" }
+        if let clock = situation.powerPlayClockText { text += ", \(clock) left" }
+        return text
     }
 }
 
@@ -242,21 +411,19 @@ struct LiveActivitySituationStrip: View {
                 }
             }
             if let side = situation.possession {
-                HStack(spacing: 3) {
-                    Image(systemName: "football.fill").imageScale(.small)
-                    Text(side == .home ? homeName : awayName)
-                }
+                PossessionLabel(name: side == .home ? homeName : awayName)
             }
             if let text = situation.downDistance {
                 Text(text).lineLimit(1)
             }
             if situation.redZone == true {
-                Text("RED ZONE")
-                    .font(.system(size: 8, weight: .heavy))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(Color.red, in: Capsule())
+                RedZonePill()
+            }
+            if let side = situation.powerPlay {
+                SituationChip(text: "PP · \(side == .home ? homeName : awayName)", color: .orange)
+            }
+            if let side = situation.emptyNet {
+                SituationChip(text: "EN · \(side == .home ? homeName : awayName)", color: .red)
             }
             if let percent = situation.homeWinPct {
                 WinProbabilityLabel(home: Double(percent) / 100, homeName: homeName, awayName: awayName, showsIcon: true)

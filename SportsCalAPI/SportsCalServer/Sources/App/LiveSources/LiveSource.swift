@@ -26,32 +26,53 @@ protocol LiveSource: Sendable {
     func fetchLive(leagues: Set<Leagues>, app: Application) async throws -> [Game]
 }
 
-/// Maps each league to its configured `LiveSource`. Default: everything ESPN.
-/// Overrides come from the environment so flipping a league to a new provider —
-/// including a paid one — is a config change, not a code change.
+/// Maps each league to the sources that race for it. ESPN covers every fast-path league;
+/// extra sources come from the environment so adding a provider — including a paid
+/// one — is a config change, not a code change. Every source is polled each tick and
+/// LiveMerge keeps whichever copy of a game is furthest along (`LiveMerge.shouldAccept`).
 struct LiveSourceResolver {
     let espn: ESPNLiveSource
+    /// Extra sources per league, raced against ESPN.
     let overrides: [Leagues: any LiveSource]
 
-    func source(for league: Leagues) -> any LiveSource {
-        overrides[league] ?? espn
+    func sources(for league: Leagues) -> [any LiveSource] {
+        var sources: [any LiveSource] = []
+        if league.liveBucket != nil { sources.append(espn) }
+        if let extra = overrides[league] { sources.append(extra) }
+        return sources
     }
 
-    /// Group leagues by their resolved source so each source is hit once per tick.
+    /// Group leagues by source so each source is hit once per tick.
     func groups(for leagues: Set<Leagues>) -> [(source: any LiveSource, leagues: Set<Leagues>)] {
         var bySource: [String: (any LiveSource, Set<Leagues>)] = [:]
         for league in leagues {
-            let s = source(for: league)
-            var entry = bySource[s.name] ?? (s, Set<Leagues>())
-            entry.1.insert(league)
-            bySource[s.name] = entry
+            for s in sources(for: league) {
+                var entry = bySource[s.name] ?? (s, Set<Leagues>())
+                entry.1.insert(league)
+                bySource[s.name] = entry
+            }
         }
-        return bySource.values.map { (source: $0.0, leagues: $0.1) }
+        // ESPN first: it's the snapshot's own upstream, so the extra sources race against
+        // what it just wrote rather than the other way round.
+        func rank(_ name: String) -> Int { name == "espn" ? 0 : 1 }
+        return bySource.values
+            .map { (source: $0.0, leagues: $0.1) }
+            .sorted { a, b in
+                let (ra, rb) = (rank(a.source.name), rank(b.source.name))
+                return ra != rb ? ra < rb : a.source.name < b.source.name
+            }
     }
 
-    /// Build from the environment. Each `LIVE_SOURCE_*` var routes a league to a
-    /// non-default source; unset leaves it on ESPN. New providers (incl. paid) slot in
-    /// here — the commented line shows the one-line shape.
+    /// Source names configured per league, for the admin dashboard.
+    func describe() -> [String: [String]] {
+        var out: [String: [String]] = [:]
+        for (league, source) in overrides { out["\(league)", default: ["espn"]].append(source.name) }
+        return out
+    }
+
+    /// Build from the environment. Each `LIVE_SOURCE_*` var adds a source that races ESPN
+    /// for that league; unset leaves the league on ESPN alone. New providers (incl. paid)
+    /// slot in here — the commented line shows the one-line shape.
     static func fromEnvironment() -> LiveSourceResolver {
         var overrides: [Leagues: any LiveSource] = [:]
 
@@ -81,5 +102,21 @@ struct LiveSourceResolver {
         }
 
         return LiveSourceResolver(espn: ESPNLiveSource(), overrides: overrides)
+    }
+}
+
+extension Leagues {
+    /// The snapshot bucket this league's games live in on the fast path, or nil when the
+    /// league isn't fast-polled from ESPN (golf and tennis have their own jobs; motorsport
+    /// is rebuilt whole by its series services).
+    var liveBucket: SportType? {
+        if isSoccer { return .soccer }
+        if isFootball { return .nfl }
+        if isBasketball { return .basketball }
+        switch self {
+        case .nhl: return .hockey
+        case .mlb: return .mlb
+        default: return nil
+        }
     }
 }

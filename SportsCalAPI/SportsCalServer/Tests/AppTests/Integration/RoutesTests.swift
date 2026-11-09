@@ -175,6 +175,31 @@ final class RoutesTests: XCTestCase {
         }
     }
 
+    func testPlaysSendPlayerDetailOnlyWhenAsked() async throws {
+        let key = RedisEndpoint.ESPN.playByPlay("evt2").getValue(isDebug: false).rawValue
+        let row = PlayerBoxScore.Row(id: "1", name: "A. Player", stats: ["12"], starter: true)
+        let group = PlayerBoxScore.Group(id: "starters", title: "Starters", labels: ["PTS"], rows: [row])
+        let box = PlayerBoxScore(teams: [PlayerBoxScore.Team(id: "10", abbreviation: "BOS", homeAway: "home", groups: [group])])
+        let scoring = ScoringSummary(entries: [ScoringSummary.Entry(id: "g1", period: 1, text: "Wrist Shot", player: "A. Player")])
+        let cached = CachedPlays(
+            eventID: "evt2", lastPlayId: "p1", plays: [], isFinal: false, fetchedAt: Date(),
+            players: box, scoringSummary: scoring
+        )
+        try await kv.setJSON(key, value: cached, ttl: nil)
+
+        // Older apps, the watch and the widget don't ask, and get the plays-only payload.
+        try app.test(.GET, "v2025/plays/evt2", headers: authed) { res in
+            let plays = try Self.decodeBody(CachedPlays.self, from: res)
+            XCTAssertNil(plays.players)
+            XCTAssertNil(plays.scoringSummary)
+        }
+        try app.test(.GET, "v2025/plays/evt2?players=1", headers: authed) { res in
+            let plays = try Self.decodeBody(CachedPlays.self, from: res)
+            XCTAssertEqual(plays.players, box)
+            XCTAssertEqual(plays.scoringSummary, scoring)
+        }
+    }
+
     func testPlaysMissWithNoMappingAndNoParamsIs404() throws {
         try app.test(.GET, "v2025/plays/unknown-event", headers: authed) { res in
             XCTAssertEqual(res.status, .notFound)
