@@ -59,6 +59,10 @@ struct SoccerPitchView: View {
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Starting lineups")
+        // A tall pitch scales with width; on a wide screen it would run past two
+        // screenfuls. Cap it and center it.
+        .frame(maxWidth: 420)
+        .frame(maxWidth: .infinity)
     }
 
     /// Home attacks up, so its right touchline is on the right of the screen; away

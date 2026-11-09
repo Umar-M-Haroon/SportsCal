@@ -14,11 +14,14 @@ struct CalendarViewRepresentable: UIViewRepresentable {
     @Environment(GameViewModel.self) private var viewModel
     @Environment(Favorites.self) private var favorites
     @Environment(UserDefaultStorage.self) private var storage
-    @State var selectedDate: DateComponents? = nil
-    @Binding var sheetType: SheetType?
     @Binding var showFavoritesOnly: Bool
     @Binding var navigateToDate: Date?
     @Binding var sportFilter: SportChipFilter
+    /// The day shown beside the calendar in wide layouts; highlighted here.
+    /// `nil` in compact layouts, where a tap opens a sheet and the highlight clears.
+    var selectedDay: DateComponents?
+    /// Called when the user taps a day.
+    var onSelectDay: (DateComponents) -> Void
 
     func makeUIView(context: Context) -> UICalendarView {
         let calendarView = UICalendarView()
@@ -51,8 +54,14 @@ struct CalendarViewRepresentable: UIViewRepresentable {
         context.coordinator.liveGames = newLiveGames
         context.coordinator.favorites = favorites.teams
         context.coordinator.showFavoritesOnly = showFavoritesOnly
-        if let selectedDate {
-            context.coordinator.presentSheetForSelectedDate(dateComponents: selectedDate)
+        context.coordinator.onSelectDay = onSelectDay
+        context.coordinator.keepsSelection = selectedDay != nil
+        // Keep the highlight in step with the inline day (wide layouts only).
+        // Updates never present anything: a day is opened only by a tap, in
+        // `dateSelection(_:didSelectDate:)`.
+        if let selection = uiView.selectionBehavior as? UICalendarSelectionSingleDate,
+           !Self.isSameDay(selection.selectedDate, selectedDay) {
+            selection.setSelected(selectedDay, animated: false)
         }
         if let navigateToDate {
             uiView.visibleDateComponents = Calendar.current.dateComponents([.day, .month, .year], from: navigateToDate)
@@ -69,59 +78,44 @@ struct CalendarViewRepresentable: UIViewRepresentable {
         var dayComponents = DayComponentsCache()
         let groupedGames = Dictionary(grouping: filteredCalendarGames, by: { dayComponents.components(for: $0.standardDate) })
         let groupedLiveGames = Dictionary(grouping: viewModel.allLiveEvents, by: { dayComponents.components(for: $0.standardDate) })
-        return CalendarCoordinator(games: groupedGames, liveGames: groupedLiveGames, date: $selectedDate, sheet: $sheetType, favorites: favorites.teams, showFavoritesOnly: showFavoritesOnly)
+        return CalendarCoordinator(games: groupedGames, liveGames: groupedLiveGames, favorites: favorites.teams, showFavoritesOnly: showFavoritesOnly, onSelectDay: onSelectDay)
     }
 
     typealias UIViewType = UICalendarView
 
+    private static func isSameDay(_ a: DateComponents?, _ b: DateComponents?) -> Bool {
+        a?.year == b?.year && a?.month == b?.month && a?.day == b?.day
+    }
 }
 
 class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelectionSingleDateDelegate {
 
     var games: [DateComponents? : [Game]]
     var liveGames: [DateComponents? : [Game]]
-    @Binding var selectedDate: DateComponents?
-    @Binding var sheetType: SheetType?
     var favorites: Set<String>
     var showFavoritesOnly: Bool
     var previousGameDates: Set<DateComponents> = []
+    var onSelectDay: (DateComponents) -> Void
+    /// Wide layouts keep the tapped day highlighted; compact ones clear it so the
+    /// same day can be tapped again after its sheet closes.
+    var keepsSelection = false
+    private var lastSelectedDay: DateComponents?
 
-    init(games: [DateComponents? : [Game]], liveGames: [DateComponents? : [Game]], date: Binding<DateComponents?>, sheet: Binding<SheetType?>, favorites: Set<String>, showFavoritesOnly: Bool) {
+    init(games: [DateComponents? : [Game]], liveGames: [DateComponents? : [Game]], favorites: Set<String>, showFavoritesOnly: Bool, onSelectDay: @escaping (DateComponents) -> Void) {
         self.games = games
-        self._selectedDate = date
-        self._sheetType = sheet
         self.favorites = favorites
         self.liveGames = liveGames
         self.showFavoritesOnly = showFavoritesOnly
+        self.onSelectDay = onSelectDay
     }
 
     func dateSelection(_ selection: UICalendarSelectionSingleDate, didSelectDate dateComponents: DateComponents?) {
-        selectedDate = dateComponents
-        presentSheetForSelectedDate(dateComponents: dateComponents)
-    }
-
-    func presentSheetForSelectedDate(dateComponents: DateComponents?) {
-        guard let dateComponents,
-              let date = Calendar.current.date(from: dateComponents) else { return }
-        let comps = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: date)
-        var liveSorted: [Game] = []
-        var listSorted: [Dictionary<DateComponents, [Game]>.Element] = []
-        if let liveGames = liveGames[comps] {
-            liveSorted = liveGames
+        guard let dateComponents else { return }
+        lastSelectedDay = dateComponents
+        onSelectDay(dateComponents)
+        if !keepsSelection {
+            selection.setSelected(nil, animated: true)
         }
-        if let listGames = games[comps] {
-            let groupDic = Dictionary(grouping: listGames) { game -> DateComponents in
-                let gameDate = game.standardDate ?? .now
-                let date2 = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: gameDate)
-                return date2
-            }
-            let sorted = groupDic.sorted(by: {
-                return $0.key.date! < $1.key.date!
-            })
-            listSorted = sorted
-        }
-
-        sheetType = .listDetail(games: listSorted, liveGames: liveSorted)
     }
 
     @MainActor func calendarView(_ calendarView: UICalendarView, decorationFor dateComponents: DateComponents) -> UICalendarView.Decoration? {
@@ -155,8 +149,8 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
         previousGameDates = newDates
         var result = Array(allDates)
         result.append(Date.now.toComponents())
-        if let selectedDate {
-            result.append(selectedDate)
+        if let lastSelectedDay {
+            result.append(lastSelectedDay)
         }
         return result
     }
@@ -231,6 +225,34 @@ enum DecorationViewFactory {
 extension Date {
     func toComponents() -> DateComponents {
         Calendar.current.dateComponents([.day, .month, .year, .calendar], from: self)
+    }
+}
+
+/// One calendar day's games, grouped the way the day list shows them. Shared by
+/// the sheet (compact) and the inline day beside the calendar (wide).
+struct CalendarDayGames {
+    let listGames: [(key: DateComponents, value: [Game])]
+    let liveGames: [Game]
+
+    init(day: DateComponents, games: [Game], liveGames: [Game]) {
+        let calendar = Calendar.current
+        guard let date = calendar.date(from: day) else {
+            listGames = []
+            self.liveGames = []
+            return
+        }
+        let dayGames = games.filter { game in
+            guard let gameDate = game.standardDate else { return false }
+            return calendar.isDate(gameDate, inSameDayAs: date)
+        }
+        self.liveGames = liveGames.filter { game in
+            guard let gameDate = game.standardDate else { return false }
+            return calendar.isDate(gameDate, inSameDayAs: date)
+        }
+        let grouped = Dictionary(grouping: dayGames) { game in
+            calendar.dateComponents([.day, .year, .month, .calendar], from: game.standardDate ?? .now)
+        }
+        listGames = grouped.sorted { ($0.key.date ?? .distantPast) < ($1.key.date ?? .distantPast) }
     }
 }
 #endif

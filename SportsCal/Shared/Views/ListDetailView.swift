@@ -15,6 +15,10 @@ struct ListDetailView: View {
     @Environment(Favorites.self) private var favorites
     @Environment(GameViewModel.self) private var viewModel
     @Binding var sheetType: SheetType?
+    /// Shown beside the calendar (wide layouts) instead of in a sheet: no
+    /// navigation stack or close button of its own.
+    var isInline: Bool = false
+    @Environment(\.dismiss) private var dismiss
 
     @State var shouldShowSportsCalProAlert: Bool = false
     @State private var collapsedSportSections: Set<SportType> = []
@@ -37,126 +41,135 @@ struct ListDetailView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if liveGames.isEmpty && allGames.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "calendar.badge.exclamationmark")
-                            .font(.largeTitle)
-                            .foregroundColor(.secondary)
-                        Text("No games scheduled")
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    List {
-                        // Live games
-                        if !liveGames.isEmpty {
-                            Section {
-                                ForEach(liveGames, id: \.id) { event in
-                                    if event.isRace {
-                                        NavigationLink {
-                                            RaceDetailView(game: event)
-                                                .environment(viewModel)
-                                                .environment(favorites)
-                                        } label: {
-                                            RaceScoreView(game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: true)
-                                                .environment(viewModel)
-                                        }
-                                        .buttonStyle(.plain)
-                                    } else if event.isIndividualSport {
-                                        NavigationLink {
-                                            TournamentDetailView(game: event)
-                                                .environment(viewModel)
-                                                .environment(favorites)
-                                        } label: {
-                                            TournamentScoreView(game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: true)
-                                                .environment(viewModel)
-                                        }
-                                        .buttonStyle(.plain)
-                                    } else if let homeScore = Int(event.intHomeScore ?? ""),
-                                       let awayScore = Int(event.intAwayScore ?? ""),
-                                       let (homeTeam, awayTeam) = viewModel.getTeams(for: event) {
-                                        GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: true)
+        if isInline {
+            dayList
+        } else {
+            NavigationStack {
+                dayList
+                    .toolbar(content: {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "x.circle.fill")
+                        }
+                        .accessibilityLabel("Close")
+                    })
+                    #if os(iOS)
+                    .toolbar(.visible, for: .navigationBar)
+                    .navigationBarTitleDisplayMode(.inline)
+                    #endif
+                    .navigationTitle(navigationTitleText)
+            }
+        }
+    }
+
+    private var dayList: some View {
+        Group {
+            if liveGames.isEmpty && allGames.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "calendar.badge.exclamationmark")
+                        .font(.largeTitle)
+                        .foregroundColor(.secondary)
+                    Text("No games scheduled")
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    // Live games
+                    if !liveGames.isEmpty {
+                        Section {
+                            ForEach(liveGames, id: \.id) { event in
+                                if event.isRace {
+                                    NavigationLink {
+                                        RaceDetailView(game: event)
                                             .environment(viewModel)
                                             .environment(favorites)
+                                    } label: {
+                                        RaceScoreView(game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: true)
+                                            .environment(viewModel)
                                     }
+                                    .buttonStyle(.plain)
+                                } else if event.isIndividualSport {
+                                    NavigationLink {
+                                        TournamentDetailView(game: event)
+                                            .environment(viewModel)
+                                            .environment(favorites)
+                                    } label: {
+                                        TournamentScoreView(game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: true)
+                                            .environment(viewModel)
+                                    }
+                                    .buttonStyle(.plain)
+                                } else if let homeScore = Int(event.intHomeScore ?? ""),
+                                   let awayScore = Int(event.intAwayScore ?? ""),
+                                   let (homeTeam, awayTeam) = viewModel.getTeams(for: event) {
+                                    GameScoreView(homeTeam: homeTeam, awayTeam: awayTeam, homeScore: homeScore, awayScore: awayScore, game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: true)
+                                        .environment(viewModel)
+                                        .environment(favorites)
                                 }
-                            } header: {
-                                LiveAnimatedView()
+                            }
+                        } header: {
+                            LiveAnimatedView()
+                        }
+                    }
+
+                    // Favorites section
+                    if !favoriteGames.isEmpty {
+                        Section {
+                            ForEach(favoriteGames, id: \.id) { game in
+                                gameRow(game: game)
+                            }
+                        } header: {
+                            HStack {
+                                Image(systemName: "star.fill")
+                                    .foregroundColor(.yellow)
+                                Text("Your Teams")
+                                    .font(.headline)
+                                Text("(\(favoriteGames.count))")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
                             }
                         }
+                    }
 
-                        // Favorites section
-                        if !favoriteGames.isEmpty {
-                            Section {
-                                ForEach(favoriteGames, id: \.id) { game in
+                    // Games grouped by sport
+                    ForEach(nonFavoriteGamesBySport, id: \.sport) { section in
+                        let isCollapsed = collapsedSportSections.contains(section.sport)
+                        Section {
+                            if !isCollapsed {
+                                ForEach(section.games, id: \.id) { game in
                                     gameRow(game: game)
                                 }
-                            } header: {
+                            }
+                        } header: {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if collapsedSportSections.contains(section.sport) {
+                                        collapsedSportSections.remove(section.sport)
+                                    } else {
+                                        collapsedSportSections.insert(section.sport)
+                                    }
+                                }
+                            } label: {
                                 HStack {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(.yellow)
-                                    Text("Your Teams")
+                                    Image(systemName: section.sport.systemImage)
+                                        .foregroundColor(section.sport.color)
+                                    Text(section.sport.displayName)
                                         .font(.headline)
-                                    Text("(\(favoriteGames.count))")
+                                    Text("(\(section.games.count))")
                                         .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                                        .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
                             }
-                        }
-
-                        // Games grouped by sport
-                        ForEach(nonFavoriteGamesBySport, id: \.sport) { section in
-                            let isCollapsed = collapsedSportSections.contains(section.sport)
-                            Section {
-                                if !isCollapsed {
-                                    ForEach(section.games, id: \.id) { game in
-                                        gameRow(game: game)
-                                    }
-                                }
-                            } header: {
-                                Button {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        if collapsedSportSections.contains(section.sport) {
-                                            collapsedSportSections.remove(section.sport)
-                                        } else {
-                                            collapsedSportSections.insert(section.sport)
-                                        }
-                                    }
-                                } label: {
-                                    HStack {
-                                        Image(systemName: section.sport.systemImage)
-                                            .foregroundColor(section.sport.color)
-                                        Text(section.sport.displayName)
-                                            .font(.headline)
-                                        Text("(\(section.games.count))")
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                        Spacer()
-                                        Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
             }
-            .toolbar(content: {
-                Button {
-                    sheetType = nil
-                } label: {
-                    Image(systemName: "x.circle.fill")
-                }
-            })
-            #if os(iOS)
-            .toolbar(.visible, for: .navigationBar)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .navigationTitle(navigationTitleText)
         }
     }
 

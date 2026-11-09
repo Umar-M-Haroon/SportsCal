@@ -418,15 +418,6 @@ final class LiveSituationTests: XCTestCase {
         XCTAssertNil(soccer.excitement)
     }
 
-    func testTiers() {
-        XCTAssertEqual(ExcitementTier(score: 95), .classic)
-        XCTAssertEqual(ExcitementTier(score: 80), .thriller)
-        XCTAssertEqual(ExcitementTier(score: 60), .close)
-        XCTAssertEqual(ExcitementTier(score: 10), .ordinary)
-        XCTAssertTrue(ExcitementTier.thriller.isWorthWatching)
-        XCTAssertFalse(ExcitementTier.close.isWorthWatching)
-    }
-
     // MARK: - Team stat comparison
 
     func testFootballBoxScore() throws {

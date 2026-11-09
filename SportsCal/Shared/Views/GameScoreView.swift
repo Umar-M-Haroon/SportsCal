@@ -371,9 +371,6 @@ struct GameScoreView: View {
                         league: game.leagueValue
                     )
                     .frame(maxWidth: .infinity)
-                } else if !isLive, game.hasDoneStatus, let tier = game.excitementTier, tier.isWorthWatching {
-                    ExcitementBadge(tier: tier)
-                        .frame(maxWidth: .infinity)
                 }
 
                 // Rotating info: last play (weighted on live), leader categories, venue.
@@ -412,6 +409,9 @@ struct GameScoreView: View {
                     .environment(favorites)
                 CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
                 NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+#if os(iOS)
+                OpenGameInNewWindowButton(game: game)
+#endif
             }
 
         if navigationDisabled {

@@ -68,7 +68,6 @@ final class LiveSituationSnapshotTests: XCTestCase {
             GameStateStrip(situation: GameSituation(period: 4, clock: 95, homeWinProbability: 0.71), sport: .basketball, homeName: "NY", awayName: "IND")
             LiveActivitySituationStrip(situation: LiveActivitySituation(mlb)!, homeName: "CLE", awayName: "DET")
             LiveActivitySituationStrip(situation: LiveActivitySituation(nfl)!, homeName: "KC", awayName: "BUF")
-            HStack { ExcitementBadge(tier: .classic); ExcitementBadge(tier: .thriller) }
         }
         snap(view, "strips", height: 260)
     }

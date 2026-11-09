@@ -873,8 +873,7 @@ private struct ModernDayContent: View {
                 homeScore: Int(game.intHomeScore ?? "") ?? 0,
                 awayScore: Int(game.intAwayScore ?? "") ?? 0,
                 awayBadgeURL: awayURL,
-                homeBadgeURL: homeURL,
-                excitementTier: game.excitementTier
+                homeBadgeURL: homeURL
             )
         case .pre:
             PreGameRow(

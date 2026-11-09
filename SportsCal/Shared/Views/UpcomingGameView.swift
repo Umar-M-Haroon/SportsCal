@@ -132,6 +132,9 @@ struct UpcomingGameView: View {
                     .environment(favorites)
                 CalendarButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
                 NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
+                #if os(iOS)
+                OpenGameInNewWindowButton(game: game)
+                #endif
             }
 
         if navigationDisabled {

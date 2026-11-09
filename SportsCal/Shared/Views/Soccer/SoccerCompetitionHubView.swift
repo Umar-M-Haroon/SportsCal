@@ -91,6 +91,7 @@ struct SoccerCompetitionHubView: View {
             .padding(.horizontal, .appSpace4)
             .padding(.vertical, .appSpace3)
         }
+        .readableScrollWidth()
         .background(Color.appBackground.ignoresSafeArea())
         .overlay {
             if isLoading && hub == nil && games.isEmpty {

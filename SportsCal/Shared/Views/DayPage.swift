@@ -85,6 +85,7 @@ struct DayPage: View {
     @Environment(NativeAdManager.self) private var adManager
     #endif
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Binding var shouldShowSportsCalProAlert: Bool
     @Binding var spotlightGameID: String?
     /// Sidebar-driven scope (macOS). `.all` = the full multi-sport board.
@@ -117,6 +118,14 @@ struct DayPage: View {
     /// is restored automatically by the window's state restoration.)
     @AppStorage("board.inspector.visible") private var boardInspectorVisible: Bool = true
     @Environment(\.openWindow) private var openWindow
+    /// Width the page is laid out in. Decides list or board on iOS, where a
+    /// regular-width window can still be too narrow for two sport columns.
+    @State private var layoutWidth: CGFloat = 0
+    /// The game a list row pushed, so unfolding onto the board keeps it open.
+    @State private var listPushedGame: GameWithTeams?
+    /// The row with the selection ring, resolved once per update rather than by
+    /// every row.
+    @State private var highlightedRowID: String?
 
     // Memoization for `dayData`. A plain reference-type box held by @State keeps a
     // stable identity across renders without SwiftUI observing its mutations — so
@@ -360,8 +369,28 @@ struct DayPage: View {
         )
     }
 
+    /// List or board. On iOS a regular/regular window gets sport columns across
+    /// its whole width once two fit: the unfolded iPhone Duo in either
+    /// orientation, and every iPad.
+    private var gamesLayout: GamesLayout {
+        #if os(macOS)
+        return sizeClass == .regular ? .board : .list
+        #else
+        return GamesLayout(width: layoutWidth, horizontalSizeClass: sizeClass, verticalSizeClass: verticalSizeClass)
+        #endif
+    }
+
     private var isBoardLayout: Bool {
-        sizeClass == .regular
+        gamesLayout == .board
+    }
+
+    /// The row drawn with a selection ring: the inspector's game on macOS.
+    private var highlightedGameID: String? {
+        #if os(macOS)
+        return boardSelectedGameID
+        #else
+        return nil
+        #endif
     }
 
     private var boardColumns: [BoardColumn] {
@@ -380,6 +409,8 @@ struct DayPage: View {
         }
 
         return storage.enabledSports.compactMap { sport -> BoardColumn? in
+            // The toolbar's sport filter narrows the board too, not just the list.
+            if case .sport(let filtered) = sportFilter, filtered != sport { return nil }
             let sportGames = grouped[sport] ?? []
             let liveForSport = live.filter { $0.game.sportType == sport }
             let liveForSportIndex = LiveFixtureIndex(live: liveForSport.map(\.game), schedule: sportGames.map(\.game))
@@ -395,8 +426,13 @@ struct DayPage: View {
 
             let isEmpty = sportGames.isEmpty && liveForSport.isEmpty
             // In a focused scope (a single sport/team/live/favorites), don't show
-            // a wall of empty sport columns — only the ones with content.
+            // a wall of empty sport columns — only the ones with content. On iOS
+            // there's no room to spare for empty columns at all.
+            #if os(iOS)
+            if isEmpty { return nil }
+            #else
             if isEmpty, dayScope != .all { return nil }
+            #endif
 
             let nextDate: Date? = isEmpty
                 ? viewModel.nextGame(for: sport, after: selectedDate)?.standardDate
@@ -428,6 +464,15 @@ struct DayPage: View {
                 listBody
             }
         }
+        #if os(iOS)
+        .onChange(of: gamesLayout) { oldLayout, newLayout in
+            handOffSelection(from: oldLayout, to: newLayout)
+        }
+        #endif
+        .onChange(of: highlightedGameID, initial: true) { _, id in
+            highlightedRowID = id
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { layoutWidth = $0 }
         #if os(iOS)
         .onAppear {
             if !subscriptionManager.isPro && AdConfiguration.isEnabled {
@@ -487,31 +532,7 @@ struct DayPage: View {
                 .environment(storage)
                 .environment(favorites)
         }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                sportFilterMenu
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showSportPicker = true
-                } label: {
-                    Label("Manage Sports", systemImage: "slider.horizontal.3")
-                }
-            }
-            ToolbarItem(placement: .primaryAction) {
-                if !calendar.isDateInToday(selectedDate) {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedDate = calendar.startOfDay(for: Date())
-                        }
-                    } label: {
-                        Text("Today")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                    }
-                }
-            }
-        }
+        .apply { withDayToolbar($0) }
         .onChange(of: storage.enabledSports) { oldValue, newValue in
             if case .sport(let sport) = sportFilter, !newValue.contains(sport) {
                 sportFilter = .all
@@ -613,7 +634,7 @@ struct DayPage: View {
     #endif
 
     /// Tapping a board cell shows its detail: inline in the inspector on macOS,
-    /// pushed full-screen elsewhere.
+    /// pushed full-screen on iOS.
     private func selectBoardGame(_ gwt: GameWithTeams) {
         #if os(macOS)
         boardSelectedGameID = gwt.id
@@ -622,6 +643,18 @@ struct DayPage: View {
         boardNavigationTarget = gwt
         #endif
     }
+
+    #if os(iOS)
+    /// Keeps the user on their game across a fold or rotation. A list row's push
+    /// goes away with the list, so moving to the board re-pushes that game; the
+    /// board's own push survives the move back to the list.
+    private func handOffSelection(from oldLayout: GamesLayout, to newLayout: GamesLayout) {
+        if oldLayout == .list, newLayout == .board, let pushed = listPushedGame {
+            boardNavigationTarget = pushed
+        }
+        listPushedGame = nil
+    }
+    #endif
 
     // MARK: - Board Layout (iPad/Mac)
 
@@ -670,7 +703,20 @@ struct DayPage: View {
                 }
                 .frame(maxWidth: .infinity)
                 Spacer()
+            } else if isSearchActive {
+                // Search answers with a list, the same as the iPhone layout.
+                List { searchResultsContent }
             } else if !viewModel.sortedGamesWithTeams.isEmpty || !viewModel.liveEventsWithTeams.isEmpty {
+                #if os(iOS)
+                // The board's one ad: a lead card above the columns, as the list has.
+                if let slot = classicAdPlan.slot(region: "lead", row: 0), let ad = adManager.adForSlot(slot) {
+                    NativeAdCardView(nativeAd: ad)
+                        .frame(maxWidth: 480)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
+                }
+                #endif
                 GameBoardLayout(
                     columns: boardColumns,
                     favorites: favorites,
@@ -709,6 +755,9 @@ struct DayPage: View {
         return macBoardChrome(board)
         #else
         return board
+            .searchable(text: $searchString, tokens: $searchTokens, suggestedTokens: .constant(suggestedSearchTokens), placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search games...") { token in
+                token.label
+            }
         #endif
     }
 
@@ -800,6 +849,7 @@ struct DayPage: View {
         #if os(iOS)
         .gesture(daySwipeGesture)
         #endif
+        .onAppear { listPushedGame = nil }
     }
 
     // MARK: - Day Content
@@ -1068,12 +1118,12 @@ struct DayPage: View {
     private func gameRowContent(for gameWithTeams: GameWithTeams, isLive: Bool, showsCompetition: Bool = false) -> some View {
         @Bindable var bindableStorage = storage
         let game = gameWithTeams.game
+        // Each row links to `listDestination`, which records the pushed game so
+        // unfolding onto the board can keep it open.
         let competitionLabel = showsCompetition && game.sportType == .soccer ? game.knownLeague?.soccerShortName : nil
         if game.isRace {
             NavigationLink {
-                RaceDetailView(game: game)
-                    .environment(viewModel)
-                    .environment(favorites)
+                listDestination(for: gameWithTeams)
             } label: {
                 RaceScoreView(game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: isLive)
                     .environment(viewModel)
@@ -1082,9 +1132,7 @@ struct DayPage: View {
             .buttonStyle(.plain)
         } else if game.isTennisMatch {
             NavigationLink {
-                TennisMatchDetailView(game: game)
-                    .environment(viewModel)
-                    .environment(favorites)
+                listDestination(for: gameWithTeams)
             } label: {
                 TennisMatchScoreView(game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: isLive)
                     .environment(viewModel)
@@ -1093,9 +1141,7 @@ struct DayPage: View {
             .buttonStyle(.plain)
         } else if game.isIndividualSport {
             NavigationLink {
-                TournamentDetailView(game: game)
-                    .environment(viewModel)
-                    .environment(favorites)
+                listDestination(for: gameWithTeams)
             } label: {
                 TournamentScoreView(game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: isLive)
                     .environment(viewModel)
@@ -1105,37 +1151,50 @@ struct DayPage: View {
         } else if let homeTeam = gameWithTeams.homeTeam,
                   let awayTeam = gameWithTeams.awayTeam {
             let isPreGame = game.strStatus == "pre" || game.strStatus == "NS"
-            if let homeScore = Int(game.intHomeScore ?? ""),
-               let awayScore = Int(game.intAwayScore ?? ""),
-               !isPreGame {
-                GameScoreView(
-                    homeTeam: homeTeam,
-                    awayTeam: awayTeam,
-                    homeScore: homeScore,
-                    awayScore: awayScore,
-                    game: game,
-                    shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
-                    sheetType: $sheetType,
-                    isLive: isLive,
-                    competitionLabel: competitionLabel
-                )
-                .environment(favorites)
-                .environment(viewModel)
-            } else {
-                UpcomingGameView(
-                    homeTeam: homeTeam,
-                    awayTeam: awayTeam,
-                    game: game,
-                    showCountdown: $bindableStorage.showStartTime,
-                    shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
-                    sheetType: $sheetType,
-                    dateFormat: storage.dateFormat,
-                    isFavorite: favorites.contains(game),
-                    competitionLabel: competitionLabel
-                )
-                .environment(favorites)
+            NavigationLink {
+                listDestination(for: gameWithTeams)
+            } label: {
+                if let homeScore = Int(game.intHomeScore ?? ""),
+                   let awayScore = Int(game.intAwayScore ?? ""),
+                   !isPreGame {
+                    GameScoreView(
+                        homeTeam: homeTeam,
+                        awayTeam: awayTeam,
+                        homeScore: homeScore,
+                        awayScore: awayScore,
+                        game: game,
+                        shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
+                        sheetType: $sheetType,
+                        isLive: isLive,
+                        navigationDisabled: true,
+                        competitionLabel: competitionLabel
+                    )
+                    .environment(favorites)
+                    .environment(viewModel)
+                } else {
+                    UpcomingGameView(
+                        homeTeam: homeTeam,
+                        awayTeam: awayTeam,
+                        game: game,
+                        showCountdown: $bindableStorage.showStartTime,
+                        shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
+                        sheetType: $sheetType,
+                        dateFormat: storage.dateFormat,
+                        isFavorite: favorites.contains(game),
+                        navigationDisabled: true,
+                        competitionLabel: competitionLabel
+                    )
+                    .environment(favorites)
+                    .environment(viewModel)
+                }
             }
+            .buttonStyle(.plain)
         }
+    }
+
+    private func listDestination(for gameWithTeams: GameWithTeams) -> some View {
+        boardDetailView(for: gameWithTeams)
+            .onAppear { listPushedGame = gameWithTeams }
     }
 
     // MARK: - Board Game Row (programmatic navigation)
@@ -1201,13 +1260,13 @@ struct DayPage: View {
         .buttonStyle(.plain)
         .contentShape(Rectangle())
         .overlay {
-            // Keyboard-selection ring (macOS ⌥↑/⌥↓). `boardSelectedGameID` is
-            // only ever set on macOS, so this is inert elsewhere.
-            if boardSelectedGameID == game.id {
+            // Selection ring: the macOS inspector's game (⌥↑/⌥↓ moves it).
+            if highlightedRowID == game.id {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(Color.accentColor, lineWidth: 2)
             }
         }
+        .accessibilityAddTraits(highlightedRowID == game.id ? .isSelected : [])
         .macBoardAffordances(game: game)
     }
 
@@ -1230,6 +1289,52 @@ struct DayPage: View {
             AdaptiveGameDetail(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
                 .environment(viewModel)
                 .environment(favorites)
+        }
+    }
+
+    // MARK: - Toolbar
+
+    /// Every item is a plain symbol `Label`. On the iPhone Duo (and any iOS 27.1
+    /// device that moves toolbars to a vertical rail) a custom label view can't
+    /// be laid out vertically, and its glass container spread across the games.
+    /// When the rail runs out of room, the filter outlasts Manage Sports.
+    @ViewBuilder
+    private func withDayToolbar(_ content: some View) -> some View {
+        if #available(iOS 27.0, macOS 26.1, *) {
+            content.toolbar {
+                ToolbarItem(placement: .primaryAction) { sportFilterMenu }
+                    .visibilityPriority(.high)
+                ToolbarItem(placement: .primaryAction) { todayButton }
+                ToolbarItem(placement: .primaryAction) { manageSportsButton }
+                    .visibilityPriority(.low)
+            }
+        } else {
+            content.toolbar {
+                ToolbarItem(placement: .primaryAction) { sportFilterMenu }
+                ToolbarItem(placement: .primaryAction) { todayButton }
+                ToolbarItem(placement: .primaryAction) { manageSportsButton }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var todayButton: some View {
+        if !calendar.isDateInToday(selectedDate) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    selectedDate = calendar.startOfDay(for: Date())
+                }
+            } label: {
+                Label("Today", systemImage: "calendar.badge.clock")
+            }
+        }
+    }
+
+    private var manageSportsButton: some View {
+        Button {
+            showSportPicker = true
+        } label: {
+            Label("Manage Sports", systemImage: "slider.horizontal.3")
         }
     }
 
@@ -1272,19 +1377,17 @@ struct DayPage: View {
                 }
             }
         } label: {
-            HStack(spacing: 2) {
-                Image(systemName: sportFilterIcon)
-                if totalLiveCount > 0 {
-                    Text("\(totalLiveCount)")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(Color.red, in: Capsule())
-                }
-            }
+            // A plain Label: the vertical toolbar rail can't lay out a custom
+            // HStack (the old icon + red count capsule). Live counts are in the menu.
+            Label("Filter", systemImage: sportFilterIcon)
+                .accessibilityValue(sportFilterAccessibilityValue)
         }
+    }
+
+    /// The active filter, then the live count when there is one.
+    private var sportFilterAccessibilityValue: String {
+        let filter = sportFilter.accessibilityName
+        return totalLiveCount > 0 ? "\(filter), \(totalLiveCount) live" : filter
     }
 
     private var sportFilterIcon: String {
@@ -1300,7 +1403,7 @@ struct DayPage: View {
 
     @ViewBuilder
     private func spotlightDestination(for eventID: String) -> some View {
-        if let game = viewModel.totalGames?.first(where: { $0.idEvent == eventID }) {
+        if let game = viewModel.game(forEventID: eventID) {
             if game.isRace {
                 RaceDetailView(game: game)
                     .environment(viewModel)

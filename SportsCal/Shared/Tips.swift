@@ -36,7 +36,7 @@ struct SportFilterTip: Tip {
         Text("Filter by Sport")
     }
     var message: Text? {
-        Text("Tap a sport chip to quickly filter your view.")
+        Text("Use the filter button to show one sport at a time.")
     }
     var image: Image? {
         Image(systemName: "line.3.horizontal.decrease.circle")

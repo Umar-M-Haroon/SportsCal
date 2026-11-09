@@ -433,28 +433,3 @@ struct LiveActivitySituationStrip: View {
         .foregroundStyle(tint)
     }
 }
-
-// MARK: - Worth watching
-
-/// Badge for a finished game that was worth watching. Says how tense it was, never
-/// who won, so it's safe on a score-hidden list.
-struct ExcitementBadge: View {
-    let tier: ExcitementTier
-
-    var body: some View {
-        if tier.isWorthWatching {
-            HStack(spacing: 3) {
-                Image(systemName: tier == .classic ? "flame.fill" : "bolt.fill")
-                    .imageScale(.small)
-                Text(tier.displayName)
-            }
-            .font(.caption2.weight(.bold))
-            .foregroundStyle(.orange)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color.orange.opacity(0.15), in: Capsule())
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(tier.displayName)
-        }
-    }
-}

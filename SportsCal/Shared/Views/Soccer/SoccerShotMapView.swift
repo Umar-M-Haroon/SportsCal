@@ -48,6 +48,9 @@ struct SoccerShotMapView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Shot map")
+            // Keep the map a glanceable size on wide screens.
+            .frame(maxWidth: 560)
+            .frame(maxWidth: .infinity)
 
             if let selected {
                 selectedDetail(selected)

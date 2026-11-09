@@ -1391,8 +1391,7 @@ struct ModernMacWindow: View {
             homeScore: home,
             awayScore: away,
             awayBadgeURL: badgeURL(game.strAwayTeamBadge),
-            homeBadgeURL: badgeURL(game.strHomeTeamBadge),
-            excitementTier: game.excitementTier
+            homeBadgeURL: badgeURL(game.strHomeTeamBadge)
         )
     }
 

@@ -131,39 +131,3 @@ public enum ExcitementIndex {
         return 100
     }
 }
-
-/// The label a finished game's excitement earns. Only the top two tiers get shown:
-/// the badge exists to point at games worth watching, not to call others dull.
-public enum ExcitementTier: Int, Comparable, Sendable {
-    case ordinary, close, thriller, classic
-
-    public init(score: Int) {
-        switch score {
-        case 92...: self = .classic
-        case 75...: self = .thriller
-        case 50...: self = .close
-        default: self = .ordinary
-        }
-    }
-
-    /// Whether to badge the game at all.
-    public var isWorthWatching: Bool { self >= .thriller }
-
-    public var displayName: String {
-        switch self {
-        case .classic: return "Instant Classic"
-        case .thriller: return "Thriller"
-        case .close: return "Competitive"
-        case .ordinary: return "Decided Early"
-        }
-    }
-
-    public static func < (lhs: ExcitementTier, rhs: ExcitementTier) -> Bool { lhs.rawValue < rhs.rawValue }
-}
-
-public extension Game {
-    /// The tier for `excitement`, when the game has one.
-    var excitementTier: ExcitementTier? {
-        excitement.map(ExcitementTier.init(score:))
-    }
-}

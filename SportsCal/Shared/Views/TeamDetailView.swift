@@ -125,6 +125,7 @@ struct TeamDetailView: View {
             #if os(iOS)
             .listStyle(.insetGrouped)
             #endif
+            .readableScrollWidth()
             .task(id: seasons.anchorGameID) {
                 guard !didScrollToAnchor, let anchor = seasons.anchorGameID else { return }
                 // Let the List lay out its rows before asking it to scroll. A single

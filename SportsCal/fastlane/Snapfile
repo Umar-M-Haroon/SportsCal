@@ -26,8 +26,11 @@ languages([
 # Scheme must build the app AND run the SportsCalUITests target in its Test action.
 scheme("SportsCal (iOS)")
 
-# Only run the screenshot test, not the whole UITest suite.
-only_testing(["SportsCalUITests/SportsCalUITests/testSnapshots"])
+# Only run the screenshot test, not the whole UITest suite. It saves XCTest
+# attachments; snapshot collects PNGs only once SnapshotHelper.swift is in the
+# SportsCalUITests target and the test calls snapshot() (SCREENSHOTS.md). The
+# iPhone Duo's two panels need host-side capture: docs/duo/run_tour.sh.
+only_testing(["SportsCalUITests/SportsCalUITests/testAppStoreScreenshots"])
 
 output_directory("./fastlane/screenshots")
 clear_previous_screenshots(true)

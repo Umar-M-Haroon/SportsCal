@@ -45,15 +45,13 @@ struct TennisMatchDetailView: View {
 
     // MARK: - Body
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                matchHeader
-                gameInfo
-                actionsRow
-                setScoresSection
-                headToHeadSection
-            }
-            .padding()
+        PinnedDetailLayout {
+            matchHeader
+            gameInfo
+            actionsRow
+        } details: {
+            setScoresSection
+            headToHeadSection
         }
         .navigationTitle(game.tournamentName ?? league?.leagueName ?? "Match Details")
         #if os(iOS)

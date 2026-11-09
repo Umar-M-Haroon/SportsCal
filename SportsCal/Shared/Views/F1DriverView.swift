@@ -61,6 +61,7 @@ struct F1DriverContent: View {
             }
             .padding()
         }
+        .readableScrollWidth()
         .navigationTitle(driverName)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)

@@ -77,6 +77,7 @@ private struct TeamLeagueHub: View {
     @State private var liveEventIDs: Set<String> = []
     @State private var sheetType: SheetType?
     @State private var shouldShowProAlert = false
+    @State private var layoutWidth: CGFloat = 0
     /// College only: show one conference's games.
     @State private var conference: CollegeConference?
 
@@ -104,25 +105,61 @@ private struct TeamLeagueHub: View {
 
     private var sport: SportType { SportType(league: league) }
 
+    /// Wide layouts (the unfolded iPhone Duo, iPad) show standings and schedule
+    /// side by side under one segment instead of making the user flip between them.
+    private var isWide: Bool { layoutWidth >= DetailLayout.sideBySideMinWidth }
+
+    private var visibleTabs: [Tab] {
+        isWide ? tabs.filter { $0 != .schedule } : tabs
+    }
+
+    private func title(for tab: Tab) -> String {
+        isWide && tab == .standings ? "Standings & Schedule" : tab.rawValue
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: .appSpace4) {
-                Picker("Section", selection: $tab) {
-                    ForEach(tabs) { Text($0.rawValue).tag($0) }
+                if visibleTabs.count > 1 {
+                    Picker("Section", selection: $tab) {
+                        ForEach(visibleTabs) { Text(title(for: $0)).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
 
                 switch tab {
                 case .rankings:
                     PollRankingsView(league: league)
                         .environment(favorites)
-                case .standings: standings
-                case .schedule: schedule
+                case .standings, .schedule:
+                    if isWide {
+                        HStack(alignment: .top, spacing: .appSpace4) {
+                            VStack(alignment: .leading, spacing: .appSpace3) {
+                                Text("Standings").font(.headline)
+                                standings
+                            }
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            VStack(alignment: .leading, spacing: .appSpace3) {
+                                Text("Schedule").font(.headline)
+                                schedule
+                            }
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                        }
+                    } else if tab == .standings {
+                        standings
+                    } else {
+                        schedule
+                    }
                 }
             }
             .padding(.horizontal, .appSpace4)
             .padding(.vertical, .appSpace3)
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { layoutWidth = $0 }
+        .onChange(of: isWide) { _, wide in
+            // The schedule segment folds into "Standings & Schedule" when wide.
+            if wide, tab == .schedule { tab = .standings }
         }
         .background(Color.appBackground.ignoresSafeArea())
         .navigationTitle(league.leagueName)

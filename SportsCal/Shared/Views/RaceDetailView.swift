@@ -59,34 +59,34 @@ struct RaceDetailView: View {
     }
 
     private var f1Body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                circuitImageSection
-                raceHeader
-                if hasSessions {
-                    F1SessionPicker(sessions: game.sessions ?? [], selectedIndex: $selectedSessionIndex)
-                }
-                gameInfo
-                actionsRow
-                if hasSessions {
-                    gapRibbonSection
-                    if let sessionDetail, !sessionDetail.lapPositions.isEmpty {
-                        F1LapChartView(detail: sessionDetail)
-                    }
-                    sessionLeaderboard
-                    raceTimingSection
-                    weekendSchedule
-                } else {
-                    gapRibbonSection
-                    legacyLeaderboard
-                    raceTimingSection
-                }
-                if let standings = viewModel.f1Standings {
-                    F1TitleFightCard(standings: standings)
-                }
-                standingsSection
+        // The header and session picker pin beside (wide) or above (half-folded
+        // Duo) the leaderboard and standings.
+        PinnedDetailLayout {
+            circuitImageSection
+            raceHeader
+            if hasSessions {
+                F1SessionPicker(sessions: game.sessions ?? [], selectedIndex: $selectedSessionIndex)
             }
-            .padding()
+            gameInfo
+            actionsRow
+        } details: {
+            if hasSessions {
+                gapRibbonSection
+                if let sessionDetail, !sessionDetail.lapPositions.isEmpty {
+                    F1LapChartView(detail: sessionDetail)
+                }
+                sessionLeaderboard
+                raceTimingSection
+                weekendSchedule
+            } else {
+                gapRibbonSection
+                legacyLeaderboard
+                raceTimingSection
+            }
+            if let standings = viewModel.f1Standings {
+                F1TitleFightCard(standings: standings)
+            }
+            standingsSection
         }
         .navigationTitle("Formula 1")
         #if os(iOS)

@@ -185,7 +185,7 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         // Handle deep linking based on notification type
         if let eventID = userInfo["eventID"] as? String {
             // Post notification to open specific game
-            NotificationCenter.default.post(name: NSNotification.Name("OpenGameFromNotification"), object: nil, userInfo: ["eventID": eventID])
+            NotificationCenter.default.post(name: NSNotification.Name("OpenGameFromNotification"), object: nil, userInfo: ["eventID": eventID, "token": response.notification.request.identifier])
         }
 
         completionHandler()
@@ -285,7 +285,7 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         AppLogger.notifications.info("User tapped notification for event: \(userInfo["eventID"] as? String ?? "unknown")")
 
         if let eventID = userInfo["eventID"] as? String {
-            NotificationCenter.default.post(name: NSNotification.Name("OpenGameFromNotification"), object: nil, userInfo: ["eventID": eventID])
+            NotificationCenter.default.post(name: NSNotification.Name("OpenGameFromNotification"), object: nil, userInfo: ["eventID": eventID, "token": response.notification.request.identifier])
         }
 
         completionHandler()

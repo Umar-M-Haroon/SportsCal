@@ -53,8 +53,11 @@ struct GameBoardLayout<GameContent: View>: View {
                         }
                     }
                 }
+                .scrollTargetLayout()
                 .padding(.horizontal, 16)
             }
+            // Rest on whole columns, never half of one.
+            .scrollTargetBehavior(.viewAligned)
         }
     }
 
@@ -74,12 +77,13 @@ struct GameBoardLayout<GameContent: View>: View {
             return target
         }
         #else
-        let fittable = max(1, Int(usable / 300))
-        if columnCount <= fittable {
-            return usable / CGFloat(columnCount)
-        } else {
-            return 300
-        }
+        // Fit as many whole columns of at least 280pt as the width allows and share
+        // the width between them, so the last visible column is never cut off.
+        let content = availableWidth - padding
+        let minimum: CGFloat = 280
+        let fittable = max(1, Int((content + spacing) / (minimum + spacing)))
+        let shown = min(columnCount, fittable)
+        return (content - CGFloat(shown - 1) * spacing) / CGFloat(shown)
         #endif
     }
 }
