@@ -1298,6 +1298,44 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return .ok
     }
 
+    //MARK: - Golf alerts
+    // The followed golfers (by leaderboard name) and alert kinds an install wants;
+    // GolfAlertJob pushes to it. Empty players or kinds unregisters.
+    writeRoutes.post("notifications", "golf") { req async throws -> HTTPStatus in
+        let registration = try req.content.decode(GolfAlertRegistration.self)
+        guard !registration.token.isEmpty, registration.token.count <= 200,
+              registration.players.count <= 100 else {
+            throw Abort(.badRequest)
+        }
+        let environment = resolveAPNSEnvironment(from: req)
+        let installID = resolveInstallID(from: req, fallbackToken: registration.token)
+        let sandbox = environment == .sandbox
+        let key = GolfAlertDevice.key(installID: installID, sandbox: sandbox)
+        let players = registration.players.map { String($0.prefix(80)) }
+        if players.isEmpty || registration.kinds.isEmpty {
+            _ = try? await req.kv.delete([key])
+            await GolfAlertDeviceIndex.remove([key], sandbox: sandbox, kv: req.kv)
+            return .ok
+        }
+        let device = GolfAlertDevice(installID: installID, token: registration.token,
+                                     players: players, kinds: registration.kinds)
+        try await req.kv.setJSON(key, value: device, ttl: GolfAlertDevice.ttl)
+        await GolfAlertDeviceIndex.add(key, sandbox: sandbox, kv: req.kv)
+        req.logger.info("Registered golf alerts for install \(installID.prefix(8))... [\(environment.rawValue)] players=\(players.count) kinds=\(registration.kinds.count)")
+        return .ok
+    }
+
+    writeRoutes.delete("notifications", "golf") { req async throws -> HTTPStatus in
+        let body = try req.content.decode(DeregisterRequest.self)
+        let environment = resolveAPNSEnvironment(from: req)
+        let installID = resolveInstallID(from: req, fallbackToken: body.token)
+        let sandbox = environment == .sandbox
+        let key = GolfAlertDevice.key(installID: installID, sandbox: sandbox)
+        _ = try? await req.kv.delete([key])
+        await GolfAlertDeviceIndex.remove([key], sandbox: sandbox, kv: req.kv)
+        return .ok
+    }
+
     // Counterpart to the POST: drop the per-activity registration on the host
     // the iOS client just left so APNSJob there stops dispatching updates. Used
     // by the iOS env-flip handler — without this, two servers' Redis instances
