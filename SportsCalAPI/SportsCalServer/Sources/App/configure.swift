@@ -198,6 +198,10 @@ public func configure(_ app: Application) async throws {
         app.queues.schedule(SoccerAlertJob())
             .minutely()
             .at(35)
+        // Followed-golfer alerts (teeing off, taking the lead, finishing, winning).
+        app.queues.schedule(GolfAlertJob())
+            .minutely()
+            .at(40)
         // DISABLED: Standings history snapshots
 //        let standingsSnapshotJob = StandingsSnapshotJob()
 //        app.queues.schedule(standingsSnapshotJob)
@@ -214,6 +218,10 @@ public func configure(_ app: Application) async throws {
         app.queues.schedule(golfEnrichmentJob)
             .hourly()
             .at(25)
+        // Tops up the tennis results archive behind /tennis/h2h.
+        app.queues.schedule(TennisResultsArchiveJob())
+            .hourly()
+            .at(20)
         let injuriesEnrichmentJob = InjuriesEnrichmentJob()
         app.queues.schedule(injuriesEnrichmentJob)
             .hourly()
