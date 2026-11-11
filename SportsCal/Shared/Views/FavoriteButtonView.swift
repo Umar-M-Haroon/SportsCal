@@ -15,14 +15,14 @@ struct FavoriteMenu: View {
             Button {
                 if let game = game {
                     if favorites.contains(game) {
-                        favorites.remove(game.strHomeTeam)
+                        favorites.remove(game, home: true)
                     } else {
-                        favorites.add(game.strHomeTeam)
+                        favorites.add(game, home: true)
                     }
                 }
             } label: {
                 if let game = game {
-                    if favorites.containsHome(game.strHomeTeam) {
+                    if favorites.contains(game, home: true) {
                         Text("Remove \(game.strHomeTeam) as favorite")
                     } else {
                         Text("Set \(game.strHomeTeam) as favorite")
@@ -32,14 +32,14 @@ struct FavoriteMenu: View {
                 Button {
                     if let game = game {
                         if favorites.contains(game) {
-                            favorites.remove(game.strAwayTeam)
+                            favorites.remove(game, home: false)
                         } else {
-                            favorites.add(game.strAwayTeam)
+                            favorites.add(game, home: false)
                         }
                     }
                 } label: {
                     if let game = game {
-                        if favorites.containsAway(game.strAwayTeam) {
+                        if favorites.contains(game, home: false) {
                             Text("Remove \(game.strAwayTeam) as favorite")
                         } else {
                             Text("Set \(game.strAwayTeam) as favorite")

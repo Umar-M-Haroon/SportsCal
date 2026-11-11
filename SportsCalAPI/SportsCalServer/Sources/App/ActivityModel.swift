@@ -73,6 +73,9 @@ struct PushToStartRegistration: Codable, Content {
     /// name, college shares names with other sports (Duke, UConn), and those builds
     /// can't handle the league.
     var college: Bool? = nil
+    /// Sent (true) by builds that list a followed college football team by its team ID
+    /// ("ncaaf-333") instead of the school's name, which its basketball team shares.
+    var collegeByID: Bool? = nil
 }
 
 /// A client-emitted funnel event ingested by `POST /v2025/telemetry`. Mirrors the
@@ -166,6 +169,8 @@ struct PushToStartInstall: Codable {
     /// See `PushToStartRegistration.college`. Optional so records stored before it
     /// existed still decode.
     var college: Bool? = nil
+    /// See `PushToStartRegistration.collegeByID`.
+    var collegeByID: Bool? = nil
 
     /// Whether college games may start a Live Activity on this install.
     var wantsCollege: Bool { college == true }
@@ -173,6 +178,16 @@ struct PushToStartInstall: Codable {
     /// Whether `game` may start a Live Activity on this install at all.
     func accepts(_ game: Game) -> Bool {
         !game.isCollegeFootball || wantsCollege
+    }
+
+    /// Whether `game` involves a team on `favorites` (this install's, as a set). A build
+    /// that sends college football follows by ID gets a college football game matched by
+    /// ID alone: the school's name could be a basketball follow.
+    func followsTeam(in game: Game, favorites: Set<String>) -> Bool {
+        if collegeByID == true, game.isCollegeFootball {
+            return [game.idHomeTeam, game.idAwayTeam].contains { $0.map(favorites.contains) ?? false }
+        }
+        return favorites.contains(game.strHomeTeam) || favorites.contains(game.strAwayTeam)
     }
 
     /// How long a push-to-start registration survives without a refresh. Set long

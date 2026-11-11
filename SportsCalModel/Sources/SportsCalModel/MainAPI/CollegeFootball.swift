@@ -89,6 +89,11 @@ public extension Game {
         idLeague == "\(Leagues.ncaaf.rawValue)"
     }
 
+    /// Men's college basketball, whose teams carry ESPN's bare IDs.
+    var isCollegeBasketball: Bool {
+        idLeague == "\(Leagues.ncaaMBBTournament.rawValue)"
+    }
+
     /// A college team's display code when the game didn't carry ESPN's abbreviation
     /// (an older server): a leading all-caps word is the school's own code ("BYU
     /// Cougars" → "BYU", "UCLA Bruins" → "UCLA"). Nil when the name doesn't start with

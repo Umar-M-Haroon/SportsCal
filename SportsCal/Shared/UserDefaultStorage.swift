@@ -193,11 +193,12 @@ class UserDefaultStorage {
     private static let golfAlertKindsKey = "golfAlertKinds"
 
     /// Which alerts (teeing off, taking the lead, finishing) the server pushes for
-    /// followed golfers. Every kind until the user turns some off.
+    /// followed golfers. Taking the lead and finishing until the user changes them;
+    /// teeing off is opt-in.
     var golfAlertKinds: Set<GolfAlertKind> {
         get {
             guard let raw = UserDefaults(suiteName: Self.suiteName)?.stringArray(forKey: Self.golfAlertKindsKey) else {
-                return Set(GolfAlertKind.allCases)
+                return [.lead, .finish]
             }
             return Set(raw.compactMap(GolfAlertKind.init(rawValue:)))
         }

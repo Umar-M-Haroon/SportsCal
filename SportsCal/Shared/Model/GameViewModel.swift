@@ -3760,7 +3760,7 @@ extension GameViewModel {
     func currentPushToStartPayload() -> PushToStartPayload? {
         PushToStartRegistrationPlanner.payload(
             autoFollowFavorites: appStorage.autoFollowFavorites,
-            favoriteTeams: favorites.teams,
+            favoriteTeams: favorites.pushToStartKeys,
             autoFollowEventIDs: appStorage.autoFollowEventIDs
         )
     }

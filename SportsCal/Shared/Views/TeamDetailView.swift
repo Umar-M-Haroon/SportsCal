@@ -59,7 +59,11 @@ struct TeamDetailView: View {
     @State private var selectedGameID: String?
     @State private var selectedOpponent: Team?
 
-    private var isFavorited: Bool { favorites.contains(team: team) }
+    /// The schedule's main league, kept for following: a college basketball team carries
+    /// a bare ESPN ID, which only the league marks as college.
+    @State private var primaryLeague: Leagues?
+
+    private var isFavorited: Bool { favorites.contains(team: team, league: primaryLeague) }
 
     // MARK: - Body
 
@@ -139,6 +143,7 @@ struct TeamDetailView: View {
         }
         .task(id: team.idTeam) { await loadDetail() }
         .task(id: schedule.primaryLeague?.rawValue) {
+            primaryLeague = schedule.primaryLeague
             async let standings: Void = loadStandings(league: schedule.primaryLeague)
             async let ranks: Void = loadSeasonStats(league: schedule.primaryLeague)
             _ = await (standings, ranks)
@@ -705,10 +710,10 @@ struct TeamDetailView: View {
     // MARK: - Actions
 
     private func toggleFavorite() {
-        if favorites.contains(team: team) {
-            favorites.remove(team: team)
+        if favorites.contains(team: team, league: primaryLeague) {
+            favorites.remove(team: team, league: primaryLeague)
         } else {
-            favorites.add(team: team)
+            favorites.add(team: team, league: primaryLeague)
         }
     }
 

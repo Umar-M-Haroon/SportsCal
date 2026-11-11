@@ -251,6 +251,23 @@ final class CollegeFootballServerTests: XCTestCase {
         XCTAssertNil(registration.college)
     }
 
+    func testCollegeFootballFollowsMatchByIDForBuildsThatSendThem() {
+        // Missouri football and Missouri basketball share "Missouri Tigers".
+        let football = collegeGame(id: "c1")
+        let basketball = Game(idEvent: "b1", idLeague: "\(Leagues.ncaaMBBTournament.rawValue)", idHomeTeam: "142", idAwayTeam: "57",
+                              strHomeTeam: "Missouri Tigers", strAwayTeam: "Florida Gators", isoDate: nil)
+        let scoped = PushToStartInstall(installID: "i", token: "t", favorites: ["ncaaf-142"], eventIDs: [],
+                                        environment: .production, college: true, collegeByID: true)
+        XCTAssertTrue(scoped.followsTeam(in: football, favorites: ["ncaaf-142"]))
+        XCTAssertFalse(scoped.followsTeam(in: basketball, favorites: ["ncaaf-142"]))
+        // A basketball follow goes by name, which a scoped build never matches on football.
+        XCTAssertTrue(scoped.followsTeam(in: basketball, favorites: ["Missouri Tigers"]))
+        XCTAssertFalse(scoped.followsTeam(in: football, favorites: ["Missouri Tigers"]))
+        // Older builds still send names for everything.
+        let old = PushToStartInstall(installID: "i", token: "t", favorites: [], eventIDs: [], environment: .production, college: true)
+        XCTAssertTrue(old.followsTeam(in: football, favorites: ["Missouri Tigers"]))
+    }
+
     func testCollegeTeamIDsAreUnwrappedForESPN() {
         XCTAssertEqual(Leagues.collegeESPNTeamID("ncaaf-57"), "57")
         XCTAssertNil(Leagues.collegeESPNTeamID("134920"))

@@ -1102,7 +1102,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 var matchedEventIDs = Set<String>()
                 for game in newlyStarted {
                     guard let eventID = game.idEvent, install.accepts(game) else { continue }
-                    let isFavoriteMatch = favoritesSet.contains(game.strHomeTeam) || favoritesSet.contains(game.strAwayTeam)
+                    let isFavoriteMatch = install.followsTeam(in: game, favorites: favoritesSet)
                     let isEventIDMatch = eventIDsSet.contains(eventID) && newlyStartedIDs.contains(eventID)
                     guard isFavoriteMatch || isEventIDMatch else { continue }
                     guard matchedEventIDs.insert(eventID).inserted else { continue }
@@ -1190,7 +1190,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
         var matchedEventIDs = Set<String>()
         for game in liveNow {
             guard let eventID = game.idEvent, install.accepts(game) else { continue }
-            let isFavoriteMatch = favoritesSet.contains(game.strHomeTeam) || favoritesSet.contains(game.strAwayTeam)
+            let isFavoriteMatch = install.followsTeam(in: game, favorites: favoritesSet)
             let isEventIDMatch = eventIDsSet.contains(eventID)
             guard isFavoriteMatch || isEventIDMatch else { continue }
             guard matchedEventIDs.insert(eventID).inserted else { continue }

@@ -1338,6 +1338,8 @@ struct NetworkHandler {
         if wantsCollegeFootball {
             body["college"] = true
         }
+        // A followed college football team is listed by its ID (`Favorites.pushToStartKeys`).
+        body["collegeByID"] = true
         if !eventIDs.isEmpty {
             body["eventIDs"] = eventIDs
         }

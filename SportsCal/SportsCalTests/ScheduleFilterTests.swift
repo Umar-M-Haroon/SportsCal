@@ -364,6 +364,25 @@ final class ScheduleFilterTests: XCTestCase {
         XCTAssertEqual(collegeIDs(viewModel.getGamesFromUserPreferences()), ["cfb-belt"])
     }
 
+    func testCollegeFootballFollowSkipsTheSchoolsBasketballTeam() {
+        // Both Missouri teams are "Missouri Tigers"; only their IDs tell them apart.
+        let football = Game(idEvent: "cfb", idLeague: "\(Leagues.ncaaf.rawValue)", idHomeTeam: "ncaaf-142", idAwayTeam: "ncaaf-57",
+                            strHomeTeam: "Missouri Tigers", strAwayTeam: "Florida Gators", isoDate: nil)
+        let hoops = Game(idEvent: "cbb", idLeague: "\(Leagues.ncaaMBBTournament.rawValue)", idHomeTeam: "142", idAwayTeam: "57",
+                         strHomeTeam: "Missouri Tigers", strAwayTeam: "Florida Gators", isoDate: nil)
+        favorites.add(football, home: true)
+        XCTAssertTrue(favorites.contains(football))
+        XCTAssertFalse(favorites.contains(hoops))
+        XCTAssertTrue(favorites.teams.contains("Missouri Tigers"))
+        XCTAssertEqual(favorites.pushToStartKeys, ["ncaaf-142"], "push-to-start gets the ID, not the shared name")
+
+        favorites.remove(football, home: true)
+        favorites.add(hoops, home: true)
+        XCTAssertTrue(favorites.contains(hoops))
+        XCTAssertFalse(favorites.contains(football))
+        XCTAssertEqual(favorites.pushToStartKeys, ["Missouri Tigers"])
+    }
+
     func testFootballSectionsFollowThePicks() {
         let college = addCollegeGames()
         appStorage.shouldShowNFL = true

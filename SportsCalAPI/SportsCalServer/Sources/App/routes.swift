@@ -1726,7 +1726,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
             favorites: registration.favorites,
             eventIDs: registration.eventIDs ?? [],
             environment: environment,
-            college: registration.college
+            college: registration.college,
+            collegeByID: registration.collegeByID
         )
 
         // If this install previously held a different token, drop the reverse
