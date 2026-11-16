@@ -77,6 +77,13 @@ public extension Play {
 }
 
 public extension Array where Element == Play {
+    /// The plays with any repeated ID dropped, keeping the first. Lists identify a row
+    /// by its play ID, and two rows sharing one get each other's content as they scroll.
+    var uniquedByID: [Play] {
+        var seen = Set<String>()
+        return filter { seen.insert($0.id).inserted }
+    }
+
     /// Baseball rows grouped by half-inning, oldest first, keeping only results (see
     /// ``Play/isBaseballResult``) with each at-bat's pitches folded under it.
     ///

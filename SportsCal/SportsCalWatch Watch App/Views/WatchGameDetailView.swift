@@ -164,7 +164,7 @@ struct WatchGameDetailView: View {
             .font(.system(size: 9, weight: .bold))
             .foregroundStyle(.primary)
             .padding(.top, 2)
-        ForEach(Array(group.plays.enumerated()), id: \.offset) { _, play in
+        ForEach(group.plays) { play in
             watchPlayRow(play)
         }
     }
@@ -217,7 +217,7 @@ struct WatchGameDetailView: View {
                 sport: sportPath,
                 league: leagueSlug
             )
-            plays = cached.plays
+            plays = cached.plays.uniquedByID
             playsAvailable = true
         } catch is NetworkHandler.PlayByPlayNotAvailable {
             plays = []

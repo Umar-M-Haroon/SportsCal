@@ -82,7 +82,7 @@ final class GameDetailSectionsModel {
             let cached = try await NetworkHandler.fetchPlayByPlay(
                 eventID: eventID, sport: sport, league: league, includePlayers: true
             )
-            plays = cached.plays
+            plays = cached.plays.uniquedByID
             playsAvailable = true
             // Keep what we have when a refresh comes back without them: a 404'd
             // box score mid-game shouldn't blank the panel.
@@ -1587,7 +1587,9 @@ struct GameDetailSections: View {
                     footballPlays()
                 } else {
                     LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(visible.enumerated()), id: \.offset) { _, play in
+                        // By play ID, not position: newest-first, each new play would
+                        // otherwise shift every row's identity onto its neighbour's.
+                        ForEach(visible) { play in
                             playRow(play)
                         }
                     }
@@ -1641,7 +1643,7 @@ struct GameDetailSections: View {
                 if let drive = group.drive {
                     driveHeader(drive)
                 }
-                ForEach(Array(group.plays.enumerated()), id: \.offset) { _, play in
+                ForEach(group.plays) { play in
                     playRow(play)
                 }
             }

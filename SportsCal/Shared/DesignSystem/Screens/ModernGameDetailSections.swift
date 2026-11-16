@@ -456,7 +456,7 @@ struct ModernGameDetailSections: View {
                     placeholder("No plays recorded for this period")
                 } else {
                     LazyVStack(alignment: .leading, spacing: .appSpace2) {
-                        ForEach(Array(visible.enumerated()), id: \.offset) { _, play in
+                        ForEach(visible) { play in
                             playRow(play)
                         }
                     }
