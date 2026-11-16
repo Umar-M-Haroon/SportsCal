@@ -185,17 +185,7 @@ struct ContentView: View {
             // foreground (below) — a reschedule doesn't change the game count, and games
             // drift into the scheduling window day by day.
             .task(id: viewModel.totalGames?.count ?? 0) { reconcileTeamAlerts() }
-            .onReceive(NotificationCenter.default.publisher(for: .apnsDeviceTokenDidUpdate)) { _ in
-                reconcileTeamAlerts()
-            }
-            // Subscribing (or lapsing) changes which alerts fire: the team and golfer
-            // allowances, and whether running Live Activities buzz.
-            .onChange(of: SubscriptionManager.shared.isPro) { _, _ in
-                reconcileTeamAlerts()
-                #if canImport(ActivityKit) && os(iOS)
-                viewModel.reRegisterAllActivityTokens()
-                #endif
-            }
+            .modifier(AlertRegistrationTriggers(reconcile: reconcileTeamAlerts, proStatusChanged: proStatusChanged))
             .alert("Scoreline Pro", isPresented: $shouldShowSportsCalProAlert) {
                 Button("Subscribe") { sheetType = .paywall }
                 Button("Cancel", role: .cancel) { }
@@ -759,6 +749,15 @@ struct ContentView: View {
     }
     #endif
 
+    /// Subscribing (or lapsing) changes which alerts fire: the team and golfer
+    /// allowances, and whether running Live Activities buzz.
+    private func proStatusChanged() {
+        reconcileTeamAlerts()
+        #if canImport(ActivityKit) && os(iOS)
+        viewModel.reRegisterAllActivityTokens()
+        #endif
+    }
+
     private func reconcileTeamAlerts() {
         #if os(iOS)
         // Followed golfers' alerts are pushed too; following is the opt-in.
@@ -911,5 +910,23 @@ extension View {
         } else {
             ifFalse(self)
         }
+    }
+}
+
+/// Re-syncs server-side alert registrations when the push token arrives or Pro status
+/// changes. Kept out of `ContentView.body`'s modifier chain, which is already at the
+/// edge of what the type checker finishes in time on macOS.
+private struct AlertRegistrationTriggers: ViewModifier {
+    let reconcile: () -> Void
+    let proStatusChanged: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: .apnsDeviceTokenDidUpdate)) { _ in
+                reconcile()
+            }
+            .onChange(of: SubscriptionManager.shared.isPro) { _, _ in
+                proStatusChanged()
+            }
     }
 }
