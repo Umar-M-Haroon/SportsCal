@@ -84,9 +84,9 @@ final class StoreKitIntegrationTests: XCTestCase {
 
     func testMonthlyProductPrice() async throws {
         let product = try await fetchProduct(monthlyProductId)
-        XCTAssertEqual(product.price, 0.99, accuracy: 0.01, "Monthly price should be $0.99")
-        XCTAssertTrue(product.displayPrice.contains("0.99"),
-                       "Display price should contain 0.99, got: \(product.displayPrice)")
+        XCTAssertEqual(product.price, 1.99, accuracy: 0.01, "Monthly price should be $1.99")
+        XCTAssertTrue(product.displayPrice.contains("1.99"),
+                       "Display price should contain 1.99, got: \(product.displayPrice)")
     }
 
     func testMonthlyProductIsSubscription() async throws {
@@ -109,9 +109,9 @@ final class StoreKitIntegrationTests: XCTestCase {
 
     func testYearlyProductPrice() async throws {
         let product = try await fetchProduct(yearlyProductId)
-        XCTAssertEqual(product.price, 6.99, accuracy: 0.01, "Yearly price should be $6.99")
-        XCTAssertTrue(product.displayPrice.contains("6.99"),
-                       "Display price should contain 6.99, got: \(product.displayPrice)")
+        XCTAssertEqual(product.price, 9.99, accuracy: 0.01, "Yearly price should be $9.99")
+        XCTAssertTrue(product.displayPrice.contains("9.99"),
+                       "Display price should contain 9.99, got: \(product.displayPrice)")
     }
 
     func testYearlyProductIsSubscription() async throws {

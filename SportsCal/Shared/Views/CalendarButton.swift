@@ -18,10 +18,9 @@ struct CalendarButton: View {
     var game: Game
     var body: some View {
         Button {
-                EKEventStore().requestAccess(to: .event) { success, err in
-                    AppLogger.calendar.info("Changing sheet type to calendar with game \(game.strAwayTeam) @ \(game.strHomeTeam)")
-                    sheetType = .calendar(game: game)
-                }
+            // The event editor runs out of process and needs no calendar access.
+            AppLogger.calendar.info("Changing sheet type to calendar with game \(game.strAwayTeam) @ \(game.strHomeTeam)")
+            sheetType = .calendar(game: game)
         } label: {
             Label("Add to Calendar", systemImage: "calendar")
         }

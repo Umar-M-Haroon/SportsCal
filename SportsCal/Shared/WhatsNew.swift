@@ -81,7 +81,7 @@ enum WhatsNewAction: Hashable {
 extension WhatsNewRelease {
     /// Newest first.
     static let all: [WhatsNewRelease] = [
-        WhatsNewRelease(version: "3.4", features: [
+        WhatsNewRelease(version: "3.3", features: [
             WhatsNewFeature(
                 id: "college-football",
                 title: "College Football",
@@ -90,8 +90,13 @@ extension WhatsNewRelease {
                 tint: Color.app(.nfl),
                 action: .enableCollegeFootball
             ),
-        ]),
-        WhatsNewRelease(version: "3.3", features: [
+            WhatsNewFeature(
+                id: "soccer-match-centre",
+                title: "Soccer Match Centre",
+                subtitle: "Lineups on the pitch, a shot map, momentum and live commentary for every league, plus goal alerts for a team you follow.",
+                systemImage: "sportscourt.fill",
+                tint: Color.app(.soccer)
+            ),
             WhatsNewFeature(
                 id: "racing-series",
                 title: "NASCAR, IndyCar, IMSA & WEC",
@@ -123,6 +128,13 @@ extension WhatsNewRelease {
                 systemImage: "figure.golf",
                 tint: Color.app(.golf),
                 action: .enableSport(.golf)
+            ),
+            WhatsNewFeature(
+                id: "golf-tennis-live",
+                title: "Golf & Tennis, Live",
+                subtitle: "Follow a tournament or match from your Lock Screen, open the full singles draw with real head-to-heads, and get alerts for golfers you follow.",
+                systemImage: "bell.badge.fill",
+                tint: Color.app(.tennis)
             ),
         ]),
     ]

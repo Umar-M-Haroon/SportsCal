@@ -1249,7 +1249,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
             eventID: body.eventID,
             homeTeam: body.homeTeam,
             awayTeam: body.awayTeam,
-            environment: environment
+            environment: environment,
+            alerts: body.alerts
         )
         let key = (environment == .sandbox ? "debug-APNS-" : "APNS-") + body.token
         // 12h matches the iOS Live Activity max lifetime; APNSJob slides this forward
@@ -1257,8 +1258,10 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         try await req.kv.setJSON(key, value: registration, ttl: 60 * 60 * 12)
         await APNSRegistrationIndex.add(key, kv: req.kv)
         // Soccer goal alerts stand aside for a running Live Activity, which already
-        // announces the goal. Only installs that say who they are can be matched.
-        if let installID = req.headers.first(name: "X-Install-ID"), !installID.isEmpty {
+        // announces the goal. Only installs that say who they are can be matched. A
+        // silent activity (free tier) announces nothing, so the goal alert still goes.
+        if registration.allowsAlerts,
+           let installID = req.headers.first(name: "X-Install-ID"), !installID.isEmpty {
             let marker = LiveActivityInstallMarker.key(installID: installID, eventID: body.eventID,
                                                        sandbox: environment == .sandbox)
             try? await req.kv.setString(marker, value: "1", ttl: 60 * 60 * 12)

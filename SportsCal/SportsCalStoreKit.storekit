@@ -15,7 +15,7 @@
   ],
   "products" : [
     {
-      "displayPrice" : "39.99",
+      "displayPrice" : "24.99",
       "familyShareable" : false,
       "internalID" : "1581340500",
       "localizations" : [
@@ -62,16 +62,11 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "2.99",
+          "displayPrice" : "1.99",
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "1581339320",
-          "introductoryOffer" : {
-            "internalID" : "10CAAFC4",
-            "numberOfPeriods" : 1,
-            "paymentMode" : "free",
-            "subscriptionPeriod" : "P1W"
-          },
+          "introductoryOffer" : null,
           "localizations" : [
             {
               "description" : "Monthly subscription to SportsCal Pro",
@@ -95,7 +90,7 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "19.99",
+          "displayPrice" : "9.99",
           "familyShareable" : false,
           "groupNumber" : 2,
           "internalID" : "1581339731",

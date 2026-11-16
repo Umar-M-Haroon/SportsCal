@@ -1065,9 +1065,11 @@ struct NetworkHandler {
         return ns.localizedDescription.localizedCaseInsensitiveContains("message too long")
     }
 
-    static func subscribeToLiveActivityUpdate(token: String, eventID: String, homeTeam: String? = nil, awayTeam: String? = nil) async throws {
+    static func subscribeToLiveActivityUpdate(token: String, eventID: String, homeTeam: String? = nil, awayTeam: String? = nil, alerts: Bool) async throws {
         let url = URL(string: "\(baseURL())/liveActivity")!
-        var body: [String: Any] = ["token": token, "eventID": eventID]
+        // `alerts` asks the server to buzz on scores and clutch moments (Pro); false keeps
+        // the activity updating silently.
+        var body: [String: Any] = ["token": token, "eventID": eventID, "alerts": alerts]
         if let homeTeam { body["homeTeam"] = homeTeam }
         if let awayTeam { body["awayTeam"] = awayTeam }
         let encoded = try JSONSerialization.data(withJSONObject: body)
@@ -1458,7 +1460,8 @@ struct NetworkHandler {
     }
 
     static func getImageFor(url: String, size: ImageSize) async throws -> Data {
-        let url = URL(string: url)!
+        // Logo URLs come from the feeds; a malformed one is a missing image, not a crash.
+        guard let url = URL(string: url) else { throw URLError(.badURL) }
         let (data, _) = try await URLSession.shared.data(from: url)
         return data
     }

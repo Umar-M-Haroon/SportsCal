@@ -29,12 +29,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             "2153b390d99b5b3d68e57f2a1c16c0c1"
         ]
         #endif
-        // Initialize off the launch-critical path. SDK init kicks off network +
-        // WebKit warmup that contends with first-frame work; nothing needs ads
-        // ready before the deferred preload (1s after first paint) requests them.
-        Task.detached(priority: .utility) {
-            await MobileAds.shared.start()
-        }
+        // The SDK itself starts from `AdConsent.gather()`, after the consent check
+        // that runs with the deferred ad preload (off the launch-critical path).
 
         // Request notification permissions — but NOT for first-run users, who get
         // a contextual ask inside onboarding instead (a premature launch-time

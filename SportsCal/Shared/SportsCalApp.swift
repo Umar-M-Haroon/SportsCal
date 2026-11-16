@@ -99,6 +99,12 @@ struct SportsCalApp: App {
         #endif
         if isTestFlight {
             appStorage.debugMode = true
+        } else {
+            #if !DEBUG
+            // debugMode persists, so a tester who moves to the App Store build would keep
+            // the dev-server scan and debug paths. Only TestFlight and Xcode builds get it.
+            if appStorage.debugMode { appStorage.debugMode = false }
+            #endif
         }
         if appStorage.debugMode {
             serverDiscovery.start()
@@ -415,7 +421,8 @@ extension Scene {
                             token: tokenString,
                             eventID: activity.attributes.eventID,
                             homeTeam: activity.attributes.homeTeam,
-                            awayTeam: activity.attributes.awayTeam
+                            awayTeam: activity.attributes.awayTeam,
+                            alerts: GameViewModel.activityAlertsAllowed
                         )
                     } catch {
                         AppLogger.liveActivity.error("Error updating on background: \(error.localizedDescription)")
@@ -456,6 +463,8 @@ private struct WindowAdScope: ViewModifier {
                 // jank. Wait for the UI to settle, then warm a small batch —
                 // the feed's own `refreshOnAppear(target:)` tops it up later.
                 try? await Task.sleep(for: .seconds(1))
+                // Consent first (shown only where required); no ads without it.
+                guard await AdConsent.gather() else { return }
                 adManager.preloadAds(count: 2)
             }
             .onChange(of: subscriptionManager.isPro) { _, newValue in

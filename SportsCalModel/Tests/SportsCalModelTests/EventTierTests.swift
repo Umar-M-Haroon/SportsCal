@@ -38,6 +38,14 @@ final class EventTierTests: XCTestCase {
         XCTAssertEqual(tennis("Rolex Monte-Carlo Masters", draw: "mixed-doubles").eventTier, .premier)
     }
 
+    func testCachedTierStaysPerTour() {
+        // Tiers are memoized per name; asking the men's side first must not hand the
+        // women's side its answer (or the reverse, covered above).
+        XCTAssertEqual(tennis("Dubai Duty Free Tennis Championships", draw: "mens-singles").eventTier, .tour)
+        XCTAssertEqual(tennis("Dubai Duty Free Tennis Championships", draw: "womens-singles").eventTier, .premier)
+        XCTAssertEqual(tennis("Dubai Duty Free Tennis Championships", draw: "mens-singles").eventTier, .tour)
+    }
+
     func testGolfTiers() {
         XCTAssertEqual(golf("Masters Tournament").eventTier, .major)
         XCTAssertEqual(golf("PGA Championship").eventTier, .major)

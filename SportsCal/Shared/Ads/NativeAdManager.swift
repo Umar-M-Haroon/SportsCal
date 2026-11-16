@@ -69,7 +69,9 @@ class NativeAdManager: NSObject {
     }
 
     private func startLoad(count: Int) {
-        guard count > 0 else { return }
+        // Until consent is gathered (or where it was refused) nothing loads; the
+        // window's post-consent preload and later feed appearances retry.
+        guard count > 0, AdConsent.canRequestAds else { return }
         isLoading = true
         lastLoadStarted = Date()
 

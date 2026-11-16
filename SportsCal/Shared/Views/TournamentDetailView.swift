@@ -324,9 +324,8 @@ struct TournamentDetailView: View {
 
             #if os(iOS)
             Button {
-                EKEventStore().requestAccess(to: .event) { _, _ in
-                    sheetType = .calendar(game: game)
-                }
+                // The event editor runs out of process and needs no calendar access.
+                sheetType = .calendar(game: game)
             } label: {
                 VStack(spacing: 4) {
                     Image(systemName: "calendar")

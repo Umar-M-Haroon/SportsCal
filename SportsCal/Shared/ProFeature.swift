@@ -170,4 +170,12 @@ public enum NotificationGate {
     public static func activeTeamAlertIDs(_ teamIDs: Set<String>, isPro: Bool) -> Set<String> {
         isPro ? teamIDs : Set(teamIDs.sorted().prefix(freeTeamAlertLimit))
     }
+
+    /// How many followed golfers a free user gets server-pushed alerts for.
+    public static var freeGolfPlayerAlertLimit = 1
+
+    /// The followed golfers whose alerts actually fire, chosen stably like team alerts.
+    public static func activeGolfAlertPlayers(_ players: Set<String>, isPro: Bool) -> Set<String> {
+        isPro ? players : Set(players.sorted().prefix(freeGolfPlayerAlertLimit))
+    }
 }

@@ -267,11 +267,14 @@ struct APNSJob: AsyncScheduledJob {
             // If the score went up versus the last state we pushed, send an
             // *alerting* update so the device vibrates / banners on the lock
             // screen. Clock ticks and status changes stay silent.
-            var alert = scoreAlert(event: event, homeScore: homeScore, awayScore: awayScore, previous: savedState)
+            // Free installs get the same updates, silently: alerting is a Pro perk.
+            var alert = registration.allowsAlerts
+                ? scoreAlert(event: event, homeScore: homeScore, awayScore: awayScore, previous: savedState)
+                : nil
             // No score? Maybe a moment worth looking up for: the tying run at the plate,
             // a one-score game in the red zone. Each moment alerts a device once.
             var clutchClaim: ClutchClaim?
-            if alert == nil,
+            if alert == nil, registration.allowsAlerts,
                let moment = clutchMoment(event: event, homeScore: homeScore, awayScore: awayScore, previous: savedState),
                let claim = await claimClutchAlert(moment, eventID: event.id, token: tokenString, kv: kv, isDebug: isDebug) {
                 clutchClaim = claim

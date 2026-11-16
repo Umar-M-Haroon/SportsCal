@@ -1065,7 +1065,8 @@ public class GameViewModel: NSObject {
                     token: tokenString,
                     eventID: activity.attributes.eventID,
                     homeTeam: activity.attributes.homeTeam,
-                    awayTeam: activity.attributes.awayTeam
+                    awayTeam: activity.attributes.awayTeam,
+                    alerts: GameViewModel.activityAlertsAllowed
                 )
                 successes += 1
             } catch {
@@ -3532,7 +3533,8 @@ extension GameViewModel {
         for (attempt, delay) in backoffSeconds.enumerated() {
             if delay > 0 { try? await Task.sleep(nanoseconds: delay * 1_000_000_000) }
             do {
-                try await NetworkHandler.subscribeToLiveActivityUpdate(token: token, eventID: eventID, homeTeam: homeTeam, awayTeam: awayTeam)
+                try await NetworkHandler.subscribeToLiveActivityUpdate(token: token, eventID: eventID, homeTeam: homeTeam, awayTeam: awayTeam,
+                                                                       alerts: activityAlertsAllowed)
                 AppLogger.liveActivity.info("Registered activity update token for \(eventID) (attempt \(attempt + 1))")
                 if isDebug {
                     await MainActor.run {
@@ -3620,6 +3622,17 @@ extension GameViewModel {
             }
             await activity.end(activity.content, dismissalPolicy: .immediate)
         }
+    }
+
+    /// Whether Live Activities may alert on scores and clutch moments: a Pro perk
+    /// (`ProFeature.goalAlerts`). Read at send time, so a retry after a purchase gets it.
+    /// The widget extension never registers tokens.
+    nonisolated static var activityAlertsAllowed: Bool {
+        #if WIDGET_EXTENSION
+        return false
+        #else
+        return SubscriptionManager.shared.canUse(.goalAlerts)
+        #endif
     }
 
     /// Re-POSTs the current pushToken for every active Live Activity to the server,
@@ -3983,7 +3996,7 @@ extension GameViewModel {
                     return game.strHomeTeam.lowercased() == home
                         && game.strAwayTeam.lowercased() == away
                 }?.sportType
-                if scoreWentUp, sport?.alertsOnScoreChange == true {
+                if scoreWentUp, sport?.alertsOnScoreChange == true, Self.activityAlertsAllowed {
                     AppHaptic.goal.fire()
                 }
             }

@@ -101,6 +101,14 @@ final class TeamMatchingTests: XCTestCase {
         XCTAssertNil(decoded.awayTeam)
     }
 
+    func test_decodeRegistration_alertsDefaultOnForOlderApps() {
+        // Apps before the Pro alert gate don't send `alerts`; they keep alerting.
+        XCTAssertTrue(APNSJob.decodeRegistration(from: #"{"eventID":"abc"}"#).allowsAlerts)
+        XCTAssertTrue(APNSJob.decodeRegistration(from: "401584793").allowsAlerts)
+        XCTAssertTrue(APNSJob.decodeRegistration(from: #"{"eventID":"abc","alerts":true}"#).allowsAlerts)
+        XCTAssertFalse(APNSJob.decodeRegistration(from: #"{"eventID":"abc","alerts":false}"#).allowsAlerts)
+    }
+
     // MARK: - tokenFromKey
 
     func test_tokenFromKey_stripsProdPrefix() {

@@ -210,6 +210,9 @@ struct LiveActivityRegistration: Codable, Content {
     var eventID: String
     var homeTeam: String? = nil
     var awayTeam: String? = nil
+    /// Whether score and clutch updates may alert (buzz / banner). A Pro perk, so free
+    /// installs send false. Older apps send nothing, and keep the alerts they had.
+    var alerts: Bool? = nil
 }
 
 /// Wire format for the DELETE counterparts of the two POST routes above. Token
@@ -227,6 +230,10 @@ struct APNSRegistration: Codable {
     var homeTeam: String? = nil
     var awayTeam: String? = nil
     var environment: APNSEnvironment? = nil
+    /// See `LiveActivityRegistration.alerts`; nil (an older app) alerts.
+    var alerts: Bool? = nil
+
+    var allowsAlerts: Bool { alerts != false }
 }
 
 // MARK: - APNSClientProtocol extension for push-to-start

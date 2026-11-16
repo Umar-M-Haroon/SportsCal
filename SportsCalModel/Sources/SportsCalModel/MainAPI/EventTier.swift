@@ -93,12 +93,19 @@ extension Game {
     public var eventTier: EventTier? {
         guard let sport = sportType, EventCoverage.sports.contains(sport),
               let name = tierMatchName else { return nil }
-        let league = idLeague.flatMap { Int($0) }.flatMap { Leagues(rawValue: $0) }
-        let normalized = name.lowercased()
         switch sport {
-        case .golf:   return EventTierTable.golfTier(normalized, tour: league)
-        case .tennis: return EventTierTable.tennisTier(normalized, tours: tennisTours)
-        default:      return nil
+        case .golf:
+            let league = idLeague.flatMap { Int($0) }.flatMap { Leagues(rawValue: $0) }
+            return EventTierTable.cachedTier(name, sport: sport, leagues: league.map { [$0] } ?? []) {
+                EventTierTable.golfTier($0, tour: league)
+            }
+        case .tennis:
+            let tours = tennisTours
+            return EventTierTable.cachedTier(name, sport: sport, leagues: tours) {
+                EventTierTable.tennisTier($0, tours: tours)
+            }
+        default:
+            return nil
         }
     }
 
@@ -136,6 +143,35 @@ extension Game {
 /// golf), which carry sponsors and change year to year — so these match on the stable
 /// core of the name rather than the whole string. Anything unmatched is `.tour`.
 enum EventTierTable {
+    private struct CacheKey: Hashable {
+        let name: String
+        let sport: SportType
+        let leagues: Set<Leagues>
+    }
+
+    private static let lock = NSLock()
+    private static var cache: [CacheKey: EventTier] = [:]
+
+    /// `classify`'s answer for `name`, worked out once per distinct name. A tennis week
+    /// puts hundreds of matches under the same few tournament names, and the coverage
+    /// filter asks for every one of them on the main thread each pass, so lowercasing and
+    /// scanning the tables per match showed up as multi-second hangs.
+    static func cachedTier(_ name: String, sport: SportType, leagues: Set<Leagues>,
+                           classify: (String) -> EventTier) -> EventTier {
+        let key = CacheKey(name: name, sport: sport, leagues: leagues)
+        lock.lock()
+        if let tier = cache[key] { lock.unlock(); return tier }
+        lock.unlock()
+        let tier = classify(name.lowercased())
+        lock.lock()
+        // Names change year to year but stay in the hundreds; drop everything rather
+        // than track recency if a long-running process ever piles them up.
+        if cache.count > 2_000 { cache.removeAll(keepingCapacity: true) }
+        cache[key] = tier
+        lock.unlock()
+        return tier
+    }
+
     static func tennisTier(_ name: String, tours: Set<Leagues>) -> EventTier {
         if tennisMajors.contains(where: name.contains) { return .major }
         if tennisPremier.contains(where: name.contains) { return .premier }

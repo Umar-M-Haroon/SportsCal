@@ -3,7 +3,7 @@ Live scores on your Lock Screen, every game on one calendar, and alerts for the 
 LIVE, WITHOUT OPENING THE APP
 • Live Activities and Dynamic Island for games and F1 sessions
 • Scores that update within seconds
-• Win probability, game situation and clutch-moment alerts
+• Win probability and game situation, plus clutch-moment alerts with Pro
 • Home Screen, Lock Screen and Apple Watch widgets
 
 PLAN YOUR WEEK
@@ -35,7 +35,7 @@ ALSO
 Just scores, schedules and standings. No betting lines. No odds.
 
 SCORELINE PRO
-Pro adds alerts for any game, pre-game reminders, score alerts and an ad-free app. It is available as an auto-renewing monthly or yearly subscription, or a one-time Lifetime purchase; prices are shown in the app before you buy. Subscriptions renew automatically unless turned off at least 24 hours before the end of the current period. Manage or cancel anytime in your App Store account settings.
+Pro adds alerts for any game, pre-game reminders, score and clutch-moment alerts, and an ad-free app. It is available as an auto-renewing monthly or yearly subscription, or a one-time Lifetime purchase; prices are shown in the app before you buy. Subscriptions renew automatically unless turned off at least 24 hours before the end of the current period. Manage or cancel anytime in your App Store account settings.
 
 Terms of use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
 Privacy policy: https://komodollc.com/privacy

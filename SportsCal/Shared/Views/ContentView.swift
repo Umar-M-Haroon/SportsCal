@@ -188,6 +188,14 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .apnsDeviceTokenDidUpdate)) { _ in
                 reconcileTeamAlerts()
             }
+            // Subscribing (or lapsing) changes which alerts fire: the team and golfer
+            // allowances, and whether running Live Activities buzz.
+            .onChange(of: SubscriptionManager.shared.isPro) { _, _ in
+                reconcileTeamAlerts()
+                #if canImport(ActivityKit) && os(iOS)
+                viewModel.reRegisterAllActivityTokens()
+                #endif
+            }
             .alert("Scoreline Pro", isPresented: $shouldShowSportsCalProAlert) {
                 Button("Subscribe") { sheetType = .paywall }
                 Button("Cancel", role: .cancel) { }

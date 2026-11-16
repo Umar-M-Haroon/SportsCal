@@ -179,7 +179,9 @@ struct GolfAlertSettingsSection: View {
         } header: {
             Text("Golf Player Alerts")
         } footer: {
-            Text("For golfers you follow. Follow a player from a tournament's leaderboard.")
+            Text(SubscriptionManager.shared.isPro
+                 ? "For golfers you follow. Follow a player from a tournament's leaderboard."
+                 : "For the first golfer you follow; Scoreline Pro covers everyone you follow. Follow a player from a tournament's leaderboard.")
         }
         .onAppear { kinds = appStorage.golfAlertKinds }
     }
@@ -210,7 +212,7 @@ struct ProOptionsSettingsSection: View {
             Toggle("Hide past events", isOn: $bindableAppStorage.hidePastEvents)
             Toggle("Show countdown", isOn: $bindableAppStorage.showStartTime)
         }
-        .disabled(!subscriptionManager.isPro)
+        .disabled(!subscriptionManager.canUse(.proSettings))
     }
 
     @ViewBuilder
@@ -590,6 +592,13 @@ struct SettingsView: View {
                         }
                     }
                     #if os(iOS)
+                    // Where an ad consent message applies, users must be able to change
+                    // their answer. Pro has no ads, so nothing to choose.
+                    if !SubscriptionManager.shared.isPro, AdConsent.privacyOptionsRequired {
+                        Button("Privacy Choices") {
+                            Task { await AdConsent.presentPrivacyOptions() }
+                        }
+                    }
                     Button("Contact Support") {
                         let subject = "Scoreline Support (v\(appVersionString))"
                             .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""

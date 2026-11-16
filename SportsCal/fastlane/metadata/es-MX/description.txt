@@ -3,7 +3,7 @@ Marcadores en vivo en tu pantalla bloqueada, todos los partidos en un solo calen
 EN VIVO, SIN ABRIR LA APP
 • Live Activities y Dynamic Island para partidos y sesiones de F1
 • Marcadores que se actualizan en segundos
-• Probabilidad de victoria, situación del juego y alertas de momentos clave
+• Probabilidad de victoria y situación del juego, más alertas de momentos clave con Pro
 • Widgets para la pantalla de inicio, la pantalla bloqueada y el Apple Watch
 
 PLANEA TU SEMANA
@@ -35,7 +35,7 @@ TAMBIÉN
 Solo marcadores, calendarios y posiciones. Sin momios. Sin apuestas.
 
 SCORELINE PRO
-Pro agrega alertas para cualquier partido, recordatorios previos, alertas de goles y anotaciones, y una app sin anuncios. Está disponible como suscripción mensual o anual con renovación automática, o como compra única de por vida; los precios se muestran en la app antes de comprar. Las suscripciones se renuevan automáticamente a menos que se desactiven al menos 24 horas antes del final del periodo actual. Adminístralas o cancélalas en cualquier momento en la configuración de tu cuenta del App Store.
+Pro agrega alertas para cualquier partido, recordatorios previos, alertas de goles, anotaciones y momentos clave, y una app sin anuncios. Está disponible como suscripción mensual o anual con renovación automática, o como compra única de por vida; los precios se muestran en la app antes de comprar. Las suscripciones se renuevan automáticamente a menos que se desactiven al menos 24 horas antes del final del periodo actual. Adminístralas o cancélalas en cualquier momento en la configuración de tu cuenta del App Store.
 
 Términos de uso: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
 Política de privacidad: https://komodollc.com/privacy

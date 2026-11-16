@@ -366,9 +366,8 @@ struct TeamDetailView: View {
                             .frame(maxWidth: .infinity)
                         #if os(iOS)
                         Button {
-                            EKEventStore().requestAccess(to: .event) { _, _ in
-                                DispatchQueue.main.async { sheetType = .calendar(game: game) }
-                            }
+                            // The event editor runs out of process and needs no calendar access.
+                            sheetType = .calendar(game: game)
                         } label: {
                             Label("Calendar", systemImage: "calendar")
                                 .frame(maxWidth: .infinity)

@@ -7,7 +7,8 @@
 //  server's GolfAlertJob does the rest, the way SoccerAlertRegistrar works for teams.
 //
 //  Following a player is the opt-in: favourites are stored by the name the leaderboard
-//  shows, which is what the server matches on, so they go up as they are.
+//  shows, which is what the server matches on, so they go up as they are. Free installs
+//  get alerts for one of them (`NotificationGate.activeGolfAlertPlayers`), Pro for all.
 //
 
 import Foundation
@@ -23,12 +24,13 @@ enum GolfAlertRegistrar {
     static let playerLimit = 100
 
     /// Sends the registration if it differs from the last one this server accepted.
-    static func sync(players: Set<String>, storage: UserDefaultStorage) async {
+    static func sync(players: Set<String>, storage: UserDefaultStorage, isPro: Bool = SubscriptionManager.shared.isPro) async {
         guard let defaults = UserDefaults(suiteName: suiteName),
               let token = defaults.string(forKey: tokenKey), !token.isEmpty else { return }
+        let allowed = NotificationGate.activeGolfAlertPlayers(players, isPro: isPro)
         let registration = GolfAlertRegistration(
             token: token,
-            players: Array(players.sorted().prefix(playerLimit)),
+            players: Array(allowed.sorted().prefix(playerLimit)),
             kinds: GolfAlertKind.allCases.filter(storage.golfAlertKinds.contains)
         )
         // Keyed by server, so switching environments registers with the new one.

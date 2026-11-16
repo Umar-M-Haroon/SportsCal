@@ -521,6 +521,12 @@ final class TeamPageLogicTests: XCTestCase {
         XCTAssertTrue(NotificationGate.teamAlertDecision(isPro: true, enabledTeamCount: 12, teamAlreadyEnabled: false).isAllowed)
     }
 
+    func testGolfAlerts_freeGetsOneFollowedGolferStably() {
+        let followed: Set<String> = ["Scottie Scheffler", "Rory McIlroy", "Ludvig Åberg"]
+        XCTAssertEqual(NotificationGate.activeGolfAlertPlayers(followed, isPro: false), ["Ludvig Åberg"])
+        XCTAssertEqual(NotificationGate.activeGolfAlertPlayers(followed, isPro: true), followed)
+    }
+
     // MARK: Schedule state
 
     func testScheduleState_preGameIsUpcomingNotFinal() {
