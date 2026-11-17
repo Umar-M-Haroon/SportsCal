@@ -57,7 +57,6 @@ struct GameBoardLayout<GameContent: View>: View {
     @AppStorage("board.emptyStyle") private var emptyStyle: BoardEmptyStyle = .rail
     /// Live games in a strip across the top instead of inside their columns.
     @AppStorage("board.liveFirst") private var liveFirst = false
-    @Environment(\.openWindow) private var openWindow
     /// The empty sport whose next game day is peeked in a popover.
     @State private var peekedSport: SportType?
     #else
@@ -217,15 +216,31 @@ struct GameBoardLayout<GameContent: View>: View {
             onJumpToDate: onJumpToDate,
             onMoveSport: onMoveSport,
             onHideSport: onHideSport,
-            openGame: openGame
+            peek: { peekView(column) }
         ))
     }
 
-    private func openGame(_ id: String) {
-        #if os(macOS)
-        openWindow(id: "game-detail", value: id)
-        #endif
+    /// The next game day as real board cards. Clicking one shows it in the
+    /// inspector beside today's board.
+    private func peekView(_ column: BoardColumn) -> AnyView {
+        AnyView(NextGameDayPeek(
+            column: column,
+            favorites: favorites,
+            card: { gwt in
+                AnyView(
+                    BoardGameCard(isFavorite: favorites.contains(gwt.game), isLive: false) {
+                        gameContent(gwt, false)
+                    }
+                    .simultaneousGesture(TapGesture().onEnded { peekedSport = nil })
+                )
+            },
+            goToDay: { date in
+                peekedSport = nil
+                onJumpToDate(date)
+            }
+        ))
     }
+
 
     /// One line above the board listing the sports with nothing today.
     private func emptyTray(_ empty: [BoardColumn]) -> some View {
@@ -261,7 +276,7 @@ struct GameBoardLayout<GameContent: View>: View {
                         onJumpToDate: onJumpToDate,
                         onMoveSport: onMoveSport,
                         onHideSport: onHideSport,
-                        openGame: openGame
+                        peek: { peekView(column) }
                     ))
                 }
             }
@@ -305,7 +320,7 @@ private struct EmptySportActions: ViewModifier {
     let onJumpToDate: (Date) -> Void
     let onMoveSport: ((SportType, SportType) -> Void)?
     let onHideSport: ((SportType) -> Void)?
-    let openGame: (String) -> Void
+    let peek: () -> AnyView
 
     private var isPeeking: Binding<Bool> {
         Binding(
@@ -316,15 +331,7 @@ private struct EmptySportActions: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .popover(isPresented: isPeeking, arrowEdge: .bottom) {
-                NextGameDayPeek(column: column, openGame: { id in
-                    peekedSport = nil
-                    openGame(id)
-                }, goToDay: { date in
-                    peekedSport = nil
-                    onJumpToDate(date)
-                })
-            }
+            .popover(isPresented: isPeeking, arrowEdge: .bottom) { peek() }
             .contextMenu {
                 if let date = column.nextGameDate {
                     Button("Go to \(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))") {
@@ -345,77 +352,96 @@ private struct EmptySportActions: ViewModifier {
 /// The sport's next game day, without moving the board off today.
 private struct NextGameDayPeek: View {
     let column: BoardColumn
-    let openGame: (String) -> Void
+    let favorites: Favorites
+    let card: (GameWithTeams) -> AnyView
     let goToDay: (Date) -> Void
 
+    private static let limit = 6
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: column.sport.systemImage)
-                    .foregroundStyle(column.sport.color)
-                Text(column.sport.displayName)
-                    .fontWeight(.semibold)
-                if let date = column.nextGameDate {
-                    Text(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .font(.headline)
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .padding(.horizontal, 14)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
 
             if column.upcomingGames.isEmpty {
                 Text("No games listed yet.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 12)
             } else {
-                VStack(spacing: 2) {
-                    ForEach(column.upcomingGames.prefix(8)) { gwt in
-                        Button { openGame(gwt.game.id) } label: { row(gwt) }
-                            .buttonStyle(.plain)
+                ScrollView {
+                    VStack(spacing: 8) {
+                        // Favorites first: the game you care about leads the peek.
+                        ForEach(ordered.prefix(Self.limit)) { gwt in card(gwt) }
                     }
+                    .padding(.horizontal, 10)
                 }
-                if column.upcomingGames.count > 8 {
-                    Text("+\(column.upcomingGames.count - 8) more")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                .frame(maxHeight: 420)
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             if let date = column.nextGameDate {
-                Divider()
-                Button {
-                    goToDay(date)
-                } label: {
-                    Label("Go to \(date.formatted(.dateTime.weekday(.wide)))", systemImage: "arrow.right.circle")
+                Divider().padding(.top, 10)
+                HStack {
+                    if column.upcomingGames.count > Self.limit {
+                        Text("+\(column.upcomingGames.count - Self.limit) more")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button {
+                        goToDay(date)
+                    } label: {
+                        Label("Go to \(date.formatted(.dateTime.weekday(.wide)))", systemImage: "arrow.right")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(.borderless)
                 }
-                .buttonStyle(.borderless)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
             }
         }
-        .padding(14)
-        .frame(width: 300)
+        .frame(width: 360)
+        // The popover hands keyboard focus to its first card, which drew a focus
+        // ring around it as if it were selected.
+        .focusEffectDisabled()
     }
 
-    private func row(_ gwt: GameWithTeams) -> some View {
-        let game = gwt.game
-        return HStack(spacing: 10) {
-            Text(game.standardDate.map { $0.formatted(date: .omitted, time: .shortened) } ?? "TBD")
-                .font(.callout.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 64, alignment: .leading)
-            Text(matchup(gwt))
-                .font(.callout)
-                .lineLimit(1)
-            Spacer(minLength: 0)
+    private var ordered: [GameWithTeams] {
+        column.upcomingGames.sorted { favorites.contains($0.game) && !favorites.contains($1.game) }
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: column.sport.systemImage)
+                .foregroundStyle(column.sport.color)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Next \(column.sport.displayName)")
+                    .font(.headline)
+                if let date = column.nextGameDate {
+                    Text(subtitle(for: date))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
         }
-        .padding(.vertical, 5)
-        .padding(.horizontal, 6)
-        .contentShape(Rectangle())
     }
 
-    private func matchup(_ gwt: GameWithTeams) -> String {
-        let game = gwt.game
-        if game.isIndividualSport { return game.strHomeTeam }
-        let away = game.awayAbbreviation ?? gwt.awayTeam?.strTeamShort ?? game.strAwayTeam
-        let home = game.homeAbbreviation ?? gwt.homeTeam?.strTeamShort ?? game.strHomeTeam
-        return "\(away) @ \(home)"
+    /// "Thursday, Nov 19 · in 2 days · 1 game"
+    private func subtitle(for date: Date) -> String {
+        let calendar = Calendar.current
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: .now), to: calendar.startOfDay(for: date)).day ?? 0
+        let relative = switch days {
+        case 1: "tomorrow"
+        case 2...6: "in \(days) days"
+        default: date.formatted(.relative(presentation: .named))
+        }
+        let count = column.upcomingGames.count
+        let games = count == 1 ? "1 game" : "\(count) games"
+        return "\(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())) · \(relative) · \(games)"
     }
 }

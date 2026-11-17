@@ -639,7 +639,9 @@ struct DayPage: View {
     }
 
     private func boardGameWithTeams(byID id: String) -> GameWithTeams? {
+        // A game picked from an empty sport's peek lives on a later day.
         boardSelectionOrder.first { $0.id == id }
+            ?? boardColumns.lazy.flatMap(\.upcomingGames).first { $0.id == id }
     }
 
     private func moveBoardSelection(by delta: Int) {
