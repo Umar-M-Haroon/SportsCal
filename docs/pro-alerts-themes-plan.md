@@ -21,6 +21,10 @@ _2026-10-04 · scope decided: custom live alerts + themes as Pro. **No betting f
 - `ProFeature.proSettings` is defined but unused. The Pro Options section gates itself with `.disabled(!isPro)`.
 - Soccer alert kinds (`SoccerAlertSettingsSection`) aren't Pro-gated. The team count *is* gated: 1 free team.
 
+**Status 2026-11-16 (branch `pro-alerts`):** 3.3 (c154533) already closed the first two. `goalAlerts` gates Live Activity score/clutch alerts (`GameViewModel.activityAlertsAllowed` → `alerts` on `POST /liveActivity`), and Pro Options uses `canUse(.proSettings)`. `customAlerts` and `themes` are now in `ProFeature` (not wired yet). Soccer alert kinds stay ungated on purpose for now. A free user gets every kind for their 1 alert team, the same shape as golf's 1 free golfer, and 3.3 deliberately kept a free user's soccer goal push firing. Whether goal/red-card kinds should move behind `goalAlerts` is an open product call (open question 4).
+
+Also stale above: `boxscore.players` *is* decoded, into the display-ready `PlayerBoxScore` (opt-in on `/plays`). A2.2 adds the numeric `PlayerLiveStatLine` beside it, server-only.
+
 ## Feature A — Custom live alerts ("Player Alerts" + "Game Alerts")
 
 Wording rule: **"Notify me when …"**. Use milestone words like "reaches 30 points" or "hits 100 rushing yards". Never "over/under", "line", "prop" or "total" in the betting sense.
@@ -84,3 +88,5 @@ Themes ship first: they're client-only, fast, and give the paywall a visible per
 1. **Free taste for custom alerts:** 1 player / 1 rule free (recommended), or Pro-only?
 2. **Should score/clutch Live Activity alerts become Pro** once `goalAlerts` is wired? That's a behavior change for current free users. Alternative: keep them free and make custom alerts the Pro line.
 3. **CFB player alerts:** worth it given the 12-fetches/tick budget? (Suggest: v1 = NBA, NFL, MLB, NHL, soccer.)
+4. **Soccer alert kinds:** (a) keep as is: every kind for the 1 free team, Pro = all teams (current); (b) goals, red cards, missed pens and VAR need `goalAlerts`, while lineups and HT/FT stay free for the 1 team (this changes things for current free users); (c) all soccer match alerts are Pro.
+5. **NFL player plays:** ESPN's site summary gives drive plays no `participants` (only `$ref` links to the core API). Player *milestones* work from box stats. "Every sack by X" needs either the core API per play (costly) or parsing the play text. Ship NFL milestones only in v1?
