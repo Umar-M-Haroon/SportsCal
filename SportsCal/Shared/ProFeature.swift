@@ -32,6 +32,12 @@ public enum ProFeature: String, CaseIterable, Sendable {
     case unlimitedReminders
     /// Export / sync games to Apple Calendar (the in-app calendar stays free).
     case calendarExport
+    /// Custom live alerts: per-player plays and milestones ("Notify me when
+    /// Jokić reaches a triple-double") plus game situations. Not wired yet;
+    /// the free taste (if any) is still an open product call.
+    case customAlerts
+    /// Accent color themes and alternate app icons. Not wired yet.
+    case themes
 
     /// Human-facing feature name for paywall copy.
     public var displayName: String {
@@ -42,6 +48,8 @@ public enum ProFeature: String, CaseIterable, Sendable {
         case .preGameReminders:   return "Advance Reminders"
         case .unlimitedReminders: return "Unlimited Reminders"
         case .calendarExport:     return "Calendar Export"
+        case .customAlerts:       return "Player & Game Alerts"
+        case .themes:             return "Themes"
         }
     }
 
@@ -60,6 +68,10 @@ public enum ProFeature: String, CaseIterable, Sendable {
             return "Set game-start reminders for every team you follow."
         case .calendarExport:
             return "Add games straight to your Apple Calendar."
+        case .customAlerts:
+            return "Know the moment your player scores, or reaches a milestone."
+        case .themes:
+            return "Make Scoreline yours with accent colors and app icons."
         }
     }
 }
