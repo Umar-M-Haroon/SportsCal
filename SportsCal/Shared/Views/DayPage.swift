@@ -748,6 +748,9 @@ struct DayPage: View {
                     },
                     onMoveSport: { source, target in
                         withAnimation { storage.moveSport(source, before: target) }
+                    },
+                    onHideSport: { sport in
+                        withAnimation { storage.toggleSport(sport, enabled: false) }
                     }
                 ) { gwt, isLive in
                     boardGameRow(for: gwt, isLive: isLive)

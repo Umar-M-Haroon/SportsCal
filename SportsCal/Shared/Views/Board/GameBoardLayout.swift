@@ -49,19 +49,27 @@ struct GameBoardLayout<GameContent: View>: View {
     /// Drag a column header onto another column to reorder sports. Receives
     /// (movedSport, targetSport). Nil disables reordering (e.g. on iOS).
     var onMoveSport: ((SportType, SportType) -> Void)? = nil
+    /// Turns a sport off from an empty rail/chip's context menu.
+    var onHideSport: ((SportType) -> Void)? = nil
     @ViewBuilder let gameContent: (GameWithTeams, Bool) -> GameContent
 
     #if os(macOS)
     @AppStorage("board.emptyStyle") private var emptyStyle: BoardEmptyStyle = .rail
+    @Environment(\.openWindow) private var openWindow
+    /// The empty sport whose next game day is peeked in a popover.
+    @State private var peekedSport: SportType?
     #else
     private let emptyStyle: BoardEmptyStyle = .column
+    @State private var peekedSport: SportType?
     #endif
 
     private static var railWidth: CGFloat { 76 }
 
     var body: some View {
         let filled = columns.filter { !$0.isEmpty }
-        let empty = columns.filter(\.isEmpty)
+        // Rails and chips are for "not today": an off-season sport with nothing
+        // scheduled stays out of the board and is still a click away in the sidebar.
+        let empty = columns.filter { $0.isEmpty && ($0.nextGameDate != nil || emptyStyle == .column || emptyStyle == .preview) }
         VStack(spacing: 0) {
             if emptyStyle == .tray, !empty.isEmpty {
                 emptyTray(empty)
@@ -118,7 +126,7 @@ struct GameBoardLayout<GameContent: View>: View {
     /// A narrow strip for a sport with no games: icon, name, next date.
     private func emptyRail(_ column: BoardColumn) -> some View {
         Button {
-            if let date = column.nextGameDate { onJumpToDate(date) }
+            peekedSport = column.sport
         } label: {
             VStack(spacing: 10) {
                 Image(systemName: column.sport.systemImage)
@@ -158,6 +166,21 @@ struct GameBoardLayout<GameContent: View>: View {
         .buttonStyle(.plain)
         .disabled(column.nextGameDate == nil)
         .help(column.nextGameDate.map { "No \(column.sport.displayName) today. Next game \($0.formatted(date: .complete, time: .omitted))" } ?? "")
+        .modifier(EmptySportActions(
+            column: column,
+            peekedSport: $peekedSport,
+            firstSport: columns.first?.sport,
+            onJumpToDate: onJumpToDate,
+            onMoveSport: onMoveSport,
+            onHideSport: onHideSport,
+            openGame: openGame
+        ))
+    }
+
+    private func openGame(_ id: String) {
+        #if os(macOS)
+        openWindow(id: "game-detail", value: id)
+        #endif
     }
 
     /// One line above the board listing the sports with nothing today.
@@ -169,7 +192,7 @@ struct GameBoardLayout<GameContent: View>: View {
                     .foregroundStyle(.secondary)
                 ForEach(empty) { column in
                     Button {
-                        if let date = column.nextGameDate { onJumpToDate(date) }
+                        peekedSport = column.sport
                     } label: {
                         HStack(spacing: 5) {
                             Image(systemName: column.sport.systemImage)
@@ -187,7 +210,15 @@ struct GameBoardLayout<GameContent: View>: View {
                         .background(Color.primary.opacity(0.06), in: Capsule())
                     }
                     .buttonStyle(.plain)
-                    .disabled(column.nextGameDate == nil)
+                    .modifier(EmptySportActions(
+                        column: column,
+                        peekedSport: $peekedSport,
+                        firstSport: columns.first?.sport,
+                        onJumpToDate: onJumpToDate,
+                        onMoveSport: onMoveSport,
+                        onHideSport: onHideSport,
+                        openGame: openGame
+                    ))
                 }
             }
             .padding(.horizontal, 16)
@@ -219,5 +250,128 @@ struct GameBoardLayout<GameContent: View>: View {
         let shown = min(columnCount, fittable)
         return (content - CGFloat(shown - 1) * spacing) / CGFloat(shown)
         #endif
+    }
+}
+
+/// Peek popover + context menu shared by an empty sport's rail and chip.
+private struct EmptySportActions: ViewModifier {
+    let column: BoardColumn
+    @Binding var peekedSport: SportType?
+    let firstSport: SportType?
+    let onJumpToDate: (Date) -> Void
+    let onMoveSport: ((SportType, SportType) -> Void)?
+    let onHideSport: ((SportType) -> Void)?
+    let openGame: (String) -> Void
+
+    private var isPeeking: Binding<Bool> {
+        Binding(
+            get: { peekedSport == column.sport },
+            set: { if !$0, peekedSport == column.sport { peekedSport = nil } }
+        )
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .popover(isPresented: isPeeking, arrowEdge: .bottom) {
+                NextGameDayPeek(column: column, openGame: { id in
+                    peekedSport = nil
+                    openGame(id)
+                }, goToDay: { date in
+                    peekedSport = nil
+                    onJumpToDate(date)
+                })
+            }
+            .contextMenu {
+                if let date = column.nextGameDate {
+                    Button("Go to \(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))") {
+                        onJumpToDate(date)
+                    }
+                }
+                if let onMoveSport, let firstSport, firstSport != column.sport {
+                    Button("Move to Front") { onMoveSport(column.sport, firstSport) }
+                }
+                if let onHideSport {
+                    Divider()
+                    Button("Hide \(column.sport.displayName)") { onHideSport(column.sport) }
+                }
+            }
+    }
+}
+
+/// The sport's next game day, without moving the board off today.
+private struct NextGameDayPeek: View {
+    let column: BoardColumn
+    let openGame: (String) -> Void
+    let goToDay: (Date) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: column.sport.systemImage)
+                    .foregroundStyle(column.sport.color)
+                Text(column.sport.displayName)
+                    .fontWeight(.semibold)
+                if let date = column.nextGameDate {
+                    Text(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.headline)
+
+            if column.upcomingGames.isEmpty {
+                Text("No games listed yet.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(spacing: 2) {
+                    ForEach(column.upcomingGames.prefix(8)) { gwt in
+                        Button { openGame(gwt.game.id) } label: { row(gwt) }
+                            .buttonStyle(.plain)
+                    }
+                }
+                if column.upcomingGames.count > 8 {
+                    Text("+\(column.upcomingGames.count - 8) more")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let date = column.nextGameDate {
+                Divider()
+                Button {
+                    goToDay(date)
+                } label: {
+                    Label("Go to \(date.formatted(.dateTime.weekday(.wide)))", systemImage: "arrow.right.circle")
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+        .padding(14)
+        .frame(width: 300)
+    }
+
+    private func row(_ gwt: GameWithTeams) -> some View {
+        let game = gwt.game
+        return HStack(spacing: 10) {
+            Text(game.standardDate.map { $0.formatted(date: .omitted, time: .shortened) } ?? "TBD")
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 64, alignment: .leading)
+            Text(matchup(gwt))
+                .font(.callout)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 5)
+        .padding(.horizontal, 6)
+        .contentShape(Rectangle())
+    }
+
+    private func matchup(_ gwt: GameWithTeams) -> String {
+        let game = gwt.game
+        if game.isIndividualSport { return game.strHomeTeam }
+        let away = game.awayAbbreviation ?? gwt.awayTeam?.strTeamShort ?? game.strAwayTeam
+        let home = game.homeAbbreviation ?? gwt.homeTeam?.strTeamShort ?? game.strHomeTeam
+        return "\(away) @ \(home)"
     }
 }
