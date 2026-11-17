@@ -49,6 +49,7 @@ struct GameDetailWindow: View {
                 // Own stack so the hero's team links (TeamDetailLink) can push.
                 NavigationStack {
                     detail(for: game)
+                        .environment(\.hostSetsDetailTitle, true)
                         .environment(viewModel)
                         .environment(favorites)
                 }
@@ -78,9 +79,9 @@ struct GameDetailWindow: View {
         let teams = viewModel.getTeams(for: game)
         let home = teams?.home ?? Team(strTeam: game.strHomeTeam)
         let away = teams?.away ?? Team(strTeam: game.strAwayTeam)
-        #if os(macOS)
-        ModernGameDetailView(game: game, homeTeam: home, awayTeam: away)
-        #else
+        // The same Classic detail as the board's inspector on every platform. The Mac
+        // window used the debug-only Modern view, which always puts the away team on
+        // the left, so a soccer match flipped sides between the inspector and window.
         if game.isRace {
             RaceDetailView(game: game)
         } else if game.isTennisMatch {
@@ -90,7 +91,6 @@ struct GameDetailWindow: View {
         } else {
             AdaptiveGameDetail(game: game, homeTeam: home, awayTeam: away)
         }
-        #endif
     }
 }
 

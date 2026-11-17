@@ -78,7 +78,8 @@ captionString.draw(
 let availableTop = canvasH - captionTop - captionHeight - shotTopGap
 let maxW = canvasW - 2 * sideMargin
 let maxH = availableTop - bottomMargin
-let scale = min(maxW / srcW, maxH / srcH)
+// Never blow a small capture (the menu bar popover) up past 1.25×; it would go soft.
+let scale = min(maxW / srcW, maxH / srcH, 1.25)
 let shotW = floor(srcW * scale)
 let shotH = floor(srcH * scale)
 let shotX = (canvasW - shotW) / 2

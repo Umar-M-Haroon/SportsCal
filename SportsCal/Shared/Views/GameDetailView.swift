@@ -2014,13 +2014,13 @@ struct LeagueStandingsTable: View {
 // MARK: - Inspector-aware title
 
 extension EnvironmentValues {
-    /// True inside the Mac board's inspector, where a detail view's title would
-    /// replace the window's ("All Sports" became "NFL").
-    @Entry var isInBoardInspector = false
+    /// True where the host owns the title: the Mac board's inspector ("All Sports"
+    /// became "NFL") and a game's own window ("Denmark vs Norway" became the league).
+    @Entry var hostSetsDetailTitle = false
 }
 
 extension View {
-    /// `navigationTitle`, except inside the board inspector.
+    /// `navigationTitle`, unless the host sets its own (see `hostSetsDetailTitle`).
     func detailNavigationTitle(_ title: String) -> some View {
         modifier(DetailNavigationTitle(title: title))
     }
@@ -2028,10 +2028,10 @@ extension View {
 
 private struct DetailNavigationTitle: ViewModifier {
     let title: String
-    @Environment(\.isInBoardInspector) private var isInBoardInspector
+    @Environment(\.hostSetsDetailTitle) private var hostSetsDetailTitle
 
     func body(content: Content) -> some View {
-        if isInBoardInspector {
+        if hostSetsDetailTitle {
             content
         } else {
             content.navigationTitle(title)
