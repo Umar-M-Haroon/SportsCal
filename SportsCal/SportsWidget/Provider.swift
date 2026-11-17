@@ -413,7 +413,9 @@ class Provider: AppIntentTimelineProvider {
         #endif
         var sports: [SportType] = []
         if defaults?.bool(forKey: "shouldShowNBA") ?? false { sports.append(.basketball) }
-        if defaults?.bool(forKey: "shouldShowSoccer") ?? false { sports.append(.soccer) }
+        // World Cup rides the soccer bucket — a WC-only user must still get soccer,
+        // mirroring the app-side gate (shouldShowSoccer || shouldShowWorldCup).
+        if (defaults?.bool(forKey: "shouldShowSoccer") ?? false) || (defaults?.bool(forKey: "shouldShowWorldCup") ?? false) { sports.append(.soccer) }
         if defaults?.bool(forKey: "shouldShowNHL") ?? false { sports.append(.hockey) }
         if defaults?.bool(forKey: "shouldShowMLB") ?? false { sports.append(.mlb) }
         if FootballPreference(defaults: defaults).isOn { sports.append(.nfl) }
@@ -436,38 +438,8 @@ class Provider: AppIntentTimelineProvider {
 
         // Try the app group snapshot first — written by the main app, no network needed
         if let snapshot {
-            AppLogger.widget.info("[networking] snapshot hit: \(snapshot.games.count) games, \(snapshot.teams.count) teams, age=\(Int(Date().timeIntervalSince(snapshot.updatedAt)))s, mem=\(widgetMemoryMB())")
-            let favorites = Favorites()
-            var games = applyPerSportFavoritesFilter(
-                applyLeagueFilter(
-                    filterSnapshot(snapshot.games, sport: sport, targetDate: targetDate),
-                    hiddenLeagues: hiddenLeagues
-                ),
-                favorites: favorites
-            )
-            AppLogger.widget.info("[networking] after filter: \(games.count) games")
-
-            if favoriteOnly {
-                let favGames = games.filter { favorites.contains($0) }
-                if !favGames.isEmpty {
-                    AppLogger.widget.info("[networking] returning \(favGames.prefix(Self.maxDisplayGames).count) favorite games from snapshot")
-                    return (Array(favGames.prefix(Self.maxDisplayGames)), snapshot.teams)
-                }
-            }
-
-            games.sort { game1, game2 in
-                let g1Fav = favorites.contains(game1)
-                let g2Fav = favorites.contains(game2)
-                if g1Fav && !g2Fav { return true }
-                if !g1Fav && g2Fav { return false }
-                return (game1.standardDate ?? .distantFuture) < (game2.standardDate ?? .distantFuture)
-            }
-
-            // One row per tennis tournament so a single draw can't fill every slot.
-            games = TournamentDigest.collapsingTennisMatches(games) { favorites.matches($0) }
-
-            AppLogger.widget.info("[networking] returning \(min(games.count, Self.maxDisplayGames)) games from snapshot")
-            return (Array(games.prefix(Self.maxDisplayGames)), snapshot.teams)
+            return gamesFromSnapshot(snapshot, favoriteOnly: favoriteOnly, sport: sport,
+                                     targetDate: targetDate, hiddenLeagues: hiddenLeagues)
         }
 
         // Fallback: fetch from lightweight widget endpoint (games + teams in one request)
@@ -513,8 +485,56 @@ class Provider: AppIntentTimelineProvider {
             #if !os(watchOS)
             SentrySDK.capture(error: error)
             #endif
+            // Last resort: an expired snapshot still beats "No upcoming games" when
+            // the games genuinely exist and only our refresh path failed. This must
+            // stay OUTSIDE the platform guard — only the Sentry call is iOS-only.
+            // The watch has no WebSocket and polls less often, so it is the platform
+            // most likely to be past the 30-minute staleness gate with a failed
+            // fetch, i.e. the one that most needs the fallback.
+            if let stale = WidgetDataStore.readSnapshot(allowStale: true) {
+                AppLogger.widget.info("[networking] serving stale snapshot after network failure, age=\(Int(Date().timeIntervalSince(stale.updatedAt)))s")
+                return gamesFromSnapshot(stale, favoriteOnly: favoriteOnly, sport: sport,
+                                         targetDate: targetDate, hiddenLeagues: hiddenLeagues)
+            }
             return ([], [])
         }
+    }
+
+    /// Filters, favorites-sorts, and trims a snapshot's games for display.
+    private func gamesFromSnapshot(_ snapshot: WidgetSnapshot, favoriteOnly: Bool, sport: SportSelection,
+                                   targetDate: Date, hiddenLeagues: Set<String>) -> ([Game], [Team]) {
+        AppLogger.widget.info("[networking] snapshot hit: \(snapshot.games.count) games, \(snapshot.teams.count) teams, age=\(Int(Date().timeIntervalSince(snapshot.updatedAt)))s, mem=\(widgetMemoryMB())")
+        let favorites = Favorites()
+        var games = applyPerSportFavoritesFilter(
+            applyLeagueFilter(
+                filterSnapshot(snapshot.games, sport: sport, targetDate: targetDate),
+                hiddenLeagues: hiddenLeagues
+            ),
+            favorites: favorites
+        )
+        AppLogger.widget.info("[networking] after filter: \(games.count) games")
+
+        if favoriteOnly {
+            let favGames = games.filter { favorites.contains($0) }
+            if !favGames.isEmpty {
+                AppLogger.widget.info("[networking] returning \(favGames.prefix(Self.maxDisplayGames).count) favorite games from snapshot")
+                return (Array(favGames.prefix(Self.maxDisplayGames)), snapshot.teams)
+            }
+        }
+
+        games.sort { game1, game2 in
+            let g1Fav = favorites.contains(game1)
+            let g2Fav = favorites.contains(game2)
+            if g1Fav && !g2Fav { return true }
+            if !g1Fav && g2Fav { return false }
+            return (game1.standardDate ?? .distantFuture) < (game2.standardDate ?? .distantFuture)
+        }
+
+        // One row per tennis tournament so a single draw can't fill every slot.
+        games = TournamentDigest.collapsingTennisMatches(games) { favorites.matches($0) }
+
+        AppLogger.widget.info("[networking] returning \(min(games.count, Self.maxDisplayGames)) games from snapshot")
+        return (Array(games.prefix(Self.maxDisplayGames)), snapshot.teams)
     }
 
     /// Filters games to a single calendar day. Multi-session races (F1 weekends) match the

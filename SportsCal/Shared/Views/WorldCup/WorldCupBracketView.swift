@@ -62,7 +62,7 @@ struct WorldCupBracketView: View {
 
                 HStack(alignment: .top, spacing: 0) {
                     ForEach(Array(rounds.enumerated()), id: \.offset) { index, round in
-                        roundColumn(round, displayOrder: layout.orders[index])
+                        roundColumn(round, roundIndex: index, displayOrder: layout.orders[index])
                         if index < rounds.count - 1 {
                             Color.clear.frame(width: connectorWidth,
                                               height: headerHeight + headerGap + totalHeight)
@@ -98,22 +98,32 @@ struct WorldCupBracketView: View {
 
     /// `displayOrder` maps top→bottom display slots to chronological match indices,
     /// so each match sits beside the next-round slot its winner actually feeds.
-    private func roundColumn(_ round: WorldCupBracketRound, displayOrder: [Int]) -> some View {
+    private func roundColumn(_ round: WorldCupBracketRound, roundIndex: Int, displayOrder: [Int]) -> some View {
         let slot = totalHeight / CGFloat(max(round.matches.count, 1))
         return VStack(spacing: headerGap) {
             Text(round.roundName.uppercased())
                 .font(.appFootnote)
                 .foregroundStyle(accent)
                 .lineLimit(1)
+                // `lineLimit(1)` alone does not stop the header from widening the
+                // column — it only stops it wrapping. Truncation plus the explicit
+                // column width below is what keeps the geometry fixed.
+                .truncationMode(.tail)
+                .frame(width: cardWidth)
                 .frame(height: headerHeight, alignment: .bottom)
             VStack(spacing: 0) {
                 ForEach(displayOrder, id: \.self) { chronoIndex in
-                    cell(for: round.matches[chronoIndex], number: chronoIndex + 1)
+                    cell(for: round.matches[chronoIndex], roundIndex: roundIndex, number: chronoIndex + 1)
                         .frame(width: cardWidth, height: slot)   // centers the card in its slot
                 }
             }
             .frame(height: totalHeight)
         }
+        // The connector layer computes every elbow from `cardWidth` and
+        // `connectorWidth` alone, so each column MUST be exactly cardWidth. Let a
+        // long round name or a large Dynamic Type size widen it and every
+        // subsequent column shifts right, detaching the lines from their cards.
+        .frame(width: cardWidth)
     }
 
     private func thirdPlaceColumn(_ match: WorldCupBracketMatch) -> some View {
@@ -122,7 +132,7 @@ struct WorldCupBracketView: View {
                 .font(.appFootnote)
                 .foregroundStyle(accent)
                 .frame(height: headerHeight, alignment: .bottom)
-            VStack(spacing: 0) { cell(for: match) }
+            VStack(spacing: 0) { cell(for: match, roundIndex: nil) }
                 .frame(width: cardWidth, height: totalHeight)
         }
     }
@@ -248,9 +258,9 @@ struct WorldCupBracketView: View {
     // MARK: - Cells
 
     @ViewBuilder
-    private func cell(for match: WorldCupBracketMatch, number: Int? = nil) -> some View {
+    private func cell(for match: WorldCupBracketMatch, roundIndex: Int?, number: Int? = nil) -> some View {
         let resolved = match.eventID.flatMap { viewModel.worldCupGameWithTeams(eventID: $0) }
-        let cellView = WorldCupBracketMatchCell(model: cellModel(match, resolved: resolved, number: number), width: cardWidth, accent: accent)
+        let cellView = WorldCupBracketMatchCell(model: cellModel(match, resolved: resolved, roundIndex: roundIndex, number: number), width: cardWidth, accent: accent)
         if let resolved, let home = resolved.homeTeam, let away = resolved.awayTeam {
             NavigationLink {
                 AdaptiveGameDetail(game: resolved.game, homeTeam: home, awayTeam: away)
@@ -282,13 +292,13 @@ struct WorldCupBracketView: View {
         return text
     }
 
-    private func cellModel(_ match: WorldCupBracketMatch, resolved: GameWithTeams?, number: Int?) -> WorldCupBracketMatchCell.Model {
+    private func cellModel(_ match: WorldCupBracketMatch, resolved: GameWithTeams?, roundIndex: Int?, number: Int?) -> WorldCupBracketMatchCell.Model {
         let game = resolved?.game
         let homeName = isPlaceholderName(match.homeTeamName) ? nil : match.homeTeamName
         let awayName = isPlaceholderName(match.awayTeamName) ? nil : match.awayTeamName
         let homePlaceholder = match.homePlaceholder ?? (homeName == nil ? match.homeTeamName : nil)
         let awayPlaceholder = match.awayPlaceholder ?? (awayName == nil ? match.awayTeamName : nil)
-        let previousRoundSize = previousRoundSize(for: match)
+        let previousRoundSize = previousRoundSize(forRoundAt: roundIndex)
         let homeProj = homeName == nil ? projectedQualifier(homePlaceholder) : nil
         let awayProj = awayName == nil ? projectedQualifier(awayPlaceholder) : nil
         // A bracket cached before the server read ESPN's winner has none for a
@@ -335,14 +345,18 @@ struct WorldCupBracketView: View {
         return game.winningSide.map { $0 == .home ? .home : .away }
     }
 
-    /// Size of the round feeding this match's round (bounds-checks placeholder
-    /// references); 0 for the first round, where slots reference groups instead.
-    private func previousRoundSize(for match: WorldCupBracketMatch) -> Int {
-        guard let r = rounds.firstIndex(where: { $0.matches.contains(match) }), r > 0 else {
-            // Third-place playoff and unknown matches: allow any plausible reference.
-            return Int.max
-        }
-        return rounds[r - 1].matches.count
+    /// Size of the round feeding the round at `roundIndex` (bounds-checks
+    /// placeholder references).
+    ///
+    /// Takes the index rather than searching for the match: locating it by value
+    /// equality resolved two structurally identical placeholder-only matches —
+    /// common before the draw fills a round in — to whichever round held the
+    /// first equal value, giving the wrong bound. It was also O(rounds × matches)
+    /// on every rendered cell. `nil` is the third-place playoff, which sits
+    /// outside the round list; allow any plausible reference there.
+    private func previousRoundSize(forRoundAt roundIndex: Int?) -> Int {
+        guard let roundIndex, roundIndex > 0, roundIndex < rounds.count else { return Int.max }
+        return rounds[roundIndex - 1].matches.count
     }
 
     // MARK: - Group → bracket projection

@@ -36,7 +36,7 @@ struct BrowsePage: View {
                         .environment(favorites)
                 } label: {
                     BrowseBanner(systemImage: "soccerball", title: "FIFA World Cup 2026",
-                                 subtitle: "Groups · Bracket · Golden Boot", tint: Color.app(.soccer))
+                                 subtitle: viewModel.worldCup?.topScorers.isEmpty == false ? "Groups · Bracket · Golden Boot" : "Groups · Bracket", tint: Color.app(.soccer))
                 }
                 .buttonStyle(.plain)
                 .padding([.horizontal, .top])

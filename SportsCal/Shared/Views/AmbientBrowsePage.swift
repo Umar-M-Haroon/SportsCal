@@ -53,7 +53,7 @@ struct AmbientBrowsePage: View {
                                         Text("FIFA World Cup 2026")
                                             .font(.ambientDisplay(18, weight: .semibold))
                                             .foregroundStyle(AmbientPalette.ink)
-                                        Text("Groups · Bracket · Golden Boot")
+                                        Text(viewModel.worldCup?.topScorers.isEmpty == false ? "Groups · Bracket · Golden Boot" : "Groups · Bracket")
                                             .font(.caption)
                                             .foregroundStyle(AmbientPalette.ink.opacity(0.6))
                                     }

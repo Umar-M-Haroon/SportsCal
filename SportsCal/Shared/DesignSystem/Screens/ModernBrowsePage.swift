@@ -118,7 +118,8 @@ struct ModernBrowsePage: View {
                 Text("FIFA World Cup 2026")
                     .font(.appHeadline)
                     .foregroundStyle(Color.appInk)
-                Text("Groups · Bracket · Golden Boot")
+                // Only advertise the Golden Boot when scorer data actually exists.
+                Text(viewModel.worldCup?.topScorers.isEmpty == false ? "Groups · Bracket · Golden Boot" : "Groups · Bracket")
                     .font(.appCaption)
                     .foregroundStyle(Color.appInkSoft)
             }

@@ -187,7 +187,10 @@ enum WidgetDataStore {
     // MARK: - Read (called by widget extension)
 
     /// Reads the cached snapshot. Returns nil if missing or expired (>2 hours old).
-    static func readSnapshot() -> WidgetSnapshot? {
+    /// `allowStale: true` skips the age gate — used as a last resort when the
+    /// network fallback fails, since day-old games beat an empty "No upcoming games"
+    /// widget.
+    static func readSnapshot(allowStale: Bool = false) -> WidgetSnapshot? {
         guard let url = fileURL else {
             AppLogger.widget.warning("[snapshot] no file URL (app group missing?)")
             return nil
@@ -206,7 +209,7 @@ enum WidgetDataStore {
         AppLogger.widget.info("[snapshot] decoded \(snapshot.games.count) games, \(snapshot.teams.count) teams, age=\(Int(age))s")
 
         // Consider stale after 2 hours
-        if age > 2 * 60 * 60 {
+        if age > 2 * 60 * 60, !allowStale {
             AppLogger.widget.info("[snapshot] stale (age=\(Int(age))s > 7200s), returning nil")
             return nil
         }

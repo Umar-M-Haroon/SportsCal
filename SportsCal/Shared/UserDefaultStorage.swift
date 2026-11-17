@@ -315,6 +315,15 @@ class UserDefaultStorage {
 
     init() {
         seedDefaultHiddenCompetitions()
+        // One-time cleanup: perform() used to set focusFilterActive
+        // unconditionally and Focus deactivation never cleared it, leaving the
+        // override stuck on and sport toggles unresponsive. A genuinely active
+        // Focus re-asserts the flag on its next transition.
+        let defaults = UserDefaults(suiteName: Self.suiteName)
+        if defaults?.bool(forKey: "focusFilterStuckFlagCleanupDone") != true {
+            defaults?.set(false, forKey: "focusFilterActive")
+            defaults?.set(true, forKey: "focusFilterStuckFlagCleanupDone")
+        }
         recomputeEnabledSports()
     }
 
@@ -436,6 +445,23 @@ class UserDefaultStorage {
         case .golf:       shouldShowGolf = enabled
         case .tennis:     shouldShowTennis = enabled
         case .racing:     shouldShowRacing = enabled
+        }
+        // An explicit in-app toggle wins over a Focus Filter override —
+        // otherwise the switch snaps back while a Focus is active.
+        if focusFilterActive {
+            let defaults = UserDefaults(suiteName: Self.suiteName)
+            let focusKey: String
+            switch sport {
+            case .basketball: focusKey = "focus_shouldShowNBA"
+            case .soccer:     focusKey = "focus_shouldShowSoccer"
+            case .hockey:     focusKey = "focus_shouldShowNHL"
+            case .mlb:        focusKey = "focus_shouldShowMLB"
+            case .nfl:        focusKey = "focus_shouldShowNFL"
+            case .golf:       focusKey = "focus_shouldShowGolf"
+            case .tennis:     focusKey = "focus_shouldShowTennis"
+            case .racing:     focusKey = "focus_shouldShowRacing"
+            }
+            defaults?.set(enabled, forKey: focusKey)
         }
         recomputeEnabledSports()
     }

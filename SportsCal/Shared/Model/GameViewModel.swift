@@ -18,6 +18,9 @@ import os
 #if canImport(AppIntents)
 import AppIntents
 #endif
+#if canImport(WidgetKit) && !WIDGET_EXTENSION
+import WidgetKit
+#endif
 
 // MARK: - GameWithTeams
 // Pre-computed game with team data to avoid expensive lookups during rendering
@@ -2678,6 +2681,9 @@ public class GameViewModel: NSObject {
         let snapshotTeams = teams
         Task.detached(priority: .utility) {
             WidgetDataStore.writeSnapshot(games: snapshotGames, teams: snapshotTeams)
+            #if canImport(WidgetKit) && !WIDGET_EXTENSION
+            WidgetCenter.shared.reloadAllTimelines()
+            #endif
         }
 
         // Index games in Spotlight off main actor
@@ -3320,6 +3326,10 @@ public class GameViewModel: NSObject {
         restartTimer = nil
         networkFetchTask = Task {
             await getData()
+            // getData clears this on its happy path; clear again here so a thrown
+            // or cancelled fetch can never leave the guard above permanently
+            // swallowing every future refresh (foreground + pull-to-refresh alike).
+            networkFetchTask = nil
         }
     }
 

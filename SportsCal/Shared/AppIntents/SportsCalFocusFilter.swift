@@ -54,7 +54,13 @@ struct SportsCalFocusFilter: SetFocusFilterIntent {
 
     func perform() async throws -> some IntentResult {
         let defaults = UserDefaults(suiteName: "group.Komodo.SportsCal")
-        defaults?.set(true, forKey: "focusFilterActive")
+        // When a Focus deactivates, the system performs this intent with all
+        // parameters reset to their defaults (all true). An all-true filter
+        // hides nothing, so treat it as "no filter" — otherwise the override
+        // flag sticks forever and sport toggles in-app can never win.
+        let isFiltering = !(showBasketball && showSoccer && showHockey && showMLB
+                            && showNFL && showGolf && showTennis && showRacing)
+        defaults?.set(isFiltering, forKey: "focusFilterActive")
         defaults?.set(showBasketball, forKey: "focus_shouldShowNBA")
         defaults?.set(showSoccer, forKey: "focus_shouldShowSoccer")
         defaults?.set(showHockey, forKey: "focus_shouldShowNHL")
