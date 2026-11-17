@@ -1121,10 +1121,17 @@ struct NetworkHandler {
     /// Reporting "production" for that token made APNS reject it as
     /// `badDeviceToken`, which is how automatic Live Activities silently failed.
     /// Resolved once — the profile is fixed for the process lifetime.
+    ///
+    /// The Simulator only ever mints sandbox tokens, and its builds usually carry no
+    /// embedded profile (always so under ad-hoc signing), which read as production.
     private static let apnsEnvironmentHint: String = {
+        #if targetEnvironment(simulator)
+        return "sandbox"
+        #else
         let profileData = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision")
             .flatMap { try? Data(contentsOf: $0) }
         return apnsEnvironment(fromProfile: profileData)
+        #endif
     }()
 
     /// Pure parser (testable): extracts `aps-environment` from a provisioning
