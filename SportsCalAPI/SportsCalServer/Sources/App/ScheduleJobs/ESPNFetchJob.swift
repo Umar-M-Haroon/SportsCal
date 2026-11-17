@@ -98,14 +98,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
         // from the board), so keeping the first is lossless. Sorting by league first makes
         // "first" deterministic; dictionary order is not, and a winner that changed between
         // ticks made the delta protocol treat all 608 as changed on every push.
-        let tennisEvents = tennisScoreboards
-            .map { boards -> LiveEvent in
-                let ordered = boards.keys.sorted { $0.rawValue < $1.rawValue }.flatMap { league in
-                    boards[league].flatMap { LiveEvent(events: $0, league: league)?.events } ?? []
-                }
-                // Draw placeholders are schedule-only; on the live feed they'd show as a live card.
-                return LiveEvent(events: Self.dedupedByEventID(ordered.filter { !$0.isTennisDrawPlaceholder }))
-            }
+        let tennisEvents = tennisScoreboards.map(Self.tennisLiveEvent(from:))
 
         Self.logger.info("Fetching ESPN live scores", metadata: [
             "activeLeagues": "\(active?.count ?? -1)"  // -1 = cold start, fetch-all
@@ -817,6 +810,25 @@ struct ESPNFetchJob: AsyncScheduledJob {
 
     /// Keeps the first occurrence of each event ID. A game without one can't be addressed,
     /// so it passes through untouched rather than being collapsed against other ID-less games.
+    /// The live tennis bucket from the per-tour ESPN boards: one row per match.
+    ///
+    /// ESPN serves a combined event's entire draw (a slam, Indian Wells, Miami, Madrid,
+    /// Rome, Cincinnati…) on both the `atp` and the `wta` board under the same match IDs.
+    /// Each row takes its tour from its draw (`TennisDraw`), not from the board, so the two
+    /// copies are identical and keeping the first is lossless. Boards are walked in a fixed
+    /// league order so "first" is the same every tick — a winner that flipped between ticks
+    /// made the v2 delta protocol (keyed by idEvent) re-send the whole draw on every push.
+    /// Draw placeholders are schedule-only; on the live feed they'd show as a live card.
+    /// `internal` for tests.
+    static func tennisLiveEvent(from boards: [Leagues: Scoreboard]) -> LiveEvent {
+        let ordered = boards.keys.sorted { $0.rawValue < $1.rawValue }.flatMap { league -> [Game] in
+            guard let board = boards[league] else { return [] }
+            return LiveEvent(events: board, league: league)?.events ?? []
+        }
+        let matches = ordered.filter { !$0.isTennisDrawPlaceholder }
+        return LiveEvent(events: dedupedByEventID(matches))
+    }
+
     static func dedupedByEventID(_ games: [Game]) -> [Game] {
         var seen = Set<String>()
         return games.filter { game in
