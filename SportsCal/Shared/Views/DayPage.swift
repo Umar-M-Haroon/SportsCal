@@ -616,6 +616,7 @@ struct DayPage: View {
     private var boardInspector: some View {
         if let id = boardSelectedGameID, let gwt = boardGameWithTeams(byID: id) {
             boardDetailView(for: gwt)
+                .environment(\.isInBoardInspector, true)
                 .id(id)   // rebuild section loaders when the selection changes
                 // Keep a comfortable reading measure on very wide inspector panes
                 // (the detail was originally tuned for phone widths).

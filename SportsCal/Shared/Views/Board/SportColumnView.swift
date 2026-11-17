@@ -12,8 +12,6 @@ struct SportColumnView<GameContent: View>: View {
     let otherGames: [GameWithTeams]
     let favorites: Favorites
     let nextGameDate: Date?
-    /// Games on `nextGameDate`, previewed dimmed when this sport has none today.
-    var upcomingGames: [GameWithTeams] = []
     let onJumpToDate: (Date) -> Void
     @ViewBuilder let gameContent: (GameWithTeams, Bool) -> GameContent
 
@@ -29,9 +27,7 @@ struct SportColumnView<GameContent: View>: View {
         VStack(spacing: 0) {
             header
             if !isCollapsed {
-                if isEmpty, !upcomingGames.isEmpty {
-                    previewBody
-                } else if isEmpty {
+                if isEmpty {
                     emptyBody
                 } else {
                     gamesBody
@@ -62,45 +58,6 @@ struct SportColumnView<GameContent: View>: View {
             .padding(.vertical, 8)
             .padding(.horizontal, 8)
         }
-    }
-
-    /// The next game day's games, dimmed under a "Next: <date>" button.
-    private var previewBody: some View {
-        VStack(spacing: 8) {
-            if let date = nextGameDate {
-                Button {
-                    onJumpToDate(date)
-                } label: {
-                    HStack(spacing: 4) {
-                        Text("Nothing today · Next")
-                            .foregroundStyle(.secondary)
-                        Text(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
-                            .fontWeight(.medium)
-                            .foregroundStyle(sport.color)
-                        Image(systemName: "chevron.right")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    .font(.caption)
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-            ForEach(upcomingGames.prefix(3)) { gwt in
-                BoardGameCard(isFavorite: favorites.contains(gwt.game), isLive: false) {
-                    gameContent(gwt, false)
-                }
-                .opacity(0.55)
-                .allowsHitTesting(false)
-            }
-            if upcomingGames.count > 3 {
-                Text("+\(upcomingGames.count - 3) more")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(8)
     }
 
     private var emptyBody: some View {

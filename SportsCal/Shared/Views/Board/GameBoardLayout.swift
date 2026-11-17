@@ -21,23 +21,23 @@ struct BoardColumn: Identifiable {
 /// How the Mac board shows a sport with nothing on the selected day. Sports with
 /// games always come first; this only decides what the rest look like.
 enum BoardEmptyStyle: String, CaseIterable, Identifiable {
-    /// A full-width column with the next game date.
+    /// A full-width column with the next game date (iOS never shows these).
     case column
     /// A narrow strip at the end: icon and next date.
     case rail
     /// One summary strip above the board, a chip per sport.
     case tray
-    /// A full-width column previewing the sport's next game day.
-    case preview
 
     var id: String { rawValue }
 
+    /// The choices offered in the Games menu.
+    static let menuChoices: [BoardEmptyStyle] = [.rail, .tray]
+
     var title: String {
         switch self {
-        case .column: "Full Column"
-        case .rail: "Narrow Rail"
+        case .column: "Full Columns"
+        case .rail: "Narrow Rails"
         case .tray: "Summary Strip"
-        case .preview: "Next-Day Preview"
         }
     }
 }
@@ -56,7 +56,7 @@ struct GameBoardLayout<GameContent: View>: View {
     #if os(macOS)
     @AppStorage("board.emptyStyle") private var emptyStyle: BoardEmptyStyle = .rail
     /// Live games in a strip across the top instead of inside their columns.
-    @AppStorage("board.liveFirst") private var liveFirst = false
+    @AppStorage("board.liveFirst") private var liveFirst = true
     /// The empty sport whose next game day is peeked in a popover.
     @State private var peekedSport: SportType?
     #else
@@ -78,7 +78,7 @@ struct GameBoardLayout<GameContent: View>: View {
         let filled = columns.filter { !$0.isEmpty }
         // Rails and chips are for "not today": an off-season sport with nothing
         // scheduled stays out of the board and is still a click away in the sidebar.
-        let empty = columns.filter { $0.isEmpty && ($0.nextGameDate != nil || emptyStyle == .column || emptyStyle == .preview) }
+        let empty = columns.filter { $0.isEmpty && ($0.nextGameDate != nil || emptyStyle == .column) }
         VStack(spacing: 0) {
             if !liveStrip.isEmpty {
                 liveStripView(liveStrip)
@@ -88,7 +88,7 @@ struct GameBoardLayout<GameContent: View>: View {
             }
             GeometryReader { geometry in
                 let fullColumns: [BoardColumn] = switch emptyStyle {
-                case .column, .preview: filled + empty
+                case .column: filled + empty
                 case .rail, .tray: filled
                 }
                 let rails = emptyStyle == .rail ? empty : []
@@ -107,7 +107,6 @@ struct GameBoardLayout<GameContent: View>: View {
                                 otherGames: column.otherGames,
                                 favorites: favorites,
                                 nextGameDate: column.nextGameDate,
-                                upcomingGames: emptyStyle == .preview ? column.upcomingGames : [],
                                 onJumpToDate: onJumpToDate,
                                 gameContent: gameContent
                             )

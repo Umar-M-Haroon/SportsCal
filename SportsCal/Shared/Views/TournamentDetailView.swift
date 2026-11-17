@@ -78,7 +78,7 @@ struct TournamentDetailView: View {
             scorecardSection
             courseDifficultySection
         }
-        .navigationTitle(league?.leagueName ?? "Tournament")
+        .detailNavigationTitle(league?.leagueName ?? "Tournament")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

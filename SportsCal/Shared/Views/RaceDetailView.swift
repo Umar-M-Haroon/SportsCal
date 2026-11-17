@@ -88,7 +88,7 @@ struct RaceDetailView: View {
             }
             standingsSection
         }
-        .navigationTitle("Formula 1")
+        .detailNavigationTitle("Formula 1")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

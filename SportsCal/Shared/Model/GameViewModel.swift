@@ -542,24 +542,26 @@ public class GameViewModel: NSObject {
         }
 
         if let golfEvents = currentLiveInfo?.golf?.events {
-            let filteredGolf = golfEvents.filter { game in
+            // Same coverage tier as the live list, or the badge counts events the
+            // board never shows.
+            let filteredGolf = applyCoverage(golfEvents.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
                 return !context.hiddenCompetitions.contains(league.leagueName)
-            }
+            }, sport: .golf)
             if !filteredGolf.isEmpty {
                 counts[.golf] = filteredGolf.count
             }
         }
 
         if let tennisEvents = currentLiveInfo?.tennis?.events {
-            let filteredTennis = hidingCompetitions(tennisEvents.filter { game in
+            let filteredTennis = applyCoverage(hidingCompetitions(tennisEvents.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let _ = Leagues(rawValue: intLeague) else { return false }
                 return true
-            }, context: context)
+            }, context: context), sport: .tennis)
             if !filteredTennis.isEmpty {
                 counts[.tennis] = filteredTennis.count
             }

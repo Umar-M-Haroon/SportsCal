@@ -62,7 +62,7 @@ struct TennisMatchDetailView: View {
             }
         }
         .task(id: game.id) { await loadHeadToHead() }
-        .navigationTitle(game.tournamentName ?? league?.leagueName ?? "Match Details")
+        .detailNavigationTitle(game.tournamentName ?? league?.leagueName ?? "Match Details")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

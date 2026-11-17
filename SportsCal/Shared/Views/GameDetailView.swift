@@ -164,7 +164,7 @@ struct GameDetailView: View {
                 model: sectionsModel
             )
         }
-        .navigationTitle(league?.leagueName ?? "Game Details")
+        .detailNavigationTitle(league?.leagueName ?? "Game Details")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -2008,5 +2008,33 @@ struct LeagueStandingsTable: View {
         }
         if let zone = row.entry.note?.description, style.isSoccer { parts.append(zone) }
         return parts.joined(separator: ", ")
+    }
+}
+
+// MARK: - Inspector-aware title
+
+extension EnvironmentValues {
+    /// True inside the Mac board's inspector, where a detail view's title would
+    /// replace the window's ("All Sports" became "NFL").
+    @Entry var isInBoardInspector = false
+}
+
+extension View {
+    /// `navigationTitle`, except inside the board inspector.
+    func detailNavigationTitle(_ title: String) -> some View {
+        modifier(DetailNavigationTitle(title: title))
+    }
+}
+
+private struct DetailNavigationTitle: ViewModifier {
+    let title: String
+    @Environment(\.isInBoardInspector) private var isInBoardInspector
+
+    func body(content: Content) -> some View {
+        if isInBoardInspector {
+            content
+        } else {
+            content.navigationTitle(title)
+        }
     }
 }
