@@ -24,6 +24,15 @@ public struct Play: Codable, Equatable, Identifiable, Hashable {
     public let summaryType: String?
     /// Baseball: the plate appearance this row belongs to, shared by its pitches.
     public let atBatId: String?
+    /// Who was involved, from ESPN's `participants[]`, in ESPN's order. Hockey and
+    /// baseball send a `role` for each, so match on that. Basketball sends none: the
+    /// first is the player who made the play (shooter, rebounder, fouler), the next
+    /// the assister, blocker or player fouled. Football's drive plays carry none.
+    ///
+    /// Server-side only: it adds 20–50% to a game's plays, so `CachedPlays` (what
+    /// `/plays` serves and the archive stores) drops it. Optional, so payloads without
+    /// it decode, and clients that predate it ignore it.
+    public let participants: [PlayParticipant]?
 
     public struct PlayClock: Codable, Equatable, Hashable {
         public let displayValue: String?
@@ -59,7 +68,8 @@ public struct Play: Codable, Equatable, Identifiable, Hashable {
         period: PlayPeriod? = nil,
         type: PlayType? = nil,
         summaryType: String? = nil,
-        atBatId: String? = nil
+        atBatId: String? = nil,
+        participants: [PlayParticipant]? = nil
     ) {
         self.id = id
         self.text = text
@@ -71,6 +81,131 @@ public struct Play: Codable, Equatable, Identifiable, Hashable {
         self.type = type
         self.summaryType = summaryType
         self.atBatId = atBatId
+        self.participants = participants
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, text, scoringPlay, awayScore, homeScore, clock, period, type, summaryType, atBatId, participants
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        // The fields that predate `participants` decode exactly as the synthesized
+        // decoder did, so nothing that decoded before fails now.
+        id = try c.decode(String.self, forKey: .id)
+        text = try c.decodeIfPresent(String.self, forKey: .text)
+        scoringPlay = try c.decodeIfPresent(Bool.self, forKey: .scoringPlay)
+        awayScore = try c.decodeIfPresent(Int.self, forKey: .awayScore)
+        homeScore = try c.decodeIfPresent(Int.self, forKey: .homeScore)
+        clock = try c.decodeIfPresent(PlayClock.self, forKey: .clock)
+        period = try c.decodeIfPresent(PlayPeriod.self, forKey: .period)
+        type = try c.decodeIfPresent(PlayType.self, forKey: .type)
+        summaryType = try c.decodeIfPresent(String.self, forKey: .summaryType)
+        atBatId = try c.decodeIfPresent(String.self, forKey: .atBatId)
+        // Best-effort and per participant: an odd entry must never cost the play.
+        let decoded = (try? c.decodeIfPresent([LossyParticipant].self, forKey: .participants))?
+            .compactMap(\.value)
+        participants = (decoded?.isEmpty ?? true) ? nil : decoded
+    }
+
+    private struct LossyParticipant: Decodable {
+        let value: PlayParticipant?
+        init(from decoder: Decoder) throws { value = try? PlayParticipant(from: decoder) }
+    }
+
+    /// This play without its participants, for payloads that leave the server.
+    public var withoutParticipants: Play {
+        guard participants != nil else { return self }
+        return Play(
+            id: id, text: text, scoringPlay: scoringPlay, awayScore: awayScore, homeScore: homeScore,
+            clock: clock, period: period, type: type, summaryType: summaryType, atBatId: atBatId
+        )
+    }
+
+    /// This play with each participant's missing name filled from `names` (athlete
+    /// ID → name). ESPN names hockey participants but not basketball or baseball
+    /// ones; the box score in the same summary knows them.
+    public func namingParticipants(_ names: [String: String]) -> Play {
+        guard let participants, participants.contains(where: { $0.name == nil }) else { return self }
+        let named = participants.map { participant -> PlayParticipant in
+            guard participant.name == nil, let name = names[participant.athleteID] else { return participant }
+            return PlayParticipant(athleteID: participant.athleteID, name: name, role: participant.role)
+        }
+        return Play(
+            id: id, text: text, scoringPlay: scoringPlay, awayScore: awayScore, homeScore: homeScore,
+            clock: clock, period: period, type: type, summaryType: summaryType, atBatId: atBatId,
+            participants: named
+        )
+    }
+}
+
+/// One athlete involved in a play.
+///
+/// Decodes both ESPN's shape (`{"athlete": {"id", "shortName"}, "type"}`) and its own
+/// (`{"athleteID", "name", "role"}`), and encodes its own.
+public struct PlayParticipant: Codable, Equatable, Hashable, Sendable {
+    /// ESPN athlete ID, the same ID as `PlayerBoxScore.Row.id`.
+    public var athleteID: String
+    /// "N. Jokic". ESPN names only some sports' participants; see `Play.namingParticipants`.
+    public var name: String?
+    /// ESPN's participant type: hockey "scorer", "assister", "shooter", "saver",
+    /// "face-off-winner", "hit-credited"…; baseball "batter", "pitcher", "onFirst"…
+    /// Nil where ESPN sends none (basketball).
+    public var role: String?
+
+    public init(athleteID: String, name: String? = nil, role: String? = nil) {
+        self.athleteID = athleteID
+        self.name = name
+        self.role = role
+    }
+
+    enum CodingKeys: String, CodingKey { case athleteID, name, role }
+    private enum ESPNKeys: String, CodingKey { case athlete, type }
+    private struct ESPNAthlete: Decodable {
+        let id: String?
+        let shortName: String?
+        let displayName: String?
+
+        enum CodingKeys: String, CodingKey { case id, shortName, displayName }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            // ESPN IDs are strings, but don't lose a participant over a numeric one.
+            if let string = try? c.decodeIfPresent(String.self, forKey: .id) {
+                id = string
+            } else if let number = try? c.decodeIfPresent(Int.self, forKey: .id) {
+                id = String(number)
+            } else {
+                id = nil
+            }
+            shortName = try? c.decodeIfPresent(String.self, forKey: .shortName)
+            displayName = try? c.decodeIfPresent(String.self, forKey: .displayName)
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let own = try decoder.container(keyedBy: CodingKeys.self)
+        if let athleteID = try? own.decodeIfPresent(String.self, forKey: .athleteID), !athleteID.isEmpty {
+            self.athleteID = athleteID
+            name = try? own.decodeIfPresent(String.self, forKey: .name)
+            role = try? own.decodeIfPresent(String.self, forKey: .role)
+            return
+        }
+        let espn = try decoder.container(keyedBy: ESPNKeys.self)
+        let athlete = try espn.decode(ESPNAthlete.self, forKey: .athlete)
+        guard let id = athlete.id, !id.isEmpty else {
+            throw DecodingError.dataCorruptedError(forKey: .athlete, in: espn, debugDescription: "Participant without an athlete ID")
+        }
+        athleteID = id
+        name = athlete.shortName ?? athlete.displayName
+        role = try? espn.decodeIfPresent(String.self, forKey: .type)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(athleteID, forKey: .athleteID)
+        try c.encodeIfPresent(name, forKey: .name)
+        try c.encodeIfPresent(role, forKey: .role)
     }
 }
 
@@ -366,7 +501,9 @@ public struct CachedPlays: Codable, Equatable {
     ) {
         self.eventID = eventID
         self.lastPlayId = lastPlayId
-        self.plays = plays
+        // What `/plays` serves and the archive stores: participants stay on the
+        // server (they'd grow every game's plays by 20–50%).
+        self.plays = plays.map(\.withoutParticipants)
         self.isFinal = isFinal
         self.fetchedAt = fetchedAt
         self.winProbability = winProbability
