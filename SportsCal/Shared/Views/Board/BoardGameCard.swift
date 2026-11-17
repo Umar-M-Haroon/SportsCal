@@ -6,20 +6,32 @@
 import SwiftUI
 import SportsCalModel
 
+extension EnvironmentValues {
+    /// The board game shown in the Mac inspector; its card draws the selection ring.
+    @Entry var boardSelectedGameID: String?
+}
+
 struct BoardGameCard<Content: View>: View {
+    var gameID: String? = nil
     let isFavorite: Bool
     let isLive: Bool
     @ViewBuilder let content: () -> Content
+
+    @Environment(\.boardSelectedGameID) private var selectedGameID
+
+    private var isSelected: Bool { gameID != nil && gameID == selectedGameID }
 
     var body: some View {
         content()
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(.background, in: RoundedRectangle(cornerRadius: 10))
+            // Selection only: live games already show a red clock and favorites a
+            // star, so neither draws a border that reads as a selection.
             .overlay {
-                if isFavorite {
+                if isSelected {
                     RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(.yellow.opacity(0.5), lineWidth: 1.5)
+                        .strokeBorder(Color.accentColor, lineWidth: 2)
                 }
             }
             .overlay(alignment: .topTrailing) {
@@ -30,12 +42,7 @@ struct BoardGameCard<Content: View>: View {
                         .padding(4)
                 }
             }
-            .overlay {
-                if isLive {
-                    RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(.red.opacity(0.6), lineWidth: 1.5)
-                }
-            }
             .shadow(color: .black.opacity(0.08), radius: 2, y: 1)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

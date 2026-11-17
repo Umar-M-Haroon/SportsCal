@@ -389,7 +389,8 @@ struct DayPage: View {
     /// The row drawn with a selection ring: the inspector's game on macOS.
     private var highlightedGameID: String? {
         #if os(macOS)
-        return boardSelectedGameID
+        // No ring while the inspector is hidden: nothing shows the selection then.
+        return boardInspectorVisible ? boardSelectedGameID : nil
         #else
         return nil
         #endif
@@ -640,9 +641,12 @@ struct DayPage: View {
     }
 
     private func boardGameWithTeams(byID id: String) -> GameWithTeams? {
+        // Cheap sources first: this runs on every redraw while the inspector is open,
+        // and rebuilding `boardColumns` here doubled the board's cost.
+        if let live = filteredLiveEvents.first(where: { $0.id == id }) { return live }
+        if let game = dayGames.first(where: { $0.id == id }) { return game }
         // A game picked from an empty sport's peek lives on a later day.
-        boardSelectionOrder.first { $0.id == id }
-            ?? boardColumns.lazy.flatMap(\.upcomingGames).first { $0.id == id }
+        return boardColumns.lazy.flatMap(\.upcomingGames).first { $0.id == id }
     }
 
     private func moveBoardSelection(by delta: Int) {
@@ -758,6 +762,7 @@ struct DayPage: View {
                 ) { gwt, isLive in
                     boardGameRow(for: gwt, isLive: isLive)
                 }
+                .environment(\.boardSelectedGameID, highlightedRowID)
             } else {
                 Spacer()
                 if viewModel.networkState == .loading || viewModel.isFetching {
@@ -1330,14 +1335,6 @@ struct DayPage: View {
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
-        .overlay {
-            // Selection ring: the macOS inspector's game (⌥↑/⌥↓ moves it).
-            if highlightedRowID == game.id {
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.accentColor, lineWidth: 2)
-            }
-        }
-        .accessibilityAddTraits(highlightedRowID == game.id ? .isSelected : [])
         .macBoardAffordances(game: game)
     }
 

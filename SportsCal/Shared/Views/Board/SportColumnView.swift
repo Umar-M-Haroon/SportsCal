@@ -45,12 +45,12 @@ struct SportColumnView<GameContent: View>: View {
         ScrollView(.vertical, showsIndicators: true) {
             LazyVStack(spacing: 8) {
                 ForEach(liveGames) { gwt in
-                    BoardGameCard(isFavorite: favorites.contains(gwt.game), isLive: true) {
+                    BoardGameCard(gameID: gwt.id, isFavorite: favorites.contains(gwt.game), isLive: true) {
                         gameContent(gwt, true)
                     }
                 }
                 ForEach(otherGames) { gwt in
-                    BoardGameCard(isFavorite: favorites.contains(gwt.game), isLive: false) {
+                    BoardGameCard(gameID: gwt.id, isFavorite: favorites.contains(gwt.game), isLive: false) {
                         gameContent(gwt, false)
                     }
                 }

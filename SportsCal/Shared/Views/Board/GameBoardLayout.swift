@@ -137,7 +137,7 @@ struct GameBoardLayout<GameContent: View>: View {
     /// Live games across every sport, favorites first.
     private func liveStripView(_ live: [GameWithTeams]) -> some View {
         let ordered = live.sorted { favorites.contains($0.game) && !favorites.contains($1.game) }
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Circle().fill(.red).frame(width: 7, height: 7)
                 Text("Live")
@@ -145,23 +145,26 @@ struct GameBoardLayout<GameContent: View>: View {
                 Text("\(live.count)")
                     .foregroundStyle(.secondary)
             }
-            .font(.subheadline)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 10) {
                     ForEach(ordered) { gwt in
-                        BoardGameCard(isFavorite: favorites.contains(gwt.game), isLive: true) {
+                        BoardGameCard(gameID: gwt.id, isFavorite: favorites.contains(gwt.game), isLive: true) {
                             gameContent(gwt, true)
                         }
                         .frame(width: 300)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 2)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
             }
             // A horizontal ScrollView takes all the height it's offered; hug the cards.
             .fixedSize(horizontal: false, vertical: true)
         }
+        // The same panel as a sport column, so the cards stand off the window.
+        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 16)
         .padding(.bottom, 12)
     }
 
@@ -227,7 +230,7 @@ struct GameBoardLayout<GameContent: View>: View {
             favorites: favorites,
             card: { gwt in
                 AnyView(
-                    BoardGameCard(isFavorite: favorites.contains(gwt.game), isLive: false) {
+                    BoardGameCard(gameID: gwt.id, isFavorite: favorites.contains(gwt.game), isLive: false) {
                         gameContent(gwt, false)
                     }
                     .simultaneousGesture(TapGesture().onEnded { peekedSport = nil })

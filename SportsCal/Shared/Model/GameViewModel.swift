@@ -342,8 +342,17 @@ public class GameViewModel: NSObject {
     /// Cache for gamesWithTeams(for:) results, keyed by (day, filterHash).
     private var gamesWithTeamsDateCache: [DateCacheKey: [GameWithTeams]] = [:] {
         // Every path that clears this has changed the games; the day dots follow.
-        didSet { if gamesWithTeamsDateCache.isEmpty { datesWithGamesCache = nil } }
+        didSet {
+            if gamesWithTeamsDateCache.isEmpty {
+                datesWithGamesCache = nil
+                nextGameBySportCache = [:]
+            }
+        }
     }
+    /// `nextGame(for:after:)` per (sport, day, filter state): each miss is a pass over
+    /// every game, and the Mac board asks for every sport with nothing today on each
+    /// redraw, including every live tick.
+    @ObservationIgnored private var nextGameBySportCache: [String: Game?] = [:]
     /// `datesWithGames()` for one filter state — a pass over every game, so built once.
     @ObservationIgnored private var datesWithGamesCache: (filterHash: Int, dates: Set<DateComponents>)?
     /// Bumped whenever the per-day `[GameWithTeams]` contents change in place — a live
@@ -2931,9 +2940,13 @@ public class GameViewModel: NSObject {
     func nextGame(for sport: SportType, after date: Date) -> Game? {
         let calendar = Calendar.current
         let startOfNextDay = calendar.startOfDay(for: date).addingTimeInterval(86400)
-        return (filteredGames ?? [])
+        let key = "\(sport.rawValue)|\(startOfNextDay.timeIntervalSinceReferenceDate)|\(currentFilterStateHash)"
+        if let cached = nextGameBySportCache[key] { return cached }
+        let next = (filteredGames ?? [])
             .filter { $0.sportType == sport && ($0.standardDate ?? .distantPast) >= startOfNextDay }
             .min(by: { ($0.standardDate ?? .distantFuture) < ($1.standardDate ?? .distantFuture) })
+        nextGameBySportCache[key] = next
+        return next
     }
 
     /// Returns games for a date that exist in totalGames but NOT in filteredGames, grouped by sport.
