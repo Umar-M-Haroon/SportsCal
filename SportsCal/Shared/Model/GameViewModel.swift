@@ -2597,7 +2597,7 @@ public class GameViewModel: NSObject {
         rebuildSportCountsCache()
         AppLogger.viewModel.info("Total games: \(self.totalGames?.count ?? 0), filtered: \(self.filteredGames?.count ?? 0)")
         handleSearch(searchString: searchString)
-        sortByDate()
+        sortByDate(userPrefGames: userPrefGames)
         setFavorites()
         if !skipLiveUpdate {
             updateLiveData()
@@ -2745,18 +2745,25 @@ public class GameViewModel: NSObject {
     }
     #endif
 
-    func sortByDate() {
-        let groupDic = Dictionary(grouping: filteredGames ?? []) { game -> DateComponents in
+    /// - Parameter userPrefGames: `getGamesFromUserPreferences()` for the current state,
+    ///   when the caller already has it (filterSports does), so the pass isn't repeated.
+    func sortByDate(userPrefGames knownUserPrefGames: [Game]? = nil) {
+        // Bucketed on the local-day index rather than a `DateComponents` key: building
+        // and hashing a calendar-carrying `DateComponents` per game was main-thread cost
+        // on every filter pass (Sentry SPORTS-CAL-98/9C, under setGames → filterSports).
+        // Same buckets, same in-day order, and day-index order is date order.
+        var days = LocalDayCache()
+        var byDay: [Int: [Game]] = [:]
+        for game in filteredGames ?? [] {
             // For multi-session events (F1), group by the effective end date (Race day).
             // A golf tournament also has an end date now, but it belongs under its first
             // round rather than jumping to Sunday.
             let gameDate = (game.isRace ? game.effectiveEndDate : game.standardDate) ?? game.standardDate ?? .now
-            let date2 = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: gameDate)
-            return date2
+            byDay[days.index(for: gameDate), default: []].append(game)
         }
-        let sorted = groupDic.sorted(by: {
-            return $0.key.date! < $1.key.date!
-        })
+        let sorted: [(key: DateComponents, value: [Game])] = byDay
+            .sorted { $0.key < $1.key }
+            .map { (key: days.sectionComponents(forIndex: $0.key), value: $0.value) }
 
         // Performance: Limit total games displayed to prevent UI freezing
         var limitedSorted: Array<(key: DateComponents, value: Array<Game>)> = []
@@ -2808,13 +2815,17 @@ public class GameViewModel: NSObject {
         // This uses ALL user-pref games (not limited), keyed by (start-of-day, filterHash)
         // so toggling sport filters doesn't wipe entries built under other filter states.
         var dateCache: [Date: [GameWithTeams]] = [:]
-        let calendar = Calendar.current
-        let userPrefGames = getGamesFromUserPreferences()
+        // The day strip's dots (`datesWithGames()`) come from the same games, so they're
+        // collected here too instead of in a second full preference pass that DayPage's
+        // body used to trigger right after this method published its results.
+        var datesWithGames = Set<DateComponents>()
+        let userPrefGames = knownUserPrefGames ?? getGamesFromUserPreferences()
         for game in userPrefGames {
             guard let gameDate = game.standardDate else { continue }
-            let dayStart = calendar.startOfDay(for: gameDate)
+            let dayIndex = days.index(for: gameDate)
+            datesWithGames.insert(days.dayComponents(forIndex: dayIndex))
             if let gwt = makeGameWithTeams(game) {
-                dateCache[dayStart, default: []].append(gwt)
+                dateCache[days.startOfDay(forIndex: dayIndex), default: []].append(gwt)
             }
         }
         // Sort each day's games by date
@@ -2834,6 +2845,8 @@ public class GameViewModel: NSObject {
         for (day, games) in dateCache {
             gamesWithTeamsDateCache[DateCacheKey(date: day, filterHash: hash)] = games
         }
+        // After the cache refill: emptying it above clears this memo (see its didSet).
+        datesWithGamesCache = (hash, datesWithGames)
         dayContentRevision &+= 1
 
         withAnimation {
@@ -3018,15 +3031,61 @@ public class GameViewModel: NSObject {
         if let cached = datesWithGamesCache, cached.filterHash == currentFilterStateHash {
             return cached.dates
         }
-        let calendar = Calendar.current
+        var days = LocalDayCache()
         var dates = Set<DateComponents>()
         for game in getGamesFromUserPreferences() {
             guard let gameDate = game.standardDate else { continue }
-            let dc = calendar.dateComponents([.day, .month, .year], from: gameDate)
-            dates.insert(dc)
+            dates.insert(days.dayComponents(forIndex: days.index(for: gameDate)))
         }
         datesWithGamesCache = (currentFilterStateHash, dates)
         return dates
+    }
+
+    /// Memoizes the per-local-day `Calendar` conversions for one pass over the games.
+    ///
+    /// `startOfDay` and `dateComponents` each allocate and neither is cheap; called once
+    /// per game over tens of thousands of games they were main-thread hang time on every
+    /// filter pass. The games span a few hundred days, so each conversion runs once per
+    /// day, keyed by an integer day index derived from the date's UTC offset (resolved
+    /// per date, so DST is handled). Results equal the direct `Calendar.current` calls.
+    struct LocalDayCache {
+        private let calendar = Calendar.current
+        private var firstDate: [Int: Date] = [:]
+        private var starts: [Int: Date] = [:]
+        private var dayComps: [Int: DateComponents] = [:]
+        private var sectionComps: [Int: DateComponents] = [:]
+
+        /// The local-day index of `date`; remembers `date` as that day's sample.
+        mutating func index(for date: Date) -> Int {
+            let offset = calendar.timeZone.secondsFromGMT(for: date)
+            let index = Int(floor((date.timeIntervalSince1970 + Double(offset)) / 86_400))
+            if firstDate[index] == nil { firstDate[index] = date }
+            return index
+        }
+
+        /// `calendar.startOfDay(for:)` of the day `index` names.
+        mutating func startOfDay(forIndex index: Int) -> Date {
+            if let cached = starts[index] { return cached }
+            let start = calendar.startOfDay(for: firstDate[index] ?? .now)
+            starts[index] = start
+            return start
+        }
+
+        /// `[.day, .month, .year]` components of the day `index` names.
+        mutating func dayComponents(forIndex index: Int) -> DateComponents {
+            if let cached = dayComps[index] { return cached }
+            let components = calendar.dateComponents([.day, .month, .year], from: firstDate[index] ?? .now)
+            dayComps[index] = components
+            return components
+        }
+
+        /// `[.day, .year, .month, .calendar]` components — the section keys `sortByDate` uses.
+        mutating func sectionComponents(forIndex index: Int) -> DateComponents {
+            if let cached = sectionComps[index] { return cached }
+            let components = calendar.dateComponents([.day, .year, .month, .calendar], from: firstDate[index] ?? .now)
+            sectionComps[index] = components
+            return components
+        }
     }
 
     // MARK: - Up Next Helpers (used by DayPage empty state)

@@ -44,11 +44,16 @@ struct CalendarViewRepresentable: UIViewRepresentable {
         }
         gamesToUse = gamesToUse.filter { sportFilter.matches($0) }
         var dayComponents = DayComponentsCache()
-        let newGames = Dictionary(grouping: gamesToUse, by: { dayComponents.components(for: $0.standardDate) })
-        let newLiveGames = Dictionary(grouping: viewModel.allLiveEvents, by: { dayComponents.components(for: $0.standardDate) })
+        // Grouped on an integer day index, not `DateComponents?`: this runs on every
+        // live tick (it reads `allLiveEvents`), and hashing a `DateComponents` that
+        // carries a `Calendar` once per game — tens of thousands of games — was the
+        // multi-second `Dictionary(grouping:)` hang in Sentry (SPORTS-CAL-9H/9F).
+        let newGames = dayComponents.group(gamesToUse)
+        let newLiveGames = dayComponents.group(viewModel.allLiveEvents)
 
-        let newDateSet = Set(newGames.keys.compactMap { $0 })
-        let componentsToReload = context.coordinator.reloadApplicableDecorations(newDates: newDateSet)
+        let componentsToReload = context.coordinator.reloadApplicableDecorations(
+            newDecorations: CalendarCoordinator.decorations(for: newGames, favorites: favorites.teams)
+        )
 
         context.coordinator.games = newGames
         context.coordinator.liveGames = newLiveGames
@@ -76,8 +81,8 @@ struct CalendarViewRepresentable: UIViewRepresentable {
     func makeCoordinator() -> CalendarCoordinator {
         let filteredCalendarGames = (viewModel.calendarGames ?? []).filter { sportFilter.matches($0) }
         var dayComponents = DayComponentsCache()
-        let groupedGames = Dictionary(grouping: filteredCalendarGames, by: { dayComponents.components(for: $0.standardDate) })
-        let groupedLiveGames = Dictionary(grouping: viewModel.allLiveEvents, by: { dayComponents.components(for: $0.standardDate) })
+        let groupedGames = dayComponents.group(filteredCalendarGames)
+        let groupedLiveGames = dayComponents.group(viewModel.allLiveEvents)
         return CalendarCoordinator(games: groupedGames, liveGames: groupedLiveGames, favorites: favorites.teams, showFavoritesOnly: showFavoritesOnly, onSelectDay: onSelectDay)
     }
 
@@ -94,7 +99,9 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
     var liveGames: [DateComponents? : [Game]]
     var favorites: Set<String>
     var showFavoritesOnly: Bool
-    var previousGameDates: Set<DateComponents> = []
+    /// What each decorated day currently shows. A reload is only issued for days whose
+    /// entry changes, so a live tick that moves no dots reloads (almost) nothing.
+    private(set) var dayDecorations: [DateComponents: DayDecoration] = [:]
     var onSelectDay: (DateComponents) -> Void
     /// Wide layouts keep the tapped day highlighted; compact ones clear it so the
     /// same day can be tapped again after its sheet closes.
@@ -107,6 +114,7 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
         self.liveGames = liveGames
         self.showFavoritesOnly = showFavoritesOnly
         self.onSelectDay = onSelectDay
+        self.dayDecorations = Self.decorations(for: games, favorites: favorites)
     }
 
     func dateSelection(_ selection: UICalendarSelectionSingleDate, didSelectDate dateComponents: DateComponents?) {
@@ -122,38 +130,64 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
         guard let date = Calendar.current.date(from: dateComponents) else { return nil }
         let comps = Calendar.current.dateComponents([.day, .year, .month, .calendar], from: date)
 
-        if let filteredGames = games[comps] {
-            let sportTypes = Set(filteredGames.compactMap { game -> SportType? in
-                guard let league = game.idLeague,
-                      let leagueInt = Int(league),
-                      let foundLeague = Leagues(rawValue: leagueInt)
-                      else {
-                    return nil
-                }
-                return SportType(league: foundLeague)
-            })
-            if sportTypes.isEmpty {
-                return nil
-            }
-            let showFavorites = filteredGames.contains(where: { favorites.contains($0.strAwayTeam) || favorites.contains($0.strHomeTeam) })
-
-            return .customView {
-                DecorationViewFactory.make(sportTypes: sportTypes, showFavorites: showFavorites)
-            }
+        guard let decoration = dayDecorations[comps] else { return nil }
+        return .customView {
+            DecorationViewFactory.make(sportTypes: decoration.sportTypes, showFavorites: decoration.showFavorites)
         }
-        return nil
     }
 
-    func reloadApplicableDecorations(newDates: Set<DateComponents>) -> [DateComponents] {
-        let allDates = previousGameDates.union(newDates)
-        previousGameDates = newDates
-        var result = Array(allDates)
+    /// The decoration each day's games produce: the sports present and whether a
+    /// favourite plays. Days with no recognisable sport get no entry (no decoration).
+    static func decorations(for games: [DateComponents?: [Game]], favorites: Set<String>) -> [DateComponents: DayDecoration] {
+        var result: [DateComponents: DayDecoration] = [:]
+        result.reserveCapacity(games.count)
+        for (day, dayGames) in games {
+            guard let day else { continue }
+            var sportTypes = Set<SportType>()
+            var showFavorites = false
+            for game in dayGames {
+                if let league = game.idLeague,
+                   let leagueInt = Int(league),
+                   let foundLeague = Leagues(rawValue: leagueInt) {
+                    sportTypes.insert(SportType(league: foundLeague))
+                }
+                if !showFavorites, favorites.contains(game.strAwayTeam) || favorites.contains(game.strHomeTeam) {
+                    showFavorites = true
+                }
+            }
+            guard !sportTypes.isEmpty else { continue }
+            result[day] = DayDecoration(sportTypes: sportTypes, showFavorites: showFavorites)
+        }
+        return result
+    }
+
+    /// Installs `newDecorations` and returns the days whose decoration changed (gained,
+    /// lost or altered), plus today and the last tapped day as before.
+    ///
+    /// This used to return every date that had games — hundreds after a schedule
+    /// fetch — on every update, including each live tick, so `UICalendarView` rebuilt
+    /// every visible decoration view on the main thread each time (SPORTS-CAL-9G).
+    func reloadApplicableDecorations(newDecorations: [DateComponents: DayDecoration]) -> [DateComponents] {
+        var result: [DateComponents] = []
+        for (day, decoration) in newDecorations where dayDecorations[day] != decoration {
+            result.append(day)
+        }
+        for day in dayDecorations.keys where newDecorations[day] == nil {
+            result.append(day)
+        }
+        dayDecorations = newDecorations
         result.append(Date.now.toComponents())
         if let lastSelectedDay {
             result.append(lastSelectedDay)
         }
         return result
     }
+}
+
+/// One calendar day's dots.
+struct DayDecoration: Equatable {
+    let sportTypes: Set<SportType>
+    let showFavorites: Bool
 }
 
 /// Memoizes `Date` → day `DateComponents` for one grouping pass.
@@ -175,6 +209,27 @@ struct DayComponentsCache {
         let components = date.toComponents()
         cache[dayIndex] = components
         return components
+    }
+
+    /// `Dictionary(grouping: games) { components(for: $0.standardDate) }`, same keys and
+    /// same in-day order, but bucketed on the integer day index so each game costs an
+    /// `Int` hash instead of a `DateComponents` (and `Calendar`) hash.
+    mutating func group(_ games: [Game]) -> [DateComponents?: [Game]] {
+        var byDay: [Int: [Game]] = [:]
+        var undated: [Game] = []
+        for game in games {
+            guard let date = game.standardDate else { undated.append(game); continue }
+            let offset = timeZone.secondsFromGMT(for: date)
+            let dayIndex = Int(floor((date.timeIntervalSince1970 + Double(offset)) / 86_400))
+            byDay[dayIndex, default: []].append(game)
+        }
+        var result: [DateComponents?: [Game]] = [:]
+        result.reserveCapacity(byDay.count + 1)
+        for (_, dayGames) in byDay {
+            result[components(for: dayGames[0].standardDate)] = dayGames
+        }
+        if !undated.isEmpty { result[nil] = undated }
+        return result
     }
 }
 
