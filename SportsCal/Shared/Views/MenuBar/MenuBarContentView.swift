@@ -12,7 +12,15 @@ struct MenuBarContentView: View {
     @Environment(UserDefaultStorage.self) private var storage
     @Environment(Favorites.self) private var favorites
 
+    @Environment(\.openWindow) private var openWindow
+    /// A live game the user pinned: the menu bar label shows only its score.
+    @AppStorage("menuBar.pinnedGameID") private var pinnedGameID = ""
+
     @State private var collapsedSports: Set<SportType> = []
+    @State private var hoveredGameID: String?
+    /// Height of the list's content: a ScrollView has no height of its own, and in a
+    /// menu bar window it collapsed to nothing, leaving only the header and footer.
+    @State private var listHeight: CGFloat = 0
     @State private var expandedSports: Set<SportType> = []
     @State private var previousScores: [String: String] = [:]
     @State private var flashingGameIDs: Set<String> = []
@@ -37,11 +45,12 @@ struct MenuBarContentView: View {
                         liveSection
                     }
 
-                    if !viewModel.todayFavoriteGamesWithTeams.isEmpty {
+                    if !upcomingFavorites.isEmpty {
                         favoritesSection
                     }
 
-                    let sortedSports = viewModel.todayAllGamesBySport.keys.sorted { $0.displayName < $1.displayName }
+                    // The user's own sport order, as on the board.
+                    let sortedSports = storage.orderedSports.filter { !(todayOthersBySport[$0] ?? []).isEmpty }
                     if !sortedSports.isEmpty {
                         todaySection(sports: sortedSports)
                     }
@@ -61,13 +70,14 @@ struct MenuBarContentView: View {
                     }
                 }
                 .padding(.vertical, 4)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
             }
-            .frame(maxHeight: 340)
+            .frame(height: min(listHeight, 460))
 
             Divider()
             footer
         }
-        .frame(width: 300)
+        .frame(width: 340)
         .onChange(of: viewModel.liveEvents.map { "\($0.id):\($0.intHomeScore ?? ""):\($0.intAwayScore ?? "")" }) { _, _ in
             let liveIDs = Set(viewModel.liveEvents.map(\.id))
             for key in previousScores.keys where !liveIDs.contains(key) {
@@ -91,12 +101,24 @@ struct MenuBarContentView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack {
-            Text("Scoreline")
-                .font(.appHeadline)
-                .foregroundStyle(Color.appInk)
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Scoreline")
+                    .font(.appHeadline)
+                    .foregroundStyle(Color.appInk)
+                Text(Date.now.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
-            Button("Open App") {
+            Button {
+                viewModel.getInfo()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.borderless)
+            .help("Refresh")
+            Button("Open Scoreline") {
                 NSApplication.shared.activate(ignoringOtherApps: true)
             }
             .buttonStyle(.link)
@@ -104,6 +126,24 @@ struct MenuBarContentView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - Sections data
+
+    private var liveIDs: Set<String> { Set(viewModel.liveEvents.map(\.id)) }
+
+    /// Followed teams' games today that aren't live (those are already in LIVE).
+    private var upcomingFavorites: [GameWithTeams] {
+        let live = liveIDs
+        return viewModel.todayFavoriteGamesWithTeams.filter { !live.contains($0.game.id) }
+    }
+
+    /// Today's remaining games by sport, minus anything shown in LIVE or FAVORITES.
+    private var todayOthersBySport: [SportType: [GameWithTeams]] {
+        let shown = liveIDs.union(viewModel.todayFavoriteGamesWithTeams.map(\.game.id))
+        return viewModel.todayAllGamesBySport.mapValues { games in
+            games.filter { !shown.contains($0.game.id) }
+        }
     }
 
     // MARK: - Footer
@@ -136,7 +176,7 @@ struct MenuBarContentView: View {
             sectionHeader("LIVE", count: viewModel.liveEventsWithTeams.count, color: Color.appLive)
 
             ForEach(viewModel.liveEventsWithTeams) { gwt in
-                gameRow(gwt, isLive: true)
+                gameRow(gwt, isLive: true, isFavorite: favorites.contains(gwt.game))
             }
         }
     }
@@ -150,9 +190,8 @@ struct MenuBarContentView: View {
             }
             sectionHeader("FAVORITES", color: Color.appStar)
 
-            ForEach(viewModel.todayFavoriteGamesWithTeams) { gwt in
-                let isLive = viewModel.liveEvents.contains(where: { $0.id == gwt.game.id })
-                gameRow(gwt, isLive: isLive)
+            ForEach(upcomingFavorites) { gwt in
+                gameRow(gwt, isLive: false, isFavorite: true)
             }
         }
     }
@@ -167,7 +206,7 @@ struct MenuBarContentView: View {
             sectionHeader("TODAY", color: .secondary)
 
             ForEach(sports, id: \.self) { sport in
-                if let games = viewModel.todayAllGamesBySport[sport] {
+                if let games = todayOthersBySport[sport], !games.isEmpty {
                     sportGroupView(sport: sport, games: games)
                 }
             }
@@ -415,13 +454,36 @@ struct MenuBarContentView: View {
                 teamRow(gwt: gwt, isLive: isLive)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.yellow.opacity(isFlashing ? 0.25 : 0))
+            RoundedRectangle(cornerRadius: 5)
+                .fill(isFlashing ? Color.yellow.opacity(0.25)
+                      : hoveredGameID == game.id ? Color.primary.opacity(0.08) : .clear)
                 .animation(.easeInOut(duration: 0.3), value: isFlashing)
         )
+        .padding(.horizontal, 4)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            if hovering { hoveredGameID = game.id } else if hoveredGameID == game.id { hoveredGameID = nil }
+        }
+        .onTapGesture { open(game) }
+        .help("Open in its own window")
+        .contextMenu {
+            Button("Open Game") { open(game) }
+            if isLive {
+                if pinnedGameID == game.id {
+                    Button("Unpin from Menu Bar") { pinnedGameID = "" }
+                } else {
+                    Button("Pin to Menu Bar") { pinnedGameID = game.id }
+                }
+            }
+        }
+    }
+
+    private func open(_ game: Game) {
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        openWindow(id: "game-detail", value: game.id)
     }
 
     private func seedPrefix(_ seed: Int?) -> String {
@@ -431,16 +493,20 @@ struct MenuBarContentView: View {
 
     private func teamRow(gwt: GameWithTeams, isLive: Bool) -> some View {
         let game = gwt.game
-        let away = seedPrefix(game.awaySeed) + Team.shortCode(strTeamShort: gwt.awayTeam?.strTeamShort, name: game.strAwayTeam)
-        let home = seedPrefix(game.homeSeed) + Team.shortCode(strTeamShort: gwt.homeTeam?.strTeamShort, name: game.strHomeTeam)
+        // The board's codes: ESPN's, then the team's own short name. Deriving one from
+        // the name gave Utah "UJA".
+        let away = seedPrefix(game.awaySeed) + (game.awayAbbreviation ?? gwt.awayTeam?.strTeamShort ?? Team.shortCode(strTeamShort: nil, name: game.strAwayTeam))
+        let home = seedPrefix(game.homeSeed) + (game.homeAbbreviation ?? gwt.homeTeam?.strTeamShort ?? Team.shortCode(strTeamShort: nil, name: game.strHomeTeam))
+        // Soccer reads home first ("BIH 0 - ROU 1"); US sports read away @ home.
+        let homeFirst = game.sportType == .soccer
 
         return HStack {
-            if isLive, let awayScore = game.intAwayScore, let homeScore = game.intHomeScore {
-                Text("\(away) \(awayScore) - \(home) \(homeScore)")
+            if isLive || game.isFinalStatus, let awayScore = game.intAwayScore, let homeScore = game.intHomeScore {
+                Text(homeFirst ? "\(home) \(homeScore) - \(away) \(awayScore)" : "\(away) \(awayScore) - \(home) \(homeScore)")
                     .font(.caption)
                     .fontWeight(.medium)
             } else {
-                Text("\(away) @ \(home)")
+                Text(homeFirst ? "\(home) v \(away)" : "\(away) @ \(home)")
                     .font(.caption)
             }
             if let agg = game.aggregateScore {
@@ -482,6 +548,9 @@ struct MenuBarContentView: View {
                     Text(progress)
                         .foregroundStyle(Color.appLive)
                 }
+            } else if game.isFinalStatus {
+                Text("Final")
+                    .foregroundStyle(Color.appInkSoft)
             } else if let date = game.standardDate {
                 Text(Self.timeFormatter.string(from: date))
                     .foregroundStyle(Color.appInkSoft)

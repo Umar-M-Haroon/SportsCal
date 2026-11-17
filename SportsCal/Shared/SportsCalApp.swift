@@ -33,6 +33,7 @@ struct SportsCalApp: App {
     @AppStorage("debugMode") private var menuDebugMode = false
     @AppStorage("board.emptyStyle") private var boardEmptyStyle: BoardEmptyStyle = .rail
     @AppStorage("board.liveFirst") private var boardLiveFirst = false
+    @AppStorage("menuBar.pinnedGameID") private var menuPinnedGameID = ""
     #endif
     @State private var versionChecker = APIVersionChecker.shared
 
@@ -327,7 +328,13 @@ struct SportsCalApp: App {
             }
         } label: {
             MenuBarLabel(
-                liveFavorites: subscriptionManager.isPro ? viewModel.liveEventsWithTeams.filter { favorites.contains($0.game) } : [],
+                liveFavorites: subscriptionManager.isPro ? {
+                    // A pinned live game takes the label to itself; otherwise rotate favorites.
+                    if let pinned = viewModel.liveEventsWithTeams.first(where: { $0.game.id == menuPinnedGameID }) {
+                        return [pinned]
+                    }
+                    return viewModel.liveEventsWithTeams.filter { favorites.contains($0.game) }
+                }() : [],
                 liveGames: subscriptionManager.isPro ? viewModel.liveEventsWithTeams : [],
                 upcomingFavorite: subscriptionManager.isPro ? {
                     let liveIDs = Set(viewModel.liveEvents.map(\.id))

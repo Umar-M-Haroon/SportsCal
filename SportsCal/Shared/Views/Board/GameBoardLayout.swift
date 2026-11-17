@@ -161,6 +161,8 @@ struct GameBoardLayout<GameContent: View>: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 2)
             }
+            // A horizontal ScrollView takes all the height it's offered; hug the cards.
+            .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.bottom, 12)
     }
