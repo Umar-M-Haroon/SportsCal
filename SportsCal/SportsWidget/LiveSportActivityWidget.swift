@@ -459,9 +459,11 @@ private struct TeamLockScreenView: View {
     private func team(_ side: ActivitySide, leading: Bool) -> some View {
         let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?
             .appendingPathComponent(side.name)
-        // Long name only: it scales down to fit rather than truncating.
+        // Long name only; when it won't fit even a couple of sizes down, the team code
+        // stands in rather than the name truncating ("Brighton & Hove Al…").
         return IndividualTeamView(longName: side.name, score: side.score, isWinning: side.isWinning,
-                                  isAway: leading, redCards: side.redCards, data: url.flatMap { try? Data(contentsOf: $0) })
+                                  isAway: leading, redCards: side.redCards, data: url.flatMap { try? Data(contentsOf: $0) },
+                                  fallbackName: side.short)
     }
 
     @ViewBuilder
@@ -734,6 +736,15 @@ private let previewSoccerState = LiveSportActivityAttributes.ContentState(
 }
 
 #Preview("Island Expanded · Soccer", as: .dynamicIsland(.expanded), using: previewSoccerAttributes) {
+    LiveSportActivityWidget()
+} contentStates: {
+    previewSoccerState
+}
+
+// Names too long for a third of the Lock Screen: they step down, then fall back to codes.
+#Preview("Notification · Soccer long names", as: .content, using: LiveSportActivityAttributes(
+    homeTeam: "Brighton & Hove Albion", awayTeam: "Wolverhampton Wanderers", eventID: "soccer-long",
+    homeTeamShort: "BHA", awayTeamShort: "WOL", displaysHomeFirst: true)) {
     LiveSportActivityWidget()
 } contentStates: {
     previewSoccerState
