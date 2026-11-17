@@ -63,8 +63,9 @@ final class PushToStartRegistrationTests: XCTestCase {
         XCTAssertTrue(request.url!.path.hasSuffix("/pushToStart/register"))
         XCTAssertNotNil(request.value(forHTTPHeaderField: "X-API-Key"))
 
-        // Test bundles build DEBUG → development entitlement → sandbox tokens.
-        // The server routes to the matching APNS gateway off this header.
+        // Tests run on the Simulator, which only mints sandbox tokens, whatever the
+        // signing (an ad-hoc build embeds no profile). The server routes to the
+        // matching APNS gateway off this header.
         XCTAssertEqual(request.value(forHTTPHeaderField: "X-APNS-Env"), "sandbox")
 
         let body = try bodyJSON(of: request)

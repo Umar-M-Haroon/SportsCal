@@ -51,6 +51,10 @@ struct IndividualTeamView: View {
     /// Soccer red cards, drawn as a card glyph beside the name.
     var redCards: Int = 0
     var data: Data? = nil
+    /// A shorter name ("BHA") shown only when `longName` won't fit on one line even
+    /// stepped down a size or two. The Lock Screen Live Activity passes the team code:
+    /// its full names shrank to fit but "Brighton & Hove Albion" still truncated.
+    var fallbackName: String? = nil
     /// Score / fallback-code sizes track Dynamic Type; 24pt / 14pt at the default size.
     @ScaledMetric(relativeTo: .title2) private var scoreSize: CGFloat = 24
     @ScaledMetric(relativeTo: .subheadline) private var codeSize: CGFloat = 14
@@ -177,13 +181,21 @@ struct IndividualTeamView: View {
                     if !isAway { redCardMark }
                     // One line, shrunk to fit: wrapping let SwiftUI break a long word
                     // mid-way ("Vanderbilt Com-modores").
-                    SeededName.text(name, seed: seed, isRank: seedIsRank)
-                        .font(.headline)
-                        .fontWeight(isWinning ? .bold : .regular)
-                        .foregroundColor(isWinning ? .primary : .secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(shortName != nil ? 0.7 : 0.6)
-                        .allowsTightening(true)
+                    if let fallbackName, shortName == nil {
+                        // Whole name at full size, then a size or two down, then the code.
+                        // ViewThatFits measures unscaled text, so the steps stand in for
+                        // minimumScaleFactor; the code still scales rather than truncating.
+                        ViewThatFits(in: .horizontal) {
+                            nameText(name, font: .headline)
+                            nameText(name, font: .subheadline)
+                            nameText(name, font: .footnote)
+                            nameText(fallbackName, font: .headline)
+                                .minimumScaleFactor(0.7)
+                        }
+                    } else {
+                        nameText(name, font: .headline)
+                            .minimumScaleFactor(shortName != nil ? 0.7 : 0.6)
+                    }
                     if isAway { redCardMark }
                 }
                 .frame(maxWidth: .infinity, alignment: isAway ? .leading : .trailing)
@@ -199,6 +211,15 @@ struct IndividualTeamView: View {
 }
 
 extension IndividualTeamView {
+    fileprivate func nameText(_ name: String, font: Font) -> some View {
+        SeededName.text(name, seed: seed, isRank: seedIsRank)
+            .font(font)
+            .fontWeight(isWinning ? .bold : .regular)
+            .foregroundColor(isWinning ? .primary : .secondary)
+            .lineLimit(1)
+            .allowsTightening(true)
+    }
+
     @ViewBuilder
     fileprivate var redCardMark: some View {
         if redCards > 0 {
