@@ -844,8 +844,6 @@ struct ESPNFetchJob: AsyncScheduledJob {
         return LiveEvent(events: events)
     }
 
-    /// Keeps the first occurrence of each event ID. A game without one can't be addressed,
-    /// so it passes through untouched rather than being collapsed against other ID-less games.
     /// The live tennis bucket from the per-tour ESPN boards: one row per match.
     ///
     /// ESPN serves a combined event's entire draw (a slam, Indian Wells, Miami, Madrid,
@@ -865,6 +863,8 @@ struct ESPNFetchJob: AsyncScheduledJob {
         return LiveEvent(events: dedupedByEventID(matches))
     }
 
+    /// Keeps the first occurrence of each event ID. A game without one can't be addressed,
+    /// so it passes through untouched rather than being collapsed against other ID-less games.
     static func dedupedByEventID(_ games: [Game]) -> [Game] {
         var seen = Set<String>()
         return games.filter { game in

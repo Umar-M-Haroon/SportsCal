@@ -52,7 +52,8 @@ struct CalendarViewRepresentable: UIViewRepresentable {
         let newLiveGames = dayComponents.group(viewModel.allLiveEvents)
 
         let componentsToReload = context.coordinator.reloadApplicableDecorations(
-            newDecorations: CalendarCoordinator.decorations(for: newGames, favorites: favorites.teams)
+            newDecorations: CalendarCoordinator.decorations(for: newGames, favorites: favorites.teams),
+            appearance: uiView.overrideUserInterfaceStyle
         )
 
         context.coordinator.games = newGames
@@ -102,6 +103,7 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
     /// What each decorated day currently shows. A reload is only issued for days whose
     /// entry changes, so a live tick that moves no dots reloads (almost) nothing.
     private(set) var dayDecorations: [DateComponents: DayDecoration] = [:]
+    private var decorationAppearance: UIUserInterfaceStyle = .unspecified
     var onSelectDay: (DateComponents) -> Void
     /// Wide layouts keep the tapped day highlighted; compact ones clear it so the
     /// same day can be tapped again after its sheet closes.
@@ -167,7 +169,15 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
     /// This used to return every date that had games — hundreds after a schedule
     /// fetch — on every update, including each live tick, so `UICalendarView` rebuilt
     /// every visible decoration view on the main thread each time (SPORTS-CAL-9G).
-    func reloadApplicableDecorations(newDecorations: [DateComponents: DayDecoration]) -> [DateComponents] {
+    func reloadApplicableDecorations(
+        newDecorations: [DateComponents: DayDecoration],
+        appearance: UIUserInterfaceStyle = .unspecified
+    ) -> [DateComponents] {
+        // A theme switch changes how every dot draws without changing any day's dots.
+        if appearance != decorationAppearance {
+            decorationAppearance = appearance
+            dayDecorations = [:]
+        }
         var result: [DateComponents] = []
         for (day, decoration) in newDecorations where dayDecorations[day] != decoration {
             result.append(day)
