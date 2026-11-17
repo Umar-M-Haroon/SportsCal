@@ -87,6 +87,6 @@ Themes ship first: they're client-only, fast, and give the paywall a visible per
 
 1. **Free taste for custom alerts:** 1 player / 1 rule free (recommended), or Pro-only?
 2. **Should score/clutch Live Activity alerts become Pro** once `goalAlerts` is wired? That's a behavior change for current free users. Alternative: keep them free and make custom alerts the Pro line.
-3. **CFB player alerts:** worth it given the 12-fetches/tick budget? (Suggest: v1 = NBA, NFL, MLB, NHL, soccer.)
+3. **CFB player alerts:** DECIDED 2026-11-17: off for v1 (no college player alerts).
 4. **Soccer alert kinds:** (a) keep as is: every kind for the 1 free team, Pro = all teams (current); (b) goals, red cards, missed pens and VAR need `goalAlerts`, while lineups and HT/FT stay free for the 1 team (this changes things for current free users); (c) all soccer match alerts are Pro.
-5. **NFL player plays:** ESPN's site summary gives drive plays no `participants` (only `$ref` links to the core API). Player *milestones* work from box stats. "Every sack by X" needs either the core API per play (costly) or parsing the play text. Ship NFL milestones only in v1?
+5. **NFL player alerts:** DECIDED 2026-11-17: off for v1, plays and milestones both. ESPN's site summary gives drive plays no `participants`, so revisit later. v1 = NBA, MLB, NHL, soccer.
