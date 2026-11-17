@@ -454,7 +454,12 @@ struct DayPage: View {
                 ? viewModel.nextGame(for: sport, after: selectedDate)?.standardDate
                 : nil
 
-            return BoardColumn(sport: sport, liveGames: liveForSport, otherGames: other, nextGameDate: nextDate)
+            // Only the Mac board's next-day preview uses these; one cached day lookup.
+            let upcoming = nextDate.map { date in
+                viewModel.gamesWithTeams(for: date).filter { $0.game.sportType == sport }
+            } ?? []
+
+            return BoardColumn(sport: sport, liveGames: liveForSport, otherGames: other, nextGameDate: nextDate, upcomingGames: upcoming)
         }
     }
 

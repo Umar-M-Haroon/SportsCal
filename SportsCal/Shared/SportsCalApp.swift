@@ -31,6 +31,7 @@ struct SportsCalApp: App {
     // a scene-level @AppStorage is what actually invalidates the menu bar.
     @AppStorage("appTheme") private var menuAppTheme: AppTheme = .classic
     @AppStorage("debugMode") private var menuDebugMode = false
+    @AppStorage("board.emptyStyle") private var boardEmptyStyle: BoardEmptyStyle = .rail
     #endif
     @State private var versionChecker = APIVersionChecker.shared
 
@@ -246,6 +247,12 @@ struct SportsCalApp: App {
                     NotificationCenter.default.post(name: .toggleFavoritesOnly, object: nil)
                 }
                 .keyboardShortcut("f", modifiers: [.command, .shift])
+                #if DEBUG
+                Divider()
+                Picker("Sports Without Games", selection: $boardEmptyStyle) {
+                    ForEach(BoardEmptyStyle.allCases) { Text($0.title).tag($0) }
+                }
+                #endif
             }
             // Help → support + privacy.
             CommandGroup(replacing: .help) {
