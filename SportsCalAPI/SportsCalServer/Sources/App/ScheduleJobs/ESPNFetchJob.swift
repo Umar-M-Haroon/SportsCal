@@ -720,6 +720,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 extras: extras
             )
             payload.apply(extras)
+            await storeLivePlayerFeed(
+                summary: summary, candidate: candidate, espnEventID: espnEventID,
+                league: league, isFinal: isFinal, context: context, isDebug: isDebug
+            )
             // Fouls and timeouts need each play's team, which the cached plays don't keep;
             // count them now (ESPN team IDs: this runs before the TheSportsDB translation).
             if candidate.sport == "basketball", !isFinal {
@@ -785,6 +789,38 @@ struct ESPNFetchJob: AsyncScheduledJob {
                 "error": "\(error)"
             ])
             return .failed
+        }
+    }
+
+    /// Keeps the server-only `LivePlayerFeed` for custom player alerts, from the summary
+    /// just fetched. Best-effort: a failure here must never cost the play-by-play.
+    private func storeLivePlayerFeed(
+        summary: ESPNSummaryResponse,
+        candidate: PBPCandidate,
+        espnEventID: String,
+        league: Leagues?,
+        isFinal: Bool,
+        context: Queues.QueueContext,
+        isDebug: Bool
+    ) async {
+        guard candidate.sport != "soccer" else { return }
+        guard let feed = LivePlayerFeed(
+            summary: summary,
+            sportType: league.map(SportType.init(league:)),
+            espnEventID: espnEventID,
+            tsdbEventID: candidate.tsdbEventID,
+            sport: candidate.sport,
+            league: candidate.league,
+            isFinal: isFinal,
+            fetchedAt: Date()
+        ) else { return }
+        let key = RedisEndpoint.ESPN.livePlayers(espnEventID).getValue(isDebug: isDebug)
+        do {
+            try await context.application.redis.setex(key, toJSON: feed, expirationInSeconds: LivePlayerFeed.ttlSeconds)
+        } catch {
+            Self.logger.debug("Live player feed write failed", metadata: [
+                "eventID": "\(espnEventID)", "error": "\(error)"
+            ])
         }
     }
 

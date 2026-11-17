@@ -1,0 +1,409 @@
+{
+ "boxscore": {
+  "teams": [
+   {
+    "team": {
+     "id": "8",
+     "abbreviation": "MIL"
+    },
+    "homeAway": "away"
+   },
+   {
+    "team": {
+     "id": "30",
+     "abbreviation": "TB"
+    },
+    "homeAway": "home"
+   }
+  ],
+  "players": [
+   {
+    "team": {
+     "id": "8",
+     "abbreviation": "MIL"
+    },
+    "statistics": [
+     {
+      "type": "batting",
+      "keys": [
+       "hits-atBats",
+       "atBats",
+       "runs",
+       "hits",
+       "RBIs",
+       "homeRuns",
+       "walks",
+       "strikeouts",
+       "pitches",
+       "avg",
+       "onBasePct",
+       "slugAvg"
+      ],
+      "labels": [
+       "H-AB",
+       "AB",
+       "R",
+       "H",
+       "RBI",
+       "HR",
+       "BB",
+       "K",
+       "#P",
+       "AVG",
+       "OBP",
+       "SLG"
+      ],
+      "athletes": [
+       {
+        "athlete": {
+         "id": "4917869",
+         "displayName": "Jackson Chourio",
+         "shortName": "J. Chourio"
+        },
+        "stats": [
+         "1-4",
+         "4",
+         "0",
+         "1",
+         "0",
+         "0",
+         "0",
+         "3",
+         "20",
+         ".288",
+         ".306",
+         ".424"
+        ],
+        "starter": true,
+        "position": {
+         "id": "7",
+         "name": "Left Field",
+         "displayName": "Left Fielder",
+         "abbreviation": "LF"
+        }
+       },
+       {
+        "athlete": {
+         "id": "4417795",
+         "displayName": "Sal Frelick",
+         "shortName": "S. Frelick"
+        },
+        "stats": [
+         "0-3",
+         "3",
+         "0",
+         "0",
+         "0",
+         "0",
+         "0",
+         "1",
+         "15",
+         ".235",
+         ".341",
+         ".353"
+        ],
+        "starter": true,
+        "position": {
+         "id": "9",
+         "name": "Right Field",
+         "displayName": "Right Fielder",
+         "abbreviation": "RF"
+        }
+       },
+       {
+        "athlete": {
+         "id": "5149101",
+         "displayName": "Cooper Pratt",
+         "shortName": "C. Pratt"
+        },
+        "stats": [
+         "2-3",
+         "3",
+         "1",
+         "2",
+         "2",
+         "0",
+         "0",
+         "0",
+         "7",
+         ".354",
+         ".373",
+         ".479"
+        ],
+        "starter": true,
+        "position": {
+         "id": "6",
+         "name": "Shortstop",
+         "displayName": "Shortstop",
+         "abbreviation": "SS"
+        }
+       }
+      ]
+     },
+     {
+      "type": "pitching",
+      "keys": [
+       "fullInnings.partInnings",
+       "hits",
+       "runs",
+       "earnedRuns",
+       "walks",
+       "strikeouts",
+       "homeRuns",
+       "pitches-strikes",
+       "ERA",
+       "pitches"
+      ],
+      "labels": [
+       "IP",
+       "H",
+       "R",
+       "ER",
+       "BB",
+       "K",
+       "HR",
+       "PC-ST",
+       "ERA",
+       "PC"
+      ],
+      "athletes": [
+       {
+        "athlete": {
+         "id": "5080761",
+         "displayName": "Jacob Misiorowski",
+         "shortName": "J. Misiorowski"
+        },
+        "stats": [
+         "5.2",
+         "2",
+         "0",
+         "0",
+         "1",
+         "2",
+         "0",
+         "86-58",
+         "1.89",
+         "86"
+        ],
+        "starter": true,
+        "position": {
+         "id": "1",
+         "name": "Pitcher",
+         "displayName": "Pitcher",
+         "abbreviation": "P"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "team": {
+     "id": "30",
+     "abbreviation": "TB"
+    },
+    "statistics": [
+     {
+      "type": "batting",
+      "keys": [
+       "hits-atBats",
+       "atBats",
+       "runs",
+       "hits",
+       "RBIs",
+       "homeRuns",
+       "walks",
+       "strikeouts",
+       "pitches",
+       "avg",
+       "onBasePct",
+       "slugAvg"
+      ],
+      "labels": [
+       "H-AB",
+       "AB",
+       "R",
+       "H",
+       "RBI",
+       "HR",
+       "BB",
+       "K",
+       "#P",
+       "AVG",
+       "OBP",
+       "SLG"
+      ],
+      "athletes": [
+       {
+        "athlete": {
+         "id": "33481",
+         "displayName": "Yandy Diaz",
+         "shortName": "Y. Diaz"
+        },
+        "stats": [
+         "0-3",
+         "3",
+         "0",
+         "0",
+         "0",
+         "0",
+         "1",
+         "1",
+         "18",
+         ".254",
+         ".302",
+         ".441"
+        ],
+        "starter": true,
+        "position": {
+         "id": "10",
+         "name": "Designated Hitter",
+         "displayName": "Designated Hitter",
+         "abbreviation": "DH"
+        }
+       }
+      ]
+     },
+     {
+      "type": "pitching",
+      "keys": [
+       "fullInnings.partInnings",
+       "hits",
+       "runs",
+       "earnedRuns",
+       "walks",
+       "strikeouts",
+       "homeRuns",
+       "pitches-strikes",
+       "ERA",
+       "pitches"
+      ],
+      "labels": [
+       "IP",
+       "H",
+       "R",
+       "ER",
+       "BB",
+       "K",
+       "HR",
+       "PC-ST",
+       "ERA",
+       "PC"
+      ],
+      "athletes": [
+       {
+        "athlete": {
+         "id": "42584",
+         "displayName": "Drew Rasmussen",
+         "shortName": "D. Rasmussen"
+        },
+        "stats": [
+         "4.0",
+         "2",
+         "1",
+         "1",
+         "0",
+         "4",
+         "0",
+         "48-36",
+         "2.20",
+         "48"
+        ],
+        "starter": true,
+        "position": {
+         "id": "1",
+         "name": "Pitcher",
+         "displayName": "Pitcher",
+         "abbreviation": "P"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "plays": [
+  {
+   "id": "4019080460001010001",
+   "sequenceNumber": "1",
+   "type": {
+    "id": "1",
+    "text": "Start Batter/Pitcher",
+    "alternativeText": "Now at bat",
+    "type": "start-batterpitcher"
+   },
+   "text": "Drew Rasmussen pitches to Jackson Chourio",
+   "awayScore": 0,
+   "homeScore": 0,
+   "period": {
+    "type": "Top",
+    "number": 1,
+    "displayValue": "1st Inning"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "8"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "id": "42584"
+     },
+     "type": "pitcher"
+    },
+    {
+     "athlete": {
+      "id": "4917869"
+     },
+     "type": "batter"
+    }
+   ],
+   "summaryType": "A",
+   "atBatId": "4019080460001"
+  },
+  {
+   "id": "4019080460204990057",
+   "sequenceNumber": "3",
+   "type": {
+    "id": "57",
+    "text": "Play Result",
+    "type": "play-result"
+   },
+   "text": "Pratt singled to center, Turang scored, Pratt thrown out at second, Frelick to third.",
+   "awayScore": 1,
+   "homeScore": 0,
+   "period": {
+    "type": "Top",
+    "number": 2,
+    "displayValue": "2nd Inning"
+   },
+   "scoringPlay": true,
+   "team": {
+    "id": "8"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "id": "42584"
+     },
+     "type": "pitcher"
+    },
+    {
+     "athlete": {
+      "id": "5149101"
+     },
+     "type": "batter"
+    },
+    {
+     "athlete": {
+      "id": "4417795"
+     },
+     "type": "onThird"
+    }
+   ],
+   "summaryType": "S",
+   "atBatId": "4019080460204"
+  }
+ ]
+}

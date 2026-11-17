@@ -150,7 +150,7 @@ struct ClientTelemetryEvent: Codable, Content {
     /// Keep in sync with iOS `UpsellTrigger` raw values and `ProFeature` cases.
     static let breakoutValues: [String: Set<String>] = [
         "trigger": ["post_onboarding", "free_reminder_cap", "favorite_live_opened", "nth_session"],
-        "feature": ["adFree", "proSettings", "goalAlerts", "preGameReminders", "unlimitedReminders", "calendarExport"],
+        "feature": ["adFree", "proSettings", "goalAlerts", "preGameReminders", "unlimitedReminders", "calendarExport", "customAlerts", "themes"],
         // iOS `ActivationSignals.sportCountBucket`.
         "sports": ["0", "1", "2", "3-4", "5+"],
     ]

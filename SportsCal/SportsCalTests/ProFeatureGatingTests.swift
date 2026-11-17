@@ -167,7 +167,7 @@ final class ProFeatureGatingTests: XCTestCase {
     // MARK: - Flat Pro Gates (canUse)
 
     func testCanUse_flatFeaturesGatedForFreeUser() {
-        for feature in [ProFeature.adFree, .proSettings, .goalAlerts, .calendarExport] {
+        for feature in [ProFeature.adFree, .proSettings, .goalAlerts, .calendarExport, .customAlerts, .themes] {
             XCTAssertFalse(freeManager.canUse(feature),
                             "\(feature) should be Pro-only")
             XCTAssertTrue(proManager.canUse(feature),
