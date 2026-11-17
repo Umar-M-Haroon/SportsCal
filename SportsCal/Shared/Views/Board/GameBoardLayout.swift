@@ -55,22 +55,35 @@ struct GameBoardLayout<GameContent: View>: View {
 
     #if os(macOS)
     @AppStorage("board.emptyStyle") private var emptyStyle: BoardEmptyStyle = .rail
+    /// Live games in a strip across the top instead of inside their columns.
+    @AppStorage("board.liveFirst") private var liveFirst = false
     @Environment(\.openWindow) private var openWindow
     /// The empty sport whose next game day is peeked in a popover.
     @State private var peekedSport: SportType?
     #else
     private let emptyStyle: BoardEmptyStyle = .column
+    private let liveFirst = false
     @State private var peekedSport: SportType?
     #endif
 
     private static var railWidth: CGFloat { 76 }
 
     var body: some View {
+        // Live-first: every live game moves to the strip, and the columns keep only
+        // upcoming and finished games, so nothing shows twice.
+        let liveStrip = liveFirst ? columns.flatMap(\.liveGames) : []
+        let columns = liveStrip.isEmpty ? self.columns : self.columns.map {
+            BoardColumn(sport: $0.sport, liveGames: [], otherGames: $0.otherGames,
+                        nextGameDate: $0.nextGameDate, upcomingGames: $0.upcomingGames)
+        }
         let filled = columns.filter { !$0.isEmpty }
         // Rails and chips are for "not today": an off-season sport with nothing
         // scheduled stays out of the board and is still a click away in the sidebar.
         let empty = columns.filter { $0.isEmpty && ($0.nextGameDate != nil || emptyStyle == .column || emptyStyle == .preview) }
         VStack(spacing: 0) {
+            if !liveStrip.isEmpty {
+                liveStripView(liveStrip)
+            }
             if emptyStyle == .tray, !empty.isEmpty {
                 emptyTray(empty)
             }
@@ -121,6 +134,35 @@ struct GameBoardLayout<GameContent: View>: View {
                 .scrollTargetBehavior(.viewAligned)
             }
         }
+    }
+
+    /// Live games across every sport, favorites first.
+    private func liveStripView(_ live: [GameWithTeams]) -> some View {
+        let ordered = live.sorted { favorites.contains($0.game) && !favorites.contains($1.game) }
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Circle().fill(.red).frame(width: 7, height: 7)
+                Text("Live")
+                    .fontWeight(.semibold)
+                Text("\(live.count)")
+                    .foregroundStyle(.secondary)
+            }
+            .font(.subheadline)
+            .padding(.horizontal, 16)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: 10) {
+                    ForEach(ordered) { gwt in
+                        BoardGameCard(isFavorite: favorites.contains(gwt.game), isLive: true) {
+                            gameContent(gwt, true)
+                        }
+                        .frame(width: 300)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 2)
+            }
+        }
+        .padding(.bottom, 12)
     }
 
     /// A narrow strip for a sport with no games: icon, name, next date.

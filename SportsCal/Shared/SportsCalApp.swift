@@ -32,6 +32,7 @@ struct SportsCalApp: App {
     @AppStorage("appTheme") private var menuAppTheme: AppTheme = .classic
     @AppStorage("debugMode") private var menuDebugMode = false
     @AppStorage("board.emptyStyle") private var boardEmptyStyle: BoardEmptyStyle = .rail
+    @AppStorage("board.liveFirst") private var boardLiveFirst = false
     #endif
     @State private var versionChecker = APIVersionChecker.shared
 
@@ -252,6 +253,7 @@ struct SportsCalApp: App {
                 Picker("Sports Without Games", selection: $boardEmptyStyle) {
                     ForEach(BoardEmptyStyle.allCases) { Text($0.title).tag($0) }
                 }
+                Toggle("Live Games First", isOn: $boardLiveFirst)
                 #endif
             }
             // Help → support + privacy.
