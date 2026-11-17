@@ -83,6 +83,13 @@ struct DayChipStrip: View {
         // to fill the pane and pushing the board down.
         .frame(height: 60)
         .sensoryFeedback(.selection, trigger: selectedDate)
+        #if os(macOS)
+        // Games → Go to Date… (⇧⌘D) opens the same calendar popover as the
+        // strip's calendar button.
+        .onReceive(NotificationCenter.default.publisher(for: .goToDate)) { _ in
+            showDatePicker = true
+        }
+        #endif
     }
 
     private var strip: some View {
@@ -150,6 +157,13 @@ struct DayChipStrip: View {
         .help("Jump to date…")
         .accessibilityLabel("Jump to date")
         .popover(isPresented: $showDatePicker, arrowEdge: .bottom) {
+            #if os(macOS)
+            // Month grid with per-sport density dots — the Mac stand-in for
+            // the iOS Calendar tab.
+            MacCalendarGridView(selectedDate: $selectedDate) {
+                showDatePicker = false
+            }
+            #else
             DatePicker(
                 "Jump to date",
                 selection: Binding(
@@ -165,6 +179,7 @@ struct DayChipStrip: View {
             .labelsHidden()
             .padding()
             .frame(minWidth: 300)
+            #endif
         }
     }
 

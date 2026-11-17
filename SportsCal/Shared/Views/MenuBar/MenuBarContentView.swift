@@ -64,6 +64,8 @@ struct MenuBarContentView: View {
             }
             .frame(maxHeight: 340)
 
+            Divider()
+            footer
         }
         .frame(width: 300)
         .onChange(of: viewModel.liveEvents.map { "\($0.id):\($0.intHomeScore ?? ""):\($0.intAwayScore ?? "")" }) { _, _ in
@@ -96,6 +98,29 @@ struct MenuBarContentView: View {
             Spacer()
             Button("Open App") {
                 NSApplication.shared.activate(ignoringOtherApps: true)
+            }
+            .buttonStyle(.link)
+            .font(.appCallout)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    // MARK: - Footer
+
+    @Environment(\.openSettings) private var openSettings
+
+    private var footer: some View {
+        HStack {
+            Button("Settings…") {
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                openSettings()
+            }
+            .buttonStyle(.link)
+            .font(.appCallout)
+            Spacer()
+            Button("Quit Scoreline") {
+                NSApplication.shared.terminate(nil)
             }
             .buttonStyle(.link)
             .font(.appCallout)

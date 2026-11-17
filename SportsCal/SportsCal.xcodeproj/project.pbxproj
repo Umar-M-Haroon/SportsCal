@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0147BDBD7C5D23D2FCC2BC3F /* SoccerShotMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04FE8B20C0A3FB18C65F8C70 /* SoccerShotMapView.swift */; };
+		01D7E80FDD4BA0BE8F944D0B /* MacPrinting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240CD03D0AB2EEBF5CB9430D /* MacPrinting.swift */; };
 		0BDE4C1B10FC635D0FB73FEE /* SportsCalModel in Frameworks */ = {isa = PBXBuildFile; productRef = 178724959E674913D3EAB4CD /* SportsCalModel */; };
 		11579382B0408A49343DABA9 /* AdConsent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93130D6E0C23030B30755D75 /* AdConsent.swift */; };
 		1D1239A026D0D180001B503E /* LocalNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D12399F26D0D180001B503E /* LocalNotificationManager.swift */; };
@@ -265,10 +266,11 @@
 		1DF27D6D2F6C6184000F5FCE /* CloudSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF27D6B2F6C6184000F5FCE /* CloudSyncManager.swift */; };
 		1DF27D6E2F6C6651000F5FCE /* CloudSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF27D6B2F6C6184000F5FCE /* CloudSyncManager.swift */; };
 		1DF27D6F2F6C6651000F5FCE /* CloudSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF27D6B2F6C6184000F5FCE /* CloudSyncManager.swift */; };
-		1DF5C5582713F48500842FDA /* SportsWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DE16FF526F29D4A007B1B57 /* SportsWidgetExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1DF5C5582713F48500842FDA /* SportsWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DE16FF526F29D4A007B1B57 /* SportsWidgetExtension.appex */; platformFilters = (ios, macos, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1DFA3D682A4E8B0A007BA22C /* TiledGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFA3D672A4E8B0A007BA22C /* TiledGridView.swift */; };
 		1DFBEE702AEB456100753DE1 /* SubscriptionRequiredView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFBEE6F2AEB456100753DE1 /* SubscriptionRequiredView.swift */; };
 		3261DED59A9FD1F05E8D5387 /* BrowseComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B839117E0EA41EA254D29D9 /* BrowseComponents.swift */; };
+		2E324A3DF7097757FCE50D40 /* RealisticFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C4862F9357EF00C98966 /* RealisticFixtures.swift */; };
 		429BDB0B949DE3955598C1C6 /* SportsCalUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1DDA02761832E00740CD3 /* SportsCalUITestsLaunchTests.swift */; };
 		4391D142910CCD62D854ABAB /* GolfAlertRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97C3493576A272388F3B1DA3 /* GolfAlertRegistrar.swift */; };
 		4642C4709D1CD7E8DA134ACC /* NASCARViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17048B99499D52C53BCE56D5 /* NASCARViews.swift */; };
@@ -285,6 +287,7 @@
 		79F9785EAC05D33FA972CD8F /* ScheduleSliceSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366406A2FC1D27B33F19E89D /* ScheduleSliceSync.swift */; };
 		7ACB19C0F09778365893E1A7 /* PollRankingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACAED57C6B5A6A51A5CD718B /* PollRankingsView.swift */; };
 		893140AEDEBD16E42F35513D /* SoccerPitchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC9E3C91C482A0D4F291DA00 /* SoccerPitchView.swift */; };
+		86012D750F0E12D700310E0F /* SnapshotFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D73C0CC2F934A1100C98966 /* SnapshotFixtures.swift */; };
 		8A4FD23681DA590FA36AD974 /* GameDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD6F330B4DD18EE38269B549 /* GameDetailView.swift */; };
 		90D4888459392C9368FDF745 /* LiveSituationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F42FF48D17EC968747E1967 /* LiveSituationViews.swift */; };
 		923B20C641B204275F428EA9 /* SoccerCompetitionHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F931361D04AC3510D8EA5A /* SoccerCompetitionHubView.swift */; };
@@ -296,6 +299,8 @@
 		A1B2C3D401000003AABBCCDD /* StoreKitIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D402000003AABBCCDD /* StoreKitIntegrationTests.swift */; };
 		A1B2C3D401000004AABBCCDD /* ProFeatureGatingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D402000004AABBCCDD /* ProFeatureGatingTests.swift */; };
 		A1B2C3D401000005AABBCCDD /* SportsCalStoreKit.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 1D73B9A12F8B5D4900C98966 /* SportsCalStoreKit.storekit */; };
+		A5F7310D448E6BF0C3A66D6A /* MacCalendarGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2130C66571569D63A0A7411 /* MacCalendarGridView.swift */; };
+		A9F7C1EBE680A4D03454A7A0 /* MacCommandRelay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9509175976A84F228EF1A955 /* MacCommandRelay.swift */; };
 		AA000001TIPS000000000001 /* Tips.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001TIPS000000000000 /* Tips.swift */; };
 		AA000001TIPS000000000002 /* Tips.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001TIPS000000000000 /* Tips.swift */; };
 		AA00001000000000 /* SportAppEnum.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000 /* SportAppEnum.swift */; };
@@ -325,6 +330,7 @@
 		AB12CD3400000017000000AA /* EngagementTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB12CD3400000016000000AA /* EngagementTrackerTests.swift */; };
 		ADCA302F31E4E85B25DBFD70 /* TennisDrawView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAC3A225BB9F0AB2744C810 /* TennisDrawView.swift */; };
 		AF8BCEA59ACEADEA61BEF064 /* WhatsNewPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A2441523C698CE02569B8D8 /* WhatsNewPolicyTests.swift */; };
+		B1D673B7D8DA101F5E4BE085 /* MacWidgetDataStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E006B7759DDF399D5BA4BD /* MacWidgetDataStoreTests.swift */; };
 		BB00010200000002 /* StandingsChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00010100000001 /* StandingsChartView.swift */; };
 		BB00020200000002 /* MomentumChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00020100000001 /* MomentumChartView.swift */; };
 		BB00030200000002 /* RoundHeatmapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00030100000001 /* RoundHeatmapView.swift */; };
@@ -338,6 +344,8 @@
 		BB00060C0000000C /* GolfGlossaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00060B0000000B /* GolfGlossaryView.swift */; };
 		BB00070200000002 /* StandingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00070100000001 /* StandingsViewModel.swift */; };
 		C19E04A166EF88DF5C632BDB /* WhatsNewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76D5045DF8D41342C8DE40A3 /* WhatsNewSheet.swift */; };
+		C7C59A7BFC4508D03D4916B9 /* __Snapshots__ in Resources */ = {isa = PBXBuildFile; fileRef = B67636A201F0B5B6FE3BA315 /* __Snapshots__ */; };
+		C7E257B8BEAAC05E0E4559BC /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 1D41090423B5ED40692E0EC2 /* SnapshotTesting */; };
 		CC00010200000002 /* StatScatterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00010100000001 /* StatScatterView.swift */; };
 		CC00020200000002 /* TeamStatsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00020100000001 /* TeamStatsViewModel.swift */; };
 		D2B31945BD4AAE2E2216CB20 /* LiveSituationSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C4B2C775B2BE3FF36DB149 /* LiveSituationSnapshotTests.swift */; };
@@ -666,6 +674,8 @@
 		76D5045DF8D41342C8DE40A3 /* WhatsNewSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WhatsNewSheet.swift; sourceTree = "<group>"; };
 		93130D6E0C23030B30755D75 /* AdConsent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AdConsent.swift; sourceTree = "<group>"; };
 		97C3493576A272388F3B1DA3 /* GolfAlertRegistrar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfAlertRegistrar.swift; sourceTree = "<group>"; };
+		240CD03D0AB2EEBF5CB9430D /* MacPrinting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacPrinting.swift; sourceTree = "<group>"; };
+		9509175976A84F228EF1A955 /* MacCommandRelay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacCommandRelay.swift; sourceTree = "<group>"; };
 		9B1E2F492F3810A100C1D2E3 /* TournamentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TournamentDetailView.swift; sourceTree = "<group>"; };
 		A1B2C3D402000001AABBCCDD /* SubscriptionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerTests.swift; sourceTree = "<group>"; };
 		A1B2C3D402000002AABBCCDD /* RevenueCatIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatIntegrationTests.swift; sourceTree = "<group>"; };
@@ -690,6 +700,7 @@
 		AB12CD3400000016000000AA /* EngagementTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngagementTrackerTests.swift; sourceTree = "<group>"; };
 		ACAED57C6B5A6A51A5CD718B /* PollRankingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollRankingsView.swift; sourceTree = "<group>"; };
 		B8C4B2C775B2BE3FF36DB149 /* LiveSituationSnapshotTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveSituationSnapshotTests.swift; sourceTree = "<group>"; };
+		B67636A201F0B5B6FE3BA315 /* __Snapshots__ */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; path = __Snapshots__; sourceTree = "<group>"; };
 		BB00010100000001 /* StandingsChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingsChartView.swift; sourceTree = "<group>"; };
 		BB00020100000001 /* MomentumChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MomentumChartView.swift; sourceTree = "<group>"; };
 		BB00030100000001 /* RoundHeatmapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundHeatmapView.swift; sourceTree = "<group>"; };
@@ -704,7 +715,9 @@
 		BB00070100000001 /* StandingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingsViewModel.swift; sourceTree = "<group>"; };
 		C0DABD7420F4E46BC9B59F86 /* SoccerPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoccerPlayerView.swift; sourceTree = "<group>"; };
 		C1E2EF7E405289CC653CE178 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		C2130C66571569D63A0A7411 /* MacCalendarGridView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacCalendarGridView.swift; sourceTree = "<group>"; };
 		C5D905CEEF684D5CB7178662 /* ScheduleFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleFilterTests.swift; sourceTree = "<group>"; };
+		C8E006B7759DDF399D5BA4BD /* MacWidgetDataStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacWidgetDataStoreTests.swift; sourceTree = "<group>"; };
 		CC00010100000001 /* StatScatterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatScatterView.swift; sourceTree = "<group>"; };
 		CC00020100000001 /* TeamStatsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamStatsViewModel.swift; sourceTree = "<group>"; };
 		CC9E3C91C482A0D4F291DA00 /* SoccerPitchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoccerPitchView.swift; sourceTree = "<group>"; };
@@ -727,7 +740,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		1D7F46592F45004E00F44569 /* Exceptions for "SportsCalWatchWidgets" folder in "SportsCalWatchWidgetsExtension" target */ = {
+		1D7F46592F45004E00F44569 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -737,51 +750,10 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		1D7F45F42F44FFE600F44569 /* SportsCalWatch Watch App */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = "SportsCalWatch Watch App";
-			sourceTree = "<group>";
-		};
-		1D7F46022F44FFE800F44569 /* SportsCalWatch Watch AppTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = "SportsCalWatch Watch AppTests";
-			sourceTree = "<group>";
-		};
-		1D7F460C2F44FFE800F44569 /* SportsCalWatch Watch AppUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = "SportsCalWatch Watch AppUITests";
-			sourceTree = "<group>";
-		};
-		1D7F464A2F45004C00F44569 /* SportsCalWatchWidgets */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				1D7F46592F45004E00F44569 /* Exceptions for "SportsCalWatchWidgets" folder in "SportsCalWatchWidgetsExtension" target */,
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = SportsCalWatchWidgets;
-			sourceTree = "<group>";
-		};
+		1D7F45F42F44FFE600F44569 /* SportsCalWatch Watch App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "SportsCalWatch Watch App"; sourceTree = "<group>"; };
+		1D7F46022F44FFE800F44569 /* SportsCalWatch Watch AppTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "SportsCalWatch Watch AppTests"; sourceTree = "<group>"; };
+		1D7F460C2F44FFE800F44569 /* SportsCalWatch Watch AppUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "SportsCalWatch Watch AppUITests"; sourceTree = "<group>"; };
+		1D7F464A2F45004C00F44569 /* SportsCalWatchWidgets */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (1D7F46592F45004E00F44569 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = SportsCalWatchWidgets; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -859,6 +831,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1D73C0792F93498300C98966 /* SnapshotTesting in Frameworks */,
+				C7E257B8BEAAC05E0E4559BC /* SnapshotTesting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1085,6 +1058,9 @@
 				5404DC5C8ECD21F802DD4230 /* Soccer */,
 				41D1F46E0A6A7DD0C0B7E263 /* SceneEnvironment.swift */,
 				166E119F2B5A013C17DDB119 /* AdaptiveLayout.swift */,
+				240CD03D0AB2EEBF5CB9430D /* MacPrinting.swift */,
+				9509175976A84F228EF1A955 /* MacCommandRelay.swift */,
+				C2130C66571569D63A0A7411 /* MacCalendarGridView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1138,6 +1114,8 @@
 			children = (
 				1D73C1632F934AA300C98966 /* MacSnapshotHelpers.swift */,
 				1D73C1652F934AAF00C98966 /* MacViewSnapshotTests.swift */,
+				B67636A201F0B5B6FE3BA315 /* __Snapshots__ */,
+				C8E006B7759DDF399D5BA4BD /* MacWidgetDataStoreTests.swift */,
 			);
 			path = Snapshots;
 			sourceTree = "<group>";
@@ -1586,9 +1564,12 @@
 				1D1DAB9129CDB467005434D6 /* PBXTargetDependency */,
 			);
 			name = "Tests macOS";
+			packageProductDependencies = (
+				1D41090423B5ED40692E0EC2 /* SnapshotTesting */,
+			);
 			productName = "Tests macOS";
 			productReference = 1DEC76C7268EFB6700D217A1 /* Tests macOS.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -1726,6 +1707,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C7C59A7BFC4508D03D4916B9 /* __Snapshots__ in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2101,6 +2083,9 @@
 				DC30338A2F9D9319CD7E1EC2 /* PlayerBoxScoreView.swift in Sources */,
 				4F3001EA5969CAD01BAC8B62 /* ScoringSummaryView.swift in Sources */,
 				11579382B0408A49343DABA9 /* AdConsent.swift in Sources */,
+				01D7E80FDD4BA0BE8F944D0B /* MacPrinting.swift in Sources */,
+				A9F7C1EBE680A4D03454A7A0 /* MacCommandRelay.swift in Sources */,
+				A5F7310D448E6BF0C3A66D6A /* MacCalendarGridView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2111,6 +2096,9 @@
 				1DEC76CC268EFB6700D217A1 /* Tests_macOS.swift in Sources */,
 				1D73C1642F934AA300C98966 /* MacSnapshotHelpers.swift in Sources */,
 				1D73C1662F934AAF00C98966 /* MacViewSnapshotTests.swift in Sources */,
+				2E324A3DF7097757FCE50D40 /* RealisticFixtures.swift in Sources */,
+				86012D750F0E12D700310E0F /* SnapshotFixtures.swift in Sources */,
+				B1D673B7D8DA101F5E4BE085 /* MacWidgetDataStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2153,7 +2141,10 @@
 		};
 		1DF5C55A2713F48500842FDA /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			platformFilter = ios;
+			platformFilters = (
+				ios,
+				macos,
+			);
 			target = 1DE16FF426F29D4A007B1B57 /* SportsWidgetExtension */;
 			targetProxy = 1DF5C5592713F48500842FDA /* PBXContainerItemProxy */;
 		};
@@ -2499,12 +2490,14 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 3.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.SportsWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
-				SUPPORTS_MACCATALYST = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WIDGET_EXTENSION";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -2532,12 +2525,14 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 3.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.KomodoLLC.SportsCal.SportsWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
-				SUPPORTS_MACCATALYST = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WIDGET_EXTENSION";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -2759,6 +2754,7 @@
 		1DEC76DF268EFB6700D217A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -2777,13 +2773,14 @@
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = "SportsCal (iOS)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Scoreline.app/Contents/MacOS/Scoreline";
 			};
 			name = Debug;
 		};
 		1DEC76E0268EFB6700D217A1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -2802,7 +2799,7 @@
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = "SportsCal (iOS)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Scoreline.app/Contents/MacOS/Scoreline";
 			};
 			name = Release;
 		};
@@ -2997,6 +2994,11 @@
 		178724959E674913D3EAB4CD /* SportsCalModel */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SportsCalModel;
+		};
+		1D41090423B5ED40692E0EC2 /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1D73C0752F93497700C98966 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			productName = SnapshotTesting;
 		};
 		1D73B98F2F86DFD600C98966 /* RevenueCat */ = {
 			isa = XCSwiftPackageProductDependency;

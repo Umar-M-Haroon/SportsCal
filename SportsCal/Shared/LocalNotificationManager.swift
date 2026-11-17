@@ -10,6 +10,9 @@ import Foundation
 import UserNotifications
 import SportsCalModel
 import os
+#if os(macOS)
+import AppKit
+#endif
 
 enum NotificationDuration: String, CaseIterable {
     case gameStarting = "Game Starting"
@@ -143,7 +146,20 @@ struct NotificationManager {
         let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound]
         UNUserNotificationCenter.current().requestAuthorization(
             options: authOptions,
-            completionHandler: {_, _ in })
+            completionHandler: { granted, _ in
+                if granted { registerForRemoteNotificationsAfterGrant() }
+            })
+    }
+
+    /// iOS registers for APNS at launch; macOS deliberately skips it until the
+    /// user grants notification permission (AppDelegate only re-registers when
+    /// already authorized), so every contextual ask calls this after a grant.
+    static public func registerForRemoteNotificationsAfterGrant() {
+        #if os(macOS)
+        DispatchQueue.main.async {
+            NSApplication.shared.registerForRemoteNotifications()
+        }
+        #endif
     }
 
     /// Check if a notification is already scheduled for a game/duration

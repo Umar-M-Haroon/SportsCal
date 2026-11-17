@@ -443,18 +443,12 @@ struct ModernMacWindow: View {
         }
     }
 
-    /// Prints the visible day's schedule via a print-friendly SwiftUI view
-    /// hosted in an NSView. NSPrintOperation paginates by the host view's height.
+    /// Prints the visible day's schedule (shared pipeline in MacPrinting.swift).
     private func printSchedule() {
-        let title = selectedDate.formatted(date: .complete, time: .omitted)
-        let games = todayGames
-        let printable = SchedulePrintView(title: title, games: games)
-        let hosting = NSHostingView(rootView: printable)
-        let height = max(240, CGFloat(games.count) * 26 + 140)
-        hosting.frame = NSRect(x: 0, y: 0, width: 540, height: height)
-        let operation = NSPrintOperation(view: hosting)
-        operation.printInfo.horizontalPagination = .fit
-        operation.run()
+        runSchedulePrint(
+            title: selectedDate.formatted(date: .complete, time: .omitted),
+            games: todayGames
+        )
     }
 
     private func shiftDay(by days: Int) {
@@ -1538,45 +1532,4 @@ struct ModernMacWindow: View {
     }
 }
 
-/// Plain black-on-white schedule used only for printing (⌘P / File → Print).
-private struct SchedulePrintView: View {
-    let title: String
-    let games: [Game]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Scoreline")
-                .font(.title.bold())
-            Text(title)
-                .font(.title3)
-                .foregroundStyle(.secondary)
-            Divider()
-            if games.isEmpty {
-                Text("No games scheduled.")
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 8)
-            } else {
-                ForEach(games, id: \.id) { game in
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text(game.standardDate?.formatted(date: .omitted, time: .shortened) ?? "—")
-                            .frame(width: 80, alignment: .leading)
-                            .monospacedDigit()
-                        Text("\(game.strAwayTeam) @ \(game.strHomeTeam)")
-                        Spacer(minLength: 0)
-                        if let away = game.intAwayScore, let home = game.intHomeScore,
-                           !away.isEmpty, !home.isEmpty {
-                            Text("\(away)–\(home)")
-                                .monospacedDigit()
-                        }
-                    }
-                    .font(.body)
-                }
-            }
-        }
-        .padding(28)
-        .frame(width: 540, alignment: .leading)
-        .foregroundStyle(.black)
-        .background(Color.white)
-    }
-}
 #endif

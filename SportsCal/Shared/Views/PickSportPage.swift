@@ -404,7 +404,10 @@ struct PickTeamsPage: View {
 
     private func requestNotifications() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
-            if granted { MonetizationTelemetry.activationNotificationsEnabled() }
+            if granted {
+                MonetizationTelemetry.activationNotificationsEnabled()
+                NotificationManager.registerForRemoteNotificationsAfterGrant()
+            }
             MonetizationTelemetry.notificationsResolved(granted: granted)
         }
     }

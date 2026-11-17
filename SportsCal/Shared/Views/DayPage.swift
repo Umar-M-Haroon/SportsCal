@@ -110,6 +110,8 @@ struct DayPage: View {
     @State private var worldCupBracketPresented = false
     /// Keyboard-selected board cell (macOS): ⌥↑/⌥↓ move it, Return pops it out.
     @State private var boardSelectedGameID: String?
+    /// macOS board search-field presentation (⌘F / Games → Find Game…).
+    @State private var boardSearchPresented: Bool = false
     /// The date we were on before a team's date-jump, so leaving the team scope
     /// returns there instead of stranding on the team's game day.
     @State private var dateBeforeTeamScope: Date?
@@ -395,9 +397,22 @@ struct DayPage: View {
 
     private var boardColumns: [BoardColumn] {
         let claimedWorldCupIDs = heroClaimedWorldCupIDs
-        let games = dayGames.filter { !claimedWorldCupIDs.contains($0.id) }
-        let live = filteredLiveEvents
+        var games = dayGames.filter { !claimedWorldCupIDs.contains($0.id) }
+        var live = filteredLiveEvents
         let liveIDs = liveGameIDs
+
+        // macOS board search (⌘F): narrow both sections with the same matcher
+        // the list layout uses.
+        if isSearchActive {
+            games = SearchToken.filter(
+                games: games, tokens: searchTokens, searchText: searchString,
+                favorites: favorites, liveGameIDs: liveIDs
+            )
+            live = SearchToken.filter(
+                games: live, tokens: searchTokens, searchText: searchString,
+                favorites: favorites, liveGameIDs: liveIDs
+            )
+        }
 
         var grouped: [SportType: [GameWithTeams]] = [:]
         for gwt in games {
@@ -425,13 +440,14 @@ struct DayPage: View {
                 }
 
             let isEmpty = sportGames.isEmpty && liveForSport.isEmpty
-            // In a focused scope (a single sport/team/live/favorites), don't show
-            // a wall of empty sport columns — only the ones with content. On iOS
-            // there's no room to spare for empty columns at all.
+            // In a focused scope (a single sport/team/live/favorites) or an
+            // active search, don't show a wall of empty sport columns — only the
+            // ones with content. On iOS there's no room to spare for empty
+            // columns at all.
             #if os(iOS)
             if isEmpty { return nil }
             #else
-            if isEmpty, dayScope != .all { return nil }
+            if isEmpty, dayScope != .all || isSearchActive { return nil }
             #endif
 
             let nextDate: Date? = isEmpty
@@ -802,11 +818,55 @@ struct DayPage: View {
                     .help(boardInspectorVisible ? "Hide game details" : "Show game details")
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .jumpToToday)) { _ in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    selectedDate = calendar.startOfDay(for: Date())
-                }
+            .modifier(MacCommandRelay(
+                onJumpToToday: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedDate = calendar.startOfDay(for: Date())
+                    }
+                },
+                onPreviousDay: { navigateDay(by: -1) },
+                onNextDay: { navigateDay(by: 1) },
+                onToggleInspector: {
+                    withAnimation(.easeInOut(duration: 0.2)) { boardInspectorVisible.toggle() }
+                },
+                onToggleFavoritesOnly: { toggleFavoritesOnly() },
+                onPrint: { printCurrentDay() },
+                onFocusSearch: { boardSearchPresented = true }
+            ))
+            .searchable(
+                text: $searchString,
+                tokens: $searchTokens,
+                suggestedTokens: .constant(suggestedSearchTokens),
+                isPresented: $boardSearchPresented,
+                placement: .toolbar,
+                prompt: "Search games..."
+            ) { token in
+                token.label
             }
+    }
+
+    /// Prints the visible day's board games (shared pipeline in MacPrinting.swift).
+    private func printCurrentDay() {
+        runSchedulePrint(
+            title: selectedDate.formatted(date: .complete, time: .omitted),
+            games: boardSelectionOrder.map(\.game)
+        )
+    }
+
+    /// Toggles the favorites-only filter: for the scoped sport when the sidebar
+    /// has one selected, otherwise for every ordered sport together (same
+    /// semantics as ModernMacWindow's ⇧⌘F).
+    private func toggleFavoritesOnly() {
+        if case .sport(let sport) = dayScope {
+            storage.setFavoritesOnly(sport, value: !storage.favoritesOnly(for: sport))
+        } else {
+            let sports = storage.orderedSports
+            let allOn = !sports.isEmpty && sports.allSatisfy { storage.favoritesOnly(for: $0) }
+            for sport in sports {
+                storage.setFavoritesOnly(sport, value: !allOn)
+            }
+        }
+        storage.bumpPreferenceVersion()
     }
     #endif
 

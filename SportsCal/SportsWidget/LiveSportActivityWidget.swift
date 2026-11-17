@@ -5,6 +5,9 @@
 //  Created by Umar Haroon on 10/28/22.
 //
 
+// ActivityKit/Dynamic Island are iOS-only; the bare UIKit import below would
+// otherwise break the native-macOS widget build.
+#if os(iOS)
 import SwiftUI
 import WidgetKit
 import UIKit
@@ -783,4 +786,5 @@ private let previewRace = LiveActivityRace(session: "Race", leaders: [
 } contentStates: {
     LiveSportActivityAttributes.ContentState(homeScore: 0, awayScore: 0, status: "in", progress: "Lap 23/62", race: previewRace)
 }
+#endif
 #endif

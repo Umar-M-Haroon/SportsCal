@@ -54,5 +54,8 @@ struct GolfGlossaryView: View {
             }
         }
         .presentationDetents([.medium])
+        #if os(macOS)
+        .frame(minWidth: 420, idealWidth: 460, minHeight: 480, idealHeight: 560)
+        #endif
     }
 }

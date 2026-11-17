@@ -21,7 +21,9 @@ struct MacSettingsView: View {
             AboutSettingsTab()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 450)
+        // Fixed settings-window size: grouped Forms scroll within it, so tab
+        // switches don't bounce the window height around.
+        .frame(width: 520, height: 500)
     }
 }
 

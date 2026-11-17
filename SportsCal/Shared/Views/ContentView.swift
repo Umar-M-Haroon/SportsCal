@@ -107,6 +107,7 @@ struct ContentView: View {
 
     #if os(macOS)
     @State private var sidebarSelection: MacSidebarItem? = .games
+    @Environment(\.openWindow) private var openWindow
     #endif
 
     private var showStaleBanner: Bool {
@@ -290,7 +291,7 @@ struct ContentView: View {
                 sheetType = .paywall
             }
             #endif
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenGameFromNotification")), perform: openGameFromNotification)
+            .onReceive(NotificationCenter.default.publisher(for: .openGameFromNotification), perform: openGameFromNotification)
             .onReceive(NotificationCenter.default.publisher(for: .favoritesDidChange)) { _ in
                 // One-time activation signal — emitted here (app target) rather
                 // than in Favorites, which also compiles into watch/widget where
@@ -325,6 +326,12 @@ struct ContentView: View {
         let token = note.userInfo?["token"] as? String ?? eventID
         let open = {
             guard SceneEventClaim.claim(token) else { return }
+            #if os(macOS)
+            // Mac gives a notification tap its own detail window rather than
+            // switching the main window's tab.
+            openWindow(id: "game-detail", value: eventID)
+            return
+            #else
             selectedTab = 0
             // A cold launch has neither the schedule nor the live feed yet,
             // and live alerts carry an ESPN id only the live feed shares:
@@ -340,6 +347,7 @@ struct ContentView: View {
                     try? await Task.sleep(for: .milliseconds(500))
                 }
             }
+            #endif
         }
         if scenePhase == .active {
             open()

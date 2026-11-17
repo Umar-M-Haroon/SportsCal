@@ -5,7 +5,8 @@
 //  Created by Umar Haroon on 4/12/26.
 //
 
-#if os(iOS)
+// iOS + macOS (excluded from the watch widgets target, which compiles this file too).
+#if !os(watchOS)
 import SwiftUI
 import WidgetKit
 import AppIntents

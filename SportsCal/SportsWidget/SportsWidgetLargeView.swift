@@ -69,8 +69,8 @@ struct SportsWidgetLargeView: View {
             }
             .padding(.horizontal, 4)
 
-            // Interactive sport filter tabs (iOS only, allSports mode)
-            #if os(iOS)
+            // Interactive sport filter tabs (iOS + macOS, allSports mode)
+            #if !os(watchOS)
             if entry.configuration.sport == .allSports {
                 WidgetSportTabBar(compact: false)
             }

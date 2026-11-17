@@ -72,6 +72,9 @@ struct SportBrowseSheet: View {
             browseVM = vm
             await vm.fetch()
         }
+        #if os(macOS)
+        .frame(minWidth: 520, idealWidth: 560, minHeight: 540, idealHeight: 640)
+        #endif
     }
 
     @ViewBuilder

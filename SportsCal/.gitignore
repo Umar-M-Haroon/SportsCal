@@ -1,1 +1,7 @@
 Constants.swift
+
+# Mac snapshot references are committed (bundled into Tests macOS as resources;
+# the sandboxed host can't read the repo at runtime) — carve them out of the
+# global __Snapshots__ ignore.
+!Tests macOS/Snapshots/__Snapshots__/
+!Tests macOS/Snapshots/__Snapshots__/**

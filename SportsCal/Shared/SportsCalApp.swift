@@ -27,6 +27,9 @@ struct SportsCalApp: App {
     @Environment(\.openURL) private var openURL
     #if os(macOS)
     @Environment(\.openWindow) private var openWindow
+    // Mirrors UserDefaultStorage.appTheme, which is @ObservationIgnored there —
+    // a scene-level @AppStorage is what actually invalidates the menu bar.
+    @AppStorage("appTheme") private var menuAppTheme: AppTheme = .classic
     #endif
     @State private var versionChecker = APIVersionChecker.shared
 
@@ -204,10 +207,18 @@ struct SportsCalApp: App {
             CommandMenu("Games") {
                 Button("Refresh") { viewModel.getInfo() }
                     .keyboardShortcut("r", modifiers: .command)
+                Button("Find Game…") {
+                    NotificationCenter.default.post(name: .focusSearch, object: nil)
+                }
+                .keyboardShortcut("f", modifiers: .command)
                 Button("Jump to Today") {
                     NotificationCenter.default.post(name: .jumpToToday, object: nil)
                 }
                 .keyboardShortcut("t", modifiers: .command)
+                Button("Go to Date…") {
+                    NotificationCenter.default.post(name: .goToDate, object: nil)
+                }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
                 Divider()
                 Button("Previous Day") {
                     NotificationCenter.default.post(name: .previousDay, object: nil)
@@ -226,6 +237,9 @@ struct SportsCalApp: App {
                     NotificationCenter.default.post(name: .toggleLayoutMode, object: nil)
                 }
                 .keyboardShortcut("l", modifiers: .command)
+                // Layout modes only exist in the EFRemix window; the Classic
+                // board has a single layout, so the command is disabled there.
+                .disabled(menuAppTheme != .efRemix)
                 Button("Show Only Favorites") {
                     NotificationCenter.default.post(name: .toggleFavoritesOnly, object: nil)
                 }
@@ -392,6 +406,8 @@ extension Notification.Name {
     static let toggleLayoutMode = Notification.Name("com.scoreline.toggleLayoutMode")
     static let toggleFavoritesOnly = Notification.Name("com.scoreline.toggleFavoritesOnly")
     static let printSchedule = Notification.Name("com.scoreline.printSchedule")
+    static let focusSearch = Notification.Name("com.scoreline.focusSearch")
+    static let goToDate = Notification.Name("com.scoreline.goToDate")
 }
 #endif
 

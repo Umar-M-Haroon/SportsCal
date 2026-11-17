@@ -171,6 +171,11 @@ struct ListDetailView: View {
                 }
             }
         }
+        // Detents are a no-op on macOS; without a frame the sheet collapses to
+        // its minimum List height.
+        #if os(macOS)
+        .frame(minWidth: 520, idealWidth: 560, minHeight: 540, idealHeight: 640)
+        #endif
     }
 
     private var navigationTitleText: String {

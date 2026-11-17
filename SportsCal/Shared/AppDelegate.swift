@@ -13,6 +13,11 @@ import os
 import GoogleMobileAds
 #endif
 
+extension Notification.Name {
+    /// Posted when the user taps a game notification; userInfo carries "eventID".
+    static let openGameFromNotification = Notification.Name("OpenGameFromNotification")
+}
+
 #if os(iOS)
 import UIKit
 
@@ -181,7 +186,7 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         // Handle deep linking based on notification type
         if let eventID = userInfo["eventID"] as? String {
             // Post notification to open specific game
-            NotificationCenter.default.post(name: NSNotification.Name("OpenGameFromNotification"), object: nil, userInfo: ["eventID": eventID, "token": response.notification.request.identifier])
+            NotificationCenter.default.post(name: .openGameFromNotification, object: nil, userInfo: ["eventID": eventID, "token": response.notification.request.identifier])
         }
 
         completionHandler()
@@ -193,11 +198,18 @@ import AppKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Request notification permissions
-        requestNotificationAuthorization()
-
-        // Register for remote notifications
-        NSApplication.shared.registerForRemoteNotifications()
+        // Never prompt for notification permission cold at launch on macOS —
+        // onboarding and the notify buttons own the contextual ask (see
+        // NotificationManager.registerForRemoteNotificationsAfterGrant for
+        // the post-grant APNS registration). If a previous session already
+        // granted permission, re-register so score-alert pushes keep flowing.
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized
+                    || settings.authorizationStatus == .provisional else { return }
+            DispatchQueue.main.async {
+                NSApplication.shared.registerForRemoteNotifications()
+            }
+        }
 
         // Set notification center delegate
         UNUserNotificationCenter.current().delegate = self
@@ -226,26 +238,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         } else {
             AppLogger.general.error("Sentry DSN missing — crash reporting disabled for this build")
-        }
-    }
-
-    private func requestNotificationAuthorization() {
-        let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound]
-        UNUserNotificationCenter.current().requestAuthorization(options: authOptions) { granted, error in
-            if let error = error {
-                AppLogger.notifications.error("Error requesting notification authorization: \(error.localizedDescription)")
-                // `.notificationsNotAllowed` is the user's (or device policy's) choice,
-                // not a bug — it fires on every launch once denied (SPORTS-CAL-7Q).
-                if (error as? UNError)?.code != .notificationsNotAllowed {
-                    SentrySDK.capture(error: error)
-                }
-            }
-            MonetizationTelemetry.notificationsResolved(granted: granted)
-            if granted {
-                AppLogger.notifications.info("Notification authorization granted")
-            } else {
-                AppLogger.notifications.notice("Notification authorization denied")
-            }
         }
     }
 
@@ -281,7 +273,7 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         AppLogger.notifications.info("User tapped notification for event: \(userInfo["eventID"] as? String ?? "unknown")")
 
         if let eventID = userInfo["eventID"] as? String {
-            NotificationCenter.default.post(name: NSNotification.Name("OpenGameFromNotification"), object: nil, userInfo: ["eventID": eventID, "token": response.notification.request.identifier])
+            NotificationCenter.default.post(name: .openGameFromNotification, object: nil, userInfo: ["eventID": eventID, "token": response.notification.request.identifier])
         }
 
         completionHandler()

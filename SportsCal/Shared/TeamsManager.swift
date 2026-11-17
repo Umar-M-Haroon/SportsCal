@@ -116,6 +116,19 @@ final class TeamsManager {
     // MARK: - Disk I/O
 
     private static func cacheURL() -> URL? {
+        #if os(macOS)
+        // Sequoia arbitrates group-container file access through the "access
+        // data from other apps" consent. For builds whose profile doesn't
+        // authorize the group (unsigned CLI test hosts, fresh dev identities),
+        // the open() BLOCKS the main thread at launch until the dialog is
+        // answered — which hangs hosted test runs. Tests pin to Caches so
+        // they never depend on consent state.
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil {
+            return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+                .appendingPathComponent(cacheFileName)
+        }
+        #endif
         if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID) {
             return containerURL.appendingPathComponent(cacheFileName)
         }

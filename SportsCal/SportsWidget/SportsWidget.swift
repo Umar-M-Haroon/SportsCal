@@ -163,12 +163,12 @@ struct SportsWidgetEntryView: View {
 struct SportsWidgetBundle: WidgetBundle {
     var body: some Widget {
         SportsWidget()
+        StandingsWidget()
         #if os(iOS)
         LiveSportActivityWidget()
         SportsCalControlWidget()
 //        F1WeekendWidget()
 //        GolfLeaderboardWidget()
-        StandingsWidget()
         TeamFixtureWidget()
         #endif
     }
@@ -198,7 +198,7 @@ struct SportsWidget: Widget {
 
 // MARK: - Sport Tab Bar (Interactive Filtering)
 
-#if os(iOS)
+#if !os(watchOS)
 struct WidgetSportTabBar: View {
     let compact: Bool
 

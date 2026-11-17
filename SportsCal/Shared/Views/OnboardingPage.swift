@@ -59,10 +59,12 @@ struct OnboardingPage: View {
             }
             .navigationTitle("Welcome to Scoreline!")
         }
-        // A floor for the Mac sheet only. On iPhone the sheet already fills the
-        // screen, and the iPhone Duo's outer display is 466pt tall in landscape.
+        // A fixed window-like size on macOS: min-only frames let the sheet open
+        // at the cramped minimum, which reads as a misplaced phone modal. On
+        // iPhone the sheet already fills the screen, and the iPhone Duo's outer
+        // display is 466pt tall in landscape, so no floor there.
         #if os(macOS)
-        .frame(minWidth: 400, minHeight: 500)
+        .frame(width: 640, height: 560)
         #endif
         .onAppear { MonetizationTelemetry.onboardingStarted() }
     }
@@ -98,7 +100,10 @@ struct OnboardingPage: View {
     /// launch, which converts much better.
     private func requestNotifications() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
-            if granted { MonetizationTelemetry.activationNotificationsEnabled() }
+            if granted {
+                MonetizationTelemetry.activationNotificationsEnabled()
+                NotificationManager.registerForRemoteNotificationsAfterGrant()
+            }
             MonetizationTelemetry.notificationsResolved(granted: granted)
         }
     }

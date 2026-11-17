@@ -80,7 +80,7 @@ struct FollowGameIntent: AppIntent {
 
 // MARK: - Select Sport Intent (Interactive Tab Bar)
 
-#if os(iOS)
+#if !os(watchOS)
 struct SelectSportIntent: AppIntent {
     static var title: LocalizedStringResource = "Select Sport"
     static var description: IntentDescription = "Filter widget games by sport"

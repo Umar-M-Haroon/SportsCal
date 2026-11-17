@@ -72,7 +72,6 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1D7F46462F45004C00F44569"
             BuildableName = "SportsCalWatchWidgetsExtension.appex"
-            BlueprintName = "SportsCalWatchWidgetsExtension"
             ReferencedContainer = "container:SportsCal.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

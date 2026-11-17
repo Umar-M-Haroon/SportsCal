@@ -28,7 +28,14 @@ final class MacViewSnapshotTests: XCTestCase {
 
     // MARK: - Main window
 
-    func test_mac_contentView() {
+    func test_mac_contentView() throws {
+        // The day strip renders real calendar dates and the board shows a
+        // spinner mid-rotation, so this render is time-relative. Record-only
+        // hero (same convention as the iOS DayPage snapshot).
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RECORD_SNAPSHOTS"] == "1",
+            "time-relative render; run with TEST_RUNNER_RECORD_SNAPSHOTS=1"
+        )
         let view = wrap(ContentView())
         assertMacReviewSnapshots(
             of: view,
@@ -48,9 +55,30 @@ final class MacViewSnapshotTests: XCTestCase {
         )
     }
 
+    // MARK: - Calendar grid popover
+
+    func test_mac_calendarGrid() {
+        // Fixed date (2026-02-11 12:00 UTC): a month far enough in the past
+        // that neither the real "today" highlight nor the fixture games
+        // (anchored near now) can enter the rendered grid window.
+        let fixed = Date(timeIntervalSince1970: 1_770_811_200)
+        let view = wrap(MacCalendarGridView(selectedDate: .constant(fixed)))
+        assertMacReviewSnapshots(
+            of: view,
+            named: "hero-Mac-CalendarGrid",
+            size: CGSize(width: 360, height: 440)
+        )
+    }
+
     // MARK: - Settings window
 
-    func test_mac_settings() {
+    func test_mac_settings() throws {
+        // The date-format rows preview today's date, so this render changes
+        // daily. Record-only, like test_mac_contentView.
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RECORD_SNAPSHOTS"] == "1",
+            "time-relative render; run with TEST_RUNNER_RECORD_SNAPSHOTS=1"
+        )
         let view = wrap(MacSettingsView())
         assertMacReviewSnapshots(
             of: view,
