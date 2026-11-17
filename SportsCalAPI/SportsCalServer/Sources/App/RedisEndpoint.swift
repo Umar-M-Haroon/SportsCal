@@ -98,6 +98,7 @@ enum RedisEndpoint {
         case espnEventMap       // "ESPN-Event-Map" — LEGACY JSON blob; migrated into `espnEventMapHash`
         case espnEventMapHash   // "ESPN-Event-Map-Hash" — Redis hash: TSDB eventID → ESPNEventMapping JSON
         case playByPlayMiss(String) // "PBPMiss-{eventID}" — short negative cache for on-demand /plays misses
+        case livePlayers(String) // "LivePlayers-{espnEventID}" — server-only LivePlayerFeed (play athletes + live stat lines)
         case espnIDMap          // "ESPN-ID-Map" — ESPN team ID → TheSportsDB team ID
         case scheduleVersion    // "Schedule Version" — bumped on every `latestSchedule` write (see ScheduleStore)
         case scheduleCalendarVersions // "Schedule Calendar Versions" — per-sport ETag versions of `latestSchedule`
@@ -173,6 +174,8 @@ enum RedisEndpoint {
                 return "ESPN-Event-Map-Hash"
             case .playByPlayMiss(let eventID):
                 return RedisKey("PBPMiss-\(eventID)")
+            case .livePlayers(let eventID):
+                return RedisKey("LivePlayers-\(eventID)")
             case .espnIDMap:
                 return "ESPN-ID-Map"
             case .scheduleVersion:
@@ -253,6 +256,8 @@ enum RedisEndpoint {
                 return "debug-ESPN-Event-Map-Hash"
             case .playByPlayMiss(let eventID):
                 return RedisKey("debug-PBPMiss-\(eventID)")
+            case .livePlayers(let eventID):
+                return RedisKey("debug-LivePlayers-\(eventID)")
             case .espnIDMap:
                 return "debug-ESPN-ID-Map"
             case .scheduleVersion:
