@@ -19,6 +19,7 @@ final class ScheduleFilterTests: XCTestCase {
         "favoritesOnlyNBA", "favoritesOnlyNFL", "favoritesOnlyNHL",
         "favoritesOnlySoccer", "favoritesOnlyMLB", "favoritesOnlyGolf",
         "favoritesOnlyTennis", "favoritesOnlyRacing",
+        "coverageTennis", "coverageGolf",
         "Favorites", "FavoritePlayers"
     ]
 
@@ -174,10 +175,30 @@ final class ScheduleFilterTests: XCTestCase {
         appStorage.shouldShowGolf = true
         appStorage.shouldShowTennis = true
         appStorage.shouldShowRacing = true
+        // The mock golf and tennis events are tour-level; the default coverage (Big
+        // Events) hides those, so ask for everything here.
+        appStorage.coverageGolf = .everything
+        appStorage.coverageTennis = .everything
 
         let filtered = viewModel.getGamesFromUserPreferences()
         // 5 NBA + 3 NFL + 4 NHL + 2 MLB + 6 Soccer + 2 Golf + 2 Tennis + 1 Racing = 25
         XCTAssertEqual(filtered.count, 25, "All 25 mock games should show when all sports enabled")
+    }
+
+    func testDefaultCoverageHidesTourLevelGolfAndTennis() {
+        appStorage.shouldShowNBA = true
+        appStorage.shouldShowNFL = true
+        appStorage.shouldShowNHL = true
+        appStorage.shouldShowMLB = true
+        appStorage.shouldShowSoccer = true
+        appStorage.shouldShowGolf = true
+        appStorage.shouldShowTennis = true
+        appStorage.shouldShowRacing = true
+
+        let filtered = viewModel.getGamesFromUserPreferences()
+        // Big Events is the default: "PGA Tournament 0" and "ATP Event" are tour-level.
+        XCTAssertEqual(filtered.count, 21, "Team sports and racing show; tour-level golf and tennis don't")
+        XCTAssertFalse(filtered.contains { $0.sportType == .golf || $0.sportType == .tennis })
     }
 
     func testFilterShowsNoSportsWhenAllDisabled() {
