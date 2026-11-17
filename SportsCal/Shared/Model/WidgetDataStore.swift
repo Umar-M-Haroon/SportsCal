@@ -156,8 +156,14 @@ enum WidgetDataStore {
 
     /// Writes the next upcoming games + relevant teams to the app group container.
     /// Call this after schedule data is refreshed or sport filters change.
-    static func writeSnapshot(games: [Game], teams: [Team]) {
-        guard let url = fileURL else { return }
+    /// Content of the last snapshot written, without its timestamp.
+    private static let lastWrittenContent = OSAllocatedUnfairLock<Data?>(initialState: nil)
+
+    /// Returns true when the games or teams differ from the previous write, so the
+    /// caller reloads widget timelines only when there's something new to show.
+    @discardableResult
+    static func writeSnapshot(games: [Game], teams: [Team]) -> Bool {
+        guard let url = fileURL else { return false }
 
         let now = Date()
         let upcoming = selectGames(games, now: now)
@@ -181,6 +187,16 @@ enum WidgetDataStore {
             AppLogger.widget.info("[snapshot] wrote \(data.count) bytes (\(strippedGames.count) games, \(relevantTeams.count) teams)")
         } catch {
             AppLogger.widget.error("[snapshot] write failed: \(error.localizedDescription)")
+            return false
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        guard let content = try? encoder.encode(WidgetSnapshot(games: strippedGames, teams: relevantTeams, updatedAt: .distantPast)) else {
+            return true
+        }
+        return lastWrittenContent.withLock { last in
+            defer { last = content }
+            return last != content
         }
     }
 

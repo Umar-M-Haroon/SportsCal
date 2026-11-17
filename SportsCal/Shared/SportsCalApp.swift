@@ -30,6 +30,7 @@ struct SportsCalApp: App {
     // Mirrors UserDefaultStorage.appTheme, which is @ObservationIgnored there —
     // a scene-level @AppStorage is what actually invalidates the menu bar.
     @AppStorage("appTheme") private var menuAppTheme: AppTheme = .classic
+    @AppStorage("debugMode") private var menuDebugMode = false
     #endif
     @State private var versionChecker = APIVersionChecker.shared
 
@@ -239,7 +240,8 @@ struct SportsCalApp: App {
                 .keyboardShortcut("l", modifiers: .command)
                 // Layout modes only exist in the EFRemix window; the Classic
                 // board has a single layout, so the command is disabled there.
-                .disabled(menuAppTheme != .efRemix)
+                // Same rule as UserDefaultStorage.effectiveAppTheme.
+                .disabled(!(menuDebugMode && menuAppTheme == .efRemix))
                 Button("Show Only Favorites") {
                     NotificationCenter.default.post(name: .toggleFavoritesOnly, object: nil)
                 }

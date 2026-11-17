@@ -489,7 +489,7 @@ class Provider: AppIntentTimelineProvider {
             // the games genuinely exist and only our refresh path failed. This must
             // stay OUTSIDE the platform guard — only the Sentry call is iOS-only.
             // The watch has no WebSocket and polls less often, so it is the platform
-            // most likely to be past the 30-minute staleness gate with a failed
+            // most likely to be past the 2-hour staleness gate with a failed
             // fetch, i.e. the one that most needs the fallback.
             if let stale = WidgetDataStore.readSnapshot(allowStale: true) {
                 AppLogger.widget.info("[networking] serving stale snapshot after network failure, age=\(Int(Date().timeIntervalSince(stale.updatedAt)))s")

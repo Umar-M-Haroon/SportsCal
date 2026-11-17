@@ -326,28 +326,29 @@ struct ContentView: View {
         let token = note.userInfo?["token"] as? String ?? eventID
         let open = {
             guard SceneEventClaim.claim(token) else { return }
-            #if os(macOS)
-            // Mac gives a notification tap its own detail window rather than
-            // switching the main window's tab.
-            openWindow(id: "game-detail", value: eventID)
-            return
-            #else
+            #if !os(macOS)
             selectedTab = 0
+            #endif
             // A cold launch has neither the schedule nor the live feed yet,
             // and live alerts carry an ESPN id only the live feed shares:
             // give the id a few seconds to resolve. One that never does (a
-            // finished live game) would push a bare "Game not found", so it
-            // just shows the Games tab.
+            // finished live game) would show a bare "Game not found", so it
+            // just leaves the main window as it is.
             Task { @MainActor in
                 for _ in 0..<16 {
                     if viewModel.game(forEventID: eventID) != nil {
+                        #if os(macOS)
+                        // Mac gives a notification tap its own detail window rather
+                        // than switching the main window's tab.
+                        openWindow(id: "game-detail", value: eventID)
+                        #else
                         spotlightGameID = eventID
+                        #endif
                         return
                     }
                     try? await Task.sleep(for: .milliseconds(500))
                 }
             }
-            #endif
         }
         if scenePhase == .active {
             open()

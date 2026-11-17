@@ -20,28 +20,32 @@ struct MacCommandRelay: ViewModifier {
     var onPrint: () -> Void
     var onFocusSearch: () -> Void
 
+    // Every open window gets these posts; only the frontmost one acts, or ⌘P would
+    // print once per window and two windows would flip favorites-only back.
+    @Environment(\.appearsActive) private var appearsActive
+
     func body(content: Content) -> some View {
         content
             .onReceive(NotificationCenter.default.publisher(for: .jumpToToday)) { _ in
-                onJumpToToday()
+                if appearsActive { onJumpToToday() }
             }
             .onReceive(NotificationCenter.default.publisher(for: .previousDay)) { _ in
-                onPreviousDay()
+                if appearsActive { onPreviousDay() }
             }
             .onReceive(NotificationCenter.default.publisher(for: .nextDay)) { _ in
-                onNextDay()
+                if appearsActive { onNextDay() }
             }
             .onReceive(NotificationCenter.default.publisher(for: .toggleInspector)) { _ in
-                onToggleInspector()
+                if appearsActive { onToggleInspector() }
             }
             .onReceive(NotificationCenter.default.publisher(for: .toggleFavoritesOnly)) { _ in
-                onToggleFavoritesOnly()
+                if appearsActive { onToggleFavoritesOnly() }
             }
             .onReceive(NotificationCenter.default.publisher(for: .printSchedule)) { _ in
-                onPrint()
+                if appearsActive { onPrint() }
             }
             .onReceive(NotificationCenter.default.publisher(for: .focusSearch)) { _ in
-                onFocusSearch()
+                if appearsActive { onFocusSearch() }
             }
     }
 }

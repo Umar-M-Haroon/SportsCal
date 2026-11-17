@@ -2680,9 +2680,15 @@ public class GameViewModel: NSObject {
         let snapshotGames = widgetGames
         let snapshotTeams = teams
         Task.detached(priority: .utility) {
-            WidgetDataStore.writeSnapshot(games: snapshotGames, teams: snapshotTeams)
+            let changed = WidgetDataStore.writeSnapshot(games: snapshotGames, teams: snapshotTeams)
             #if canImport(WidgetKit) && !WIDGET_EXTENSION
-            WidgetCenter.shared.reloadAllTimelines()
+            // Only the widgets that read the snapshot, and only when it changed: this runs
+            // after every live tick, and Standings fetches from the network on reload.
+            if changed {
+                for kind in ["SportsWidget", "GolfLeaderboardWidget", "F1WeekendWidget", "TeamFixtureWidget"] {
+                    WidgetCenter.shared.reloadTimelines(ofKind: kind)
+                }
+            }
             #endif
         }
 
