@@ -591,6 +591,12 @@ struct SettingsView: View {
                             }
                         }
                     }
+                    Button("Rate Scoreline") {
+                        MonetizationTelemetry.rateRowTapped()
+                        if let url = URL(string: "https://apps.apple.com/app/id1580232928?action=write-review") {
+                            openURL(url)
+                        }
+                    }
                     #if os(iOS)
                     // Where an ad consent message applies, users must be able to change
                     // their answer. Pro has no ads, so nothing to choose.

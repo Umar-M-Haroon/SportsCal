@@ -80,6 +80,9 @@ struct LivePulseDot: View {
 struct ContentView: View {
     @Environment(\.scenePhase) var scenePhase
     @Environment(\.requestReview) private var requestReview
+    /// Set when this launch already showed What's New: one interruption per
+    /// session, so no rating prompt until the next launch.
+    @State private var suppressReviewThisSession = false
 
     @State var shouldShowSettings: Bool = false
 
@@ -185,7 +188,12 @@ struct ContentView: View {
             // schedule: new fixtures get scheduled, moved ones retimed. Also on every
             // foreground (below) — a reschedule doesn't change the game count, and games
             // drift into the scheduling window day by day.
-            .task(id: viewModel.totalGames?.count ?? 0) { reconcileTeamAlerts() }
+            .task(id: viewModel.totalGames?.count ?? 0) {
+                reconcileTeamAlerts()
+                // The launch check runs before the feed loads, so a favorite's
+                // win can only be seen once games arrive.
+                requestReviewIfEligible()
+            }
             .modifier(AlertRegistrationTriggers(reconcile: reconcileTeamAlerts, proStatusChanged: proStatusChanged))
             .alert("Scoreline Pro", isPresented: $shouldShowSportsCalProAlert) {
                 Button("Subscribe") { sheetType = .paywall }
@@ -243,6 +251,9 @@ struct ContentView: View {
                     viewModel.refreshOnForegroundIfNeeded()
                     viewModel.ensureWebSocketConnected()
                     reconcileTeamAlerts()
+                    // Returning to the app after a win (e.g. a Live Activity
+                    // just ended) is the happiest moment to ask.
+                    requestReviewIfEligible()
                 }
             }
             .onChange(of: storage.hiddenCompetitions) { _, _ in
@@ -270,6 +281,7 @@ struct ContentView: View {
                         isFreshInstall: viewModel.appStorage.shouldShowOnboarding
                     ) {
                         WhatsNewStore.markSeen()
+                        suppressReviewThisSession = true
                         MonetizationTelemetry.whatsNewShown(version: whatsNew.version)
                         sheetType = .whatsNew(whatsNew)
                     } else {
@@ -842,12 +854,18 @@ struct ContentView: View {
     /// followed team wins (the happiest moment); fall back to an
     /// engaged user with a favorite so loyal users whose teams
     /// haven't won recently still get asked.
+    ///
+    /// Called at launch, when the feed loads and on every foreground; the
+    /// policy's 30-day spacing and 3/year cap make repeat calls cheap no-ops.
+    /// Never asks over a sheet (onboarding, paywall) or in the What's New launch.
     private func requestReviewIfEligible() {
+        guard !suppressReviewThisSession, sheetType == nil,
+              !viewModel.appStorage.shouldShowOnboarding else { return }
         let winEventID = RatingsManager.shared.recentFavoriteWinEventID(
             in: viewModel.totalGames ?? [], favorites: favorites
         )
         let engagedFallback = !favorites.teamIDs.isEmpty
-            && viewModel.appStorage.launches >= 12
+            && viewModel.appStorage.launches >= 8
         if RatingsManager.shared.shouldRequestReview(
             launches: viewModel.appStorage.launches,
             hasPositiveSignal: winEventID != nil || engagedFallback
