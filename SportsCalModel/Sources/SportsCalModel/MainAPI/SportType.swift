@@ -15,6 +15,7 @@ public enum SportType: String, CaseIterable {
     case golf
     case tennis
     case racing
+    case cricket
 
     public init(league: Leagues) {
         switch league {
@@ -32,6 +33,8 @@ public enum SportType: String, CaseIterable {
             self = .tennis
         case .formula1, .nascarCup, .indycar, .imsa, .wec:
             self = .racing
+        case _ where league.isCricket:
+            self = .cricket
         default:
             self = .soccer
         }
@@ -46,7 +49,8 @@ public enum SportType: String, CaseIterable {
         switch self {
         case .soccer, .hockey, .nfl:
             return true
-        case .basketball, .mlb, .golf, .tennis, .racing:
+        // Cricket scores every ball; wicket alerts are their own thing, not a score change.
+        case .basketball, .mlb, .golf, .tennis, .racing, .cricket:
             return false
         }
     }
@@ -68,6 +72,8 @@ public enum SportType: String, CaseIterable {
             return "Tennis"
         case .racing:
             return "Racing"
+        case .cricket:
+            return "Cricket"
         }
     }
 }

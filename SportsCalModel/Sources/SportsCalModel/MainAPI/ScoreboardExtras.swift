@@ -45,6 +45,8 @@ public struct ScoreboardExtras: Codable, Equatable, Hashable, Sendable {
     public var awayAggregate: Int?
     /// Tennis: per-set tiebreaks and winners, who's serving, the court. See ``TennisMatchExtras``.
     public var tennis: TennisMatchExtras?
+    /// Cricket: innings, format, session and ESPN's state line. See ``CricketMatchExtras``.
+    public var cricket: CricketMatchExtras?
 
     public init(homeWinner: Bool? = nil, awayWinner: Bool? = nil,
                 homeShootoutScore: Int? = nil, awayShootoutScore: Int? = nil,
@@ -52,7 +54,8 @@ public struct ScoreboardExtras: Codable, Equatable, Hashable, Sendable {
                 homeProbable: ProbablePitcher? = nil, awayProbable: ProbablePitcher? = nil,
                 soccerDetails: [MatchIncident]? = nil, broadcasts: [String]? = nil,
                 featuredPitchers: [FeaturedPitcher]? = nil, doubleheaderGame: Int? = nil,
-                homeAggregate: Int? = nil, awayAggregate: Int? = nil, tennis: TennisMatchExtras? = nil) {
+                homeAggregate: Int? = nil, awayAggregate: Int? = nil, tennis: TennisMatchExtras? = nil,
+                cricket: CricketMatchExtras? = nil) {
         self.homeWinner = homeWinner
         self.awayWinner = awayWinner
         self.homeShootoutScore = homeShootoutScore
@@ -70,6 +73,7 @@ public struct ScoreboardExtras: Codable, Equatable, Hashable, Sendable {
         self.homeAggregate = homeAggregate
         self.awayAggregate = awayAggregate
         self.tennis = tennis
+        self.cricket = cricket
     }
 
     /// Nothing to carry.

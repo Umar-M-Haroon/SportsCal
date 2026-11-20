@@ -107,7 +107,7 @@ public extension ScoringSummary {
             entries = (summary.detailPlays ?? []).compactMap { Self.hockeyEntry($0, sides: sides, abbreviations: abbreviations) }
         case .mlb:
             entries = (summary.detailPlays ?? []).compactMap { Self.baseballEntry($0, sides: sides, abbreviations: abbreviations) }
-        case .basketball, .soccer, .golf, .tennis, .racing:
+        case .basketball, .soccer, .golf, .tennis, .racing, .cricket:
             return nil
         }
         guard !entries.isEmpty else { return nil }

@@ -29,6 +29,8 @@ public extension SportType {
         case .mlb: return 3 * 60 * 60
         case .nfl: return 3.5 * 60 * 60
         case .golf, .tennis, .racing: return 3 * 60 * 60
+        // An ODI runs ~8h; Tests and first-class games are live until their `endDate`.
+        case .cricket: return 8 * 60 * 60
         }
     }
 }

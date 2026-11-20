@@ -65,6 +65,27 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     /// `ncaaf` key (see `LiveScore`'s Codable) so app versions that predate it never see it.
     case ncaaf = 102
 
+    // Cricket. ESPN-only (TheSportsDB has no live cricket and patchy internationals) but
+    // keyed by TheSportsDB's id where one exists; the rest are synthetic 82xx ids.
+    // Internationals are grouped by format, not by ESPN league: ESPN gives every tour its
+    // own short-lived league id, so `CricketCompetition` routes them by match class.
+    case cricketTests = 4844
+    case cricketODIs = 4801
+    case cricketT20Is = 4979
+    case womensCricketInternationals = 8201
+    case ipl = 4460
+    case bigBash = 4461
+    case psl = 5067
+    case sa20 = 5532
+    case theHundred = 5177
+    case cpl = 5176
+    case mlc = 5401
+    case ilt20 = 5490
+    case wbbl = 8202
+    case theHundredWomen = 5668
+    case sheffieldShield = 5530
+    case countyChampionship = 4458
+
     /// Soccer is the default here: the enum is mostly soccer leagues, so this is defined
     /// by exclusion.
     ///
@@ -72,6 +93,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     /// whole schedule. They used to build an array literal and scan it linearly on every
     /// call; a `switch` decides it without allocating.
     public var isSoccer: Bool {
+        if isCricket { return false }
         switch self {
         case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .nascarCup, .indycar, .imsa, .wec,
              .ncaaMBBTournament, .wnba, .ncaaf, .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld:
@@ -84,7 +106,29 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     /// Leagues that start out hidden until the user turns them on in Settings. Seeded
     /// into `hiddenCompetitions` once per league, so turning one on sticks.
     public var isHiddenByDefault: Bool {
-        self == .A_League || isMotorsportSeries
+        self == .A_League || isMotorsportSeries || isHiddenCricketByDefault
+    }
+
+    public var isCricket: Bool {
+        switch self {
+        case .cricketTests, .cricketODIs, .cricketT20Is, .womensCricketInternationals,
+             .ipl, .bigBash, .psl, .sa20, .theHundred, .cpl, .mlc, .ilt20,
+             .wbbl, .theHundredWomen, .sheffieldShield, .countyChampionship:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Cricket competitions that start hidden: the default is men's internationals plus the
+    /// big franchise T20 leagues.
+    private var isHiddenCricketByDefault: Bool {
+        switch self {
+        case .womensCricketInternationals, .wbbl, .theHundredWomen, .sheffieldShield, .countyChampionship:
+            return true
+        default:
+            return false
+        }
     }
 
     public var isBasketball: Bool {
@@ -151,6 +195,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         if isGolf { return "golf" }
         if isTennis { return "tennis" }
         if isRacing { return "racing" }
+        if isCricket { return "cricket" }
         return "soccer"
     }
     
@@ -401,6 +446,38 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "WNBA"
         case .ncaaf:
             return "College Football"
+        case .cricketTests:
+            return "Test Cricket"
+        case .cricketODIs:
+            return "One-Day Internationals"
+        case .cricketT20Is:
+            return "T20 Internationals"
+        case .womensCricketInternationals:
+            return "Women's Internationals"
+        case .ipl:
+            return "Indian Premier League"
+        case .bigBash:
+            return "Big Bash League"
+        case .psl:
+            return "Pakistan Super League"
+        case .sa20:
+            return "SA20"
+        case .theHundred:
+            return "The Hundred"
+        case .cpl:
+            return "Caribbean Premier League"
+        case .mlc:
+            return "Major League Cricket"
+        case .ilt20:
+            return "ILT20"
+        case .wbbl:
+            return "Women's Big Bash League"
+        case .theHundredWomen:
+            return "The Hundred (Women)"
+        case .sheffieldShield:
+            return "Sheffield Shield"
+        case .countyChampionship:
+            return "County Championship"
         }
     }
 
@@ -422,6 +499,10 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
             return "tennis"
         case .formula1, .nascarCup, .indycar, .imsa, .wec:
             return "racing"
+        case .cricketTests, .cricketODIs, .cricketT20Is, .womensCricketInternationals,
+             .ipl, .bigBash, .psl, .sa20, .theHundred, .cpl, .mlc, .ilt20,
+             .wbbl, .theHundredWomen, .sheffieldShield, .countyChampionship:
+            return "cricket"
         }
     }
 
@@ -446,8 +527,15 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         case .ncaaMBBTournament: return "https://a.espncdn.com/i/teamlogos/ncaa/500/2.png"
         case .wnba: return "https://a.espncdn.com/i/teamlogos/leagues/500/wnba.png"
         case .ncaaf: return "https://a.espncdn.com/redesign/assets/img/icons/ESPN-icon-football-college.png"
-        default: return nil
+        default: return cricketLogoURL
         }
+    }
+
+    /// Franchise leagues have an ESPN league logo; internationals (grouped by format
+    /// across many tours) have none.
+    private var cricketLogoURL: String? {
+        guard let id = CricketCompetition.espnLeagueID(for: self) else { return nil }
+        return "https://a.espncdn.com/i/leaguelogos/cricket/500/\(id).png"
     }
 
     private var directDarkLogoURL: String? {
@@ -456,7 +544,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         case .ncaaMBBTournament: return "https://a.espncdn.com/i/teamlogos/ncaa/500/2.png"
         case .wnba: return "https://a.espncdn.com/i/teamlogos/leagues/500-dark/wnba.png"
         case .ncaaf: return "https://a.espncdn.com/redesign/assets/img/icons/ESPN-icon-football-college.png"
-        default: return nil
+        default: return cricketLogoURL
         }
     }
 
@@ -486,6 +574,9 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
         case .Womens_World_Cup: return "60"
         case .nfl, .nba, .nhl, .mlb, .pga, .atp, .wta, .formula1, .nascarCup, .indycar, .imsa, .wec,
              .ncaaMBBTournament, .wnba, .ncaaf, .championsTour, .lpga, .livGolf, .kornFerry, .dpWorld: return nil
+        case .cricketTests, .cricketODIs, .cricketT20Is, .womensCricketInternationals,
+             .ipl, .bigBash, .psl, .sa20, .theHundred, .cpl, .mlc, .ilt20,
+             .wbbl, .theHundredWomen, .sheffieldShield, .countyChampionship: return nil
         }
     }
 
@@ -515,7 +606,7 @@ public enum Leagues: Int, Codable, CaseIterable, Equatable {
     }
 }
 public struct LiveScore: Equatable {
-    public init(nba: LiveEvent? = nil, mlb: LiveEvent? = nil, soccer: LiveEvent? = nil, nfl: LiveEvent? = nil, nhl: LiveEvent? = nil, golf: LiveEvent? = nil, tennis: LiveEvent? = nil, racing: LiveEvent? = nil, f1Standings: F1Standings? = nil, worldCup: WorldCupEnrichment? = nil) {
+    public init(nba: LiveEvent? = nil, mlb: LiveEvent? = nil, soccer: LiveEvent? = nil, nfl: LiveEvent? = nil, nhl: LiveEvent? = nil, golf: LiveEvent? = nil, tennis: LiveEvent? = nil, racing: LiveEvent? = nil, cricket: LiveEvent? = nil, f1Standings: F1Standings? = nil, worldCup: WorldCupEnrichment? = nil) {
         self.nba = nba
         self.mlb = mlb
         self.soccer = soccer
@@ -524,6 +615,7 @@ public struct LiveScore: Equatable {
         self.golf = golf
         self.tennis = tennis
         self.racing = racing
+        self.cricket = cricket
         self.f1Standings = f1Standings
         self.worldCup = worldCup
     }
@@ -536,6 +628,7 @@ public struct LiveScore: Equatable {
     public var golf: LiveEvent?
     public var tennis: LiveEvent?
     public var racing: LiveEvent?
+    public var cricket: LiveEvent?
     public var f1Standings: F1Standings?
     public var worldCup: WorldCupEnrichment?
 
@@ -549,6 +642,7 @@ public struct LiveScore: Equatable {
         case .golf:       return golf
         case .tennis:     return tennis
         case .racing:     return racing
+        case .cricket:    return cricket
         }
     }
 
@@ -564,6 +658,7 @@ public struct LiveScore: Equatable {
             golf: LiveEvent.merging(self.golf, other.golf),
             tennis: LiveEvent.merging(self.tennis, other.tennis),
             racing: LiveEvent.merging(self.racing, other.racing),
+            cricket: LiveEvent.merging(self.cricket, other.cricket),
             f1Standings: self.f1Standings ?? other.f1Standings,
             worldCup: self.worldCup ?? other.worldCup
         )
@@ -594,6 +689,9 @@ public struct LiveScore: Equatable {
         racing?.events.removeAll(where: { event in
             event.hasDoneStatus
         })
+        cricket?.events.removeAll(where: { event in
+            event.hasDoneStatus
+        })
     }
     /// Removes games still flagged as in-progress whose scheduled start was more than
     /// `staleAfter` seconds before `now`. Handles the case where ESPN stopped returning a
@@ -608,6 +706,9 @@ public struct LiveScore: Equatable {
             let before = event!.events.count
             event!.events.removeAll { game in
                 guard !game.hasDoneStatus else { return false }
+                // Tests and first-class games run for days: they're live until their end
+                // date, not 8 hours after the toss.
+                if game.sportType == .cricket, let end = game.endDateParsed, end > cutoff { return false }
                 guard let gameDate = game.isoDate ?? game.getDate(dateFormatter: DateFormatter(), isoFormatter: ISO8601DateFormatter()) else { return false }
                 return gameDate < cutoff
             }
@@ -621,6 +722,7 @@ public struct LiveScore: Equatable {
         prune(&golf)
         prune(&tennis)
         prune(&racing)
+        prune(&cricket)
         return removed
     }
 
@@ -654,7 +756,7 @@ public struct LiveScore: Equatable {
 /// app versions that predate them render every game in `racing` as a Formula 1 weekend.
 extension LiveScore: Codable {
     enum CodingKeys: String, CodingKey {
-        case nba, mlb, soccer, nfl, ncaaf, nhl, golf, tennis, racing, motorsport, f1Standings, worldCup
+        case nba, mlb, soccer, nfl, ncaaf, nhl, golf, tennis, racing, motorsport, cricket, f1Standings, worldCup
     }
 
     /// Lenient per sport: a bucket that fails outright (not an object, no `events`)
@@ -663,7 +765,7 @@ extension LiveScore: Codable {
     /// Every recovery is batched into one `ModelDecodeDiagnostics` report per decode.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        (nba, mlb, soccer, nfl, nhl, golf, tennis, racing, f1Standings, worldCup) = ModelDecodeDiagnostics.batching("LiveScore") {
+        (nba, mlb, soccer, nfl, nhl, golf, tennis, racing, cricket, f1Standings, worldCup) = ModelDecodeDiagnostics.batching("LiveScore") {
             (
                 container.decodeLenient(LiveEvent.self, forKey: .nba),
                 container.decodeLenient(LiveEvent.self, forKey: .mlb),
@@ -679,6 +781,7 @@ extension LiveScore: Codable {
                     container.decodeLenient(LiveEvent.self, forKey: .racing),
                     container.decodeLenient(LiveEvent.self, forKey: .motorsport)
                 ),
+                container.decodeLenient(LiveEvent.self, forKey: .cricket),
                 container.decodeLenient(F1Standings.self, forKey: .f1Standings),
                 container.decodeLenient(WorldCupEnrichment.self, forKey: .worldCup)
             )
@@ -715,6 +818,8 @@ extension LiveScore: Codable {
                 try container.encode(LiveEvent(events: series), forKey: .motorsport)
             }
         }
+        // Its own key, so app versions that predate cricket never see a cricket game.
+        try container.encodeIfPresent(cricket, forKey: .cricket)
         try container.encodeIfPresent(f1Standings, forKey: .f1Standings)
         try container.encodeIfPresent(worldCup, forKey: .worldCup)
     }
@@ -727,7 +832,7 @@ extension LiveScore: Codable {
 /// a change in one sport doesn't invalidate the others.
 public extension LiveScore {
     enum WireKey: String, CaseIterable, Codable, Sendable {
-        case nba, mlb, soccer, nfl, ncaaf, nhl, golf, tennis, racing, motorsport
+        case nba, mlb, soccer, nfl, ncaaf, nhl, golf, tennis, racing, motorsport, cricket
         /// Top-level enrichment (F1 standings, World Cup).
         case meta
 
@@ -749,6 +854,7 @@ public extension LiveScore {
         case .golf: [.golf]
         case .tennis: [.tennis]
         case .racing: motorsport ? [.racing, .motorsport] : [.racing]
+        case .cricket: [.cricket]
         }
     }
 
@@ -768,6 +874,7 @@ public extension LiveScore {
         case .tennis: return LiveScore(tennis: tennis)
         case .racing: return LiveScore(racing: only(racing) { !$0.isMotorsportSeries })
         case .motorsport: return LiveScore(racing: only(racing) { $0.isMotorsportSeries })
+        case .cricket: return LiveScore(cricket: cricket)
         case .meta: return LiveScore(f1Standings: f1Standings, worldCup: worldCup)
         }
     }
@@ -785,6 +892,7 @@ public extension LiveScore {
                 golf: LiveEvent.merging(result.golf, part.golf),
                 tennis: LiveEvent.merging(result.tennis, part.tennis),
                 racing: LiveEvent.merging(result.racing, part.racing),
+                cricket: LiveEvent.merging(result.cricket, part.cricket),
                 f1Standings: result.f1Standings ?? part.f1Standings,
                 worldCup: result.worldCup ?? part.worldCup
             )

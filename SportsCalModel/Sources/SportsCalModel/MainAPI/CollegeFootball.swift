@@ -62,13 +62,14 @@ public extension Leagues {
 
     /// The `idHomeTeam`/`idAwayTeam` a game from this league carries for an ESPN team ID.
     func teamID(espnID: String) -> String {
-        self == .ncaaf ? Self.collegeTeamIDPrefix + espnID : espnID
+        if isCricket { return CricketCompetition.teamIDPrefix + espnID }
+        return self == .ncaaf ? Self.collegeTeamIDPrefix + espnID : espnID
     }
 
     /// Leagues whose teams aren't in the `/teams` directory, so games carry ESPN's own
     /// abbreviation (`Game.homeAbbreviation`) instead of leaving the app to guess one.
     var shipsTeamAbbreviations: Bool {
-        self == .ncaaf || self == .ncaaMBBTournament
+        self == .ncaaf || self == .ncaaMBBTournament || isCricket
     }
 
     /// The ESPN team ID behind a college team ID (`ncaaf-57` → `57`), or nil for any other ID.
