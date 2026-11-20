@@ -486,6 +486,7 @@ struct TeamDetailView: View {
                         LeagueStandingsTable(
                             name: group.name,
                             entries: group.entries,
+                            leagueEntries: groups.flatMap(\.entries),
                             league: league,
                             isHighlighted: isThisTeam
                         )
