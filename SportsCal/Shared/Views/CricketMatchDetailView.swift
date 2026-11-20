@@ -16,6 +16,8 @@ struct CricketMatchDetailView: View {
     @Environment(GameViewModel.self) private var viewModel
     @State private var shouldShowSportsCalProAlert = false
     @State private var sheetType: SheetType?
+    @State private var scorecard: CricketScorecard?
+    @State private var selectedInnings: Int?
 
     /// The freshest copy: a live match keeps updating under an open detail.
     private var current: Game {
@@ -36,7 +38,9 @@ struct CricketMatchDetailView: View {
                     chase
                 }
             }
-            if let innings = game.cricket?.innings, !innings.isEmpty {
+            if let scorecard, !scorecard.innings.isEmpty {
+                scorecardSections(scorecard)
+            } else if let innings = game.cricket?.innings, !innings.isEmpty {
                 Section("Innings") {
                     ForEach(innings, id: \.number) { inning in
                         inningsRow(inning, game: game)
@@ -65,6 +69,7 @@ struct CricketMatchDetailView: View {
                 NotifyButton(shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, game: game)
             }
         }
+        .task(id: game.idEvent) { await refreshScorecard() }
         .navigationTitle(game.round ?? "Match")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -200,6 +205,152 @@ struct CricketMatchDetailView: View {
         .accessibilityElement(children: .combine)
     }
 
+    // MARK: - Scorecard
+
+    /// Loads the card, then keeps it fresh every 30 seconds while the match is live.
+    private func refreshScorecard() async {
+        while !Task.isCancelled {
+            if current.strStatus != "pre",
+               let card = try? await NetworkHandler.getCricketScorecard(for: current) {
+                scorecard = card
+            }
+            guard isLive else { return }
+            try? await Task.sleep(for: .seconds(30))
+        }
+    }
+
+    @ViewBuilder
+    private func scorecardSections(_ card: CricketScorecard) -> some View {
+        let shown = card.innings.first { $0.number == selectedInnings } ?? card.innings.last!
+        Section {
+            if card.innings.count > 1 {
+                Picker("Innings", selection: Binding(
+                    get: { shown.number },
+                    set: { selectedInnings = $0 }
+                )) {
+                    ForEach(card.innings) { innings in
+                        Text(Self.inningsTitle(innings, in: card)).tag(innings.number)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+        } header: {
+            Text("Scorecard")
+        }
+        Section {
+            ForEach(shown.batters, id: \.self) { batter in
+                batterRow(batter)
+            }
+            if let extras = shown.extras {
+                LabeledContent("Extras", value: extras)
+                    .font(.caption)
+            }
+            if !shown.yetToBat.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Yet to bat")
+                        .font(.caption.weight(.semibold))
+                    Text(shown.yetToBat.joined(separator: ", "))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            HStack {
+                Text("\(shown.battingTeam) batting")
+                Spacer()
+                columnHeader(["R", "B", "4s", "6s"])
+            }
+        } footer: {
+            if let total = shown.total {
+                Text("Total \(total)" + (shown.overs.map { " (\(CricketInnings(side: shown.battingSide, number: shown.number, runs: 0, wickets: 0, overs: $0).oversText ?? ""))" } ?? ""))
+            }
+        }
+        if !shown.bowlers.isEmpty {
+            Section {
+                ForEach(shown.bowlers, id: \.self) { bowler in
+                    bowlerRow(bowler)
+                }
+            } header: {
+                HStack {
+                    Text("Bowling")
+                    Spacer()
+                    columnHeader(["O", "M", "R", "W"])
+                }
+            }
+        }
+    }
+
+    /// Column labels on the same 32-point grid as the rows' figures.
+    private func columnHeader(_ labels: [String]) -> some View {
+        HStack(spacing: 0) {
+            ForEach(labels, id: \.self) { label in
+                Text(label).frame(width: 32, alignment: .trailing)
+            }
+        }
+    }
+
+    private func batterRow(_ batter: CricketScorecard.Batter) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(batter.name)
+                    .font(.subheadline)
+                    .fontWeight(batter.isOut ? .regular : .semibold)
+                if let dismissal = batter.dismissal {
+                    Text(dismissal)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            statColumns([batter.runs, batter.balls, batter.fours, batter.sixes], emphasizeFirst: true)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(batter.name), \(batter.dismissal ?? (batter.isOut ? "out" : "not out")), \(batter.runs) off \(batter.balls) balls, \(batter.fours) fours, \(batter.sixes) sixes")
+    }
+
+    private func bowlerRow(_ bowler: CricketScorecard.Bowler) -> some View {
+        let overs = CricketInnings(side: .home, number: 1, runs: 0, wickets: 0, overs: bowler.overs).oversText?
+            .replacingOccurrences(of: " ov", with: "") ?? "0"
+        return HStack(alignment: .firstTextBaseline) {
+            Text(bowler.name)
+                .font(.subheadline)
+            Spacer()
+            HStack(spacing: 0) {
+                Text(overs).frame(width: 32, alignment: .trailing)
+                Text("\(bowler.maidens)").frame(width: 32, alignment: .trailing)
+                Text("\(bowler.runs)").frame(width: 32, alignment: .trailing)
+                Text("\(bowler.wickets)").frame(width: 32, alignment: .trailing).fontWeight(.semibold)
+            }
+            .font(.subheadline.monospacedDigit())
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(bowler.name), \(overs) overs, \(bowler.maidens) maidens, \(bowler.wickets) for \(bowler.runs)")
+    }
+
+    private func statColumns(_ values: [Int], emphasizeFirst: Bool) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                Text("\(value)")
+                    .fontWeight(emphasizeFirst && index == 0 ? .semibold : .regular)
+                    .foregroundStyle(index == 0 ? Color.primary : Color.secondary)
+                    .frame(width: 32, alignment: .trailing)
+            }
+        }
+        .font(.subheadline.monospacedDigit())
+    }
+
+    /// "NZ 1st", "IND 2nd": short enough for a segmented control with four innings.
+    static func inningsTitle(_ innings: CricketScorecard.Innings, in card: CricketScorecard) -> String {
+        let sideInnings = card.innings.filter { $0.battingSide == innings.battingSide }
+        let team = innings.battingTeam.split(separator: " ").map { String($0.prefix(1)) }.joined()
+        let short = team.count >= 2 ? team.uppercased() : String(innings.battingTeam.prefix(3)).uppercased()
+        guard sideInnings.count > 1, let index = sideInnings.firstIndex(where: { $0.number == innings.number }) else {
+            return short
+        }
+        return "\(short) \(ordinal(index + 1))"
+    }
+
     static func ordinal(_ number: Int) -> String {
         switch number {
         case 1: "1st"
@@ -208,4 +359,31 @@ struct CricketMatchDetailView: View {
         default: "\(number)th"
         }
     }
+}
+
+#Preview {
+    let game = Game(
+        idEvent: "1539442", idLeague: "\(Leagues.cricketTests.rawValue)",
+        idHomeTeam: "cricket-2", idAwayTeam: "cricket-6",
+        strHomeTeam: "New Zealand", strAwayTeam: "India",
+        intHomeScore: "368", intAwayScore: "159/1 (39 ov)",
+        strStatus: "post", strProgress: "Stumps", strTimestamp: "2026-11-18T22:00Z",
+        lastPlay: "India trail by 209 runs", isoDate: nil, venueName: "Basin Reserve, Wellington",
+        tournamentName: "India tour of New Zealand 2026/27", round: "1st Test",
+        scoreboardExtras: ScoreboardExtras(cricket: CricketMatchExtras(
+            format: .test,
+            innings: [
+                CricketInnings(side: .home, number: 1, runs: 368, wickets: 10, overs: 121),
+                CricketInnings(side: .away, number: 2, runs: 159, wickets: 1, overs: 39),
+            ],
+            summary: "India trail by 209 runs", session: "Day 2", statusDetail: "Stumps", matchLabel: "1st Test"
+        ))
+    )
+    NavigationStack {
+        CricketMatchDetailView(game: game)
+    }
+    .environment(SubscriptionManager.shared)
+    .environment(UserDefaultStorage())
+    .environment(Favorites())
+    .environment(GameViewModel(appStorage: UserDefaultStorage(), favorites: Favorites()))
 }

@@ -1294,6 +1294,23 @@ struct NetworkHandler {
         return try Self.sharedDecoder.decode(SoccerMatchDetail.self, from: data)
     }
 
+    struct CricketScorecardNotAvailable: Error {}
+
+    /// A cricket match's batting and bowling cards. Throws `CricketScorecardNotAvailable`
+    /// before the toss (ESPN has no figures yet) or for an unknown match.
+    static func getCricketScorecard(for game: Game) async throws -> CricketScorecard {
+        guard let eventID = game.idEvent, eventID.allSatisfy(\.isNumber),
+              let url = URL(string: "\(baseURL())/cricket/match/\(eventID)") else {
+            throw CricketScorecardNotAvailable()
+        }
+        let (data, response) = try await performAuthorized(url: url)
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            if httpResponse.statusCode == 404 { throw CricketScorecardNotAvailable() }
+        }
+        return try Self.sharedDecoder.decode(CricketScorecard.self, from: data)
+    }
+
     /// One soccer competition's table (zones, form) with its top scorers and assisters.
     /// Throws `SoccerMatchNotAvailable` on 404 (a cup with neither).
     static func getSoccerCompetition(league: Leagues) async throws -> SoccerCompetitionHub {
