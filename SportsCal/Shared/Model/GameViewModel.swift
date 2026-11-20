@@ -3541,6 +3541,9 @@ extension GameViewModel {
         return (activityAttributes, initialContentState)
     }
     func requestActivity(game: Game, homeTeam: Team, awayTeam: Team) {
+        // A Live Activity's score is an Int pair; cricket's "287/6" needs its own payload
+        // (TODO: LiveActivityCricket). Until then, no activity rather than a 0–0 one.
+        guard !game.isCricket else { return }
         Task { @MainActor in
             do {
                 let (activityAttributes, initialContentState) = try await configureDataForLiveActivity(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
