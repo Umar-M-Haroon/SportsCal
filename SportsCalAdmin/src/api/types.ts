@@ -41,6 +41,8 @@ export interface LiveScore {
   racing?: LiveEvent
   /** Racing series other than F1 (NASCAR, IndyCar, IMSA, WEC) — split out of `racing` on the wire. */
   motorsport?: LiveEvent
+  /** Cricket — ESPN-only, its own key on the wire (older apps never see it). */
+  cricket?: LiveEvent
 }
 
 export interface Team {
@@ -84,8 +86,30 @@ export enum Leagues {
   NASCARCup = 4393,
   IndyCar = 4373,
   IMSA = 4488,
-  WEC = 4413
+  WEC = 4413,
+  CricketTests = 4844,
+  CricketODIs = 4801,
+  CricketT20Is = 4979,
+  WomensCricketInternationals = 8201,
+  IPL = 4460,
+  BigBash = 4461,
+  PSL = 5067,
+  SA20 = 5532,
+  TheHundred = 5177,
+  CPL = 5176,
+  MLC = 5401,
+  ILT20 = 5490,
+  WBBL = 8202,
+  TheHundredWomen = 5668,
+  SheffieldShield = 5530,
+  CountyChampionship = 4458
 }
+
+export const CricketLeagues: ReadonlySet<number> = new Set([
+  Leagues.CricketTests, Leagues.CricketODIs, Leagues.CricketT20Is, Leagues.WomensCricketInternationals,
+  Leagues.IPL, Leagues.BigBash, Leagues.PSL, Leagues.SA20, Leagues.TheHundred, Leagues.CPL, Leagues.MLC,
+  Leagues.ILT20, Leagues.WBBL, Leagues.TheHundredWomen, Leagues.SheffieldShield, Leagues.CountyChampionship
+])
 
 export const LeagueNames: Record<Leagues, string> = {
   [Leagues.English_Premier_League]: 'English Premier League',
@@ -120,7 +144,23 @@ export const LeagueNames: Record<Leagues, string> = {
   [Leagues.NASCARCup]: 'NASCAR Cup Series',
   [Leagues.IndyCar]: 'IndyCar Series',
   [Leagues.IMSA]: 'IMSA WeatherTech',
-  [Leagues.WEC]: 'FIA WEC'
+  [Leagues.WEC]: 'FIA WEC',
+  [Leagues.CricketTests]: 'Test Cricket',
+  [Leagues.CricketODIs]: 'One-Day Internationals',
+  [Leagues.CricketT20Is]: 'T20 Internationals',
+  [Leagues.WomensCricketInternationals]: "Women's Internationals",
+  [Leagues.IPL]: 'Indian Premier League',
+  [Leagues.BigBash]: 'Big Bash League',
+  [Leagues.PSL]: 'Pakistan Super League',
+  [Leagues.SA20]: 'SA20',
+  [Leagues.TheHundred]: 'The Hundred',
+  [Leagues.CPL]: 'Caribbean Premier League',
+  [Leagues.MLC]: 'Major League Cricket',
+  [Leagues.ILT20]: 'ILT20',
+  [Leagues.WBBL]: "Women's Big Bash League",
+  [Leagues.TheHundredWomen]: 'The Hundred (Women)',
+  [Leagues.SheffieldShield]: 'Sheffield Shield',
+  [Leagues.CountyChampionship]: 'County Championship'
 }
 
 // Admin-specific types
@@ -227,7 +267,7 @@ export interface ForceRefreshResponse {
   gamesLoaded: Record<string, number>
 }
 
-export type SportType = 'basketball' | 'soccer' | 'hockey' | 'football' | 'baseball' | 'golf' | 'tennis' | 'racing'
+export type SportType = 'basketball' | 'soccer' | 'hockey' | 'football' | 'baseball' | 'golf' | 'tennis' | 'racing' | 'cricket'
 
 // /api/admin/telemetry — mirrors AdminController.TelemetryResponse.
 export interface ActiveUserCounts {
