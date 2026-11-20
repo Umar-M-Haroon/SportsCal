@@ -88,6 +88,8 @@ struct APNSJob: AsyncScheduledJob {
         events.append(contentsOf: liveScore?.golf?.events ?? [])
         events.append(contentsOf: liveScore?.tennis?.events ?? [])
         events.append(contentsOf: liveScore?.racing?.events ?? [])
+        // No cricket: no score alerts or Live Activities for it in v1 (its scores are
+        // display text, the activity state's are Ints). TODO(cricket): Live Activities.
         // Codes and team colours for F1 activities; only read when a race weekend is in the feed.
         let f1Standings: F1Standings? = (liveScore?.racing?.events.isEmpty ?? true) ? nil
             : try? await kv.getJSON(RedisEndpoint.ESPN.f1Standings.getValue(isDebug: isDebug).rawValue, as: F1Standings.self)

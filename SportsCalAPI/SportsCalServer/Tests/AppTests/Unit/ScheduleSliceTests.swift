@@ -21,7 +21,9 @@ final class ScheduleSliceTests: XCTestCase {
             nba: LiveEvent(events: [game("1", league: "4387")]),
             nfl: LiveEvent(events: [game("2", league: "4391"), game("3", league: "102")]),
             golf: LiveEvent(events: [game("4", league: "4425")]),
-            racing: LiveEvent(events: [game("5", league: "4370"), game("nascar-6", league: "4393")])
+            racing: LiveEvent(events: [game("5", league: "4370"), game("nascar-6", league: "4393")]),
+            cricket: LiveEvent(events: [game("7", league: "\(Leagues.cricketTests.rawValue)"),
+                                        game("8", league: "\(Leagues.ipl.rawValue)")])
         )
     }
 
@@ -35,6 +37,36 @@ final class ScheduleSliceTests: XCTestCase {
         XCTAssertEqual(Set(combined.racing?.events.compactMap(\.idEvent) ?? []), ["5", "nascar-6"])
         XCTAssertEqual(combined.nba?.events.count, 1)
         XCTAssertEqual(combined.golf?.events.count, 1)
+        XCTAssertEqual(Set(combined.cricket?.events.compactMap(\.idEvent) ?? []), ["7", "8"])
+    }
+
+    func testCricketTravelsOnlyUnderItsOwnKey() throws {
+        let json = String(decoding: try JSONEncoder().encode(schedule), as: UTF8.self)
+        for key in LiveScore.WireKey.allCases {
+            let body = ScheduleSlice.body(for: key, in: json)
+            let part = try JSONDecoder().decode(LiveScore.self, from: Data(body.utf8))
+            let ids = Set(part.allGamesBySport.flatMap { $0.games.compactMap(\.idEvent) })
+            if key == .cricket {
+                XCTAssertEqual(ids, ["7", "8"])
+                XCTAssertEqual(part.allGamesBySport.map(\.sport), [.cricket])
+            } else {
+                XCTAssertTrue(ids.isDisjoint(with: ["7", "8"]), "\(key) must not carry cricket")
+            }
+        }
+        // An app that predates cricket decodes the blob without a `cricket` member.
+        let object = try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
+        XCTAssertNotNil(object?["cricket"])
+    }
+
+    func testCricketHasItsOwnCalendarVersion() {
+        var later = schedule
+        later.cricket = LiveEvent(events: [game("7", league: "\(Leagues.cricketTests.rawValue)", status: "post", completed: true),
+                                           game("8", league: "\(Leagues.ipl.rawValue)")])
+        let (before, after) = (ScheduleCalendarVersion.versions(of: schedule), ScheduleCalendarVersion.versions(of: later))
+        XCTAssertNotNil(before["cricket"])
+        XCTAssertNotEqual(before["cricket"], after["cricket"], "a cricket result moves the cricket ETag")
+        XCTAssertEqual(before["nba"], after["nba"])
+        XCTAssertEqual(before["soccer"], after["soccer"])
     }
 
     func testSliceCarriesOnlyItsMember() throws {

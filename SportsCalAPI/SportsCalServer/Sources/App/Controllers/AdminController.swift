@@ -337,6 +337,15 @@ struct AdminController: RouteCollection {
             }
         }
 
+        if let cricket = schedule?.cricket {
+            for league in Leagues.allCases where league.isCricket {
+                let games = cricket.events.filter { $0.idLeague == "\(league.rawValue)" }
+                guard !games.isEmpty else { continue }
+                leagueAnalyses.append(analyzeLeague(events: games, league: league))
+                totalGames += games.count
+            }
+        }
+
         // Calculate summary
         let totalCompleteness = leagueAnalyses.isEmpty ? 0.0 :
             leagueAnalyses.map { $0.completeness }.reduce(0, +) / Double(leagueAnalyses.count)
@@ -436,6 +445,8 @@ struct AdminController: RouteCollection {
             }
         } else if league.isRacing, let racing = schedule?.racing {
             games = racing.events.filter { $0.racingSeries == league }
+        } else if league.isCricket {
+            games = (schedule?.cricket?.events ?? []).filter { $0.idLeague == "\(league.rawValue)" }
         } else if let soccer = schedule?.soccer {
             games = soccer.events.filter { game in
                 guard let idLeague = game.idLeague,
@@ -694,7 +705,10 @@ struct AdminController: RouteCollection {
             RedisEndpoint.ESPN.latestSoccerScoreboards.getValue(isDebug: isDebug),
             RedisEndpoint.ESPN.latestTennisScoreboards.getValue(isDebug: isDebug),
             RedisEndpoint.ESPN.tennisSchedule.getValue(isDebug: isDebug),
-            RedisEndpoint.ESPN.tennisScheduleLastUpdate.getValue(isDebug: isDebug)
+            RedisEndpoint.ESPN.tennisScheduleLastUpdate.getValue(isDebug: isDebug),
+            // The cricket sweep's cache stays (the rebuild re-seeds `cricket` from it);
+            // dropping the marker makes ESPNCricketJob re-sweep at its next hourly run.
+            RedisEndpoint.ESPN.cricketScheduleLastUpdate.getValue(isDebug: isDebug)
         ]
 
         var deletedKeys: [String] = []
@@ -765,6 +779,7 @@ struct AdminController: RouteCollection {
         gamesLoaded["golf"] = schedule?.golf?.events.count ?? 0
         gamesLoaded["tennis"] = schedule?.tennis?.events.count ?? 0
         gamesLoaded["racing"] = schedule?.racing?.events.count ?? 0
+        gamesLoaded["cricket"] = schedule?.cricket?.events.count ?? 0
 
         let totalGames = gamesLoaded.values.reduce(0, +)
 
@@ -940,10 +955,27 @@ struct AdminController: RouteCollection {
                 message: "WorldCupEnrichmentJob executed successfully. Bracket and Golden Boot refreshed and attached to schedule.",
                 jobName: jobName
             )
+        case "ESPNCricketJob":
+            let context = QueueContext(
+                queueName: .default,
+                configuration: .init(),
+                application: req.application,
+                logger: req.logger,
+                on: req.eventLoop
+            )
+            // Clear the staleness marker so the sweep actually runs.
+            let isDebug = req.application.environment == .development
+            _ = try? await req.redis.delete(RedisEndpoint.ESPN.cricketScheduleLastUpdate.getValue(isDebug: isDebug))
+            try await ESPNCricketJob().run(context: context)
+            return TriggerJobResponse(
+                success: true,
+                message: "ESPNCricketJob executed successfully. Cricket schedule swept (−\(ESPNCricketJob.daysBack)…+\(ESPNCricketJob.daysAhead) days) and merged into the schedule.",
+                jobName: jobName
+            )
         default:
             return TriggerJobResponse(
                 success: false,
-                message: "Job '\(jobName)' not recognized. Available jobs: ESPNTeamFetchJob, ScheduleUpdateJob, ESPNFetchJob, GolfEnrichmentJob, F1EnrichmentJob, F1SessionDetailJob, InjuriesEnrichmentJob, WorldCupEnrichmentJob",
+                message: "Job '\(jobName)' not recognized. Available jobs: ESPNTeamFetchJob, ScheduleUpdateJob, ESPNFetchJob, GolfEnrichmentJob, F1EnrichmentJob, F1SessionDetailJob, InjuriesEnrichmentJob, WorldCupEnrichmentJob, ESPNCricketJob",
                 jobName: jobName
             )
         }
@@ -1038,6 +1070,11 @@ struct AdminController: RouteCollection {
         // Fetch F1 Racing scoreboard
         if let racingScoreboard = try? await Integrator.getESPNScoreboard(for: .formula1, req.application.client) {
             result.racing = LiveEvent(events: racingScoreboard, league: .formula1)
+        }
+
+        // Cricket: ESPN's all-cricket score panel (today + live)
+        if let cricket = await ESPNCricketJob.liveGames(client: req.application.client), !cricket.isEmpty {
+            result.cricket = LiveEvent(events: cricket)
         }
 
         let encoder = JSONEncoder()

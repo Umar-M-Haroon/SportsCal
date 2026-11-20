@@ -94,6 +94,8 @@ enum RedisEndpoint {
         case espnScheduleWindowLastUpdate // "ESPN Schedule Window Last Update"
         case tennisSchedule               // structured ESPN tennis season (tournament + round), parsed LiveEvent
         case tennisScheduleLastUpdate     // staleness marker for the heavy tennis season fetch
+        case cricketSchedule              // [Game] from the last ESPN cricket score-panel sweep (ESPNCricketJob)
+        case cricketScheduleLastUpdate    // staleness marker for the cricket sweep
         case playByPlay(String) // "PBP-{eventID}" — per-game ESPN play-by-play cache
         case espnEventMap       // "ESPN-Event-Map" — LEGACY JSON blob; migrated into `espnEventMapHash`
         case espnEventMapHash   // "ESPN-Event-Map-Hash" — Redis hash: TSDB eventID → ESPNEventMapping JSON
@@ -166,6 +168,10 @@ enum RedisEndpoint {
                 return "Tennis Schedule"
             case .tennisScheduleLastUpdate:
                 return "Tennis Schedule Last Update"
+            case .cricketSchedule:
+                return "Cricket Schedule"
+            case .cricketScheduleLastUpdate:
+                return "Cricket Schedule Last Update"
             case .playByPlay(let eventID):
                 return RedisKey("PBP-\(eventID)")
             case .espnEventMap:
@@ -248,6 +254,10 @@ enum RedisEndpoint {
                 return "debug-Tennis Schedule"
             case .tennisScheduleLastUpdate:
                 return "debug-Tennis Schedule Last Update"
+            case .cricketSchedule:
+                return "debug-Cricket Schedule"
+            case .cricketScheduleLastUpdate:
+                return "debug-Cricket Schedule Last Update"
             case .playByPlay(let eventID):
                 return RedisKey("debug-PBP-\(eventID)")
             case .espnEventMap:

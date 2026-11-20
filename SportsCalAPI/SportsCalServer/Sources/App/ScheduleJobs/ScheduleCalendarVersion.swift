@@ -80,6 +80,7 @@ enum ScheduleCalendarVersion {
         case .golf: "golf"
         case .tennis: "tennis"
         case .racing: "racing"
+        case .cricket: "cricket"
         }
     }
 

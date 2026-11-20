@@ -59,9 +59,13 @@ enum LiveTicker {
         /// The fast push pass for sports without score alerts (basketball, baseball): a
         /// basket every few seconds would otherwise run the install scan on every tick.
         case quietPush
+        /// ESPN's all-cricket score panel (~250 KB, every competition at once). A ball is
+        /// bowled about every 30s, so 10s is plenty.
+        case cricket
 
         var minRefresh: TimeInterval {
             switch self {
+            case .cricket: return 10
             case .board(.ncaaf): return 15
             case .board: return 0
             case .motorsport: return 15
@@ -187,6 +191,13 @@ enum LiveTicker {
                 overlays.append((source.sport, games, source.matchStrategy, source.name))
             }
         }
+        // Cricket has no per-league board (`Leagues.liveBucket` is nil): one score panel
+        // covers every competition. Same upstream as the snapshot's cricket bucket
+        // (ESPNFetchJob), so it is matched by idEvent and its situation is complete.
+        if leagues.contains(where: \.isCricket), await pacing.take(.cricket),
+           let cricket = await ESPNCricketJob.liveGames(client: app.client), !cricket.isEmpty {
+            overlays.append((.cricket, cricket, .eventID, ESPNLiveSource.sourceName))
+        }
         // NASCAR owns its games outright (built from NASCAR's feed on both paths), so a
         // live weekend is rebuilt whole rather than overlaid: laps, flags and the running
         // order all live in its sessions, which the overlay doesn't carry.
@@ -279,7 +290,7 @@ enum LiveTicker {
 
     /// Leagues with at least one in-progress (`strStatus == "in"`) game, across all buckets.
     private static func inProgressLeagues(in score: LiveScore) -> Set<Leagues> {
-        let buckets = [score.nba, score.mlb, score.soccer, score.nfl, score.nhl, score.golf, score.tennis, score.racing]
+        let buckets = [score.nba, score.mlb, score.soccer, score.nfl, score.nhl, score.golf, score.tennis, score.racing, score.cricket]
         let games = buckets.compactMap { $0 }.flatMap { $0.events }
         return Set(
             games

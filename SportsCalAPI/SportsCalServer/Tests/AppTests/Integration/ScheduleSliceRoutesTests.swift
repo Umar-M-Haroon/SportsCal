@@ -74,8 +74,58 @@ final class ScheduleSliceRoutesTests: XCTestCase {
             XCTAssertEqual(res.status, .notModified)
             XCTAssertEqual(res.body.readableBytes, 0)
         }
-        try app.test(.GET, "v2025/schedules/sports/cricket", headers: authed) { res in
+        try app.test(.GET, "v2025/schedules/sports/curling", headers: authed) { res in
             XCTAssertEqual(res.status, .notFound)
+        }
+    }
+
+    func testWidgetScheduleOmitsCricketUnlessOptedIn() async throws {
+        let soon = Date().addingTimeInterval(3 * 86_400)
+        var schedule = TestGameFactory.liveScore(nba: [TestGameFactory.make(idEvent: "N1", strHomeTeam: "Lakers", strAwayTeam: "Celtics", isoDate: soon)])
+        schedule.cricket = LiveEvent(events: [
+            Game(idEvent: "C1", idLeague: "\(Leagues.ipl.rawValue)", strHomeTeam: "Mumbai Indians", strAwayTeam: "Chennai Super Kings",
+                 strHomeTeamBadge: "https://a.espncdn.com/mi.png", strStatus: "pre", isoDate: soon)
+        ])
+        try await kv.setJSON(ScheduleStore.scheduleKey(isDebug: false).rawValue, value: schedule, ttl: nil)
+
+        // An old widget asks for every sport (no `sports=`) and knows nothing of cricket.
+        try app.test(.GET, "v2025/widget/schedule?limit=10", headers: authed) { res in
+            XCTAssertEqual(res.status, .ok)
+            let body = try JSONDecoder().decode(WidgetScheduleResponse.self, from: Data(res.body.string.utf8))
+            XCTAssertEqual(body.games.compactMap(\.idEvent), ["N1"])
+        }
+        try app.test(.GET, "v2025/widget/schedule?limit=10&cricket=1", headers: authed) { res in
+            let body = try JSONDecoder().decode(WidgetScheduleResponse.self, from: Data(res.body.string.utf8))
+            XCTAssertEqual(Set(body.games.compactMap(\.idEvent)), ["N1", "C1"])
+            XCTAssertEqual(body.games.first { $0.idEvent == "C1" }?.strHomeTeamBadge, "https://a.espncdn.com/mi.png")
+        }
+        try app.test(.GET, "v2025/widget/schedule?sports=cricket&cricket=1", headers: authed) { res in
+            let body = try JSONDecoder().decode(WidgetScheduleResponse.self, from: Data(res.body.string.utf8))
+            XCTAssertEqual(body.games.compactMap(\.idEvent), ["C1"])
+        }
+    }
+
+    func testCricketSliceServesItsOwnBucketOnly() async throws {
+        var schedule = TestGameFactory.liveScore(nba: [nba("pre")])
+        schedule.cricket = LiveEvent(events: [
+            Game(idEvent: "1539442", idLeague: "\(Leagues.cricketTests.rawValue)", strHomeTeam: "New Zealand",
+                 strAwayTeam: "India", intHomeScore: "368", intAwayScore: "159/1 (39 ov)", strStatus: "in", isoDate: Date())
+        ])
+        try await kv.setJSON(ScheduleStore.scheduleKey(isDebug: false).rawValue, value: schedule, ttl: nil)
+        try await kv.setJSON(ScheduleStore.calendarKey(isDebug: false).rawValue,
+                             value: ScheduleCalendarVersion.versions(of: schedule), ttl: nil)
+        await LastKnownGoodCache.shared.reset()
+
+        try app.test(.GET, "v2025/schedules/sports/cricket", headers: authed) { res in
+            XCTAssertEqual(res.status, .ok)
+            XCTAssertNotNil(res.headers.first(name: .eTag))
+            let slice = try JSONDecoder().decode(LiveScore.self, from: Data(res.body.string.utf8))
+            XCTAssertEqual(slice.cricket?.events.map(\.idEvent), ["1539442"])
+            XCTAssertEqual(slice.cricket?.events.first?.intAwayScore, "159/1 (39 ov)", "score text as ESPN wrote it")
+            XCTAssertNil(slice.nba)
+        }
+        try app.test(.GET, "v2025/schedules/sports/soccer", headers: authed) { res in
+            XCTAssertFalse(res.body.string.contains("1539442"), "cricket never rides in another bucket")
         }
     }
 

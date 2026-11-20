@@ -402,6 +402,7 @@ enum LiveMerge {
         case .golf:       return s.golf?.events
         case .tennis:     return s.tennis?.events
         case .racing:     return s.racing?.events
+        case .cricket:    return s.cricket?.events
         }
     }
 
@@ -415,7 +416,8 @@ enum LiveMerge {
             nhl:    sport == .hockey     ? e : s.nhl,
             golf:   sport == .golf       ? e : s.golf,
             tennis: sport == .tennis     ? e : s.tennis,
-            racing: sport == .racing     ? e : s.racing
+            racing: sport == .racing     ? e : s.racing,
+            cricket: sport == .cricket   ? e : s.cricket
         )
     }
 

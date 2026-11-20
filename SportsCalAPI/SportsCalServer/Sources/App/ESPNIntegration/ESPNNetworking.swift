@@ -253,6 +253,20 @@ class ESPNNetworking {
         throw NetworkError.invalidLeague
     }
 
+    /// ESPN's all-cricket score panel: every competition on one day (`dates` as
+    /// `yyyyMMdd`), or live + today when `dates` is nil. Cricket has no per-league
+    /// scoreboard we can key by `Leagues` (internationals are filed under a fresh tour
+    /// league each series), so this one board feeds both the schedule and live scores.
+    /// Future days work months ahead; past days only about a month back (older → 502).
+    static func getCricketScorePanel(req: some Client, dates: Int? = nil) async throws -> ESPNCricketBoard {
+        var uri = URI(string: "https://site.api.espn.com/apis/site/v2/sports/cricket/scorepanel")
+        if let dates {
+            uri.query = "dates=\(dates)"
+        }
+        let response = try await performGet(req, uri)
+        return try response.content.decode(ESPNCricketBoard.self)
+    }
+
     static func getTeam<Output: Decodable>(req: some Client, DecodeType: Output.Type, league: Leagues) async throws -> Output {
         if let espnSlug = league.espnSlug {
             let urlString = "https://site.api.espn.com/apis/site/v2/sports"

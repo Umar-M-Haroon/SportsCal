@@ -269,6 +269,15 @@ class Integrator {
     /// land the marker inside its own day, plus the day itself.
     static let multiDayEventTail: TimeInterval = 31 * 60 * 60
 
+    /// `multiDayEventTail`, except for cricket: ESPN's cricket `endDate` is already the
+    /// close of the last day ("…T23:59Z"), not a midnight day marker, so a Test needs only
+    /// a few hours' grace for a late finish in the Americas.
+    static func multiDayTail(for league: Leagues) -> TimeInterval {
+        league.isCricket ? cricketEndTail : multiDayEventTail
+    }
+
+    static let cricketEndTail: TimeInterval = 6 * 60 * 60
+
     /// Default live-fetch window: started in the last 8h OR starting in the next 30min.
     static let defaultLiveWindow: ClosedRange<TimeInterval> = -(8 * 60 * 60)...(30 * 60)
 
@@ -297,7 +306,7 @@ class Integrator {
 
         // TSDB schedule: one game-list per sport, each event carries its own idLeague.
         if let schedule {
-            let allEvents = [schedule.nba, schedule.mlb, schedule.soccer, schedule.nfl, schedule.nhl, schedule.golf, schedule.tennis, schedule.racing]
+            let allEvents = [schedule.nba, schedule.mlb, schedule.soccer, schedule.nfl, schedule.nhl, schedule.golf, schedule.tennis, schedule.racing, schedule.cricket]
                 .compactMap { $0 }
                 .flatMap { $0.events }
             for game in allEvents {
@@ -310,7 +319,7 @@ class Integrator {
                     // never refreshed. Its dates are day markers (midnight ET), hence the
                     // shift through the final day.
                     let started = gameDate.timeIntervalSince(now) <= window.upperBound
-                    let over = end.addingTimeInterval(multiDayEventTail).timeIntervalSince(now) < 0
+                    let over = end.addingTimeInterval(multiDayTail(for: league)).timeIntervalSince(now) < 0
                     if started && !over { active.insert(league) }
                     continue
                 }
@@ -394,6 +403,10 @@ extension SportType {
             return nil
         case .racing:
             return .formula1
+        case .cricket:
+            // Cricket has no per-league scoreboard path: one score panel covers every
+            // competition (`ESPNCricketJob`).
+            return nil
         }
     }
 }

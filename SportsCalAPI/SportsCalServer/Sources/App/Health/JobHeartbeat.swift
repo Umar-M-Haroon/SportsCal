@@ -26,6 +26,7 @@ enum JobHeartbeat {
         case f1Enrichment
         case golfEnrichment
         case worldCupEnrichment
+        case cricket
         case apns
 
         /// Staleness threshold. Each value is a few multiples of the job's real
@@ -59,6 +60,9 @@ enum JobHeartbeat {
             case .worldCupEnrichment:
                 // Hourly at :50, refreshed when >30min old → effectively hourly.
                 return 3 * 3600
+            case .cricket:
+                // Hourly at :35, sweep refreshed when >6h old; records on every run.
+                return 3 * 3600
             }
         }
 
@@ -74,6 +78,7 @@ enum JobHeartbeat {
             case .f1Enrichment: return "Hourly at :10 (refresh when >6h old)"
             case .golfEnrichment: return "Hourly at :25 (refresh when >25 min old)"
             case .worldCupEnrichment: return "Hourly at :50 (refresh when >30 min old)"
+            case .cricket: return "Hourly at :35 (score-panel sweep when >6h old)"
             case .apns: return "Every minute at :05s"
             }
         }
@@ -89,6 +94,7 @@ enum JobHeartbeat {
             case .f1Enrichment: return "F1EnrichmentJob"
             case .golfEnrichment: return "GolfEnrichmentJob"
             case .worldCupEnrichment: return "WorldCupEnrichmentJob"
+            case .cricket: return "ESPNCricketJob"
             case .apns: return "APNSJob"
             }
         }
