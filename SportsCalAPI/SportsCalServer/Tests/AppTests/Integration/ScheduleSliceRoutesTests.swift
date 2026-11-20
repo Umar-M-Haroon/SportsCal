@@ -143,3 +143,56 @@ final class ScheduleSliceRoutesTests: XCTestCase {
         XCTAssertEqual(try etag("v2025/schedules/sports/nhl"), nhl1, "another sport's final doesn't touch hockey")
     }
 }
+
+/// `/cricket/match/:eventID` validates the id and serves the cached scorecard without
+/// asking ESPN.
+final class CricketMatchRouteTests: XCTestCase {
+    private static let apiKey = "test-key"
+    var app: Application!
+    var kv: InMemoryKeyValueStore!
+    private var authed: HTTPHeaders { ["X-API-Key": Self.apiKey] }
+
+    override func setUp() async throws {
+        app = Application(.testing)
+        kv = InMemoryKeyValueStore()
+        app.kv = kv
+        app.redis.configuration = try RedisConfiguration(hostname: "127.0.0.1", port: 1)
+        let hash = SHA256.hash(data: Data(Self.apiKey.utf8)).map { String(format: "%02x", $0) }.joined()
+        setenv("API_KEY_HASH", hash, 1)
+        try routes(app)
+    }
+
+    override func tearDown() async throws {
+        try await app.asyncShutdown()
+        app = nil
+        kv = nil
+    }
+
+    func testServesTheCachedScorecard() async throws {
+        let card = CricketScorecard(eventID: "1539442", innings: [
+            .init(number: 1, battingSide: .home, battingTeam: "New Zealand", total: "368", overs: 101.2,
+                  batters: [], bowlers: [])
+        ])
+        try await kv.setJSON(CricketMatchService.cacheKey(eventID: "1539442", isDebug: false), value: card, ttl: 60)
+        try app.test(.GET, "v2025/cricket/match/1539442", headers: authed) { res in
+            XCTAssertEqual(res.status, .ok)
+            XCTAssertEqual(try JSONDecoder().decode(CricketScorecard.self, from: Data(res.body.string.utf8)), card)
+        }
+    }
+
+    func testRejectsNonNumericIDs() throws {
+        try app.test(.GET, "v2025/cricket/match/abc", headers: authed) { res in
+            XCTAssertEqual(res.status, .badRequest)
+        }
+        try app.test(.GET, "v2025/cricket/match/123456789012345678901", headers: authed) { res in
+            XCTAssertEqual(res.status, .badRequest)
+        }
+    }
+
+    func testRemembersAMissWithoutRefetching() async throws {
+        try await kv.setString(CricketMatchService.missKey(eventID: "42", isDebug: false), value: "1", ttl: 60)
+        try app.test(.GET, "v2025/cricket/match/42", headers: authed) { res in
+            XCTAssertEqual(res.status, .notFound)
+        }
+    }
+}

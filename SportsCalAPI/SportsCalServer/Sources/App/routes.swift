@@ -1486,6 +1486,19 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return encodeResult(res: detail)
     }
 
+    // One cricket match's scorecard: batting and bowling per innings, from ESPN's
+    // per-event summary (see CricketMatchService). 404 before the toss or when ESPN has
+    // nothing for the match.
+    routes.get("cricket", "match", ":eventID") { req async throws -> String in
+        guard let eventID = req.parameters.get("eventID"), CricketMatchService.isValidEventID(eventID) else {
+            throw Abort(.badRequest)
+        }
+        guard let card = await CricketMatchService.scorecard(app: req.application, eventID: eventID) else {
+            throw Abort(.notFound)
+        }
+        return encodeResult(res: card)
+    }
+
     // One soccer competition's table (with zones and form) plus its top scorers and
     // assisters. 404 for a league that isn't soccer or has none of them.
     routes.get("soccer", "competition", ":leagueID") { req async throws -> String in
