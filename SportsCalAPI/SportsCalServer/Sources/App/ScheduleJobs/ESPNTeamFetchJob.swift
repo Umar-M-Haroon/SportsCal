@@ -125,12 +125,17 @@ struct ESPNTeamFetchJob: AsyncScheduledJob {
         // cross-sport ID collisions (e.g. "nba:18" and "nhl:18" are different teams).
         var espnToTSDB: [String: String] = [:]
 
-        for (league, teamResponse) in espnTeamsByLeague {
+        // Match every ESPN team first, then apply exact-name matches before the loose
+        // suffix fallback. A fallback may never take a team another league matched by
+        // name: WNBA "Dallas Wings" (name "Wings") used to suffix-match "Detroit Red
+        // Wings" and, depending on dictionary order, overwrite the Red Wings' ESPN
+        // abbreviation (DAL) and logo with the Wings'.
+        var matches: [(bucket: String, espnTeam: ESPNTeam, matchedID: String, exact: Bool)] = []
+
+        // Leagues in a stable order so a tie between two exact matches is deterministic.
+        for (league, teamResponse) in espnTeamsByLeague.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             let bucket = league.sportBucket
             for espnTeam in teamResponse.teams ?? [] {
-                let espnLogo = espnTeam.logos?.first?.href
-                let espnAbbrev = espnTeam.abbreviation
-
                 // Try to find a matching TheSportsDB team by any ESPN name field
                 var matchedID: String?
                 let nameCandidates = [espnTeam.displayName, espnTeam.shortDisplayName, espnTeam.name, espnTeam.nickname].compactMap({ $0 })
@@ -161,44 +166,65 @@ struct ESPNTeamFetchJob: AsyncScheduledJob {
                     if matchedID != nil { break }
                 }
 
-                // Fallback: check if any TheSportsDB team name ends with the ESPN team name
-                if matchedID == nil, let espnName = espnTeam.name?.lowercased(), espnName.count > 3 {
-                    let matches = nameToID.filter { (key, _) in key.hasSuffix(espnName) }
-                    if matches.count == 1 {
-                        matchedID = matches.first?.value
-                    }
-                }
-
-                if let matchedID = matchedID, let existingTeam = teamsByID[matchedID] {
-                    // Build alternate names: combine existing alternate with ESPN displayName if different from strTeam
-                    var alternates: [String] = []
-                    if let existing = existingTeam.strAlternate {
-                        alternates.append(contentsOf: existing.components(separatedBy: ", "))
-                    }
-                    if let espnDisplay = espnTeam.displayName,
-                       espnDisplay != existingTeam.strTeam,
-                       !alternates.contains(espnDisplay) {
-                        alternates.append(espnDisplay)
-                    }
-                    let combinedAlternate = alternates.isEmpty ? nil : alternates.joined(separator: ", ")
-
-                    // Enrich existing team with ESPN logo (preferred), abbreviation, and alternate names
-                    teamsByID[matchedID] = Team(
-                        idTeam: existingTeam.idTeam,
-                        strTeam: existingTeam.strTeam,
-                        strTeamShort: Team.canonicalAbbreviationOverrides[existingTeam.idTeam ?? ""] ?? espnAbbrev ?? existingTeam.strTeamShort,
-                        strAlternate: combinedAlternate,
-                        strTeamBadge: espnLogo ?? existingTeam.strTeamBadge
-                    )
-
-                    // Map sport-scoped ESPN ID → TheSportsDB ID
-                    if let espnID = espnTeam.id {
-                        espnToTSDB["\(bucket):\(espnID)"] = matchedID
-                    }
+                if let matchedID {
+                    matches.append((bucket, espnTeam, matchedID, true))
+                } else if let fallbackID = Self.suffixFallbackMatch(espnTeam: espnTeam, nameToID: nameToID) {
+                    matches.append((bucket, espnTeam, fallbackID, false))
                 }
             }
         }
 
+        let exactIDs = Set(matches.filter(\.exact).map(\.matchedID))
+        for match in matches.filter(\.exact) + matches.filter({ !$0.exact }) {
+            if !match.exact && exactIDs.contains(match.matchedID) { continue }
+            let espnTeam = match.espnTeam
+            guard let existingTeam = teamsByID[match.matchedID] else { continue }
+
+            // Build alternate names: combine existing alternate with ESPN displayName if different from strTeam
+            var alternates: [String] = []
+            if let existing = existingTeam.strAlternate {
+                alternates.append(contentsOf: existing.components(separatedBy: ", "))
+            }
+            if let espnDisplay = espnTeam.displayName,
+               espnDisplay != existingTeam.strTeam,
+               !alternates.contains(espnDisplay) {
+                alternates.append(espnDisplay)
+            }
+            let combinedAlternate = alternates.isEmpty ? nil : alternates.joined(separator: ", ")
+
+            // Enrich existing team with ESPN logo (preferred), abbreviation, and alternate names
+            teamsByID[match.matchedID] = Team(
+                idTeam: existingTeam.idTeam,
+                strTeam: existingTeam.strTeam,
+                strTeamShort: Team.canonicalAbbreviationOverrides[existingTeam.idTeam ?? ""] ?? espnTeam.abbreviation ?? existingTeam.strTeamShort,
+                strAlternate: combinedAlternate,
+                strTeamBadge: espnTeam.logos?.first?.href ?? existingTeam.strTeamBadge
+            )
+
+            // Map sport-scoped ESPN ID → TheSportsDB ID
+            if let espnID = espnTeam.id {
+                espnToTSDB["\(match.bucket):\(espnID)"] = match.matchedID
+            }
+        }
+
         return (Array(teamsByID.values), espnToTSDB)
+    }
+
+    /// Loose match for an ESPN team no name field matched exactly: the one TheSportsDB
+    /// team whose name ends with ESPN's team name ("Alavés" → "Deportivo Alavés")
+    /// and that also names ESPN's city. Without the city check a WNBA team claimed a
+    /// same-nickname team in another sport — "Dallas Wings" took "Detroit Red Wings",
+    /// "Portland Fire" took MLS "Chicago Fire" (abbreviation POR, Portland's logo).
+    static func suffixFallbackMatch(espnTeam: ESPNTeam, nameToID: [String: String]) -> String? {
+        guard let espnName = espnTeam.name?.lowercased(), espnName.count > 3 else { return nil }
+        // City = displayName minus the team name ("Dallas Wings" − "Wings" → "dallas").
+        var city = ""
+        if let display = espnTeam.displayName?.lowercased(), display.hasSuffix(espnName) {
+            city = String(display.dropLast(espnName.count)).trimmingCharacters(in: .whitespaces)
+        }
+        let ids = Set(nameToID.filter { key, _ in
+            key.hasSuffix(espnName) && (city.isEmpty || key.contains(city))
+        }.values)
+        return ids.count == 1 ? ids.first : nil
     }
 }

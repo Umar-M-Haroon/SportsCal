@@ -83,10 +83,16 @@ public extension Team {
            let short = strTeamShort?.trimmingCharacters(in: .whitespaces), !short.isEmpty {
             return short
         }
-        // Use a provided short code only when it's already a clean 3-letter
-        // abbreviation; otherwise derive a 3-letter code from the name.
+        // A curated correction wins (Knicks "NY" → "NYK") for callers holding a raw code.
+        if let idTeam, let override = canonicalAbbreviationOverrides[idTeam] {
+            return override
+        }
+        // Use a provided short code when it's a clean 2–4 letter abbreviation — ESPN's
+        // real codes include "KC", "SF", "GB" (NFL/MLB) and "UTAH" (NBA/NHL). Requiring
+        // exactly 3 letters re-derived those from the name as "KCC", "SF4", "GBP".
+        // Anything else (blank, "Worcester Ci", "CF ") derives a code from the name.
         if let short = strTeamShort?.folding(options: .diacriticInsensitive, locale: .current),
-           short.count == 3, short.allSatisfy(\.isLetter) {
+           (2...4).contains(short.count), short.allSatisfy(\.isLetter) {
             return short.uppercased()
         }
         // Strip diacritics so "Türkiye" → "TUR", not "TÜRKIYE".
