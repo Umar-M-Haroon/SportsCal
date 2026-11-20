@@ -366,3 +366,25 @@ public extension Game {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
+
+// MARK: - Compact surfaces (widgets, watch, menu bar)
+
+public extension Game {
+    /// A side's score for a tight space. Every sport but cricket: the score as sent.
+    /// Cricket: just the latest innings ("144/2"), since "137 & 144/2 (40 ov)" won't fit.
+    func compactScore(home: Bool) -> String? {
+        guard isCricket else { return home ? intHomeScore : intAwayScore }
+        let side: GameSituation.Side = home ? .home : .away
+        if let last = cricket?.innings(for: side).last { return last.scoreText }
+        return cricketScore(for: side)
+    }
+
+    /// Whether `home` is ahead (live) or won (final), for bolding. Cricket asks ESPN,
+    /// since runs don't decide a rain-affected match.
+    func isAhead(home: Bool) -> Bool {
+        if isCricket { return cricketWinner == (home ? .home : .away) }
+        guard let homeScore = intHomeScore.flatMap({ Int($0) }),
+              let awayScore = intAwayScore.flatMap({ Int($0) }) else { return false }
+        return home ? homeScore > awayScore : awayScore > homeScore
+    }
+}

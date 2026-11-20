@@ -501,7 +501,7 @@ struct MenuBarContentView: View {
         let homeFirst = game.sportType == .soccer
 
         return HStack {
-            if isLive || game.isFinalStatus, let awayScore = game.intAwayScore, let homeScore = game.intHomeScore {
+            if isLive || game.isFinalStatus, let awayScore = game.compactScore(home: false), let homeScore = game.compactScore(home: true) {
                 Text(homeFirst ? "\(home) \(homeScore) - \(away) \(awayScore)" : "\(away) \(awayScore) - \(home) \(homeScore)")
                     .font(.caption)
                     .fontWeight(.medium)

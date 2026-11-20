@@ -48,7 +48,7 @@ struct SportsWidgetExtraLargeView: View {
                 Text(awayAbbr)
                     .font(.system(size: 11, weight: .medium))
                     .frame(width: 28, alignment: .leading)
-                Text(game.intAwayScore ?? "0")
+                Text(game.compactScore(home: false) ?? "0")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .frame(width: 24)
 
@@ -67,7 +67,7 @@ struct SportsWidgetExtraLargeView: View {
 
                 Spacer()
 
-                Text(game.intHomeScore ?? "0")
+                Text(game.compactScore(home: true) ?? "0")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .frame(width: 24)
                 Text(homeAbbr)

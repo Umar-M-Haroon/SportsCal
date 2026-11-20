@@ -107,8 +107,8 @@ struct SportsWidgetInlineView: View {
     private func formatLiveGame(_ game: Game) -> String {
         let homeTeam = getTeamAbbreviation(teamID: game.idHomeTeam, teamName: game.strHomeTeam)
         let awayTeam = getTeamAbbreviation(teamID: game.idAwayTeam, teamName: game.strAwayTeam)
-        let homeScore = game.intHomeScore ?? "0"
-        let awayScore = game.intAwayScore ?? "0"
+        let homeScore = game.compactScore(home: true) ?? "0"
+        let awayScore = game.compactScore(home: false) ?? "0"
         let progress = game.strProgress ?? game.strStatus ?? ""
 
         return "\(awayTeam) \(awayScore) - \(homeTeam) \(homeScore) \(progress)"

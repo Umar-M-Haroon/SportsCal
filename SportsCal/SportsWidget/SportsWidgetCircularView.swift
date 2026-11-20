@@ -68,13 +68,13 @@ struct SportsWidgetCircularView: View {
         } else {
             // Team sport live: stacked scores with accent divider
             VStack(spacing: 1) {
-                Text(game.intAwayScore ?? "0")
+                Text(game.compactScore(home: false) ?? "0")
                     .font(.system(size: 16, design: .rounded).weight(.heavy))
                     .monospacedDigit()
                 Rectangle()
                     .frame(width: 20, height: 1)
                     .widgetAccentable()
-                Text(game.intHomeScore ?? "0")
+                Text(game.compactScore(home: true) ?? "0")
                     .font(.system(size: 16, design: .rounded).weight(.heavy))
                     .monospacedDigit()
             }

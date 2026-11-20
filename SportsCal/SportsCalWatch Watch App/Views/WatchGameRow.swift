@@ -53,7 +53,7 @@ struct WatchGameRow: View {
                 Text(awayAbbr)
                     .font(.system(size: 13, design: .rounded).weight(isFavorite && favoriteTeams.contains(game.strAwayTeam) ? .bold : .regular))
                 Spacer()
-                Text(game.intAwayScore ?? "0")
+                Text(game.compactScore(home: false) ?? "0")
                     .font(.system(size: 13, design: .rounded).weight(.heavy))
                     .monospacedDigit()
             }
@@ -61,7 +61,7 @@ struct WatchGameRow: View {
                 Text(homeAbbr)
                     .font(.system(size: 13, design: .rounded).weight(isFavorite && favoriteTeams.contains(game.strHomeTeam) ? .bold : .regular))
                 Spacer()
-                Text(game.intHomeScore ?? "0")
+                Text(game.compactScore(home: true) ?? "0")
                     .font(.system(size: 13, design: .rounded).weight(.heavy))
                     .monospacedDigit()
             }
@@ -74,14 +74,14 @@ struct WatchGameRow: View {
     // MARK: - Final Score
 
     private var finalContent: some View {
-        let homeWon = (Int(game.intHomeScore ?? "") ?? 0) > (Int(game.intAwayScore ?? "") ?? 0)
+        let homeWon = game.isAhead(home: true)
         return VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 4) {
                 Text(awayAbbr)
                     .font(.system(size: 13, design: .rounded))
                     .foregroundStyle(homeWon ? WatchTokens.inkSoft : WatchTokens.ink)
                 Spacer()
-                Text(game.intAwayScore ?? "0")
+                Text(game.compactScore(home: false) ?? "0")
                     .font(.system(size: 13, design: .rounded).weight(.heavy))
                     .monospacedDigit()
                     .foregroundStyle(homeWon ? WatchTokens.inkSoft : WatchTokens.ink)
@@ -91,7 +91,7 @@ struct WatchGameRow: View {
                     .font(.system(size: 13, design: .rounded))
                     .foregroundStyle(homeWon ? WatchTokens.ink : WatchTokens.inkSoft)
                 Spacer()
-                Text(game.intHomeScore ?? "0")
+                Text(game.compactScore(home: true) ?? "0")
                     .font(.system(size: 13, design: .rounded).weight(.heavy))
                     .monospacedDigit()
                     .foregroundStyle(homeWon ? WatchTokens.ink : WatchTokens.inkSoft)

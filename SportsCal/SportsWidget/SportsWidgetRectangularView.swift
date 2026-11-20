@@ -50,7 +50,7 @@ struct SportsWidgetRectangularView: View {
                             .widgetAccentable()
                         let awayAbbr = abbreviation(teamID: game.idAwayTeam, name: game.strAwayTeam)
                         let homeAbbr = abbreviation(teamID: game.idHomeTeam, name: game.strHomeTeam)
-                        Text("\(awayAbbr) \(game.intAwayScore ?? "0") - \(homeAbbr) \(game.intHomeScore ?? "0")")
+                        Text("\(awayAbbr) \(game.compactScore(home: false) ?? "0") - \(homeAbbr) \(game.compactScore(home: true) ?? "0")")
                             .font(.system(.subheadline, design: .rounded).weight(.semibold))
                             .monospacedDigit()
                             .lineLimit(1)

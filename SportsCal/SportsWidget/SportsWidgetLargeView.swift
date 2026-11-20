@@ -179,13 +179,13 @@ struct LargeCompactGameCell: View {
 
             // Teams row with scores
             HStack(spacing: 6) {
-                teamColumn(teamID: game.idAwayTeam, teamName: game.strAwayTeam, score: game.intAwayScore, isWinning: isAwayWinning(), seed: game.awaySeed, record: game.awayRecord)
+                teamColumn(teamID: game.idAwayTeam, teamName: game.strAwayTeam, score: game.compactScore(home: false), isWinning: isAwayWinning(), seed: game.awaySeed, record: game.awayRecord)
 
                 Text("vs")
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(WidgetTokens.inkFaint)
 
-                teamColumn(teamID: game.idHomeTeam, teamName: game.strHomeTeam, score: game.intHomeScore, isWinning: isHomeWinning(), seed: game.homeSeed, record: game.homeRecord)
+                teamColumn(teamID: game.idHomeTeam, teamName: game.strHomeTeam, score: game.compactScore(home: true), isWinning: isHomeWinning(), seed: game.homeSeed, record: game.homeRecord)
             }
 
             if let agg = game.aggregateScore {
@@ -273,14 +273,10 @@ struct LargeCompactGameCell: View {
     }
 
     private func isHomeWinning() -> Bool {
-        guard let homeScore = Int(game.intHomeScore ?? ""),
-              let awayScore = Int(game.intAwayScore ?? "") else { return false }
-        return homeScore > awayScore
+        game.isAhead(home: true)
     }
 
     private func isAwayWinning() -> Bool {
-        guard let homeScore = Int(game.intHomeScore ?? ""),
-              let awayScore = Int(game.intAwayScore ?? "") else { return false }
-        return awayScore > homeScore
+        game.isAhead(home: false)
     }
 }
