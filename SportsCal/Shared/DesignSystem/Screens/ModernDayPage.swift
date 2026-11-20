@@ -259,6 +259,7 @@ private struct ModernDayContent: View {
         case .golf:       return storage.shouldShowGolf
         case .tennis:     return storage.shouldShowTennis
         case .racing:     return storage.shouldShowRacing
+        case .cricket:     return storage.shouldShowCricket
         }
     }
 
@@ -1030,7 +1031,7 @@ private struct ModernDayContent: View {
             storage.shouldShowNFL || storage.shouldShowCFB || storage.shouldShowNHL ||
             storage.shouldShowSoccer || storage.shouldShowMLB ||
             storage.shouldShowGolf || storage.shouldShowTennis ||
-            storage.shouldShowRacing
+            storage.shouldShowRacing || storage.shouldShowCricket
         if !anySportOn { return .allSportsOff }
 
         if day.games.isEmpty { return .empty }

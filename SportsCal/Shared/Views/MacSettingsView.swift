@@ -54,6 +54,7 @@ private struct SportsSettingsTab: View {
                 GolfCompetitionsSettingsSection()
                 TennisCompetitionsSettingsSection()
                 RacingCompetitionsSettingsSection()
+                CricketCompetitionsSettingsSection()
             }
             .formStyle(.grouped)
         }

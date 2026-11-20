@@ -1206,6 +1206,15 @@ struct DayPage: View {
                     .environment(favorites)
             }
             .buttonStyle(.plain)
+        } else if game.isCricket {
+            NavigationLink {
+                listDestination(for: gameWithTeams)
+            } label: {
+                CricketMatchScoreView(game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: isLive)
+                    .environment(viewModel)
+                    .environment(favorites)
+            }
+            .buttonStyle(.plain)
         } else if game.isTennisMatch {
             NavigationLink {
                 listDestination(for: gameWithTeams)
@@ -1288,6 +1297,10 @@ struct DayPage: View {
                     RaceScoreView(game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: isLive)
                         .environment(viewModel)
                         .environment(favorites)
+                } else if game.isCricket {
+                    CricketMatchScoreView(game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: isLive)
+                        .environment(viewModel)
+                        .environment(favorites)
                 } else if game.isTennisMatch {
                     TennisMatchScoreView(game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: isLive)
                         .environment(viewModel)
@@ -1343,6 +1356,10 @@ struct DayPage: View {
         let game = gwt.game
         if game.isRace {
             RaceDetailView(game: game)
+                .environment(viewModel)
+                .environment(favorites)
+        } else if game.isCricket {
+            CricketMatchDetailView(game: game)
                 .environment(viewModel)
                 .environment(favorites)
         } else if game.isTennisMatch {
@@ -1474,6 +1491,10 @@ struct DayPage: View {
         if let game = viewModel.game(forEventID: eventID) {
             if game.isRace {
                 RaceDetailView(game: game)
+                    .environment(viewModel)
+                    .environment(favorites)
+            } else if game.isCricket {
+                CricketMatchDetailView(game: game)
                     .environment(viewModel)
                     .environment(favorites)
             } else if game.isTennisMatch {

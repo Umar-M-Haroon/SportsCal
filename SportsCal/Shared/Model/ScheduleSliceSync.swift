@@ -53,6 +53,7 @@ enum ScheduleSliceSync {
         if on("shouldShowGolf") { sports.insert(.golf) }
         if on("shouldShowTennis") { sports.insert(.tennis) }
         if on("shouldShowRacing") { sports.insert(.racing) }
+        if on("shouldShowCricket") { sports.insert(.cricket) }
         return sports
     }
 

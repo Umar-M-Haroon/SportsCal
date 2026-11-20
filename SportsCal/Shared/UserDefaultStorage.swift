@@ -22,6 +22,7 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("shouldShowGolf") var shouldShowGolf: Bool = false
     @ObservationIgnored @AppStorage("shouldShowTennis") var shouldShowTennis: Bool = false
     @ObservationIgnored @AppStorage("shouldShowRacing") var shouldShowRacing: Bool = false
+    @ObservationIgnored @AppStorage("shouldShowCricket") var shouldShowCricket: Bool = false
     @ObservationIgnored @AppStorage("shouldShowWNBA") var shouldShowWNBA: Bool = false
     /// College football, switched on separately from the NFL; both feed the football
     /// section. See `FootballPreference`.
@@ -34,6 +35,7 @@ class UserDefaultStorage {
     @ObservationIgnored @AppStorage("favoritesOnlyGolf") var favoritesOnlyGolf: Bool = false
     @ObservationIgnored @AppStorage("favoritesOnlyTennis") var favoritesOnlyTennis: Bool = false
     @ObservationIgnored @AppStorage("favoritesOnlyRacing") var favoritesOnlyRacing: Bool = false
+    @ObservationIgnored @AppStorage("favoritesOnlyCricket") var favoritesOnlyCricket: Bool = false
     /// Which tennis/golf event tiers to show (Grand Slams / big events / everything).
     /// Followed players always show regardless. See `EventCoverage`.
     @ObservationIgnored @AppStorage("coverageTennis") var coverageTennis: EventCoverage = .default
@@ -285,6 +287,7 @@ class UserDefaultStorage {
             case .golf:       return defaults?.bool(forKey: "focus_shouldShowGolf") ?? true
             case .tennis:     return defaults?.bool(forKey: "focus_shouldShowTennis") ?? true
             case .racing:     return defaults?.bool(forKey: "focus_shouldShowRacing") ?? true
+            case .cricket:     return defaults?.bool(forKey: "focus_shouldShowCricket") ?? true
             }
         }
         return userShouldShow(sport)
@@ -304,6 +307,7 @@ class UserDefaultStorage {
         case .golf:       return shouldShowGolf
         case .tennis:     return shouldShowTennis
         case .racing:     return shouldShowRacing
+        case .cricket:     return shouldShowCricket
         }
     }
 
@@ -381,6 +385,7 @@ class UserDefaultStorage {
         defaults?.set(shouldShowGolf, forKey: "shouldShowGolf")
         defaults?.set(shouldShowTennis, forKey: "shouldShowTennis")
         defaults?.set(shouldShowRacing, forKey: "shouldShowRacing")
+        defaults?.set(shouldShowCricket, forKey: "shouldShowCricket")
         defaults?.set(shouldShowWNBA, forKey: "shouldShowWNBA")
         defaults?.set(shouldShowCFB, forKey: "shouldShowCFB")
         defaults?.set(favoritesOnlyNBA, forKey: "favoritesOnlyNBA")
@@ -391,6 +396,7 @@ class UserDefaultStorage {
         defaults?.set(favoritesOnlyGolf, forKey: "favoritesOnlyGolf")
         defaults?.set(favoritesOnlyTennis, forKey: "favoritesOnlyTennis")
         defaults?.set(favoritesOnlyRacing, forKey: "favoritesOnlyRacing")
+        defaults?.set(favoritesOnlyCricket, forKey: "favoritesOnlyCricket")
         defaults?.set(coverageTennis.rawValue, forKey: "coverageTennis")
         defaults?.set(coverageGolf.rawValue, forKey: "coverageGolf")
         defaults?.set(cfbSelection.rawValue, forKey: CollegeFootballSelection.storageKey)
@@ -445,6 +451,7 @@ class UserDefaultStorage {
         case .golf:       shouldShowGolf = enabled
         case .tennis:     shouldShowTennis = enabled
         case .racing:     shouldShowRacing = enabled
+        case .cricket:     shouldShowCricket = enabled
         }
         // An explicit in-app toggle wins over a Focus Filter override —
         // otherwise the switch snaps back while a Focus is active.
@@ -460,6 +467,7 @@ class UserDefaultStorage {
             case .golf:       focusKey = "focus_shouldShowGolf"
             case .tennis:     focusKey = "focus_shouldShowTennis"
             case .racing:     focusKey = "focus_shouldShowRacing"
+            case .cricket:     focusKey = "focus_shouldShowCricket"
             }
             defaults?.set(enabled, forKey: focusKey)
         }
@@ -476,6 +484,7 @@ class UserDefaultStorage {
         case .golf:       return favoritesOnlyGolf
         case .tennis:     return favoritesOnlyTennis
         case .racing:     return favoritesOnlyRacing
+        case .cricket:     return favoritesOnlyCricket
         }
     }
 
@@ -489,6 +498,7 @@ class UserDefaultStorage {
         case .golf:       favoritesOnlyGolf = value
         case .tennis:     favoritesOnlyTennis = value
         case .racing:     favoritesOnlyRacing = value
+        case .cricket:     favoritesOnlyCricket = value
         }
         syncSportPrefsToAppGroup()
     }
@@ -544,6 +554,7 @@ class UserDefaultStorage {
         shouldShowGolf = false
         shouldShowTennis = false
         shouldShowRacing = false
+        shouldShowCricket = false
         switch sportType {
         case .hockey:
             shouldShowNHL = true
@@ -561,6 +572,8 @@ class UserDefaultStorage {
             shouldShowTennis = true
         case .racing:
             shouldShowRacing = true
+        case .cricket:
+            shouldShowCricket = true
         }
         recomputeEnabledSports()
     }

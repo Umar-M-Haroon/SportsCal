@@ -75,6 +75,9 @@ struct SportsLine: View {
                     .foregroundColor(.white)
                 Rectangle()
                     .foregroundColor(.black)
+            case .cricket:
+                Rectangle()
+                    .foregroundColor(.brown)
             }
         }
         .frame(width: 4, height: 40)
@@ -217,6 +220,7 @@ struct WidgetSportTabBar: View {
         if defaults?.bool(forKey: "shouldShowGolf") ?? false { sports.append(.golf) }
         if defaults?.bool(forKey: "shouldShowTennis") ?? false { sports.append(.tennis) }
         if defaults?.bool(forKey: "shouldShowRacing") ?? false { sports.append(.racing) }
+        if defaults?.bool(forKey: "shouldShowCricket") ?? false { sports.append(.cricket) }
         return sports
     }
 

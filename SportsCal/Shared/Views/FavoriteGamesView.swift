@@ -43,6 +43,17 @@ struct FavoriteGamesView: View {
                                 .environment(favorites)
                         }
                         .buttonStyle(.plain)
+                    } else if game.isCricket {
+                        NavigationLink {
+                            CricketMatchDetailView(game: game)
+                                .environment(viewModel)
+                                .environment(favorites)
+                        } label: {
+                            CricketMatchScoreView(game: game, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: false)
+                                .environment(viewModel)
+                                .environment(favorites)
+                        }
+                        .buttonStyle(.plain)
                     } else if game.isTennisMatch {
                         NavigationLink {
                             TennisMatchDetailView(game: game)

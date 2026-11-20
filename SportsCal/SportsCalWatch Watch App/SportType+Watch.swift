@@ -20,6 +20,7 @@ extension SportType {
         case .golf: return "figure.golf"
         case .tennis: return "tennis.racket"
         case .racing: return "flag.checkered.2.crossed"
+        case .cricket: return "cricket.ball"
         }
     }
 
@@ -33,6 +34,7 @@ extension SportType {
         case .golf: return .mint
         case .tennis: return .yellow
         case .racing: return .red
+        case .cricket: return .brown
         }
     }
 }

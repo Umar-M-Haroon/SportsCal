@@ -300,6 +300,7 @@ enum DebugGameFactory {
         case .golf:       return Leagues.pga.rawValue
         case .tennis:     return Leagues.atp.rawValue
         case .racing:     return Leagues.formula1.rawValue
+        case .cricket:    return Leagues.cricketT20Is.rawValue
         }
     }
 }

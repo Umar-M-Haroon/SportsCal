@@ -37,6 +37,9 @@ struct SportsCalFocusFilter: SetFocusFilterIntent {
     @Parameter(title: "Racing", default: true)
     var showRacing: Bool
 
+    @Parameter(title: "Cricket", default: true)
+    var showCricket: Bool
+
     var displayRepresentation: DisplayRepresentation {
         var enabledSports: [String] = []
         if showBasketball { enabledSports.append("NBA") }
@@ -47,6 +50,7 @@ struct SportsCalFocusFilter: SetFocusFilterIntent {
         if showGolf { enabledSports.append("Golf") }
         if showTennis { enabledSports.append("Tennis") }
         if showRacing { enabledSports.append("Racing") }
+        if showCricket { enabledSports.append("Cricket") }
 
         let subtitle = enabledSports.isEmpty ? "No sports" : enabledSports.joined(separator: ", ")
         return DisplayRepresentation(title: "Sport Filters", subtitle: "\(subtitle)")
@@ -59,7 +63,7 @@ struct SportsCalFocusFilter: SetFocusFilterIntent {
         // hides nothing, so treat it as "no filter" — otherwise the override
         // flag sticks forever and sport toggles in-app can never win.
         let isFiltering = !(showBasketball && showSoccer && showHockey && showMLB
-                            && showNFL && showGolf && showTennis && showRacing)
+                            && showNFL && showGolf && showTennis && showRacing && showCricket)
         defaults?.set(isFiltering, forKey: "focusFilterActive")
         defaults?.set(showBasketball, forKey: "focus_shouldShowNBA")
         defaults?.set(showSoccer, forKey: "focus_shouldShowSoccer")
@@ -69,6 +73,7 @@ struct SportsCalFocusFilter: SetFocusFilterIntent {
         defaults?.set(showGolf, forKey: "focus_shouldShowGolf")
         defaults?.set(showTennis, forKey: "focus_shouldShowTennis")
         defaults?.set(showRacing, forKey: "focus_shouldShowRacing")
+        defaults?.set(showCricket, forKey: "focus_shouldShowCricket")
         return .result()
     }
 }

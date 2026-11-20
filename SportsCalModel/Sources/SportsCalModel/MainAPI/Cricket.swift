@@ -311,3 +311,58 @@ public extension Game {
     /// The cricket payload, on cricket games the server has built one for.
     var cricket: CricketMatchExtras? { scoreboardExtras?.cricket }
 }
+
+// MARK: - Presentation
+
+public extension Game {
+    /// One side's score as a scorecard header writes it ("137 & 144/2"), falling back to
+    /// ESPN's own text. Nil before the side has batted.
+    func cricketScore(for side: GameSituation.Side) -> String? {
+        if let text = cricket?.scoreText(for: side) { return text }
+        let raw = side == .home ? intHomeScore : intAwayScore
+        return raw?.isEmpty == false ? raw : nil
+    }
+
+    /// "40.3 ov" for the side batting right now.
+    func cricketOvers(for side: GameSituation.Side) -> String? {
+        guard let current = cricket?.currentInnings, current.side == side else { return nil }
+        return current.oversText
+    }
+
+    /// The winner, as ESPN called it. Never worked out from the runs (DLS).
+    var cricketWinner: GameSituation.Side? {
+        if scoreboardExtras?.homeWinner == true { return .home }
+        if scoreboardExtras?.awayWinner == true { return .away }
+        return nil
+    }
+
+    /// "Day 2 · Stumps", "Innings break", "Live", "Final", "Drawn", "Abandoned". Nil before
+    /// the start (show the time instead).
+    var cricketStatusText: String? {
+        switch strStatus {
+        case "in":
+            let detail = cricket?.statusDetail.flatMap { $0 == "Live" ? nil : $0 }
+            let parts = [cricket?.session, detail].compactMap { $0 }
+            return parts.isEmpty ? "Live" : parts.joined(separator: " · ")
+        case "post":
+            if cricket?.isAbandoned == true { return cricket?.statusDetail ?? "Abandoned" }
+            if cricket?.isDraw == true { return "Drawn" }
+            return "Final"
+        default:
+            return nil
+        }
+    }
+
+    /// ESPN's state line once the match has started: "India trail by 209 runs",
+    /// "Bulls won by 7 wkts (4b rem)". Before the start it's only "Starts at 19:15 local
+    /// time", which the row's own clock already says.
+    var cricketSummary: String? {
+        strStatus == "pre" ? nil : cricket?.summary
+    }
+
+    /// "1st T20I · England tour of Australia 2026/27", for a row's context line.
+    var cricketContext: String? {
+        let parts = [round, tournamentName].compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}

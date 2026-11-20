@@ -42,6 +42,16 @@ struct AdaptiveGameDetail: View {
     }
 
     var body: some View {
+        // Cricket's innings don't fit a team detail's Int scores, in any theme.
+        if game.isCricket {
+            CricketMatchDetailView(game: game)
+        } else {
+            themedDetail
+        }
+    }
+
+    @ViewBuilder
+    private var themedDetail: some View {
         switch storage.effectiveAppTheme {
         case .ambient:
             AmbientGameDetailView(game: game, homeTeam: homeTeam, awayTeam: awayTeam)

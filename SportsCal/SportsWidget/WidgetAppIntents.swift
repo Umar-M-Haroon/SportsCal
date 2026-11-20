@@ -19,6 +19,7 @@ enum SportSelection: String, AppEnum {
     case golf
     case tennis
     case racing
+    case cricket
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation {
         "Sport"
@@ -34,7 +35,8 @@ enum SportSelection: String, AppEnum {
             .nfl: "NFL",
             .golf: "Golf",
             .tennis: "Tennis",
-            .racing: "Racing"
+            .racing: "Racing",
+            .cricket: "Cricket"
         ]
     }
 
@@ -49,6 +51,7 @@ enum SportSelection: String, AppEnum {
         case .golf: return .golf
         case .tennis: return .tennis
         case .racing: return .racing
+        case .cricket: return .cricket
         }
     }
 
@@ -62,6 +65,7 @@ enum SportSelection: String, AppEnum {
         case .golf: return .golf
         case .tennis: return .tennis
         case .racing: return .racing
+        case .cricket: return .cricket
         }
     }
 }

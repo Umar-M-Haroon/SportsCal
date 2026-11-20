@@ -26,6 +26,7 @@ public extension Color {
         case .mlb:        return Color(light: "#A14829", dark: "#E89F84")
         case .nfl:        return Color(light: "#7B3D8C", dark: "#C8A2DA")
         case .racing:     return Color(light: "#A53B26", dark: "#EA9787")
+        case .cricket:    return Color(light: "#8A5A1E", dark: "#E0B074")
         case .tennis:     return Color(light: "#5C7821", dark: "#B3CC78")
         case .golf:       return Color(light: "#1F7A65", dark: "#85CDB7")
         }

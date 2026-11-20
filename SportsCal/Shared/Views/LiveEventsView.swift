@@ -36,6 +36,17 @@ struct LiveEventsView: View {
                                 .environment(favorites)
                         }
                         .buttonStyle(.plain)
+                    } else if event.isCricket {
+                        NavigationLink {
+                            CricketMatchDetailView(game: event)
+                                .environment(viewModel)
+                                .environment(favorites)
+                        } label: {
+                            CricketMatchScoreView(game: event, shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert, sheetType: $sheetType, isLive: true)
+                                .environment(viewModel)
+                                .environment(favorites)
+                        }
+                        .buttonStyle(.plain)
                     } else if event.isTennisMatch {
                         NavigationLink {
                             TennisMatchDetailView(game: event)

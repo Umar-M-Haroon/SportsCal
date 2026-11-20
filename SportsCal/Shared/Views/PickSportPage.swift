@@ -169,6 +169,14 @@ struct PickSportPage: View {
                             .modifier(SportsTint(sport: .racing))
                     }
                 }
+                Toggle(isOn: $bindableAppStorage.shouldShowCricket) {
+                    Label {
+                        Text("Cricket")
+                    } icon: {
+                        Image(systemName: "cricket.ball")
+                            .modifier(SportsTint(sport: .cricket))
+                    }
+                }
                 if appStorage.shouldShowSoccer {
                     NavigationLink("Show Soccer Leagues") {
                         CompetitionPage(competitions: Leagues.allCases.filter({$0.isSoccer}))
@@ -192,7 +200,7 @@ struct PickSportPage: View {
                     teamsPresented = true
                 }, label: {
                     Text("Continue")
-                        .disabled(!(appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup || appStorage.shouldShowMLB || appStorage.shouldShowNBA || appStorage.shouldShowWNBA || appStorage.shouldShowNFL || appStorage.shouldShowCFB || appStorage.shouldShowNHL || appStorage.shouldShowGolf || appStorage.shouldShowTennis || appStorage.shouldShowRacing))
+                        .disabled(!(appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup || appStorage.shouldShowMLB || appStorage.shouldShowNBA || appStorage.shouldShowWNBA || appStorage.shouldShowNFL || appStorage.shouldShowCFB || appStorage.shouldShowNHL || appStorage.shouldShowGolf || appStorage.shouldShowTennis || appStorage.shouldShowRacing || appStorage.shouldShowCricket))
                 })
                 .frame(maxWidth: .infinity,alignment: .center)
                 .buttonStyle(.bordered)
