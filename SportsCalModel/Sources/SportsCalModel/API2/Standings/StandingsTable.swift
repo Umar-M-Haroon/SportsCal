@@ -164,8 +164,10 @@ public enum StandingsStyle: Sendable, Equatable {
 
     public var isSoccer: Bool { self == .soccer }
 
-    /// The stat columns for a group, after rank and team. Ties appear only when a team
-    /// in the group has one; conference record only when ESPN sends it.
+    /// The stat columns, after rank and team. Ties appear only when a team in `entries`
+    /// has one; conference record only when ESPN sends it. Pass the whole league's
+    /// entries (every group), not one group's, so a league's tables share columns:
+    /// otherwise the NFC shows T while the AFC, with no tie yet, doesn't.
     public func columns(for entries: [Entry]) -> [StandingsColumn] {
         switch self {
         case .basketball, .baseball:

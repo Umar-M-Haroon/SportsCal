@@ -39,6 +39,7 @@ enum MonetizationTelemetry {
         static let trialStarted = "trial_started"
         static let gateHit = "gate_hit"
         static let ratingPromptShown = "rating_prompt_shown"
+        static let rateRowTapped = "rate_row_tapped"
         static let adUpsellTapped = "ad_upsell_tapped"
         static let activationFirstFavorite = "activation_first_favorite"
         static let activationNotificationsEnabled = "activation_notifications_enabled"
@@ -284,6 +285,11 @@ enum MonetizationTelemetry {
 
     static func ratingPromptShown() {
         record(Event.ratingPromptShown)
+    }
+
+    /// The "Rate Scoreline" row in Settings (opens the App Store review sheet).
+    static func rateRowTapped() {
+        record(Event.rateRowTapped)
     }
 
     static func adUpsellTapped() {

@@ -218,8 +218,10 @@ private struct TeamLeagueHub: View {
             ContentUnavailableView("No Standings", systemImage: "list.number",
                                    description: Text("\(league.leagueName) standings aren't available right now."))
         } else {
+            let leagueEntries = groups.flatMap(\.entries)
             ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
-                LeagueStandingsTable(name: group.name, entries: group.entries, league: league,
+                LeagueStandingsTable(name: group.name, entries: group.entries,
+                                     leagueEntries: leagueEntries, league: league,
                                      isHighlighted: isFollowed)
                     .appCard()
             }

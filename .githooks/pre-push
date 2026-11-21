@@ -6,6 +6,13 @@
 
 set -e
 
+# Git runs hooks with GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE pointing at this
+# repo. SwiftPM's own git checkouts of dependencies inherit them and fail
+# with "unable to read tree", so clear them before running swift.
+REPO_ROOT_EARLY="$(git rev-parse --show-toplevel)"
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+cd "$REPO_ROOT_EARLY"
+
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 LOG_DIR="$(mktemp -d)"
 trap 'rm -rf "$LOG_DIR"' EXIT

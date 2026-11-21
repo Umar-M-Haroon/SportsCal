@@ -113,7 +113,184 @@ def upload_dsyms_to_sentry
   )
 end
 
+# ── OTA installs ────────────────────────────────────────────────────────────
+# `fastlane ota` builds a development-signed IPA and serves it tailnet-only from
+# this Mac so a registered iPhone (with Tailscale on) can tap-to-install.
+# Every worktree writes to the same OTA_DIR, so the root index lists builds
+# from all branches. The App Store build of Tailscale can't serve folders
+# (sandbox), hence a loopback static server proxied by `tailscale serve`.
+OTA_DIR         = File.expand_path("~/SportsCalBuilds")
+OTA_PORT        = 8099 # loopback static server
+OTA_TS_PORT     = 4443 # tailnet-only HTTPS (443 is a public Funnel — don't use it)
+OTA_PER_BRANCH  = 3    # newest builds kept per branch
+OTA_MAX         = 20   # hard cap across all branches
+
+def ensure_ota_server
+  require "json"
+  FileUtils.mkdir_p(OTA_DIR)
+  unless system("lsof -nP -iTCP:#{OTA_PORT} -sTCP:LISTEN >/dev/null 2>&1")
+    script = File.expand_path("ota_server.py", __dir__)
+    pid = Process.spawn("python3", "-I", script, OTA_DIR, OTA_PORT.to_s,
+                        out: File.join(OTA_DIR, ".server.log"), err: [:child, :out],
+                        pgroup: true)
+    Process.detach(pid)
+    sleep 1
+  end
+  unless `tailscale serve status 2>/dev/null`.include?(":#{OTA_TS_PORT}")
+    sh("tailscale", "serve", "--bg", "--https=#{OTA_TS_PORT}", "http://127.0.0.1:#{OTA_PORT}")
+  end
+  host = JSON.parse(`tailscale status --json`)["Self"]["DNSName"].chomp(".")
+  "https://#{host}:#{OTA_TS_PORT}"
+end
+
+# All builds with metadata, newest first.
+def ota_builds
+  require "json"
+  require "time"
+  Dir.glob(File.join(OTA_DIR, "*", "meta.json")).filter_map do |f|
+    JSON.parse(File.read(f)).merge("dir" => File.dirname(f))
+  rescue JSON::ParserError
+    nil
+  end.sort_by { |b| b["built_at"] }.reverse
+end
+
+def ota_prune
+  seen = Hash.new(0)
+  ota_builds.each_with_index do |b, i|
+    seen[b["branch"]] += 1
+    FileUtils.rm_rf(b["dir"]) if seen[b["branch"]] > OTA_PER_BRANCH || i >= OTA_MAX
+  end
+  # Folders without meta.json (aborted builds, pre-index builds) older than a day.
+  Dir.glob(File.join(OTA_DIR, "*")).each do |d|
+    next unless File.directory?(d) && !File.exist?(File.join(d, "meta.json"))
+    FileUtils.rm_rf(d) if File.mtime(d) < Time.now - 86_400
+  end
+end
+
+def ota_write_index(base)
+  require "cgi"
+  h = ->(s) { CGI.escapeHTML(s.to_s) }
+  rows = ota_builds.map do |b|
+    <<~ROW
+      <a class="b" href="#{h["#{base}/#{b['id']}/index.html"]}">
+        <div class="t">#{h[b['branch']]}#{b['dirty'] ? ' <span class="d">dirty</span>' : ''}</div>
+        <div class="s">#{h[b['worktree']]} · #{h[b['sha']]} · #{h[b['version']]} (#{h[b['build']]}) · #{h[Time.parse(b['built_at']).strftime('%b %-d %H:%M')]}</div>
+      </a>
+    ROW
+  end
+  File.write(File.join(OTA_DIR, "index.html"), <<~HTML)
+    <!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>SportsCal builds</title>
+    <style>
+      body{font:16px -apple-system;margin:0;padding:24px 16px;background:#f2f2f7;color:#000}
+      @media(prefers-color-scheme:dark){body{background:#000;color:#fff}.b{background:#1c1c1e!important}}
+      h1{font-size:28px;margin:8px 4px 16px}
+      .b{display:block;background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:8px;color:inherit;text-decoration:none}
+      .t{font-weight:600}.s{color:#8e8e93;font-size:13px;margin-top:2px}
+      .d{font-size:11px;background:#ff9500;color:#fff;border-radius:4px;padding:1px 5px;vertical-align:middle}
+    </style>
+    <h1>SportsCal builds</h1>
+    #{rows.empty? ? '<p>No builds yet — run <code>fastlane ota</code>.</p>' : rows.join}
+  HTML
+end
+
 platform :ios do
+  desc "Dev-signed build → tap-to-install link on your tailnet (registered devices only)"
+  lane :ota do
+    require "securerandom"
+    require "cgi"
+    require "json"
+    base = ensure_ota_server
+
+    id = SecureRandom.hex(16)
+    dir = File.join(OTA_DIR, id)
+    FileUtils.mkdir_p(dir)
+
+    ipa = build_app(
+      scheme: APP_SCHEME,
+      export_method: "development",
+      destination: "generic/platform=iOS",
+      output_directory: dir,
+      output_name: "SportsCal.ipa",
+      xcargs: "-allowProvisioningUpdates",
+      skip_profile_detection: true, # let automatic signing pick dev profiles
+      clean: false
+    )
+
+    git = ->(*args) { `git #{args.join(' ')} 2>/dev/null`.strip }
+    meta = {
+      "id"        => id,
+      "bundle_id" => get_ipa_info_plist_value(ipa: ipa, key: "CFBundleIdentifier"),
+      "version"   => get_ipa_info_plist_value(ipa: ipa, key: "CFBundleShortVersionString"),
+      "build"     => get_ipa_info_plist_value(ipa: ipa, key: "CFBundleVersion"),
+      "branch"    => git.("rev-parse", "--abbrev-ref", "HEAD"),
+      "sha"       => git.("rev-parse", "--short", "HEAD"),
+      "dirty"     => !git.("status", "--porcelain").empty?,
+      "worktree"  => File.basename(git.("rev-parse", "--show-toplevel")),
+      "built_at"  => Time.now.iso8601
+    }
+    title = "SportsCal #{meta['version']} (#{meta['branch']}@#{meta['sha']}#{meta['dirty'] ? '+dirty' : ''})"
+    url   = "#{base}/#{id}"
+
+    File.write(File.join(dir, "manifest.plist"), <<~PLIST)
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0"><dict>
+        <key>items</key><array><dict>
+          <key>assets</key><array><dict>
+            <key>kind</key><string>software-package</string>
+            <key>url</key><string>#{url}/SportsCal.ipa</string>
+          </dict></array>
+          <key>metadata</key><dict>
+            <key>bundle-identifier</key><string>#{meta['bundle_id']}</string>
+            <key>bundle-version</key><string>#{meta['build']}</string>
+            <key>kind</key><string>software</string>
+            <key>title</key><string>#{CGI.escapeHTML(title)}</string>
+          </dict>
+        </dict></array>
+      </dict></plist>
+    PLIST
+
+    install = "itms-services://?action=download-manifest&url=#{CGI.escape("#{url}/manifest.plist")}"
+    File.write(File.join(dir, "index.html"), <<~HTML)
+      <!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>#{CGI.escapeHTML(title)}</title>
+      <body style="font:17px -apple-system;text-align:center;padding:48px 24px">
+      <h2>#{CGI.escapeHTML(title)}</h2>
+      <p>#{CGI.escapeHTML(meta['worktree'])} · build #{meta['build']} · #{Time.now.strftime("%b %-d %H:%M")}</p>
+      <p><a href="#{CGI.escapeHTML(install)}" style="display:inline-block;padding:14px 32px;background:#007aff;color:#fff;border-radius:12px;text-decoration:none;font-weight:600">Install</a></p>
+      <p><a href="#{base}/">All builds</a></p>
+      </body>
+    HTML
+    File.write(File.join(dir, "meta.json"), JSON.pretty_generate(meta)) # last: marks build complete
+
+    ota_prune
+    ota_write_index(base)
+
+    page = "#{url}/index.html"
+    puts `qrencode -t ansiutf8 '#{page}'` if system("which qrencode >/dev/null 2>&1")
+    UI.success("Install page (Tailscale on, phone UDID registered): #{page}")
+    UI.message("All builds: #{base}/")
+  end
+
+  desc "List OTA builds from every worktree (and refresh the index page)"
+  lane :ota_builds do
+    base = ensure_ota_server
+    ota_write_index(base)
+    builds = ota_builds
+    if builds.empty?
+      UI.message("No OTA builds yet — run `fastlane ota`.")
+    else
+      rows = builds.map do |b|
+        [b["branch"] + (b["dirty"] ? " +dirty" : ""), b["worktree"], b["sha"],
+         "#{b['version']} (#{b['build']})", Time.parse(b["built_at"]).strftime("%b %-d %H:%M"),
+         "#{base}/#{b['id']}/index.html"]
+      end
+      puts Terminal::Table.new(headings: %w[Branch Worktree SHA Version Built Install], rows: rows)
+    end
+    UI.success("All builds: #{base}/")
+  end
+
   desc "Generate new localized screenshots"
   lane :screenshots do
     capture_screenshots(scheme: APP_SCHEME)

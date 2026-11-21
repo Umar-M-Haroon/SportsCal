@@ -499,9 +499,7 @@ struct SettingsView: View {
     @State private var showRestoreResult = false
     @State private var restoreMessage = ""
     @State private var whatsNewRelease: WhatsNewRelease?
-    #if os(iOS)
     @Environment(\.openURL) private var openURL
-    #endif
     var isTestFlight: Bool {
         guard let path = Bundle.main.appStoreReceiptURL?.path else {
             return false
@@ -612,6 +610,12 @@ struct SettingsView: View {
                                     : "No previous purchases were found to restore."
                                 showRestoreResult = true
                             }
+                        }
+                    }
+                    Button("Rate Scoreline") {
+                        MonetizationTelemetry.rateRowTapped()
+                        if let url = URL(string: "https://apps.apple.com/app/id1580232928?action=write-review") {
+                            openURL(url)
                         }
                     }
                     #if os(iOS)

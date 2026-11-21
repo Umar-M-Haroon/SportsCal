@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scoreline Visibility Plan</title>
+<style>
+:root{--bg:#fafaf9;--fg:#1c1917;--mut:#57534e;--line:#e7e5e4;--acc:#b91c1c;--card:#fff;--ok:#15803d}
+@media (prefers-color-scheme:dark){:root{--bg:#141210;--fg:#f5f5f4;--mut:#a8a29e;--line:#2e2a27;--acc:#f87171;--card:#1c1917;--ok:#4ade80}}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 -apple-system,system-ui,sans-serif;margin:0;padding:32px 16px}
+main{max-width:860px;margin:0 auto}h1{font-size:28px;margin:0 0 4px}
+h2{font-size:19px;margin:32px 0 8px;border-bottom:1px solid var(--line);padding-bottom:6px}.mut{color:var(--mut)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}.kpi b{display:block;font-size:24px}.kpi span{color:var(--mut);font-size:13px}
+table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+th{color:var(--mut);font-weight:600}code{font-size:13px;background:var(--line);padding:1px 4px;border-radius:4px}
+.tag{font-size:12px;padding:1px 7px;border-radius:99px;border:1px solid var(--line);color:var(--mut);white-space:nowrap}
+.you{border-color:var(--acc);color:var(--acc)}.call{border-left:3px solid var(--acc);padding:6px 12px;margin:12px 0;background:var(--card)}
+.wrap{overflow-x:auto}
+</style></head><body><main>
+<h1>Scoreline visibility plan</h1>
+<p class="mut">Nov 19 2026 · the step after the 3.3 listing overhaul (live Nov 18 21:16 UTC)</p>
+
+<div class="kpis">
+<div class="kpi"><b>7</b><span>ratings in total, all in the US (4.1★). GB, CA, AU, BR, MX, DE have 0</span></div>
+<div class="kpi"><b>0</b><span>in-app events live (World Cup event over, NFL event still a draft)</span></div>
+<div class="kpi"><b>1</b><span>custom product page ("F1 Themed"), never submitted</span></div>
+<div class="kpi"><b>~10/wk</b><span>first-time downloads before 3.3, with a 2.6% search tap-through rate</span></div>
+</div>
+
+<div class="call"><b>Where things stand:</b> Phase 0 shipped with 3.3: new 6.9" and iPad screenshots, en-US as primary locale, reworked keywords in 4 locales, and a new subtitle. The web channel is live too: 1,032 team and league pages in the sitemap, with a Smart App Banner and an AASA file. The remaining levers are App Store <i>surfaces</i> we don't use yet (events, custom pages, featuring, the Mac store) and <i>social proof</i> (ratings). Hold off on keyword and screenshot changes until Dec 2, so the effect of the 3.3 listing can be measured on its own.</div>
+
+<h2>This week: no app release needed</h2>
+<div class="wrap"><table>
+<tr><th>#</th><th>Action</th><th>Why</th><th>Who</th></tr>
+<tr><td>1</td><td><b>F1 season-finale in-app event</b> (Abu Dhabi GP, Dec 4–6). Reuse the World Cup recipe: 1920×1080 card, badge LIVE_EVENT, publish it as early as allowed (up to 14 days before the start).</td><td>An event card shows up in search results and on the Today/Games tabs, and gets indexed for its own name. It's the only free placement on the store we're not using. Event review takes about a day, so submit by ~Nov 21.</td><td><span class="tag">me: build via API</span> <span class="tag you">you: Submit tap</span></td></tr>
+<tr><td>2</td><td><b>Line up the next events</b>: College Football Playoff (first round Dec 19–20), then finish the existing "NFL Conference Championship" draft for January.</td><td>Keeps one event live through the busiest US sports stretch. Apple allows up to 5 published at once.</td><td><span class="tag">me</span> <span class="tag you">you: Submit</span></td></tr>
+<tr><td>3</td><td><b>Featuring nomination</b> for 3.3 in ASC (Featuring → Nominations): Live Activities for every sport, the Mac app, Lifetime. Also nominate the F1 and CFP events.</td><td>Free. Apple's editors only see what gets nominated, and a small indie app with a fresh update is exactly what the form is for.</td><td><span class="tag you">you (5 min form)</span> or me via API</td></tr>
+<tr><td>4</td><td><b>Rotate the promotional text</b> for the tentpoles ("F1 finale: live gaps & standings on your Lock Screen").</td><td>It's editable live with no review. It doesn't help search ranking, but it lifts page conversion while an event is running.</td><td><span class="tag">me</span> <span class="tag you">you: OK the text</span></td></tr>
+<tr><td>5</td><td><b>Google Search Console</b>: verify sportscal.app and submit <code>/sitemap.xml</code>.</td><td>The 998 team pages ("OFI Crete Schedule 2026 — Scores &amp; Fixtures") only become a channel once Google crawls them. I can't check whether they're indexed without this.</td><td><span class="tag you">you (DNS TXT record)</span></td></tr>
+<tr><td>6</td><td><b>Delete the stale "Name Test 1" experiment</b> (PREPARE_FOR_SUBMISSION).</td><td>Housekeeping. At ~500 impressions a week, a product page test takes 6+ weeks to read, so don't run one until volume is up.</td><td><span class="tag">me</span> <span class="tag you">you: OK</span></td></tr>
+</table></div>
+
+<h2>Next two weeks: custom product pages and ratings</h2>
+<div class="wrap"><table>
+<tr><th>#</th><th>Action</th><th>Why</th><th>Who</th></tr>
+<tr><td>7</td><td><b>Keyword-linked custom product pages</b> per sport: F1/Racing (rebuild the old "F1 Themed" page), College Football, Soccer, NFL. Each gets its own screenshots (re-framed from the 3.3 set) and its own keyword assignment.</td><td>Apple now shows custom pages in organic search for the keywords you assign to them. That means more keyword surface plus screenshots that match the query: someone searching "f1 live timing" sees F1 shots, not NFL. Custom pages are reviewed on their own, with no app release needed.</td><td><span class="tag">me: screenshots + API</span> <span class="tag you">you: approve</span></td></tr>
+<tr><td>8</td><td><b>Ask for ratings at more moments</b> (ships in 3.3.1):
+<ul><li>Also ask when a Live Activity ends on a favorite team's win.</li>
+<li>Lower the engaged fallback from 12 launches to 8.</li>
+<li>Add a "Rate Scoreline" row in Settings (opens <code>?action=write-review</code>).</li>
+<li>Check <code>rating_prompt_shown</code> counts in admin telemetry first, to see whether the current gate ever fires.</li></ul></td><td>7 ratings is the weakest part of the listing: next to apps with tens of thousands of ratings, it hurts both tap-through and ranking. Ratings are counted per storefront, so GB and CA users (our #2 and #3 markets) see "no ratings".</td><td><span class="tag">me</span></td></tr>
+<tr><td>9</td><td><b>Extra US-indexed keyword locales</b> (ships in 3.3.1): add localizations that the US storefront also indexes (for example pt-BR, fr-FR) with English long-tail keywords. Candidates: premier league, mls, wnba, ncaab, march, madness, motogp, ligue, laliga, serie, bundesliga, ucl, standings…</td><td>Each one adds 100 characters of keywords for US search. es-MX already does this. Keywords can only change on an editable version, so this rides with the next release.</td><td><span class="tag">me</span> <span class="tag you">you: approve</span></td></tr>
+</table></div>
+
+<h2>Bigger moves</h2>
+<div class="wrap"><table>
+<tr><th>#</th><th>Action</th><th>Why</th></tr>
+<tr><td>10</td><td><b>Ship macOS 3.3</b> (still PREPARE_FOR_SUBMISSION: portal capabilities, archive, screenshots).</td><td>The Mac App Store is a second storefront with far less competition in Sports. "Menu bar sports scores" is a niche the app can own.</td></tr>
+<tr><td>11</td><td><b>Small Apple Search Ads test</b> (~$5/day for 2 weeks, Search Results, exact-match long tail).</td><td>Not for scale. The point is to find out which keywords actually convert, then move them into organic metadata. Apple reports tap-through and install rate per keyword, which organic data never gives us.</td></tr>
+<tr><td>12</td><td><b>March tentpole stack</b>: March Madness + F1 2027 start + MLB Opening Day events, each with a matching custom page.</td><td>The biggest US search spike of the spring. The college basketball bracket has to work end to end by early March.</td></tr>
+</table></div>
+
+<h2>How we'll know</h2>
+<ul>
+<li><b>Dec 2:</b> first read of the 3.3 listing. Compare first-time downloads/wk and search tap-through against the Oct 19–Nov 15 baseline (9.75/wk, 2.6%) using the r3/r14 ASC reports.</li>
+<li>In-app events and custom pages have their own impression and conversion rows in ASC analytics, so they can be credited separately.</li>
+<li>Change one listing variable at a time. Events and custom pages are new surfaces, not edits to the main page, so they don't muddy the 3.3 read.</li>
+</ul>
+</main></body></html>

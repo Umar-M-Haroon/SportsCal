@@ -1480,8 +1480,9 @@ struct GameDetailSections: View {
                     // Just the group(s) the two teams are in — every NCAA conference
                     // is far too much under one game.
                     let own = groups.filter { $0.entries.contains(where: isTeamInGame(entry:)) }
+                    let leagueEntries = groups.flatMap(\.entries)
                     ForEach(Array((own.isEmpty ? groups : own).enumerated()), id: \.offset) { _, group in
-                        standingsGroup(name: group.name, entries: group.entries)
+                        standingsGroup(name: group.name, entries: group.entries, leagueEntries: leagueEntries)
                     }
                 } else {
                     VStack(spacing: 8) {
@@ -1512,8 +1513,8 @@ struct GameDetailSections: View {
         }
     }
 
-    private func standingsGroup(name: String?, entries: [Entry]) -> some View {
-        LeagueStandingsTable(name: name, entries: entries, league: league,
+    private func standingsGroup(name: String?, entries: [Entry], leagueEntries: [Entry]) -> some View {
+        LeagueStandingsTable(name: name, entries: entries, leagueEntries: leagueEntries, league: league,
                              isHighlighted: isTeamInGame(entry:))
     }
 
@@ -1609,15 +1610,22 @@ struct GameDetailSections: View {
     private func baseballPlays(_ plays: [Play]) -> some View {
         let halves = plays.baseballHalfInnings()
         let ordered = newestFirst ? Array(halves.reversed()) : halves
+        let rows = ordered.flatMap { half -> [BaseballPlayListRow] in
+            let atBats = newestFirst ? Array(half.atBats.reversed()) : half.atBats
+            return [.inning(half)] + atBats.map(BaseballPlayListRow.atBat)
+        }
+        // One flat ForEach, one view per row: see `FootballPlayListRow`.
         LazyVStack(alignment: .leading, spacing: 8) {
-            ForEach(ordered) { half in
-                Text("\(half.isTop ? "Top" : "Bottom") \(Leagues.mlb.periodName(half.inning))")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 4)
-                    .accessibilityAddTraits(.isHeader)
-                let atBats = newestFirst ? Array(half.atBats.reversed()) : half.atBats
-                ForEach(atBats) { atBat in
+            ForEach(rows) { row in
+                switch row {
+                case .inning(let half):
+                    Text("\(half.isTop ? "Top" : "Bottom") \(Leagues.mlb.periodName(half.inning))")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityAddTraits(.isHeader)
+                case .atBat(let atBat):
                     BaseballAtBatRow(atBat: atBat)
                 }
             }
@@ -1637,13 +1645,16 @@ struct GameDetailSections: View {
             return group.plays.isEmpty ? nil : group
         }
         let ordered = newestFirst ? Array(groups.reversed()) : groups
+        let rows = ordered.flatMap { group -> [FootballPlayListRow] in
+            let header: [FootballPlayListRow] = group.drive.map { [.drive($0)] } ?? []
+            return header + group.plays.map(FootballPlayListRow.play)
+        }
+        // One flat ForEach, one view per row: see `FootballPlayListRow`.
         LazyVStack(alignment: .leading, spacing: 8) {
-            ForEach(ordered) { group in
-                if let drive = group.drive {
-                    driveHeader(drive)
-                }
-                ForEach(group.plays) { play in
-                    playRow(play)
+            ForEach(rows) { row in
+                switch row {
+                case .drive(let drive): driveHeader(drive)
+                case .play(let play): playRow(play)
                 }
             }
         }
@@ -1825,6 +1836,42 @@ struct GameDetailSections: View {
     }
 }
 
+// MARK: - Play-by-play list rows
+
+/// One row of the football play-by-play: a drive header or a play.
+///
+/// The list used to be a `LazyVStack` over drives, each drive emitting an optional
+/// header plus a nested `ForEach` of its plays, with the drive keyed by its first
+/// play's id (the same id as that play's row). A lazy stack sizes and materialises
+/// rows per outer element; with a variable number of subviews per element (and the
+/// header/first-play id overlap) it laid out placeholder rows that stayed blank until
+/// a scroll forced another pass. Flattening into one `ForEach`, exactly one view per
+/// row, with ids that can't collide, gives the lazy stack the shape it handles well.
+private enum FootballPlayListRow: Identifiable {
+    case drive(DriveSummary)
+    case play(Play)
+
+    var id: String {
+        switch self {
+        case .drive(let drive): "drive:\(drive.firstPlayID)"
+        case .play(let play): "play:\(play.id)"
+        }
+    }
+}
+
+/// Baseball's flattened play-by-play, for the same reason: a half-inning header or
+/// one plate appearance per row.
+private enum BaseballPlayListRow: Identifiable {
+    case inning(BaseballHalfInning)
+    case atBat(BaseballAtBat)
+
+    var id: String {
+        switch self {
+        case .inning(let half): "inning:\(half.id)"
+        case .atBat(let atBat): "atBat:\(atBat.id)"
+        }
+    }
+}
 
 // MARK: - Baseball play-by-play row
 
@@ -1890,9 +1937,14 @@ private struct BaseballAtBatRow: View {
 /// One standings group (a conference, division or league table), ranked and with the
 /// columns its sport reads by (see `StandingsStyle`). Shared by the game detail, the
 /// team page and the league hub; `isHighlighted` bolds the rows being looked at.
+///
+/// `leagueEntries` is every entry in the league (all groups). Columns that only appear
+/// when some team needs them (T, conference record, streak) are decided from it, so the
+/// AFC and NFC tables show the same columns even when only one conference has a tie.
 struct LeagueStandingsTable: View {
     let name: String?
     let entries: [Entry]
+    let leagueEntries: [Entry]
     let style: StandingsStyle
     var isHighlighted: (Entry) -> Bool = { _ in false }
 
@@ -1900,16 +1952,18 @@ struct LeagueStandingsTable: View {
     @ScaledMetric(relativeTo: .caption) private var statWidth: CGFloat = 30
     @ScaledMetric(relativeTo: .caption) private var wideStatWidth: CGFloat = 40
 
-    init(name: String?, entries: [Entry], league: Leagues?, isHighlighted: @escaping (Entry) -> Bool = { _ in false }) {
+    init(name: String?, entries: [Entry], leagueEntries: [Entry]? = nil, league: Leagues?,
+         isHighlighted: @escaping (Entry) -> Bool = { _ in false }) {
         self.name = name
         self.entries = entries
+        self.leagueEntries = leagueEntries ?? entries
         self.style = league.map(StandingsStyle.init(league:)) ?? .basketball
         self.isHighlighted = isHighlighted
     }
 
     var body: some View {
         let rows = style.ranked(entries)
-        let columns = style.columns(for: entries)
+        let columns = style.columns(for: leagueEntries)
         VStack(alignment: .leading, spacing: 6) {
             if let name {
                 Text(name)
@@ -1918,7 +1972,7 @@ struct LeagueStandingsTable: View {
                     .foregroundColor(.secondary)
             }
             // The streak column only when the table still fits with it.
-            if let extra = style.optionalColumn, entries.contains(where: { $0.streak != nil }) {
+            if let extra = style.optionalColumn, leagueEntries.contains(where: { $0.streak != nil }) {
                 ViewThatFits(in: .horizontal) {
                     table(rows: rows, columns: columns + [extra])
                     table(rows: rows, columns: columns)
