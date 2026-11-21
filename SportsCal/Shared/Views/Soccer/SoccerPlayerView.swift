@@ -18,11 +18,14 @@ import SportsCalModel
 struct SoccerPlayerLink<Label: View>: View {
     let athleteID: String
     let name: String
+    /// The player's team as this screen's game carries it (`Game.idHomeTeam` /
+    /// `idAwayTeam`), for player alerts. Nil goes by the profile's team name.
+    var teamID: String? = nil
     @ViewBuilder let label: () -> Label
 
     var body: some View {
         NavigationLink {
-            SoccerPlayerView(athleteID: athleteID, name: name)
+            SoccerPlayerView(athleteID: athleteID, name: name, teamID: teamID)
         } label: {
             label()
         }
@@ -34,15 +37,20 @@ struct SoccerPlayerView: View {
     let athleteID: String
     /// Shown as the title while the profile loads.
     let name: String
+    /// See `SoccerPlayerLink.teamID`.
+    var teamID: String? = nil
 
+    @Environment(Favorites.self) private var favorites
     @State private var profile: SoccerPlayerProfile?
+    @State private var alertPlayer: PlayerRef?
     @State private var isLoading = true
     @State private var failed = false
 
     /// `profile` pre-fills the page (previews); it still refreshes on appear.
-    init(athleteID: String, name: String, profile: SoccerPlayerProfile? = nil) {
+    init(athleteID: String, name: String, teamID: String? = nil, profile: SoccerPlayerProfile? = nil) {
         self.athleteID = athleteID
         self.name = name
+        self.teamID = teamID
         _profile = State(initialValue: profile)
     }
 
@@ -79,6 +87,32 @@ struct SoccerPlayerView: View {
         #endif
         .task { await load() }
         .refreshable { await load() }
+        .toolbar {
+            if let player = alertTarget {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        alertPlayer = favorites.followedPlayer(athleteID: athleteID).map {
+                            PlayerRef(athleteID: athleteID, name: $0.name, sport: .soccer, teamID: player.teamID)
+                        } ?? player
+                    } label: {
+                        Image(systemName: favorites.isFollowing(athleteID: athleteID) ? "bell.fill" : "bell")
+                    }
+                    .accessibilityLabel("Player Alerts")
+                }
+            }
+        }
+        .sheet(item: $alertPlayer) { player in
+            PlayerAlertSheet(player: player)
+                .environment(favorites)
+        }
+    }
+
+    /// The player as an alert target: needs the app's ID for their team.
+    private var alertTarget: PlayerRef? {
+        guard CustomAlertSupport.isAvailable, !athleteID.isEmpty else { return nil }
+        let team = teamID ?? profile?.teamName.flatMap { TeamsManager.shared.teamID(forName: $0) }
+        guard let team, !team.isEmpty, team.count <= 32 else { return nil }
+        return PlayerRef(athleteID: athleteID, name: profile?.name ?? name, sport: .soccer, teamID: team)
     }
 
     private func load() async {

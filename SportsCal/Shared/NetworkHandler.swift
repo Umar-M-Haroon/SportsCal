@@ -1402,6 +1402,60 @@ struct NetworkHandler {
         }
     }
 
+    /// Replaces this install's custom alert rules (player plays, milestones, game
+    /// situations). The answer says which rules the server kept and its Pro verdict.
+    static func registerCustomAlerts(_ registration: CustomAlertRegistration) async throws -> CustomAlertRegistrationResponse {
+        let url = URL(string: "\(baseURL())/notifications/custom")!
+        let body = try JSONEncoder().encode(registration)
+        let (data, response) = try await performAuthorized(url: url) { request in
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+            request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
+            request.httpBody = body
+        }
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            guard (200..<300).contains(httpResponse.statusCode) else { throw URLError(.badServerResponse) }
+        }
+        return try JSONDecoder().decode(CustomAlertRegistrationResponse.self, from: data)
+    }
+
+    /// Drops this install's custom alert registration.
+    static func unregisterCustomAlerts(token: String) async throws {
+        let url = URL(string: "\(baseURL())/notifications/custom")!
+        let body = try JSONEncoder().encode(["token": token])
+        let (_, response) = try await performAuthorized(url: url) { request in
+            request.httpMethod = "DELETE"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+            request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
+            request.httpBody = body
+        }
+        if let httpResponse = response as? HTTPURLResponse {
+            guard (200..<300).contains(httpResponse.statusCode) else { throw URLError(.badServerResponse) }
+        }
+    }
+
+    /// "Mute this player for this game" (or one rule, for a situation alert): 24 hours.
+    static func muteCustomAlert(_ mute: CustomAlertMuteRequest) async throws {
+        let url = URL(string: "\(baseURL())/notifications/custom/mute")!
+        let body = try JSONEncoder().encode(mute)
+        let (_, response) = try await performAuthorized(url: url) { request in
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(apnsEnvironmentHint, forHTTPHeaderField: "X-APNS-Env")
+            request.setValue(InstallID.current(), forHTTPHeaderField: "X-Install-ID")
+            request.httpBody = body
+        }
+        if let httpResponse = response as? HTTPURLResponse {
+            guard (200..<300).contains(httpResponse.statusCode) else { throw URLError(.badServerResponse) }
+        }
+    }
+
+    /// Whether this build's push tokens are sandbox ones (Xcode builds, the Simulator).
+    static var isSandboxAPNS: Bool { apnsEnvironmentHint == "sandbox" }
+
     /// Registers this install for golf alerts: the followed players (by leaderboard
     /// name) and alert kinds. Empty players or kinds unregisters it.
     static func registerGolfAlerts(_ registration: GolfAlertRegistration) async throws {

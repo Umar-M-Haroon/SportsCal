@@ -67,7 +67,8 @@ struct SoccerMatchCentreView: View {
             }
         }
         .navigationDestination(item: $profilePlayer) { player in
-            SoccerPlayerView(athleteID: player.athleteID ?? "", name: player.name)
+            SoccerPlayerView(athleteID: player.athleteID ?? "", name: player.name,
+                             teamID: player.athleteID.flatMap(appTeamID(forAthlete:)))
         }
     }
 
@@ -345,12 +346,21 @@ struct SoccerMatchCentreView: View {
         }
     }
 
+    /// The app's ID for the side `athleteID` plays for, for player alerts.
+    private func appTeamID(forAthlete athleteID: String) -> String? {
+        if match.home.players.contains(where: { $0.athleteID == athleteID }) { return game.idHomeTeam }
+        if match.away.players.contains(where: { $0.athleteID == athleteID }) { return game.idAwayTeam }
+        return nil
+    }
+
     /// A player row that opens their profile, when ESPN gave us their id.
     @ViewBuilder
     private func linkedToProfile<Content: View>(_ player: SoccerLineupPlayer, @ViewBuilder content: () -> Content) -> some View {
         if let athleteID = player.athleteID {
             let row = content()
-            SoccerPlayerLink(athleteID: athleteID, name: player.name) { row.contentShape(Rectangle()) }
+            SoccerPlayerLink(athleteID: athleteID, name: player.name, teamID: appTeamID(forAthlete: athleteID)) {
+                row.contentShape(Rectangle())
+            }
         } else {
             content()
         }

@@ -589,6 +589,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                CustomAlertsSettingsSection()
                 SoccerAlertSettingsSection()
                 GolfAlertSettingsSection()
                 #endif

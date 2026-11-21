@@ -663,6 +663,9 @@ struct GameDetailSections: View {
     let model: GameDetailSectionsModel
 
     @Environment(GameViewModel.self) private var viewModel
+    @Environment(Favorites.self) private var favorites
+    /// The player whose alerts are being edited (from the box score or Key Players).
+    @State private var alertPlayer: PlayerRef?
     #if os(iOS)
     @Environment(NativeAdManager.self) private var adManager
     @Environment(SubscriptionManager.self) private var subscriptionManager
@@ -689,7 +692,8 @@ struct GameDetailSections: View {
             liveSituationSection
             playoffSeriesSection
             boxScoreSection
-            PlayerBoxScoreSection(box: model.players, sport: sportType, homeName: homeShortName, awayName: awayShortName, homeColor: homeColor, awayColor: awayColor)
+            PlayerBoxScoreSection(box: model.players, sport: sportType, homeName: homeShortName, awayName: awayShortName, homeColor: homeColor, awayColor: awayColor,
+                                  alerts: playerAlertHandler)
             pitchersSection
             soccerMatchSection
             winProbabilitySection
@@ -707,6 +711,10 @@ struct GameDetailSections: View {
             }
             #endif
             standingsSection
+        }
+        .sheet(item: $alertPlayer) { player in
+            PlayerAlertSheet(player: player)
+                .environment(favorites)
         }
         // Drive play-by-play loading from the always-present body rather than the
         // section itself, so data still loads even when the section is hidden.
@@ -1114,6 +1122,51 @@ struct GameDetailSections: View {
         }
     }
 
+    // MARK: Player alerts
+
+    /// Player rows open the alert builder, for leagues with player alerts.
+    private var playerAlertHandler: PlayerBoxScoreAlerts? {
+        guard PlayerAlertEntry.isSupported(game) else { return nil }
+        return PlayerBoxScoreAlerts(
+            followedIDs: Set(favorites.followedPlayers.map(\.athleteID)),
+            select: { row, isHome in openAlerts(athleteID: row.id, name: row.fullName ?? row.name, isHome: isHome) }
+        )
+    }
+
+    private func openAlerts(athleteID: String, name: String, isHome: Bool) {
+        guard let player = PlayerAlertEntry.player(athleteID: athleteID, name: name, game: game, isHome: isHome) else { return }
+        // A followed player keeps their stored name; their team follows this game.
+        alertPlayer = favorites.followedPlayer(athleteID: athleteID).map {
+            PlayerRef(athleteID: athleteID, name: $0.name, sport: player.sport, teamID: player.teamID)
+        } ?? player
+    }
+
+    /// A Key Players leader's athlete ID: ESPN's leaders carry only a name, so it's
+    /// matched against that side's box score.
+    private func leaderAthleteID(_ leader: GameLeader, isHome: Bool) -> String? {
+        guard let team = isHome ? model.players?.home : model.players?.away else { return nil }
+        let name = leader.playerName
+        for group in team.groups {
+            if let row = group.rows.first(where: { $0.fullName == name || $0.name == name }) { return row.id }
+        }
+        return nil
+    }
+
+    @ViewBuilder
+    private func leaderAlertButton<Label: View>(_ leader: GameLeader, isHome: Bool, @ViewBuilder label: () -> Label) -> some View {
+        if playerAlertHandler != nil, let athleteID = leaderAthleteID(leader, isHome: isHome) {
+            Button {
+                openAlerts(athleteID: athleteID, name: leader.playerName, isHome: isHome)
+            } label: {
+                label().contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Set alerts for \(leader.playerName)")
+        } else {
+            label()
+        }
+    }
+
     // MARK: Key players
 
     @ViewBuilder
@@ -1135,32 +1188,40 @@ struct GameDetailSections: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
 
                             HStack(spacing: 8) {
-                                if let headshot = pair.awayLeader.headshot {
-                                    HeadshotView(url: headshot, size: 32).accessibilityHidden(true)
+                                leaderAlertButton(pair.awayLeader, isHome: false) {
+                                    HStack(spacing: 8) {
+                                        if let headshot = pair.awayLeader.headshot {
+                                            HeadshotView(url: headshot, size: 32).accessibilityHidden(true)
+                                        }
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(pair.awayLeader.playerName)
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                                .lineLimit(1)
+                                            Text(pair.awayLeader.displayValue)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
                                 }
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(pair.awayLeader.playerName)
-                                        .font(.subheadline)
-                                        .fontWeight(.medium)
-                                        .lineLimit(1)
-                                    Text(pair.awayLeader.displayValue)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    Text(pair.homeLeader.playerName)
-                                        .font(.subheadline)
-                                        .fontWeight(.medium)
-                                        .lineLimit(1)
-                                    Text(pair.homeLeader.displayValue)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                                if let headshot = pair.homeLeader.headshot {
-                                    HeadshotView(url: headshot, size: 32).accessibilityHidden(true)
+                                leaderAlertButton(pair.homeLeader, isHome: true) {
+                                    HStack(spacing: 8) {
+                                        VStack(alignment: .trailing, spacing: 2) {
+                                            Text(pair.homeLeader.playerName)
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                                .lineLimit(1)
+                                            Text(pair.homeLeader.displayValue)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .trailing)
+                                        if let headshot = pair.homeLeader.headshot {
+                                            HeadshotView(url: headshot, size: 32).accessibilityHidden(true)
+                                        }
+                                    }
                                 }
                             }
                         }

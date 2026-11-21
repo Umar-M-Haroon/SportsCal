@@ -12,6 +12,15 @@
 import SwiftUI
 import SportsCalModel
 
+// MARK: - Player alerts hook
+
+/// Lets player names open the alert builder: which players are followed (for the
+/// bell) and what to do with a tapped row (and whether it's the home side).
+struct PlayerBoxScoreAlerts {
+    let followedIDs: Set<String>
+    let select: (PlayerBoxScore.Row, Bool) -> Void
+}
+
 // MARK: - Section (card chrome)
 
 struct PlayerBoxScoreSection: View {
@@ -21,15 +30,25 @@ struct PlayerBoxScoreSection: View {
     let awayName: String
     let homeColor: Color
     let awayColor: Color
+    var alerts: PlayerBoxScoreAlerts? = nil
 
     var body: some View {
         if let box, box.away != nil || box.home != nil {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Players").font(.headline)
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Players").font(.headline)
+                    Spacer()
+                    if alerts != nil {
+                        Text("Tap a player for alerts")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 PlayerBoxScoreView(
                     box: box, sport: sport,
                     homeName: homeName, awayName: awayName,
-                    homeColor: homeColor, awayColor: awayColor
+                    homeColor: homeColor, awayColor: awayColor,
+                    alerts: alerts
                 )
             }
             .padding()
@@ -48,11 +67,14 @@ struct PlayerBoxScoreView: View {
     let awayName: String
     private let rawHomeColor: Color
     private let rawAwayColor: Color
+    private let alerts: PlayerBoxScoreAlerts?
 
     @Environment(\.self) private var environment
     @State private var side: String = "away"
 
-    init(box: PlayerBoxScore, sport: SportType?, homeName: String, awayName: String, homeColor: Color, awayColor: Color) {
+    init(box: PlayerBoxScore, sport: SportType?, homeName: String, awayName: String, homeColor: Color, awayColor: Color,
+         alerts: PlayerBoxScoreAlerts? = nil) {
+        self.alerts = alerts
         self.box = box
         self.sport = sport
         self.homeName = homeName
@@ -87,7 +109,10 @@ struct PlayerBoxScoreView: View {
 
             if let team = selectedTeam {
                 ForEach(team.groups.filter { !(showsGoalieStrip && $0.id == "goalies") }) { group in
-                    PlayerStatTable(group: group, sport: sport, tint: tint(for: team))
+                    PlayerStatTable(group: group, sport: sport, tint: tint(for: team), alerts: alerts.map { alerts in
+                        let isHome = team.homeAway == "home"
+                        return PlayerBoxScoreAlerts(followedIDs: alerts.followedIDs) { row, _ in alerts.select(row, isHome) }
+                    })
                 }
             }
         }
@@ -106,6 +131,7 @@ struct PlayerStatTable: View {
     let group: PlayerBoxScore.Group
     let sport: SportType?
     let tint: Color
+    var alerts: PlayerBoxScoreAlerts? = nil
 
     @ScaledMetric(relativeTo: .caption) private var rowHeight: CGFloat = 26
     @ScaledMetric(relativeTo: .caption) private var nameWidth: CGFloat = 118
@@ -175,7 +201,23 @@ struct PlayerStatTable: View {
             .frame(maxWidth: .infinity, minHeight: rowHeight, maxHeight: rowHeight, alignment: .leading)
     }
 
+    @ViewBuilder
     private func nameCell(_ row: PlayerBoxScore.Row) -> some View {
+        if let alerts {
+            Button {
+                alerts.select(row, false)
+            } label: {
+                nameLabel(row, bell: alerts.followedIDs.contains(row.id)).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Set alerts for \(row.fullName ?? row.name)")
+        } else {
+            nameLabel(row, bell: nil)
+        }
+    }
+
+    /// `bell`: nil without player alerts; else whether the player is followed.
+    private func nameLabel(_ row: PlayerBoxScore.Row, bell: Bool?) -> some View {
         cell {
             HStack(spacing: 4) {
                 Text(row.name)
@@ -190,6 +232,9 @@ struct PlayerStatTable: View {
                     Text(note)
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(tint)
+                }
+                if bell == true {
+                    PlayerAlertBell(isOn: true)
                 }
             }
             // Baseball substitutes sit under the starter they replaced.
