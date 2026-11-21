@@ -34,6 +34,8 @@ enum UpsellTrigger: String {
     case favoriteLiveGameOpened = "favorite_live_opened"
     /// Periodic re-ask for long-time free users.
     case nthSession = "nth_session"
+    /// User tried to apply a theme (accent color or app icon) in Settings → Themes.
+    case theme = "theme"
 
     /// The post-onboarding trial offer is a one-time peak-intent moment, exempt
     /// from the day-cooldown (still bounded by the per-session cap).
@@ -103,6 +105,24 @@ final class UpsellCoordinator {
             return false
         }
 
+        sessionCount += 1
+        defaults.set(now, forKey: Keys.lastShown)
+        MonetizationTelemetry.paywallShown(trigger: trigger.rawValue)
+        present()
+        return true
+    }
+
+    /// For an explicit tap on a Pro-only action (e.g. applying a theme): always
+    /// presents for free users — throttling a direct request would read as a
+    /// broken button — but still records `paywall_shown` with the trigger and
+    /// counts toward the session cap so a contextual ask doesn't follow it.
+    @discardableResult
+    func requestExplicit(
+        _ trigger: UpsellTrigger,
+        now: Date = Date(),
+        present: () -> Void
+    ) -> Bool {
+        guard !SubscriptionManager.shared.isPro else { return false }
         sessionCount += 1
         defaults.set(now, forKey: Keys.lastShown)
         MonetizationTelemetry.paywallShown(trigger: trigger.rawValue)
