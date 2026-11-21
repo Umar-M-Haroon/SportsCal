@@ -814,7 +814,8 @@ struct LiveSportActivityWidget: Widget {
                     }
                     .foregroundColor(WidgetTokens.ink)
                 } else {
-                    let sides = activitySides(context.attributes, context.state)
+                    // Leader first, like compact: "KC" over "20-17".
+                    let sides = leaderFirst(activitySides(context.attributes, context.state))
                     MinimalScoreView(first: sides.first, second: sides.second)
                 }
             }
