@@ -17,7 +17,7 @@ import SportsCalModel
 /// Loads a team badge image from the shared app group container, with a fallback to team initials.
 /// Used by the lock screen and expanded Dynamic Island where raster images render in full color.
 @ViewBuilder
-private func badgeImage(for teamName: String, size: CGFloat) -> some View {
+private func badgeImage(for teamName: String, code: String? = nil, size: CGFloat) -> some View {
     if let fileURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?.appendingPathComponent(teamName),
        let data = try? Data(contentsOf: fileURL),
        let image = UIImage(data: data) {
@@ -26,7 +26,7 @@ private func badgeImage(for teamName: String, size: CGFloat) -> some View {
             .aspectRatio(contentMode: .fit)
             .frame(width: size, height: size)
     } else {
-        teamInitialsView(teamName, size: size)
+        teamInitialsView(teamName, code: code, size: size)
     }
 }
 
@@ -44,13 +44,13 @@ private func shortAbbreviation(short: String?, full: String) -> String {
 /// Dynamic Island's black background — the previous `WidgetTokens.alt` fill was
 /// nearly invisible there, making missing badges look like nothing rendered.
 @ViewBuilder
-private func teamInitialsView(_ teamName: String, size: CGFloat) -> some View {
+private func teamInitialsView(_ teamName: String, code: String? = nil, size: CGFloat) -> some View {
     ZStack {
         Circle()
             .fill(.white.opacity(0.18))
             .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1))
             .frame(width: size, height: size)
-        Text(Team.shortCode(strTeamShort: nil, name: teamName))
+        Text(Team.shortCode(strTeamShort: code, name: teamName))
             .font(.system(size: size * 0.35, weight: .heavy, design: .rounded))
             .foregroundStyle(.white)
     }
@@ -132,7 +132,7 @@ private func progressLabel(for state: LiveSportActivityAttributes.ContentState) 
                 .minimumScaleFactor(0.8)
         }
     case .final:
-        Text("FINAL")
+        Text(finalLabel(state.progress))
             .font(.system(.caption, design: .monospaced).weight(.bold))
             .tracking(2)
             .foregroundStyle(WidgetTokens.inkSoft)
@@ -142,6 +142,15 @@ private func progressLabel(for state: LiveSportActivityAttributes.ContentState) 
     }
 }
 
+
+/// "FINAL", or "FINAL/OT" / "FINAL/2OT" / "FINAL/SO" when the game went past regulation.
+private func finalLabel(_ progress: String?) -> String {
+    let p = (progress ?? "").uppercased()
+    for extra in ["SO", "2OT", "3OT", "OT", "AET", "PENS"] where p.contains(extra) {
+        return "FINAL/\(extra)"
+    }
+    return "FINAL"
+}
 
 /// Baseball's inning for the compact Dynamic Island: "▲9" top, "▼9" bottom,
 /// "M9" / "E9" between halves. Nil for anything that isn't ESPN's "Top 9th" shape.
@@ -304,10 +313,16 @@ private struct RaceLockScreenView: View {
                     .foregroundStyle(WidgetTokens.ink)
                     .lineLimit(1)
                 Spacer(minLength: 6)
-                Text(race.session)
-                    .font(.system(.caption, design: .rounded).weight(.semibold))
-                    .foregroundStyle(WidgetTokens.inkSoft)
-                progressLabel(for: state)
+                // Golf's progress already names the round ("Round 3 - In Progress"):
+                // show it once, without the suffix, instead of "Round 3 • Round 3 – In Progre…".
+                if (state.progress ?? "").hasPrefix(race.session) {
+                    progressLabel(for: trimmedProgress(state))
+                } else {
+                    Text(race.session)
+                        .font(.system(.caption, design: .rounded).weight(.semibold))
+                        .foregroundStyle(WidgetTokens.inkSoft)
+                    progressLabel(for: state)
+                }
             }
             if race.leaders.isEmpty {
                 Text("Waiting for timing…")
@@ -370,6 +385,18 @@ private func activitySides(
         redCards: state.soccer?.awayRedCards ?? 0, timeouts: state.situation?.awayTimeouts
     )
     return attributes.displaysHomeFirst == true ? (home, away) : (away, home)
+}
+
+/// The state with " - In Progress" dropped from its progress ("Round 3 - In Progress").
+private func trimmedProgress(_ state: LiveSportActivityAttributes.ContentState) -> LiveSportActivityAttributes.ContentState {
+    var copy = state
+    copy.progress = state.progress?.replacingOccurrences(of: " - In Progress", with: "")
+    return copy
+}
+
+/// The two sides with the leader first; display order when level.
+private func leaderFirst(_ sides: (first: ActivitySide, second: ActivitySide)) -> (first: ActivitySide, second: ActivitySide) {
+    sides.second.isWinning ? (sides.second, sides.first) : sides
 }
 
 /// Where a line about one side sits: under the first side on the left, the second on
@@ -579,7 +606,7 @@ private struct ExpandedIslandSide: View {
 
     var body: some View {
         HStack {
-            if leading { badgeImage(for: side.name, size: 35) }
+            if leading { badgeImage(for: side.name, code: side.short, size: 35) }
             VStack(spacing: 2) {
                 Text("\(side.score)")
                     .font(.system(size: 24))
@@ -598,7 +625,7 @@ private struct ExpandedIslandSide: View {
                     TimeoutPips(name: side.short, count: timeouts, tint: WidgetTokens.ink)
                 }
             }
-            if !leading { badgeImage(for: side.name, size: 35) }
+            if !leading { badgeImage(for: side.name, code: side.short, size: 35) }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(side.spoken)
@@ -651,7 +678,9 @@ struct LiveSportActivityWidget: Widget {
                 }
                 
                 DynamicIslandExpandedRegion(.center) {
-                    if context.state.race == nil && context.state.tennis == nil {
+                    // "LIVE" only while play is running: not over a FINAL or HALF pill.
+                    if context.state.race == nil && context.state.tennis == nil,
+                       variantFor(progress: context.state.progress, status: context.state.status) == .live {
                         LiveAnimatedView()
                             .transition(.scale(scale: 2.5))
                     }
@@ -724,11 +753,13 @@ struct LiveSportActivityWidget: Widget {
                     .font(.system(.caption, design: .rounded).weight(.heavy))
                     .foregroundColor(WidgetTokens.ink)
                 } else {
-                    let first = activitySides(context.attributes, context.state).first
-                    Text(first.short)
+                    // The leader's code, with its score first on the trailing side:
+                    // "KC 20-17" reads as who's winning at a glance.
+                    let lead = leaderFirst(activitySides(context.attributes, context.state))
+                    Text(lead.first.short)
                         .font(.system(.caption, design: .rounded).weight(.heavy))
                         .foregroundColor(WidgetTokens.ink)
-                        .accessibilityLabel(first.name)
+                        .accessibilityLabel(lead.first.name)
                 }
             } compactTrailing: {
                 if let race = context.state.race {
@@ -743,7 +774,7 @@ struct LiveSportActivityWidget: Widget {
                         .monospacedDigit()
                         .foregroundColor(WidgetTokens.ink)
                 } else {
-                let sides = activitySides(context.attributes, context.state)
+                let sides = leaderFirst(activitySides(context.attributes, context.state))
                 HStack(spacing: 3) {
                     LeadScoreText(first: sides.first.score, second: sides.second.score, size: 12)
                         // "2-1" reads as "2 minus 1".
@@ -769,9 +800,19 @@ struct LiveSportActivityWidget: Widget {
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Sets \(context.attributes.homeTeam) \(context.state.homeScore), \(context.attributes.awayTeam) \(context.state.awayScore)")
                 } else if let race = context.state.race {
-                    Image(systemName: race.isGolf ? "figure.golf" : "flag.checkered")
-                        .font(.system(size: 11, weight: .heavy))
-                        .foregroundColor(WidgetTokens.ink)
+                    // Golf: your player's place ("T24"), else the leader's score.
+                    // Racing: the leader's code ("PIA").
+                    let focus = race.following ?? race.leaders.first
+                    VStack(spacing: 0) {
+                        Image(systemName: race.isGolf ? "figure.golf" : "flag.checkered")
+                            .font(.system(size: 7, weight: .heavy))
+                        Text((race.isGolf ? (race.following?.label ?? focus?.gap) : focus?.code) ?? race.session)
+                            .font(.system(size: 11, weight: .heavy, design: .rounded))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                    }
+                    .foregroundColor(WidgetTokens.ink)
                 } else {
                     let sides = activitySides(context.attributes, context.state)
                     MinimalScoreView(first: sides.first, second: sides.second)
