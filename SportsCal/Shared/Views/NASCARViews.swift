@@ -729,7 +729,7 @@ struct NASCARLapChart: View {
                             }
                             .padding(.horizontal, 6)
                             .padding(.vertical, 3)
-                            .background(Capsule().fill(focused == line.carNumber ? Color.accentColor.opacity(0.2) : Color.gray.opacity(0.1)))
+                            .background(Capsule().fill(focused == line.carNumber ? Color.appAccent.opacity(0.2) : Color.gray.opacity(0.1)))
                         }
                         .buttonStyle(.plain)
                     }

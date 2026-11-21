@@ -21,7 +21,7 @@ struct PlayoffPill: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(Color.accentColor.opacity(0.85), in: Capsule())
+                .background(Color.appAccent.opacity(0.85), in: Capsule())
                 .lineLimit(1)
         }
     }

@@ -777,7 +777,7 @@ struct DayPage: View {
                         Text("No games fetched")
                             .foregroundColor(.secondary)
                         Button("Retry") { viewModel.retry() }
-                            .foregroundColor(.blue)
+                            .foregroundColor(.appAccent)
                     }
                 }
                 Spacer()
@@ -1084,7 +1084,7 @@ struct DayPage: View {
                                 Text(showHiddenGames ? "Hide filtered" : "Peek at \(hiddenCount) hidden")
                             }
                             .font(.caption)
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(.appAccent)
                         }
                         .buttonStyle(.plain)
                     } else {
@@ -1173,7 +1173,7 @@ struct DayPage: View {
                 Button("Retry") {
                     viewModel.retry()
                 }
-                .foregroundColor(Color.blue)
+                .foregroundColor(.appAccent)
             }
             .frame(maxWidth: .infinity)
             .listRowBackground(Color.clear)

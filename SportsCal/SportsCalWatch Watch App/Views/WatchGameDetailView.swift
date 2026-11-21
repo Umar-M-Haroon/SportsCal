@@ -187,7 +187,7 @@ struct WatchGameDetailView: View {
                let away = play.awayScore, let home = play.homeScore {
                 Text("\(away)–\(home)")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.tint)
             }
         }
     }

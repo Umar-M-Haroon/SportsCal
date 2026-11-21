@@ -137,8 +137,8 @@ struct DayChipStrip: View {
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, 10)
                 .frame(height: 32)
-                .background(Capsule().fill(Color.accentColor.opacity(0.15)))
-                .foregroundStyle(Color.accentColor)
+                .background(Capsule().fill(Color.appAccent.opacity(0.15)))
+                .foregroundStyle(Color.appAccent)
         }
         .buttonStyle(.plain)
         .help("Jump to today")
@@ -210,7 +210,7 @@ struct DayChipStrip: View {
                     .fontWeight(selected ? .bold : .regular)
                 if today {
                     Circle()
-                        .fill(selected ? Color.white : Color.accentColor)
+                        .fill(selected ? Color.white : Color.appAccent)
                         .frame(width: 4, height: 4)
                 } else if hasGames {
                     Circle()
@@ -224,7 +224,7 @@ struct DayChipStrip: View {
             .frame(width: 40, height: 48)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(selected ? Color.accentColor : Color.clear)
+                    .fill(selected ? Color.appAccent : Color.clear)
             )
             .foregroundColor(selected ? .white : .primary)
         }

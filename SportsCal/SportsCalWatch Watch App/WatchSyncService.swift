@@ -111,6 +111,15 @@ final class WatchSyncService: NSObject, WCSessionDelegate {
             defaults.set(hidden, forKey: "hiddenCompetitions")
         }
 
+        // Themes accent (already Pro-gated by the phone); -1 = default look.
+        if let hex = context[AppAccentReader.effectiveHexKey] as? Int {
+            if hex >= 0 {
+                defaults.set(hex, forKey: AppAccentReader.effectiveHexKey)
+            } else {
+                defaults.removeObject(forKey: AppAccentReader.effectiveHexKey)
+            }
+        }
+
         DispatchQueue.main.async { [weak self] in
             self?.onPreferencesUpdated?()
         }

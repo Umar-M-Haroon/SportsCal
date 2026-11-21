@@ -576,10 +576,10 @@ struct GameDetailView: View {
                 VStack(spacing: 4) {
                     Image(systemName: isFollowing ? "clock.badge.checkmark.fill" : "clock.badge")
                         .font(.title3)
-                        .foregroundColor(isFollowing ? .accentColor : .secondary)
+                        .foregroundColor(isFollowing ? .appAccent : .secondary)
                     Text(isFollowing ? "Following" : "Follow")
                         .font(.caption2)
-                        .foregroundColor(isFollowing ? .accentColor : .secondary)
+                        .foregroundColor(isFollowing ? .appAccent : .secondary)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -604,10 +604,10 @@ struct GameDetailView: View {
                 VStack(spacing: 4) {
                     Image(systemName: isFollowing ? "clock.badge.fill" : "clock.badge")
                         .font(.title3)
-                        .foregroundColor(isFollowing ? .accentColor : .secondary)
+                        .foregroundColor(isFollowing ? .appAccent : .secondary)
                     Text(isFollowing ? "Following" : "Auto-Follow")
                         .font(.caption2)
-                        .foregroundColor(isFollowing ? .accentColor : .secondary)
+                        .foregroundColor(isFollowing ? .appAccent : .secondary)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -1667,7 +1667,7 @@ struct GameDetailSections: View {
             }
             Text(drive.result ?? "Drive in progress")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(drive.isScore == true ? Color.accentColor : .primary)
+                .foregroundStyle(drive.isScore == true ? Color.appAccent : .primary)
             if let summary = drive.summary {
                 Text(summary)
                     .font(.caption2)
@@ -1764,7 +1764,7 @@ struct GameDetailSections: View {
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
                                 .background(
-                                    isSelected ? Color.accentColor : Color.secondary.opacity(0.15),
+                                    isSelected ? Color.appAccent : Color.secondary.opacity(0.15),
                                     in: Capsule()
                                 )
                         }
@@ -1799,7 +1799,7 @@ struct GameDetailSections: View {
                     Text("\(away) – \(home)")
                         .font(.caption2)
                         .fontWeight(.bold)
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(.appAccent)
                         .monospacedDigit()
                 }
             }
@@ -1893,7 +1893,7 @@ private struct BaseballAtBatRow: View {
                         Text("\(away) – \(home)")
                             .font(.caption2)
                             .fontWeight(.bold)
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(.appAccent)
                             .monospacedDigit()
                     }
                 }

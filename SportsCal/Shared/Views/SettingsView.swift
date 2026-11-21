@@ -223,6 +223,32 @@ struct ProOptionsSettingsSection: View {
     }
 }
 
+/// Settings → Themes entry: shows the current accent and pushes the picker.
+struct ThemesSettingsSection: View {
+    var body: some View {
+        Section {
+            NavigationLink {
+                ThemeSettingsView()
+            } label: {
+                HStack {
+                    Label("Themes", systemImage: "paintpalette")
+                    Spacer()
+                    Circle()
+                        .fill(Color.appAccent)
+                        .frame(width: 14, height: 14)
+                        .accessibilityHidden(true)
+                }
+            }
+        } header: {
+            Text("Appearance")
+        } footer: {
+            if !SubscriptionManager.shared.canUse(.themes) {
+                Text("Preview accent colors and app icons. Applying one requires Scoreline Pro.")
+            }
+        }
+    }
+}
+
 struct ScoresSettingsSection: View {
     @Environment(UserDefaultStorage.self) private var appStorage
 
@@ -528,6 +554,7 @@ struct SettingsView: View {
                     .pickerStyle(.segmented)
                 }
                 }
+                ThemesSettingsSection()
                 Section(header: Text("Sports"), footer: Text("Choose which sports to show, reorder them, and toggle favorites-only per sport.")) {
                     Button {
                         showSportPicker = true

@@ -14,6 +14,9 @@ struct MacSettingsView: View {
         TabView {
             GeneralSettingsTab()
                 .tabItem { Label("General", systemImage: "gear") }
+            // Settings → Themes (accent color; alternate icons are iOS-only).
+            NavigationStack { ThemeSettingsView() }
+                .tabItem { Label("Themes", systemImage: "paintpalette") }
             SportsSettingsTab()
                 .tabItem { Label("Sports", systemImage: "sportscourt") }
             AdvancedSettingsTab()

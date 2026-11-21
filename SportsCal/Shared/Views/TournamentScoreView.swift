@@ -161,7 +161,7 @@ struct TournamentScoreView: View {
                             } else if entry.thruHole == nil, let tee = GolfScoreStyle.teeTimeText(entry) {
                                 Text(tee)
                                     .font(.caption2)
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.appAccent)
                             } else if let thru = entry.thruHole {
                                 Text(thru)
                                     .font(.caption2)

@@ -31,7 +31,7 @@ struct BoardGameCard<Content: View>: View {
             .overlay {
                 if isSelected {
                     RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(Color.accentColor, lineWidth: 2)
+                        .strokeBorder(Color.appAccent, lineWidth: 2)
                 }
             }
             .overlay(alignment: .topTrailing) {

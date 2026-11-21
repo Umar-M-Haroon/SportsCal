@@ -60,6 +60,8 @@ final class PhoneWatchSyncService: NSObject, WCSessionDelegate {
             "cfbSelection": CollegeFootballSelection.stored(in: defaults).rawValue,
             "favorites": favorites,
             "hiddenCompetitions": hidden,
+            // Effective Themes accent (0xRRGGBB, already Pro-gated); -1 = default.
+            AppAccentReader.effectiveHexKey: AppAccentReader.effectiveHex(in: defaults) ?? -1,
         ]
 
         try? WCSession.default.updateApplicationContext(context.merging(attestationPayload()) { current, _ in current })

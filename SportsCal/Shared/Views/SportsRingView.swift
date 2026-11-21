@@ -63,7 +63,7 @@ struct SportsRingView: View {
             VStack(spacing: 12) {
                 HStack(spacing: 4) {
                     Image(systemName: "chart.pie.fill")
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(.appAccent)
                     Text("Your Sports Pulse")
                         .font(.headline)
                 }

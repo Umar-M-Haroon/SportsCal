@@ -29,6 +29,12 @@ enum WidgetTokens {
     static let live = Color(light: 0xD63B2F, dark: 0xFF5D52)
     static let star = Color(light: 0xA87613, dark: 0xFFD966)
 
+    // MARK: - Themes accent
+    /// The user's Themes accent (Pro), published by the app into app-group
+    /// defaults via `AppAccentReader`; the stock accent otherwise. Use for chrome
+    /// only (links, highlights, keylines) — never in place of team or live colors.
+    static var accent: Color { AppAccentReader.effectiveColor() ?? .accentColor }
+
     // MARK: - Radii (matches CGFloat.appRadius*)
     static let radiusXS: CGFloat = 4
     static let radiusSM: CGFloat = 8
