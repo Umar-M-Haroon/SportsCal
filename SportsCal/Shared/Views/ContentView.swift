@@ -194,7 +194,8 @@ struct ContentView: View {
                 // win can only be seen once games arrive.
                 requestReviewIfEligible()
             }
-            .modifier(AlertRegistrationTriggers(reconcile: reconcileTeamAlerts, proStatusChanged: proStatusChanged))
+            .modifier(AlertRegistrationTriggers(reconcile: reconcileTeamAlerts, proStatusChanged: proStatusChanged,
+                                                customAlertsChanged: syncCustomAlerts))
             .alert("Scoreline Pro", isPresented: $shouldShowSportsCalProAlert) {
                 Button("Subscribe") { sheetType = .paywall }
                 Button("Cancel", role: .cancel) { }
@@ -311,6 +312,8 @@ struct ContentView: View {
                 #if os(iOS)
                 let players = favorites.players
                 Task { await GolfAlertRegistrar.sync(players: players, storage: storage) }
+                // Game Alerts for "my teams" follow the favorites.
+                syncCustomAlerts()
                 #endif
                 // Once per install: the helper owns the "didEmitFirstFavorite" flag.
                 if !favorites.teamIDs.isEmpty {
@@ -784,6 +787,7 @@ struct ContentView: View {
         // Followed golfers' alerts are pushed too; following is the opt-in.
         let players = favorites.players
         Task { await GolfAlertRegistrar.sync(players: players, storage: storage) }
+        syncCustomAlerts()
         #endif
         let teamIDs = storage.teamAlertTeamIDs
         guard let games = viewModel.totalGames, !games.isEmpty else { return }
@@ -795,6 +799,16 @@ struct ContentView: View {
         guard !teamIDs.isEmpty else { return }
         TeamAlertScheduler.reconcile(games: games, teamIDs: teamIDs,
                                      isPro: SubscriptionManager.shared.isPro)
+    }
+
+    /// Player and Game Alerts: re-sent when they change, weekly, on a new push token,
+    /// and when Pro status changes (all of which land here).
+    private func syncCustomAlerts() {
+        #if os(iOS)
+        let games = viewModel.totalGames
+        let teamIDs = favorites.teamIDs
+        Task { await CustomAlertRegistrar.sync(games: games, favoriteTeamIDs: teamIDs) }
+        #endif
     }
 
     // MARK: - Deep Link Handling
@@ -946,6 +960,7 @@ extension View {
 private struct AlertRegistrationTriggers: ViewModifier {
     let reconcile: () -> Void
     let proStatusChanged: () -> Void
+    let customAlertsChanged: () -> Void
 
     func body(content: Content) -> some View {
         content
@@ -954,6 +969,9 @@ private struct AlertRegistrationTriggers: ViewModifier {
             }
             .onChange(of: SubscriptionManager.shared.isPro) { _, _ in
                 proStatusChanged()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .customAlertRulesDidChange)) { _ in
+                customAlertsChanged()
             }
     }
 }

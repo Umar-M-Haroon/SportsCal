@@ -52,6 +52,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
         // Set notification center delegate
         UNUserNotificationCenter.current().delegate = self
+        // Mute / Turn off buttons on custom player and game alerts.
+        CustomAlertActions.registerCategories()
 
         if !Constants.sentryDSN.isEmpty {
             SentrySDK.start { options in
@@ -183,6 +185,16 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         let userInfo = response.notification.request.content.userInfo
         AppLogger.notifications.info("User tapped notification for event: \(userInfo["eventID"] as? String ?? "unknown")")
 
+        // A custom alert's Mute / Turn off button: act on it without opening the game.
+        if CustomAlertActions.handles(response.actionIdentifier) {
+            let action = response.actionIdentifier
+            Task {
+                await CustomAlertActions.perform(actionIdentifier: action, userInfo: userInfo)
+                completionHandler()
+            }
+            return
+        }
+
         // Handle deep linking based on notification type
         if let eventID = userInfo["eventID"] as? String {
             // Post notification to open specific game
@@ -213,6 +225,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Set notification center delegate
         UNUserNotificationCenter.current().delegate = self
+        // Mute / Turn off buttons on custom player and game alerts.
+        CustomAlertActions.registerCategories()
 
         if !Constants.sentryDSN.isEmpty {
             SentrySDK.start { options in
@@ -271,6 +285,15 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let userInfo = response.notification.request.content.userInfo
         AppLogger.notifications.info("User tapped notification for event: \(userInfo["eventID"] as? String ?? "unknown")")
+
+        if CustomAlertActions.handles(response.actionIdentifier) {
+            let action = response.actionIdentifier
+            Task {
+                await CustomAlertActions.perform(actionIdentifier: action, userInfo: userInfo)
+                completionHandler()
+            }
+            return
+        }
 
         if let eventID = userInfo["eventID"] as? String {
             NotificationCenter.default.post(name: .openGameFromNotification, object: nil, userInfo: ["eventID": eventID, "token": response.notification.request.identifier])

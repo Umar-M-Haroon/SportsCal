@@ -20,6 +20,7 @@
 //
 
 import Foundation
+import SportsCalModel
 import StoreKit
 import Sentry
 import UserNotifications
@@ -56,6 +57,10 @@ enum MonetizationTelemetry {
         static let whatsNewShown = "whats_new_shown"
         static let whatsNewAction = "whats_new_action"
         static let appActive = "app_active"
+        // Custom live alerts (Player Alerts + Game Alerts).
+        static let customAlertRuleCreated = "custom_alert_rule_created"
+        static let customAlertCapHit = "custom_alert_cap_hit"
+        static let customAlertAction = "custom_alert_action"
     }
 
     /// Core emit. Safe to call from any thread; the network send is detached and
@@ -308,6 +313,22 @@ enum MonetizationTelemetry {
 
     static func whatsNewShown(version: String) {
         record(Event.whatsNewShown, ["version": version])
+    }
+
+    /// A custom alert rule was added: `kind` is `playerPlay`, `playerMilestone` or
+    /// `gameSituation`; `sport` a `SportType` raw value.
+    static func customAlertRuleCreated(kind: AlertRule.Kind, sport: SportType) {
+        record(Event.customAlertRuleCreated, ["kind": kind.rawValue, "sport": sport.rawValue])
+    }
+
+    /// A free user tried to go past the custom alert allowance (`kind` as above).
+    static func customAlertCapHit(kind: AlertRule.Kind) {
+        record(Event.customAlertCapHit, ["kind": kind.rawValue])
+    }
+
+    /// A custom alert notification button: `mute` or `turn_off`.
+    static func customAlertAction(_ action: String) {
+        record(Event.customAlertAction, ["action": action])
     }
 
     /// A CTA tapped on the What's New sheet, e.g. `competition:A-League`.

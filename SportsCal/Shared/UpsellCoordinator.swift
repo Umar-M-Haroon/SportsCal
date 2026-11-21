@@ -36,6 +36,9 @@ enum UpsellTrigger: String {
     case nthSession = "nth_session"
     /// User tried to apply a theme (accent color or app icon) in Settings → Themes.
     case theme = "theme"
+    /// User went past the free custom alert allowance (1 player with 1 rule) or
+    /// tapped a locked Game Alerts situation.
+    case customAlertCap = "custom_alert_cap"
 
     /// The post-onboarding trial offer is a one-time peak-intent moment, exempt
     /// from the day-cooldown (still bounded by the per-session cap).

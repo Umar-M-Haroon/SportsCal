@@ -17,13 +17,18 @@ class Favorites: Equatable {
     /// Kept so users don't lose intent if the teams cache wasn't populated yet at
     /// migration time; retried whenever TeamsManager refreshes.
     private(set) var legacyTeamNames: Set<String>
+    /// Golfers and tennis players, by the name the leaderboard shows.
     private(set) var players: Set<String>
+    /// Team-sport players followed for custom player alerts, by ESPN athlete ID.
+    /// Kept apart from the name-only `players`, which golf and tennis still use.
+    private(set) var followedPlayers: [PlayerRef]
     /// Names of followed teams the directory doesn't carry, by ID: college football
     /// teams (`ncaaf-…`) and college basketball teams outside it. Lets `teams` list them.
     private(set) var collegeNames: [String: String]
 
     private let saveKey = "Favorites"
     private let playerSaveKey = "FavoritePlayers"
+    private static let followedPlayersKey = "FollowedPlayers"
     private static let currentSchemaVersion = 2
     /// Set once `scopeCollegeFollows` has run on this device.
     private static let collegeScopedKey = "Favorites.collegeFollowsScoped"
@@ -50,6 +55,7 @@ class Favorites: Equatable {
         legacyTeamNames = legacy
         collegeNames = names
         players = Set(store?.stringArray(forKey: "FavoritePlayers") ?? [])
+        followedPlayers = Favorites.decodeFollowedPlayers(store?.data(forKey: Favorites.followedPlayersKey))
 
         // First-launch migration: when raw was the legacy [String] shape,
         // attempt to resolve names → IDs via TeamsManager and persist the new
@@ -261,6 +267,41 @@ class Favorites: Equatable {
         NotificationCenter.default.post(name: .favoritesDidChange, object: nil)
     }
 
+    // MARK: Followed players (custom alerts)
+
+    func isFollowing(athleteID: String) -> Bool {
+        followedPlayers.contains { $0.athleteID == athleteID }
+    }
+
+    func followedPlayer(athleteID: String) -> PlayerRef? {
+        followedPlayers.first { $0.athleteID == athleteID }
+    }
+
+    /// Follows `player`, or refreshes the stored name and team of one already followed
+    /// (a traded player's next box score carries the new team).
+    func follow(_ player: PlayerRef) {
+        if let index = followedPlayers.firstIndex(where: { $0.athleteID == player.athleteID }) {
+            guard followedPlayers[index] != player else { return }
+            followedPlayers[index] = player
+        } else {
+            followedPlayers.append(player)
+        }
+        save()
+        NotificationCenter.default.post(name: .favoritesDidChange, object: nil)
+    }
+
+    func unfollow(athleteID: String) {
+        guard isFollowing(athleteID: athleteID) else { return }
+        followedPlayers.removeAll { $0.athleteID == athleteID }
+        save()
+        NotificationCenter.default.post(name: .favoritesDidChange, object: nil)
+    }
+
+    private static func decodeFollowedPlayers(_ data: Data?) -> [PlayerRef] {
+        guard let data else { return [] }
+        return (try? JSONDecoder().decode([PlayerRef].self, from: data)) ?? []
+    }
+
     func save() {
         let payload: [String: Any] = [
             "schemaVersion": Favorites.currentSchemaVersion,
@@ -270,6 +311,9 @@ class Favorites: Equatable {
         ]
         defaults?.set(payload, forKey: saveKey)
         defaults?.set(Array(players), forKey: playerSaveKey)
+        if let data = try? JSONEncoder().encode(followedPlayers) {
+            defaults?.set(data, forKey: Favorites.followedPlayersKey)
+        }
     }
 
     /// Re-reads favorites from the appropriate UserDefaults store.
@@ -281,6 +325,7 @@ class Favorites: Equatable {
         legacyTeamNames = legacy
         collegeNames = names
         players = Set(defaults?.stringArray(forKey: playerSaveKey) ?? [])
+        followedPlayers = Favorites.decodeFollowedPlayers(defaults?.data(forKey: Favorites.followedPlayersKey))
         if Favorites.isLegacyShape(raw) {
             attemptResolveLegacy()
             save()
@@ -292,6 +337,7 @@ class Favorites: Equatable {
             && lhs.legacyTeamNames == rhs.legacyTeamNames
             && lhs.collegeNames == rhs.collegeNames
             && lhs.players == rhs.players
+            && lhs.followedPlayers == rhs.followedPlayers
     }
 
     // MARK: - Private
@@ -369,6 +415,49 @@ class Favorites: Equatable {
 
     private static func isLegacyShape(_ raw: Any?) -> Bool {
         raw is [String]
+    }
+}
+
+/// A team-sport player followed for custom alerts.
+struct PlayerRef: Codable, Hashable, Identifiable, Sendable {
+    /// ESPN athlete ID, as box scores and play participants carry it.
+    var athleteID: String
+    /// Full name for display and alert copy: "Stephen Curry".
+    var name: String
+    var sport: SportType
+    /// The player's team as the app's games carry it (`Game.idHomeTeam` /
+    /// `idAwayTeam`): how the server finds their live game.
+    var teamID: String
+
+    var id: String { athleteID }
+
+    init(athleteID: String, name: String, sport: SportType, teamID: String) {
+        self.athleteID = athleteID
+        self.name = name
+        self.sport = sport
+        self.teamID = teamID
+    }
+
+    enum CodingKeys: String, CodingKey { case athleteID, name, sport, teamID }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        athleteID = try c.decode(String.self, forKey: .athleteID)
+        name = try c.decode(String.self, forKey: .name)
+        let raw = try c.decode(String.self, forKey: .sport)
+        guard let sport = SportType(rawValue: raw) else {
+            throw DecodingError.dataCorruptedError(forKey: .sport, in: c, debugDescription: "Unknown sport \(raw)")
+        }
+        self.sport = sport
+        teamID = try c.decode(String.self, forKey: .teamID)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(athleteID, forKey: .athleteID)
+        try c.encode(name, forKey: .name)
+        try c.encode(sport.rawValue, forKey: .sport)
+        try c.encode(teamID, forKey: .teamID)
     }
 }
 
