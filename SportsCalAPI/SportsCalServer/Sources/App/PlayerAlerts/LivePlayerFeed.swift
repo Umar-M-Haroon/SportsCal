@@ -19,6 +19,10 @@ struct LivePlayerFeed: Codable, Equatable {
     struct PlayAthletes: Codable, Equatable {
         var playID: String
         var participants: [PlayParticipant]
+        /// Who earned which alert play type in this play (`PlayHighlight.highlights`),
+        /// classified here while the play text is at hand. Nil in feeds written before
+        /// custom alerts.
+        var highlights: [PlayHighlight]? = nil
     }
 
     var espnEventID: String
@@ -48,11 +52,15 @@ struct LivePlayerFeed: Codable, Equatable {
         isFinal: Bool,
         fetchedAt: Date
     ) {
+        let lines = sportType.map(summary.playerStatLines(sport:)) ?? []
+        // Full names decide a basketball block's blocker ("Rudy Gobert blocks …").
+        var fullNames: [String: String] = [:]
+        for line in lines where fullNames[line.athleteID] == nil { fullNames[line.athleteID] = line.name }
         let plays = summary.allPlaysWithNamedParticipants.compactMap { play -> PlayAthletes? in
             guard let participants = play.participants, !participants.isEmpty else { return nil }
-            return PlayAthletes(playID: play.id, participants: participants)
+            let highlights = sportType.map { PlayHighlight.highlights(in: play, sport: $0, fullNames: fullNames) } ?? []
+            return PlayAthletes(playID: play.id, participants: participants, highlights: highlights.isEmpty ? nil : highlights)
         }
-        let lines = sportType.map(summary.playerStatLines(sport:)) ?? []
         guard !plays.isEmpty || !lines.isEmpty else { return nil }
         self.espnEventID = espnEventID
         self.tsdbEventID = tsdbEventID

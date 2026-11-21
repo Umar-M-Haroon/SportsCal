@@ -16,6 +16,8 @@ final class MockAPNSClient: APNSSending, @unchecked Sendable {
         let alertBody: String?
         let timestamp: Int
         let environment: APNSEnvironment
+        var alertType: String? = nil
+        var alertOptions: AlertOptions? = nil
     }
 
     private let lock = NSLock()
@@ -137,6 +139,7 @@ final class MockAPNSClient: APNSSending, @unchecked Sendable {
         body: String,
         eventID: String,
         type: String,
+        options: AlertOptions,
         environment: APNSEnvironment
     ) async throws -> APNSSendResult {
         try consumeErrorIfAny(for: deviceToken)
@@ -149,7 +152,9 @@ final class MockAPNSClient: APNSSending, @unchecked Sendable {
             alertTitle: title,
             alertBody: body,
             timestamp: 0,
-            environment: environment
+            environment: environment,
+            alertType: type,
+            alertOptions: options
         ))
         return APNSSendResult(kind: .alert, deviceToken: deviceToken, appID: appID, timestamp: 0, topic: appID)
     }

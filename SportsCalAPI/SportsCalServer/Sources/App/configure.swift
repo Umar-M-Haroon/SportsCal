@@ -202,6 +202,11 @@ public func configure(_ app: Application) async throws {
         app.queues.schedule(GolfAlertJob())
             .minutely()
             .at(40)
+        // Pro custom alerts: player plays/milestones and game situations. After ESPNFetchJob
+        // (:15) has written this minute's player feeds.
+        app.queues.schedule(CustomAlertJob())
+            .minutely()
+            .at(45)
         // DISABLED: Standings history snapshots
 //        let standingsSnapshotJob = StandingsSnapshotJob()
 //        app.queues.schedule(standingsSnapshotJob)

@@ -61,8 +61,12 @@ final class LivePlayerFeedTests: XCTestCase {
             .init(playID: "2", participants: [
                 PlayParticipant(athleteID: "3975", name: "S. Curry"),
                 PlayParticipant(athleteID: "6589", name: "D. Green"),
+            ], highlights: [
+                PlayHighlight(athleteID: "3975", type: .basket, period: 1),
+                PlayHighlight(athleteID: "3975", type: .threePointer, period: 1),
+                PlayHighlight(athleteID: "6589", type: .assist, period: 1),
             ]),
-        ], "Only plays that name someone; names filled from the box score")
+        ], "Only plays that name someone; names filled from the box score; alert play types classified")
         XCTAssertEqual(feed.statLines.map(\.athleteID), ["3975", "6589"], "Players who sat have no line")
         let curry = try XCTUnwrap(feed.statLines.first)
         XCTAssertEqual(curry.stats["points"], 3)

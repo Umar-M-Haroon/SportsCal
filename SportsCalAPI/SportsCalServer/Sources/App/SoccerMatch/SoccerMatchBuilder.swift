@@ -389,6 +389,13 @@ enum SoccerMatchBuilder {
 
     // MARK: Event timeline
 
+    /// Participant athlete IDs in ESPN's order, "" where one has none so positions
+    /// still line up (index 0 is the scorer). Nil when none has an ID.
+    static func athleteIDs(_ participants: [SoccerEventParticipant]?) -> [String]? {
+        let ids = (participants ?? []).map { $0.athlete?.id ?? "" }
+        return ids.contains(where: { !$0.isEmpty }) ? ids : nil
+    }
+
     private static func makeEvents(_ raw: [SoccerKeyEvent], sides: SideResolver) -> [SoccerMatchEvent] {
         raw.compactMap { event -> SoccerMatchEvent? in
             let typeText = event.type?.text ?? ""
@@ -408,7 +415,8 @@ enum SoccerMatchBuilder {
                 scoringPlay: event.scoringPlay ?? false,
                 text: event.text,
                 shortText: event.shortText,
-                playerNames: (event.participants ?? []).compactMap { $0.athlete?.displayName }
+                playerNames: (event.participants ?? []).compactMap { $0.athlete?.displayName },
+                athleteIDs: Self.athleteIDs(event.participants)
             )
         }
     }

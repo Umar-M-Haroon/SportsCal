@@ -1307,6 +1307,51 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return .ok
     }
 
+    //MARK: - Custom alerts (Pro player + game alerts)
+    // Replaces the install's whole rule set; the response says which rules the server
+    // kept and whether it verified Pro (free: 1 player with 1 rule). Empty rules
+    // unregisters. See `CustomAlertRegistration` / `CustomAlertRegistrationResponse`.
+    func customAlertSandbox(_ req: Request, _ flag: Bool?) -> Bool {
+        flag ?? (resolveAPNSEnvironment(from: req) == .sandbox)
+    }
+
+    writeRoutes.post("notifications", "custom") { req async throws -> Response in
+        let registration = try req.content.decode(CustomAlertRegistration.self)
+        let sandbox = customAlertSandbox(req, registration.sandbox)
+        let installID = resolveInstallID(from: req, fallbackToken: registration.token)
+        do {
+            let response = try await CustomAlertRegistry.register(
+                registration, installID: installID, sandbox: sandbox, kv: req.kv,
+                entitlements: req.application.proEntitlements, now: Date()
+            )
+            req.logger.info("Registered custom alerts for install \(installID.prefix(8))... [\(sandbox ? "sandbox" : "production")] rules=\(response.rules.count) dropped=\(response.droppedRuleIDs.count) pro=\(response.isPro)")
+            var headers = HTTPHeaders()
+            headers.contentType = .json
+            return Response(status: .ok, headers: headers, body: .init(data: try JSONEncoder().encode(response)))
+        } catch is CustomAlertRegistry.InvalidRegistration {
+            throw Abort(.badRequest)
+        }
+    }
+
+    writeRoutes.delete("notifications", "custom") { req async throws -> HTTPStatus in
+        let body = try req.content.decode(DeregisterRequest.self)
+        let installID = resolveInstallID(from: req, fallbackToken: body.token)
+        await CustomAlertRegistry.unregister(installID: installID, sandbox: customAlertSandbox(req, nil), kv: req.kv)
+        return .ok
+    }
+
+    // "Mute this player for this game" (athleteID) or one rule for this game (ruleID).
+    writeRoutes.post("notifications", "custom", "mute") { req async throws -> HTTPStatus in
+        let body = try req.content.decode(CustomAlertMuteRequest.self)
+        let installID = resolveInstallID(from: req, fallbackToken: body.token)
+        do {
+            try await CustomAlertRegistry.mute(body, installID: installID, sandbox: customAlertSandbox(req, body.sandbox), kv: req.kv)
+        } catch is CustomAlertRegistry.InvalidRegistration {
+            throw Abort(.badRequest)
+        }
+        return .ok
+    }
+
     //MARK: - Golf alerts
     // The followed golfers (by leaderboard name) and alert kinds an install wants;
     // GolfAlertJob pushes to it. Empty players or kinds unregisters.
