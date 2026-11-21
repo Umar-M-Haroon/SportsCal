@@ -1322,11 +1322,11 @@ struct ESPNFetchJob: AsyncScheduledJob {
         let homeTeamShort = raceShort ?? game.idHomeTeam.flatMap { id -> String? in
             guard teamNameByID[id] == homeTeam else { return nil }
             return teamShortByID[id]
-        } ?? teamShortByName[homeTeam]
+        } ?? teamShortByName[homeTeam] ?? game.homeAbbreviation.nilIfBlankCode
         let awayTeamShort = game.idAwayTeam.flatMap { id -> String? in
             guard teamNameByID[id] == awayTeam else { return nil }
             return teamShortByID[id]
-        } ?? teamShortByName[awayTeam]
+        } ?? teamShortByName[awayTeam] ?? (game.usesLeaderboardActivity ? nil : game.awayAbbreviation.nilIfBlankCode)
 
         // Dedup key namespacing follows the registration's environment so a
         // sandbox token and a prod token watching the same event don't share
@@ -2024,5 +2024,15 @@ extension Game {
             return date
         }
         return nil
+    }
+}
+
+private extension Optional where Wrapped == String {
+    /// The game's own team code ("COLO"), for teams the `/teams` directory lacks
+    /// (college, cricket). Without it the widget derives one from the name, and
+    /// "Colorado Buffaloes" became "CBU".
+    var nilIfBlankCode: String? {
+        guard let code = self?.trimmingCharacters(in: .whitespaces), !code.isEmpty else { return nil }
+        return code
     }
 }
