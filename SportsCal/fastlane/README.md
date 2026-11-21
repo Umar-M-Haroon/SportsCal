@@ -15,6 +15,22 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 ## iOS
 
+### ios ota
+
+```sh
+[bundle exec] fastlane ios ota
+```
+
+Dev-signed build → tap-to-install link on your tailnet (registered devices only)
+
+### ios ota_builds
+
+```sh
+[bundle exec] fastlane ios ota_builds
+```
+
+List OTA builds from every worktree (and refresh the index page)
+
 ### ios screenshots
 
 ```sh
