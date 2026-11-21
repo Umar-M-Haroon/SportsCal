@@ -109,6 +109,9 @@ struct DeveloperSettingsSection: View {
                         .environment(viewModel)
                         .environment(appStorage)
                 }
+                NavigationLink("Live Activity Playground") {
+                    LiveActivityPlaygroundView()
+                }
                 NavigationLink("Replay Testing") {
                     DebugReplayTestView()
                         .environment(viewModel)

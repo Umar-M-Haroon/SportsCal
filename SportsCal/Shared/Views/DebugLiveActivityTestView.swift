@@ -267,3 +267,159 @@ struct DebugLiveActivityTestView: View {
         }
     }
 }
+
+#if canImport(ActivityKit) && os(iOS)
+/// Starts a real, local Live Activity from a canned game and drives it by hand, so
+/// the Lock Screen, Dynamic Island and StandBy looks can be tried on a device.
+/// "Team colours" off starts it without colours: the look before the colour pass.
+struct LiveActivityPlaygroundView: View {
+    enum Scenario: String, CaseIterable, Identifiable {
+        case nba = "NBA", nfl = "NFL", mlb = "MLB", nhl = "NHL", soccer = "Soccer"
+        var id: String { rawValue }
+
+        var attributes: (home: String, away: String, homeShort: String, awayShort: String, homeHex: String, awayHex: String) {
+            switch self {
+            case .nba: return ("Boston Celtics", "Los Angeles Lakers", "BOS", "LAL", "007A33", "552583")
+            case .nfl: return ("Kansas City Chiefs", "Buffalo Bills", "KC", "BUF", "E31837", "00338D")
+            case .mlb: return ("Cleveland Guardians", "Detroit Tigers", "CLE", "DET", "E31937", "0C2340")
+            case .nhl: return ("Vegas Golden Knights", "Edmonton Oilers", "VGK", "EDM", "B4975A", "041E42")
+            case .soccer: return ("Arsenal", "Chelsea", "ARS", "CHE", "EF0107", "034694")
+            }
+        }
+
+        var points: Int {
+            switch self {
+            case .nba: return 2
+            case .nfl: return 7
+            default: return 1
+            }
+        }
+
+        var startState: LiveSportActivityAttributes.ContentState {
+            switch self {
+            case .nba:
+                return .init(homeScore: 108, awayScore: 106, status: "in", progress: "4th 2:14",
+                             lastPlay: "Tatum makes 18-foot pullup jumper")
+            case .nfl:
+                return .init(homeScore: 20, awayScore: 17, status: "in", progress: "4th 2:31", lastPlay: nil,
+                             situation: LiveActivitySituation(downDistance: "3rd & 4 at KC 12", possession: .away, redZone: true,
+                                                              homeWinPct: 58, homeTimeouts: 2, awayTimeouts: 1))
+            case .mlb:
+                return .init(homeScore: 3, awayScore: 5, status: "in", progress: "Bot 9th",
+                             lastPlay: "Kwan singled to left.",
+                             situation: LiveActivitySituation(outs: 1, bases: 3, homeWinPct: 21))
+            case .nhl:
+                return .init(homeScore: 2, awayScore: 2, status: "in", progress: "5:40 - 3rd", lastPlay: "Goal by Eichel (PP)")
+            case .soccer:
+                return .init(homeScore: 1, awayScore: 1, status: "in", progress: "67'",
+                             soccer: LiveActivitySoccer(awayRedCards: 1, lastGoal: "Palmer 58'", lastGoalSide: .away))
+            }
+        }
+    }
+
+    @State private var scenario: Scenario = .nfl
+    @State private var teamColors = true
+    @State private var activity: Activity<LiveSportActivityAttributes>?
+    @State private var state = Scenario.nfl.startState
+    @State private var error: String?
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Game", selection: $scenario) {
+                    ForEach(Scenario.allCases) { Text($0.rawValue).tag($0) }
+                }
+                Toggle("Team colours", isOn: $teamColors)
+                Button(activity == nil ? "Start Live Activity" : "Restart Live Activity") { start() }
+                if let error { Text(error).font(.caption).foregroundStyle(.red) }
+            } footer: {
+                Text("Lock the phone to see the Lock Screen card; go home for the Dynamic Island (long-press it to expand). Turn Team colours off and restart to see the look before the colour pass. Picks apply on restart.")
+            }
+
+            if activity != nil {
+                Section("Score") {
+                    HStack {
+                        Button("+ \(scenario.attributes.awayShort)") { score(home: false) }
+                        Spacer()
+                        Text("\(scenario.attributes.awayShort) \(state.awayScore) – \(state.homeScore) \(scenario.attributes.homeShort)")
+                            .monospacedDigit().foregroundStyle(.secondary)
+                        Spacer()
+                        Button("+ \(scenario.attributes.homeShort)") { score(home: true) }
+                    }
+                    .buttonStyle(.bordered)
+                    if state.situation?.homeWinPct != nil {
+                        Button("Swing win probability") {
+                            let current = state.situation?.homeWinPct ?? 50
+                            state.situation?.homeWinPct = current >= 50 ? 24 : 81
+                            push()
+                        }
+                    }
+                }
+                Section("Game state") {
+                    Button("Live") { setProgress(scenario.startState.progress, status: "in") }
+                    Button(scenario == .nhl ? "Intermission" : "Halftime") {
+                        setProgress(scenario == .nhl ? "End of 2nd" : (scenario == .soccer ? "HT" : "Halftime"), status: "in")
+                    }
+                    Button("Final") { setProgress(scenario == .nba ? "Final/OT" : "Final", status: "post") }
+                }
+                Section {
+                    Button("End Live Activity", role: .destructive) { end() }
+                }
+            }
+        }
+        .navigationTitle("Live Activity Playground")
+        .onChange(of: scenario) { state = scenario.startState }
+    }
+
+    private func start() {
+        Task { @MainActor in
+            if let activity { await activity.end(nil, dismissalPolicy: .immediate) }
+            let info = scenario.attributes
+            let attributes = LiveSportActivityAttributes(
+                homeTeam: info.home, awayTeam: info.away, eventID: "playground-\(scenario.rawValue)",
+                homeTeamShort: info.homeShort, awayTeamShort: info.awayShort,
+                displaysHomeFirst: scenario == .soccer ? true : nil,
+                homeColorHex: teamColors ? info.homeHex : nil,
+                awayColorHex: teamColors ? info.awayHex : nil
+            )
+            state = scenario.startState
+            do {
+                activity = try Activity.request(attributes: attributes, content: ActivityContent(state: state, staleDate: nil), pushType: nil)
+                error = nil
+            } catch {
+                activity = nil
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    private func score(home: Bool) {
+        if home { state.homeScore += scenario.points } else { state.awayScore += scenario.points }
+        if scenario == .soccer {
+            state.soccer?.lastGoal = home ? "Saka \(70 + state.homeScore)'" : "Palmer \(70 + state.awayScore)'"
+            state.soccer?.lastGoalSide = home ? .home : .away
+        }
+        push()
+    }
+
+    private func setProgress(_ progress: String?, status: String) {
+        state.progress = progress
+        state.status = status
+        push()
+    }
+
+    private func push() {
+        guard let activity else { return }
+        let content = ActivityContent(state: state, staleDate: nil)
+        Task { await activity.update(content) }
+    }
+
+    private func end() {
+        guard let activity else { return }
+        Task { @MainActor in
+            await activity.end(nil, dismissalPolicy: .immediate)
+            self.activity = nil
+        }
+    }
+}
+#endif

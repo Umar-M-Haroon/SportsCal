@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Activity colour: before / after</title>
+<style>
+  :root { --bg:#f4f3ee; --card:#fff; --ink:#1a1612; --soft:#6b665f; --line:#e3e0d8; --accent:#d63b2f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0e1014; --card:#171a21; --ink:#f4f3ee; --soft:#9a978f; --line:#2a2e38; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:32px 16px 64px; }
+  h1 { font-size:28px; margin:0 0 6px; letter-spacing:-.01em; }
+  .lede { color:var(--soft); margin:0 0 28px; max-width:70ch; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; margin:0 0 20px; }
+  h2 { font-size:17px; margin:0 0 4px; }
+  .what { color:var(--soft); margin:0 0 14px; font-size:14px; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:720px) { .pair { grid-template-columns:1fr; } }
+  figure { margin:0; }
+  figcaption { font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--soft); margin:0 0 6px; }
+  figure.after figcaption { color:var(--accent); }
+  img { width:100%; height:auto; border-radius:14px; display:block; background:#888; }
+  .note { font-size:13px; color:var(--soft); margin:10px 0 0; }
+  ul { margin:8px 0 0; padding-left:20px; }
+  li { margin:2px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Live Activity colour: before / after</h1>
+  <p class="lede">Xcode preview renders. "Before" is the gallery captured earlier today (commit df54c46); "after" is commit d2e6fd0 plus the playground. To try it on a phone, go to Settings → Developer → <b>Live Activity Playground</b>. Pick a game, start it, then score, swing the win probability, and go to halftime or final. Turn <b>Team colours</b> off and restart to see the old look.</p>
+
+  <section>
+    <h2>Lock Screen · NFL, light</h2>
+    <p class="what">Bills-to-Chiefs colour wash, and a two-colour win-probability bar in place of the "KC 58%" text.</p>
+    <div class="pair">
+      <figure><figcaption>Before</figcaption><img src="img/nfl-lock.png" alt="NFL lock screen before"></figure>
+      <figure class="after"><figcaption>After</figcaption><img src="img/after/nfl-lock.png" alt="NFL lock screen after"></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Lock Screen · NFL, dark</h2>
+    <p class="what">In dark mode the wash is stronger. Dark team colours are lightened so they still show against black.</p>
+    <div class="pair">
+      <figure><figcaption>Before</figcaption><img src="img/nfl-lock-dark.png" alt="NFL dark before"></figure>
+      <figure class="after"><figcaption>After</figcaption><img src="img/after/nfl-lock-dark.png" alt="NFL dark after"></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Lock Screen · Soccer</h2>
+    <p class="what">Arsenal red into Chelsea blue. Soccer keeps home on the left.</p>
+    <div class="pair">
+      <figure><figcaption>Before · light</figcaption><img src="img/soccer-lock.png" alt="Soccer before"></figure>
+      <figure class="after"><figcaption>After · light</figcaption><img src="img/after/soccer-lock.png" alt="Soccer after"></figure>
+      <figure><figcaption>Before · dark</figcaption><img src="img/soccer-lock-dark.png" alt="Soccer dark before"></figure>
+      <figure class="after"><figcaption>After · dark</figcaption><img src="img/after/soccer-lock-dark.png" alt="Soccer dark after"></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Final</h2>
+    <p class="what">The winner gets a WIN badge in its team colour and the loser fades to half strength. The before shot is the NBA final; the after uses a new NFL final preview, because the NBA preview wouldn't render.</p>
+    <div class="pair">
+      <figure><figcaption>Before</figcaption><img src="img/nbafinal-lock.png" alt="Final before"></figure>
+      <figure class="after"><figcaption>After</figcaption><img src="img/after/nflfinal-lock.png" alt="Final after"></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Dynamic Island · expanded (MLB)</h2>
+    <p class="what">Team codes in their colours. Detroit's navy is lightened so it reads on black.</p>
+    <div class="pair">
+      <figure><figcaption>Before</figcaption><img src="img/mlb-expanded.png" alt="Expanded before"></figure>
+      <figure class="after"><figcaption>After</figcaption><img src="img/after/mlb-expanded-dark.png" alt="Expanded after"></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Only on a device (use the playground)</h2>
+    <ul>
+      <li><b>Rolling scores:</b> tap "+ KC" and the number rolls up. Previews are still images, so this can't show here.</li>
+      <li><b>Island ring:</b> the coloured outline around the Dynamic Island follows the leading team, and goes back to your theme colour when the game is tied.</li>
+      <li><b>Compact dot:</b> a small dot in the leader's colour before its code ("● KC 20-17"), with no dot when tied.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

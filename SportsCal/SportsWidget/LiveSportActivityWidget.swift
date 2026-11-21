@@ -1128,5 +1128,6 @@ private let galleryGolfState = LiveSportActivityAttributes.ContentState(homeScor
 #Preview("Gallery · Tennis", as: .content, using: galleryTennis) { LiveSportActivityWidget() } contentStates: { galleryTennisState }
 #Preview("Gallery · F1", as: .content, using: galleryF1) { LiveSportActivityWidget() } contentStates: { galleryF1State }
 #Preview("Gallery · Golf", as: .content, using: galleryGolf) { LiveSportActivityWidget() } contentStates: { galleryGolfState }
+#Preview("Gallery · NFL final", as: .content, using: galleryNFL) { LiveSportActivityWidget() } contentStates: { LiveSportActivityAttributes.ContentState(homeScore: 27, awayScore: 24, status: "post", progress: "Final/OT") }
 #endif
 #endif
