@@ -500,6 +500,8 @@ private func leader(_ sides: (first: ActivitySide, second: ActivitySide)) -> Act
 private struct TeamColorWash: View {
     let first: ActivitySide
     let second: ActivitySide
+    /// Top to bottom, for the small card's stacked rows.
+    var vertical = false
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
@@ -508,7 +510,7 @@ private struct TeamColorWash: View {
             let strength = scheme == .dark ? 0.34 : 0.2
             LinearGradient(colors: [left.opacity(strength), left.opacity(strength * 0.35),
                                     right.opacity(strength * 0.35), right.opacity(strength)],
-                           startPoint: .leading, endPoint: .trailing)
+                           startPoint: vertical ? .top : .leading, endPoint: vertical ? .bottom : .trailing)
         }
     }
 }
@@ -752,26 +754,141 @@ private struct ExpandedIslandSide: View {
     }
 }
 
+// MARK: - Content: Lock Screen / StandBy (medium) and CarPlay / Watch (small)
+
+/// Picks the layout for the presentation: the full card on the Lock Screen,
+/// banners and StandBy; the compact `.small` card on CarPlay and the Watch.
+private struct ActivityContentView: View {
+    let attributes: LiveSportActivityAttributes
+    let state: LiveSportActivityAttributes.ContentState
+    @Environment(\.activityFamily) private var family
+
+    var body: some View {
+        if family == .small {
+            SmallActivityView(attributes: attributes, state: state)
+        } else if let race = state.race {
+            RaceLockScreenView(raceName: attributes.homeTeam, state: state, race: race)
+                .padding(16)
+        } else if let tennis = state.tennis {
+            TennisLockScreenView(attributes: attributes, state: state, tennis: tennis)
+                .padding(16)
+        } else {
+            let sides = activitySides(attributes, state)
+            TeamLockScreenView(attributes: attributes, state: state)
+                .padding(16)
+                .background { TeamColorWash(first: sides.first, second: sides.second) }
+        }
+    }
+}
+
+/// CarPlay and the Watch Smart Stack: glanceable at arm's length. Team sports get
+/// two rows (colour bar, logo, code, score) over the clock; races their top two
+/// (plus your golfer); tennis both players' sets.
+private struct SmallActivityView: View {
+    let attributes: LiveSportActivityAttributes
+    let state: LiveSportActivityAttributes.ContentState
+
+    var body: some View {
+        Group {
+            if let race = state.race {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 4) {
+                        Image(systemName: race.isGolf ? "figure.golf" : "flag.checkered")
+                        Text(attributes.homeTeam).lineLimit(1)
+                        Spacer(minLength: 4)
+                        progressLabel(for: trimmedProgress(state))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                    }
+                    .font(.system(.caption2, design: .rounded).weight(.bold))
+                    .foregroundStyle(WidgetTokens.ink)
+                    ForEach(Array(race.leaders.prefix(race.following == nil ? 3 : 2).enumerated()), id: \.offset) { _, driver in
+                        RaceLeaderRow(driver: driver, ink: WidgetTokens.ink, isGolf: race.isGolf)
+                    }
+                    if let following = race.following {
+                        RaceLeaderRow(driver: following, ink: WidgetTokens.ink, isGolf: true)
+                    }
+                }
+            } else if let tennis = state.tennis {
+                VStack(spacing: 4) {
+                    TennisSideRow(name: attributes.homeTeam, side: .home, tennis: tennis, sets: state.homeScore, ink: WidgetTokens.ink)
+                    TennisSideRow(name: attributes.awayTeam, side: .away, tennis: tennis, sets: state.awayScore, ink: WidgetTokens.ink)
+                    progressLabel(for: state)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                let sides = activitySides(attributes, state)
+                let isFinal = variantFor(progress: state.progress, status: state.status) == .final
+                VStack(spacing: 4) {
+                    SmallTeamRow(side: sides.first, isFinal: isFinal)
+                    SmallTeamRow(side: sides.second, isFinal: isFinal)
+                    HStack(spacing: 6) {
+                        progressLabel(for: state)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                        Spacer(minLength: 4)
+                        if let percent = state.situation?.homeWinPct, !isFinal {
+                            let leader = percent >= 50 ? (sides.first.side == .home ? sides.first : sides.second)
+                                                       : (sides.first.side == .away ? sides.first : sides.second)
+                            Text("\(leader.short) \(max(percent, 100 - percent))%")
+                                .font(.system(.caption2, design: .rounded).weight(.semibold))
+                                .monospacedDigit()
+                                .foregroundStyle(WidgetTokens.inkSoft)
+                        }
+                    }
+                }
+                .background { TeamColorWash(first: sides.first, second: sides.second, vertical: true).padding(-12) }
+            }
+        }
+        .padding(12)
+        .contentTransition(.numericText())
+    }
+}
+
+/// One side on the small card: colour bar, logo, code, then the score on the right.
+private struct SmallTeamRow: View {
+    let side: ActivitySide
+    let isFinal: Bool
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let faded = isFinal && side.score < side.opponentScore
+        HStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(activityTeamColor(side.colorHex, on: scheme) ?? WidgetTokens.inkFaint)
+                .frame(width: 3, height: 20)
+            badgeImage(for: side.name, code: side.short, size: 22)
+            Text(side.short)
+                .font(.system(.headline, design: .rounded).weight(.heavy))
+                .lineLimit(1)
+            if side.redCards > 0 { SoccerRedCardMark(count: side.redCards) }
+            Spacer(minLength: 4)
+            if isFinal, side.isWinning {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(activityTeamColor(side.colorHex, on: scheme) ?? WidgetTokens.ink)
+            }
+            Text("\(side.score)")
+                .font(.system(.title3, design: .rounded).weight(side.isWinning ? .heavy : .semibold))
+                .monospacedDigit()
+                .foregroundStyle(side.isWinning || side.score == side.opponentScore ? WidgetTokens.ink : WidgetTokens.inkSoft)
+        }
+        .foregroundStyle(WidgetTokens.ink)
+        .opacity(faded ? 0.55 : 1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(side.spoken)
+    }
+}
+
 struct LiveSportActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: LiveSportActivityAttributes.self) { context in
-            Group {
-                if let race = context.state.race {
-                    RaceLockScreenView(raceName: context.attributes.homeTeam, state: context.state, race: race)
-                        .padding(16)
-                } else if let tennis = context.state.tennis {
-                    TennisLockScreenView(attributes: context.attributes, state: context.state, tennis: tennis)
-                        .padding(16)
-                } else {
-                    let sides = activitySides(context.attributes, context.state)
-                    TeamLockScreenView(attributes: context.attributes, state: context.state)
-                        .padding(16)
-                        .background { TeamColorWash(first: sides.first, second: sides.second) }
-                }
-            }
-            // System chrome (the lock-screen dismiss/action control) follows the
-            // Themes accent.
-            .activitySystemActionForegroundColor(WidgetTokens.accent)
+            ActivityContentView(attributes: context.attributes, state: context.state)
+                // System chrome (the lock-screen dismiss/action control) follows the
+                // Themes accent.
+                .activitySystemActionForegroundColor(WidgetTokens.accent)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -953,6 +1070,9 @@ struct LiveSportActivityWidget: Widget {
             // when level or for races, tennis and activities without colours.
             .keylineTint(keyline(context))
         }
+        // The small family: CarPlay (iOS 26) and the Apple Watch Smart Stack. Without
+        // it both fell back to the island's compact views.
+        .supplementalActivityFamilies([.small, .medium])
     }
 
     private func keyline(_ context: ActivityViewContext<LiveSportActivityAttributes>) -> Color {
