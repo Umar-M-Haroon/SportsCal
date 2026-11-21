@@ -243,8 +243,8 @@ struct WatchGameDetailView: View {
     // MARK: - Score Header
 
     private var scoreHeader: some View {
-        let homeWon = (Int(game.intHomeScore ?? "") ?? 0) > (Int(game.intAwayScore ?? "") ?? 0)
-        let awayWon = (Int(game.intAwayScore ?? "") ?? 0) > (Int(game.intHomeScore ?? "") ?? 0)
+        let homeWon = game.isAhead(home: true)
+        let awayWon = game.isAhead(home: false)
         return VStack(spacing: 8) {
             HStack(alignment: .top) {
                 VStack(spacing: 2) {
@@ -252,7 +252,7 @@ struct WatchGameDetailView: View {
                         .font(.system(size: 14, design: .rounded).weight(.semibold))
                         .foregroundStyle(awayWon ? WatchTokens.ink : WatchTokens.inkSoft)
                     if isLive || game.isCompleted == true {
-                        Text(game.intAwayScore ?? "0")
+                        Text(game.compactScore(home: false) ?? "0")
                             .font(.system(size: 28, design: .rounded).weight(.heavy))
                             .monospacedDigit()
                             .foregroundStyle(awayWon ? WatchTokens.ink : WatchTokens.inkSoft)
@@ -279,7 +279,7 @@ struct WatchGameDetailView: View {
                         .font(.system(size: 14, design: .rounded).weight(.semibold))
                         .foregroundStyle(homeWon ? WatchTokens.ink : WatchTokens.inkSoft)
                     if isLive || game.isCompleted == true {
-                        Text(game.intHomeScore ?? "0")
+                        Text(game.compactScore(home: true) ?? "0")
                             .font(.system(size: 28, design: .rounded).weight(.heavy))
                             .monospacedDigit()
                             .foregroundStyle(homeWon ? WatchTokens.ink : WatchTokens.inkSoft)
@@ -325,7 +325,7 @@ struct WatchGameDetailView: View {
                                     .foregroundStyle(highlightedPeriod == i ? .primary : .secondary)
                                     .frame(width: 20)
                             }
-                            Text(game.intAwayScore ?? "0")
+                            Text(game.compactScore(home: false) ?? "0")
                                 .font(.system(size: 9, weight: .bold, design: .monospaced))
                                 .frame(width: 24)
                         }
@@ -340,7 +340,7 @@ struct WatchGameDetailView: View {
                                     .foregroundStyle(highlightedPeriod == i ? .primary : .secondary)
                                     .frame(width: 20)
                             }
-                            Text(game.intHomeScore ?? "0")
+                            Text(game.compactScore(home: true) ?? "0")
                                 .font(.system(size: 9, weight: .bold, design: .monospaced))
                                 .frame(width: 24)
                         }

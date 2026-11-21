@@ -46,7 +46,7 @@ struct SportsWidgetCornerView: View {
         .widgetLabel {
             let homeAbbr = abbreviation(teamID: game.idHomeTeam, name: game.strHomeTeam)
             let awayAbbr = abbreviation(teamID: game.idAwayTeam, name: game.strAwayTeam)
-            Text("\(awayAbbr) \(game.intAwayScore ?? "0") - \(homeAbbr) \(game.intHomeScore ?? "0")")
+            Text("\(awayAbbr) \(game.compactScore(home: false) ?? "0") - \(homeAbbr) \(game.compactScore(home: true) ?? "0")")
         }
     }
 

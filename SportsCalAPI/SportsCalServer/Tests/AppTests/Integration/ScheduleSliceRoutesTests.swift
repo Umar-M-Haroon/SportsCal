@@ -74,8 +74,58 @@ final class ScheduleSliceRoutesTests: XCTestCase {
             XCTAssertEqual(res.status, .notModified)
             XCTAssertEqual(res.body.readableBytes, 0)
         }
-        try app.test(.GET, "v2025/schedules/sports/cricket", headers: authed) { res in
+        try app.test(.GET, "v2025/schedules/sports/curling", headers: authed) { res in
             XCTAssertEqual(res.status, .notFound)
+        }
+    }
+
+    func testWidgetScheduleOmitsCricketUnlessOptedIn() async throws {
+        let soon = Date().addingTimeInterval(3 * 86_400)
+        var schedule = TestGameFactory.liveScore(nba: [TestGameFactory.make(idEvent: "N1", strHomeTeam: "Lakers", strAwayTeam: "Celtics", isoDate: soon)])
+        schedule.cricket = LiveEvent(events: [
+            Game(idEvent: "C1", idLeague: "\(Leagues.ipl.rawValue)", strHomeTeam: "Mumbai Indians", strAwayTeam: "Chennai Super Kings",
+                 strHomeTeamBadge: "https://a.espncdn.com/mi.png", strStatus: "pre", isoDate: soon)
+        ])
+        try await kv.setJSON(ScheduleStore.scheduleKey(isDebug: false).rawValue, value: schedule, ttl: nil)
+
+        // An old widget asks for every sport (no `sports=`) and knows nothing of cricket.
+        try app.test(.GET, "v2025/widget/schedule?limit=10", headers: authed) { res in
+            XCTAssertEqual(res.status, .ok)
+            let body = try JSONDecoder().decode(WidgetScheduleResponse.self, from: Data(res.body.string.utf8))
+            XCTAssertEqual(body.games.compactMap(\.idEvent), ["N1"])
+        }
+        try app.test(.GET, "v2025/widget/schedule?limit=10&cricket=1", headers: authed) { res in
+            let body = try JSONDecoder().decode(WidgetScheduleResponse.self, from: Data(res.body.string.utf8))
+            XCTAssertEqual(Set(body.games.compactMap(\.idEvent)), ["N1", "C1"])
+            XCTAssertEqual(body.games.first { $0.idEvent == "C1" }?.strHomeTeamBadge, "https://a.espncdn.com/mi.png")
+        }
+        try app.test(.GET, "v2025/widget/schedule?sports=cricket&cricket=1", headers: authed) { res in
+            let body = try JSONDecoder().decode(WidgetScheduleResponse.self, from: Data(res.body.string.utf8))
+            XCTAssertEqual(body.games.compactMap(\.idEvent), ["C1"])
+        }
+    }
+
+    func testCricketSliceServesItsOwnBucketOnly() async throws {
+        var schedule = TestGameFactory.liveScore(nba: [nba("pre")])
+        schedule.cricket = LiveEvent(events: [
+            Game(idEvent: "1539442", idLeague: "\(Leagues.cricketTests.rawValue)", strHomeTeam: "New Zealand",
+                 strAwayTeam: "India", intHomeScore: "368", intAwayScore: "159/1 (39 ov)", strStatus: "in", isoDate: Date())
+        ])
+        try await kv.setJSON(ScheduleStore.scheduleKey(isDebug: false).rawValue, value: schedule, ttl: nil)
+        try await kv.setJSON(ScheduleStore.calendarKey(isDebug: false).rawValue,
+                             value: ScheduleCalendarVersion.versions(of: schedule), ttl: nil)
+        await LastKnownGoodCache.shared.reset()
+
+        try app.test(.GET, "v2025/schedules/sports/cricket", headers: authed) { res in
+            XCTAssertEqual(res.status, .ok)
+            XCTAssertNotNil(res.headers.first(name: .eTag))
+            let slice = try JSONDecoder().decode(LiveScore.self, from: Data(res.body.string.utf8))
+            XCTAssertEqual(slice.cricket?.events.map(\.idEvent), ["1539442"])
+            XCTAssertEqual(slice.cricket?.events.first?.intAwayScore, "159/1 (39 ov)", "score text as ESPN wrote it")
+            XCTAssertNil(slice.nba)
+        }
+        try app.test(.GET, "v2025/schedules/sports/soccer", headers: authed) { res in
+            XCTAssertFalse(res.body.string.contains("1539442"), "cricket never rides in another bucket")
         }
     }
 
@@ -91,5 +141,58 @@ final class ScheduleSliceRoutesTests: XCTestCase {
         XCTAssertNotEqual(try etag("v2025/schedules"), all1)
         XCTAssertNotEqual(try etag("v2025/schedules/sports/nba"), nba1, "the final result must reach cached copies")
         XCTAssertEqual(try etag("v2025/schedules/sports/nhl"), nhl1, "another sport's final doesn't touch hockey")
+    }
+}
+
+/// `/cricket/match/:eventID` validates the id and serves the cached scorecard without
+/// asking ESPN.
+final class CricketMatchRouteTests: XCTestCase {
+    private static let apiKey = "test-key"
+    var app: Application!
+    var kv: InMemoryKeyValueStore!
+    private var authed: HTTPHeaders { ["X-API-Key": Self.apiKey] }
+
+    override func setUp() async throws {
+        app = Application(.testing)
+        kv = InMemoryKeyValueStore()
+        app.kv = kv
+        app.redis.configuration = try RedisConfiguration(hostname: "127.0.0.1", port: 1)
+        let hash = SHA256.hash(data: Data(Self.apiKey.utf8)).map { String(format: "%02x", $0) }.joined()
+        setenv("API_KEY_HASH", hash, 1)
+        try routes(app)
+    }
+
+    override func tearDown() async throws {
+        try await app.asyncShutdown()
+        app = nil
+        kv = nil
+    }
+
+    func testServesTheCachedScorecard() async throws {
+        let card = CricketScorecard(eventID: "1539442", innings: [
+            .init(number: 1, battingSide: .home, battingTeam: "New Zealand", total: "368", overs: 101.2,
+                  batters: [], bowlers: [])
+        ])
+        try await kv.setJSON(CricketMatchService.cacheKey(eventID: "1539442", isDebug: false), value: card, ttl: 60)
+        try app.test(.GET, "v2025/cricket/match/1539442", headers: authed) { res in
+            XCTAssertEqual(res.status, .ok)
+            XCTAssertEqual(try JSONDecoder().decode(CricketScorecard.self, from: Data(res.body.string.utf8)), card)
+        }
+    }
+
+    func testRejectsNonNumericIDs() throws {
+        try app.test(.GET, "v2025/cricket/match/abc", headers: authed) { res in
+            XCTAssertEqual(res.status, .badRequest)
+        }
+        try app.test(.GET, "v2025/cricket/match/123456789012345678901", headers: authed) { res in
+            XCTAssertEqual(res.status, .badRequest)
+        }
+    }
+
+    func testRemembersAMissWithoutRefetching() async throws {
+        try await kv.setString(CricketMatchService.missKey(eventID: "42", isDebug: false), value: "1", ttl: 60)
+        try app.test(.GET, "v2025/cricket/match/42", headers: authed) { res in
+            XCTAssertEqual(res.status, .notFound)
+        }
     }
 }

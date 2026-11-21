@@ -110,7 +110,8 @@ export class LiveGames {
         golf: allGames.golf ? { events: filterLive(allGames.golf.events) } : undefined,
         tennis: allGames.tennis ? { events: filterLive(allGames.tennis.events) } : undefined,
         racing: allGames.racing ? { events: filterLive(allGames.racing.events) } : undefined,
-        motorsport: allGames.motorsport ? { events: filterLive(allGames.motorsport.events) } : undefined
+        motorsport: allGames.motorsport ? { events: filterLive(allGames.motorsport.events) } : undefined,
+        cricket: allGames.cricket ? { events: filterLive(allGames.cricket.events) } : undefined
       }
 
       this.handleLiveData(liveData, allGames)
@@ -165,7 +166,8 @@ export class LiveGames {
       { name: 'Golf', data: liveData.golf, allData: allData?.golf, color: '#2ca58d' },
       { name: 'Tennis', data: liveData.tennis, allData: allData?.tennis, color: '#c8b900' },
       { name: 'Formula 1', data: liveData.racing, allData: allData?.racing, color: '#e10600' },
-      { name: 'NASCAR / IndyCar / IMSA / WEC', data: liveData.motorsport, allData: allData?.motorsport, color: '#ffd659' }
+      { name: 'NASCAR / IndyCar / IMSA / WEC', data: liveData.motorsport, allData: allData?.motorsport, color: '#ffd659' },
+      { name: 'Cricket', data: liveData.cricket, allData: allData?.cricket, color: '#1b7a3e' }
     ]
 
     const liveGamesCount = sports.reduce((sum, sport) =>
@@ -262,13 +264,16 @@ export class LiveGames {
     if (sportName === 'Golf' || sportName === 'Tennis' || sportName === 'Formula 1' || sportName.startsWith('NASCAR')) {
       return this.renderTournamentGame(game)
     }
-    return this.renderTeamGame(game)
+    return this.renderTeamGame(game, sportName === 'Cricket')
   }
 
-  private renderTeamGame(game: Game): string {
+  /** Cricket rides the team path; its scores are ESPN's display text ("137 & 144/2 (40 ov)"), shown as-is. */
+  private renderTeamGame(game: Game, isCricket = false): string {
     const statusBadge = getStatusBadge(game.strStatus)
-    const homeScore = game.intHomeScore || '0'
-    const awayScore = game.intAwayScore || '0'
+    const emptyScore = isCricket ? '–' : '0'
+    const homeScore = game.intHomeScore || emptyScore
+    const awayScore = game.intAwayScore || emptyScore
+    const scoreSize = isCricket ? '0.95rem' : '1.25rem'
 
     return `
       <div style="border: 1px solid var(--border-color); border-radius: 0.375rem; padding: 1rem;">
@@ -282,7 +287,7 @@ export class LiveGames {
             ${game.strHomeTeamBadge ? `<img src="${game.strHomeTeamBadge}" alt="${game.strHomeTeam}" style="width: 24px; height: 24px;">` : ''}
             <span style="font-weight: 500;">${game.strHomeTeam}</span>
           </div>
-          <span style="font-size: 1.25rem; font-weight: 700;">${homeScore}</span>
+          <span style="font-size: ${scoreSize}; font-weight: 700;">${homeScore}</span>
         </div>
 
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -290,12 +295,14 @@ export class LiveGames {
             ${game.strAwayTeamBadge ? `<img src="${game.strAwayTeamBadge}" alt="${game.strAwayTeam}" style="width: 24px; height: 24px;">` : ''}
             <span style="font-weight: 500;">${game.strAwayTeam}</span>
           </div>
-          <span style="font-size: 1.25rem; font-weight: 700;">${awayScore}</span>
+          <span style="font-size: ${scoreSize}; font-weight: 700;">${awayScore}</span>
         </div>
         ${(game.aggregateScore || game.legDisplay) ? `
         <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);">
           ${[game.legDisplay, game.aggregateScore].filter(Boolean).join(' · ')}
         </div>` : ''}
+        ${isCricket && game.lastPlay ? `
+        <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);">${game.lastPlay}</div>` : ''}
       </div>
     `
   }

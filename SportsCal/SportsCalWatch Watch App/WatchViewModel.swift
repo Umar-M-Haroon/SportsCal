@@ -82,6 +82,7 @@ final class WatchViewModel {
         case .golf:       return defaults.bool(forKey: "favoritesOnlyGolf")
         case .tennis:     return defaults.bool(forKey: "favoritesOnlyTennis")
         case .racing:     return defaults.bool(forKey: "favoritesOnlyRacing")
+        case .cricket:     return defaults.bool(forKey: "favoritesOnlyCricket")
         }
     }
 
@@ -323,6 +324,7 @@ final class WatchViewModel {
         if defaults.bool(forKey: "shouldShowGolf") { sports.insert(.golf) }
         if defaults.bool(forKey: "shouldShowTennis") { sports.insert(.tennis) }
         if defaults.bool(forKey: "shouldShowRacing") { sports.insert(.racing) }
+        if defaults.bool(forKey: "shouldShowCricket") { sports.insert(.cricket) }
 
         if !sports.isEmpty {
             enabledSports = sports
@@ -375,6 +377,7 @@ final class WatchViewModel {
         defaults.set(enabledSports.contains(.golf), forKey: "shouldShowGolf")
         defaults.set(enabledSports.contains(.tennis), forKey: "shouldShowTennis")
         defaults.set(enabledSports.contains(.racing), forKey: "shouldShowRacing")
+        defaults.set(enabledSports.contains(.cricket), forKey: "shouldShowCricket")
     }
 }
 

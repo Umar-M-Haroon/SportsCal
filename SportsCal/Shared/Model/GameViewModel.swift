@@ -204,7 +204,7 @@ public class GameViewModel: NSObject {
         let built = total.filter { game in
             guard let leagueString = game.idLeague,
                   let intLeague = Int(leagueString),
-                  let league = Leagues(rawValue: intLeague), league.isSoccer || league.isRacing else { return true }
+                  let league = Leagues(rawValue: intLeague), league.isSoccer || league.isRacing || league.isCricket else { return true }
             return !hiddenCompetitions.contains(league.leagueName)
         }.sorted { ($0.standardDate ?? .now) < ($1.standardDate ?? .now) }
         _calendarGamesCache = built
@@ -489,6 +489,10 @@ public class GameViewModel: NSObject {
            !hidingCompetitions(events, context: context).isEmpty {
             sports.append(.racing)
         }
+        if appStorage.shouldShowCricket, let events = currentLiveInfo?.cricket?.events,
+           !hidingCompetitions(events, context: context).isEmpty {
+            sports.append(.cricket)
+        }
         return sports
     }
 
@@ -586,6 +590,13 @@ public class GameViewModel: NSObject {
             }, context: context)
             if !filteredRacing.isEmpty {
                 counts[.racing] = filteredRacing.count
+            }
+        }
+
+        if let cricketEvents = currentLiveInfo?.cricket?.events {
+            let filteredCricket = hidingCompetitions(cricketEvents.filter(\.isKnownLeague), context: context)
+            if !filteredCricket.isEmpty {
+                counts[.cricket] = filteredCricket.count
             }
         }
 
@@ -747,6 +758,9 @@ public class GameViewModel: NSObject {
                 games.append(contentsOf: applyFavoritesFilter(hidingCompetitions(racingGames, context: context), favoritesOnly: appStorage.favoritesOnlyRacing, context: context))
             }
         }
+        if appStorage.shouldShowCricket, let cricketGames = currentLiveInfo?.cricket?.events.filter(\.isKnownLeague) {
+            games.append(contentsOf: applyFavoritesFilter(hidingCompetitions(cricketGames, context: context), favoritesOnly: appStorage.favoritesOnlyCricket, context: context))
+        }
         return Array(OrderedSet(games))
     }
 
@@ -759,14 +773,15 @@ public class GameViewModel: NSObject {
             currentLiveInfo?.nhl?.events,
             currentLiveInfo?.golf?.events,
             currentLiveInfo?.tennis?.events,
-            currentLiveInfo?.racing?.events
+            currentLiveInfo?.racing?.events,
+            currentLiveInfo?.cricket?.events
         ]
         let hiddenCompetitions = GameFilterContext(appStorage: appStorage).hiddenCompetitions
         let games = allSportEvents.compactMap { $0 }.flatMap { $0 }.filter { game in
             guard let leagueString = game.idLeague,
                   let intLeague = Int(leagueString),
                   let league = Leagues(rawValue: intLeague) else { return false }
-            if league.isSoccer || league.isRacing {
+            if league.isSoccer || league.isRacing || league.isCricket {
                 return !hiddenCompetitions.contains(league.leagueName)
             }
             return true
@@ -1478,6 +1493,8 @@ public class GameViewModel: NSObject {
             return appStorage.shouldShowTennis
         case .racing:
             return appStorage.shouldShowRacing
+        case .cricket:
+            return appStorage.shouldShowCricket
         }
     }
     
@@ -1912,7 +1929,7 @@ public class GameViewModel: NSObject {
 
         let allLive = [liveScore.nba?.events, liveScore.mlb?.events, liveScore.soccer?.events,
                        liveScore.nfl?.events, liveScore.nhl?.events, liveScore.golf?.events,
-                       liveScore.tennis?.events, liveScore.racing?.events]
+                       liveScore.tennis?.events, liveScore.racing?.events, liveScore.cricket?.events]
             .compactMap { $0 }.flatMap { $0 }
         guard !allLive.isEmpty else { return }
 
@@ -2183,7 +2200,7 @@ public class GameViewModel: NSObject {
         gameWithTeamsCache.removeAll()
         gamesWithTeamsDateCache.removeAll()
 
-        let snapshotGames = [result.nhl?.events, result.nfl?.events, result.soccer?.events, result.mlb?.events, result.nba?.events, result.golf?.events, result.tennis?.events, result.racing?.events]
+        let snapshotGames = [result.nhl?.events, result.nfl?.events, result.soccer?.events, result.mlb?.events, result.nba?.events, result.golf?.events, result.tennis?.events, result.racing?.events, result.cricket?.events]
             .compactMap({$0})
             .flatMap({$0})
         // Days the user browsed outside the snapshot's window survive a refresh; they
@@ -2259,7 +2276,7 @@ public class GameViewModel: NSObject {
     private func mergeOnDemandGames(_ result: LiveScore, for date: Date) {
         let incoming = [result.nhl?.events, result.nfl?.events, result.soccer?.events,
                         result.mlb?.events, result.nba?.events, result.golf?.events,
-                        result.tennis?.events, result.racing?.events]
+                        result.tennis?.events, result.racing?.events, result.cricket?.events]
             .compactMap { $0 }
             .flatMap { $0 }
         guard !incoming.isEmpty else { return }
@@ -2409,6 +2426,10 @@ public class GameViewModel: NSObject {
             let games = hidingCompetitions(gamesDict[.racing] ?? [], context: context)
             allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyRacing, context: context))
         }
+        if appStorage.shouldShowCricket {
+            let games = hidingCompetitions(gamesDict[.cricket] ?? [], context: context)
+            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyCricket, context: context))
+        }
         return allGames
     }
 
@@ -2556,6 +2577,7 @@ public class GameViewModel: NSObject {
         hasher.combine(appStorage.shouldShowGolf)
         hasher.combine(appStorage.shouldShowTennis)
         hasher.combine(appStorage.shouldShowRacing)
+        hasher.combine(appStorage.shouldShowCricket)
         hasher.combine(appStorage.favoritesOnlyNBA)
         hasher.combine(appStorage.favoritesOnlyNFL)
         hasher.combine(appStorage.favoritesOnlyNHL)
@@ -2564,6 +2586,7 @@ public class GameViewModel: NSObject {
         hasher.combine(appStorage.favoritesOnlyGolf)
         hasher.combine(appStorage.favoritesOnlyTennis)
         hasher.combine(appStorage.favoritesOnlyRacing)
+        hasher.combine(appStorage.favoritesOnlyCricket)
         hasher.combine(appStorage.coverageTennis)
         hasher.combine(appStorage.coverageGolf)
         for comp in appStorage.hiddenCompetitions { hasher.combine(comp) }
@@ -2583,7 +2606,7 @@ public class GameViewModel: NSObject {
         }
 
         if appStorage.debugMode {
-            AppLogger.viewModel.debug("Sports filter changed — NFL:\(self.appStorage.shouldShowNFL) NBA:\(self.appStorage.shouldShowNBA) NHL:\(self.appStorage.shouldShowNHL) Soccer:\(self.appStorage.shouldShowSoccer) MLB:\(self.appStorage.shouldShowMLB) Golf:\(self.appStorage.shouldShowGolf) Tennis:\(self.appStorage.shouldShowTennis) Racing:\(self.appStorage.shouldShowRacing)")
+            AppLogger.viewModel.debug("Sports filter changed — NFL:\(self.appStorage.shouldShowNFL) NBA:\(self.appStorage.shouldShowNBA) NHL:\(self.appStorage.shouldShowNHL) Soccer:\(self.appStorage.shouldShowSoccer) MLB:\(self.appStorage.shouldShowMLB) Golf:\(self.appStorage.shouldShowGolf) Tennis:\(self.appStorage.shouldShowTennis) Racing:\(self.appStorage.shouldShowRacing) Cricket:\(self.appStorage.shouldShowCricket)")
         }
         if force {
             totalGames = totalGames?.filter({ game in
@@ -3164,6 +3187,7 @@ public class GameViewModel: NSObject {
         case .golf:       events = currentLiveInfo?.golf?.events
         case .tennis:     events = currentLiveInfo?.tennis?.events
         case .racing:     events = currentLiveInfo?.racing?.events
+        case .cricket:     events = currentLiveInfo?.cricket?.events
         }
         return (events ?? []).filter { game in
             guard let leagueString = game.idLeague,
@@ -3256,7 +3280,8 @@ public class GameViewModel: NSObject {
         // ESPN id 238, no abbreviation), which rendered the full name hyphenated across
         // the row and a made-up code ("BCO" for BYU). Build both sides from the game:
         // its own `ncaaf-` ID and ESPN's abbreviation.
-        if game.isCollegeFootball {
+        // Cricket sides aren't in the directory either.
+        if game.isCollegeFootball || game.isCricket {
             let homeTeam = Team(idTeam: idHomeTeam, strTeam: strHomeTeam, strTeamShort: game.teamCode(home: true), strAlternate: nil, strTeamBadge: game.strHomeTeamBadge)
             let awayTeam = Team(idTeam: game.idAwayTeam ?? strAwayTeam, strTeam: strAwayTeam, strTeamShort: game.teamCode(home: false), strAlternate: nil, strTeamBadge: game.strAwayTeamBadge)
             return (homeTeam, awayTeam)
@@ -3516,6 +3541,9 @@ extension GameViewModel {
         return (activityAttributes, initialContentState)
     }
     func requestActivity(game: Game, homeTeam: Team, awayTeam: Team) {
+        // A Live Activity's score is an Int pair; cricket's "287/6" needs its own payload
+        // (TODO: LiveActivityCricket). Until then, no activity rather than a 0–0 one.
+        guard !game.isCricket else { return }
         Task { @MainActor in
             do {
                 let (activityAttributes, initialContentState) = try await configureDataForLiveActivity(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
@@ -4197,4 +4225,12 @@ extension Notification.Name {
     /// The app itself started a Live Activity (Follow tap or a user-armed
     /// auto-follow) — not a server push-to-start.
     static let liveActivityStartedFromApp = Notification.Name("liveActivityStartedFromApp")
+}
+
+
+private extension Game {
+    /// The game's league is one this build knows.
+    var isKnownLeague: Bool {
+        idLeague.flatMap { Int($0) }.flatMap(Leagues.init(rawValue:)) != nil
+    }
 }

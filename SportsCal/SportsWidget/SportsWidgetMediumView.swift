@@ -153,11 +153,11 @@ struct CompactGameCell: View {
             VStack(alignment: .leading, spacing: 2) {
                 // Teams row
                 HStack(spacing: 4) {
-                    compactTeamView(teamID: game.idAwayTeam, teamName: game.strAwayTeam, score: game.intAwayScore, seed: game.awaySeed)
+                    compactTeamView(teamID: game.idAwayTeam, teamName: game.strAwayTeam, score: game.compactScore(home: false), seed: game.awaySeed)
                     Text("@")
                         .font(.system(size: 8, design: .monospaced))
                         .foregroundStyle(WidgetTokens.inkFaint)
-                    compactTeamView(teamID: game.idHomeTeam, teamName: game.strHomeTeam, score: game.intHomeScore, seed: game.homeSeed)
+                    compactTeamView(teamID: game.idHomeTeam, teamName: game.strHomeTeam, score: game.compactScore(home: true), seed: game.homeSeed)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 

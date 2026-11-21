@@ -41,6 +41,9 @@ struct SportsTint: ViewModifier {
         case .racing:
             content
                 .foregroundColor(.red)
+        case .cricket:
+            content
+                .foregroundColor(.brown)
         }
     }
 }
@@ -64,6 +67,8 @@ extension SportType {
             return "tennis.racket"
         case .racing:
             return "flag.checkered.2.crossed"
+        case .cricket:
+            return "cricket.ball"
         }
     }
 
@@ -85,6 +90,8 @@ extension SportType {
             return .yellow
         case .racing:
             return .red
+        case .cricket:
+            return .brown
         }
     }
 
@@ -106,6 +113,8 @@ extension SportType {
             return "Tennis"
         case .racing:
             return "Racing"
+        case .cricket:
+            return "Cricket"
         }
     }
 }

@@ -1,5 +1,5 @@
 import { apiClient } from '../api/client'
-import { Leagues, LeagueNames, type LiveScore, type Game } from '../api/types'
+import { Leagues, LeagueNames, CricketLeagues, type LiveScore, type Game } from '../api/types'
 import { formatDateTime, getStatusBadge, showToast } from '../utils/formatting'
 import { logger } from '../utils/logger'
 
@@ -190,6 +190,17 @@ export class LeagueExplorer {
       }
     }
 
+    // Cricket — its own bucket, one league per competition (team sport)
+    if (this.scheduleData.cricket) {
+      const groups = groupByLeague(this.scheduleData.cricket.events)
+      for (const [leagueId, games] of groups) {
+        const league = leagueId as Leagues
+        if (LeagueNames[league]) {
+          computeForEvents(games, league)
+        }
+      }
+    }
+
     logger.log(`Computed stats for ${this.leagueStats.size} leagues`, 'success')
   }
 
@@ -305,6 +316,7 @@ export class LeagueExplorer {
         <button class="filter-btn ${this.currentFilter === 'golf' ? 'active' : ''}" data-sport="golf">Golf</button>
         <button class="filter-btn ${this.currentFilter === 'tennis' ? 'active' : ''}" data-sport="tennis">Tennis</button>
         <button class="filter-btn ${this.currentFilter === 'racing' ? 'active' : ''}" data-sport="racing">Racing</button>
+        <button class="filter-btn ${this.currentFilter === 'cricket' ? 'active' : ''}" data-sport="cricket">Cricket</button>
       </div>
 
       <div id="leagues-container" class="grid grid-2">
@@ -380,7 +392,7 @@ export class LeagueExplorer {
       case Leagues.PGA: return 'golf'
       case Leagues.ATP: case Leagues.WTA: return 'tennis'
       case Leagues.Formula1: case Leagues.NASCARCup: case Leagues.IndyCar: case Leagues.IMSA: case Leagues.WEC: return 'racing'
-      default: return 'soccer'
+      default: return CricketLeagues.has(league) ? 'cricket' : 'soccer'
     }
   }
 
@@ -453,6 +465,7 @@ export class LeagueExplorer {
       case 'golf': return '#2ca58d'
       case 'tennis': return '#c8b900'
       case 'racing': return '#e10600'
+      case 'cricket': return '#1b7a3e'
       default: return 'var(--primary-color)'
     }
   }
@@ -472,6 +485,11 @@ export class LeagueExplorer {
     if (leagueId === Leagues.Formula1 && this.scheduleData.racing) return this.scheduleData.racing.events
     if (this.isRacingLeague(leagueId) && leagueId !== Leagues.Formula1 && this.scheduleData.motorsport) {
       return this.scheduleData.motorsport.events.filter(g => g.idLeague === String(leagueId))
+    }
+
+    // Cricket — its own bucket, filter by league ID
+    if (CricketLeagues.has(leagueId)) {
+      return (this.scheduleData.cricket?.events ?? []).filter(g => g.idLeague === String(leagueId))
     }
 
     // Tennis — filter by league ID

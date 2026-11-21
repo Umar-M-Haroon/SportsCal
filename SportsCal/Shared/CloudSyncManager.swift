@@ -17,10 +17,10 @@ final class CloudSyncManager {
     /// Keys that should be synced to iCloud KVS (maps 1:1 with UserDefaults keys).
     private let syncableKeys: Set<String> = [
         "shouldShowNBA", "shouldShowNFL", "shouldShowNHL", "shouldShowSoccer",
-        "shouldShowMLB", "shouldShowGolf", "shouldShowTennis", "shouldShowRacing",
+        "shouldShowMLB", "shouldShowGolf", "shouldShowTennis", "shouldShowRacing", "shouldShowCricket",
         "shouldShowWNBA", "shouldShowCFB",
         "favoritesOnlyNBA", "favoritesOnlyNFL", "favoritesOnlyNHL", "favoritesOnlySoccer",
-        "favoritesOnlyMLB", "favoritesOnlyGolf", "favoritesOnlyTennis", "favoritesOnlyRacing",
+        "favoritesOnlyMLB", "favoritesOnlyGolf", "favoritesOnlyTennis", "favoritesOnlyRacing", "favoritesOnlyCricket",
             "coverageTennis", "coverageGolf", "cfbSelection",
         "favoritesOnlyCompetitions",
         "hidesPastEvents", "soonestOnTop", "duration", "dateFormat",
@@ -424,10 +424,10 @@ final class CloudSyncManager {
         let standard = UserDefaults.standard
         let sportKeys = [
             "shouldShowNBA", "shouldShowNFL", "shouldShowNHL", "shouldShowSoccer",
-            "shouldShowMLB", "shouldShowGolf", "shouldShowTennis", "shouldShowRacing",
+            "shouldShowMLB", "shouldShowGolf", "shouldShowTennis", "shouldShowRacing", "shouldShowCricket",
             "shouldShowWNBA", "shouldShowCFB",
             "favoritesOnlyNBA", "favoritesOnlyNFL", "favoritesOnlyNHL", "favoritesOnlySoccer",
-            "favoritesOnlyMLB", "favoritesOnlyGolf", "favoritesOnlyTennis", "favoritesOnlyRacing",
+            "favoritesOnlyMLB", "favoritesOnlyGolf", "favoritesOnlyTennis", "favoritesOnlyRacing", "favoritesOnlyCricket",
             "coverageTennis", "coverageGolf", "cfbSelection",
             "favoritesOnlyCompetitions",
             "hiddenCompetitions", "sportOrder"

@@ -685,6 +685,10 @@ struct NetworkHandler {
         if sport == .racing {
             components.queryItems = [URLQueryItem(name: "motorsport", value: "1")]
         }
+        // Cricket is opt-in on flat game lists too: older builds have no cricket leagues.
+        if sport == .cricket {
+            components.queryItems = [URLQueryItem(name: "cricket", value: "1")]
+        }
         let url = components.url!
         let (data, response) = try await performAuthorized(url: url)
         if let httpResponse = response as? HTTPURLResponse {
@@ -706,6 +710,7 @@ struct NetworkHandler {
             components.queryItems?.append(URLQueryItem(name: "favorites", value: favorites.joined(separator: ",")))
         }
         components.queryItems?.append(contentsOf: collegeFootballQueryItems(sports: sports))
+        components.queryItems?.append(contentsOf: cricketQueryItems(sports: sports))
         if wantsMotorsportSeries {
             components.queryItems?.append(URLQueryItem(name: "motorsport", value: "1"))
         }
@@ -749,6 +754,12 @@ struct NetworkHandler {
     ///
     /// No sports means "games for these favorites", which only ever returns followed teams'
     /// games, so college is always in.
+    /// Cricket opt-in for flat game lists: the server leaves cricket out of them unless
+    /// asked, because app versions that predate it don't know its leagues.
+    private static func cricketQueryItems(sports: [SportType]) -> [URLQueryItem] {
+        sports.isEmpty || sports.contains(.cricket) ? [URLQueryItem(name: "cricket", value: "1")] : []
+    }
+
     private static func collegeFootballQueryItems(sports: [SportType]) -> [URLQueryItem] {
         guard sports.isEmpty || sports.contains(.nfl) else { return [] }
         #if os(watchOS)
@@ -1281,6 +1292,23 @@ struct NetworkHandler {
             if httpResponse.statusCode == 404 { throw SoccerMatchNotAvailable() }
         }
         return try Self.sharedDecoder.decode(SoccerMatchDetail.self, from: data)
+    }
+
+    struct CricketScorecardNotAvailable: Error {}
+
+    /// A cricket match's batting and bowling cards. Throws `CricketScorecardNotAvailable`
+    /// before the toss (ESPN has no figures yet) or for an unknown match.
+    static func getCricketScorecard(for game: Game) async throws -> CricketScorecard {
+        guard let eventID = game.idEvent, eventID.allSatisfy(\.isNumber),
+              let url = URL(string: "\(baseURL())/cricket/match/\(eventID)") else {
+            throw CricketScorecardNotAvailable()
+        }
+        let (data, response) = try await performAuthorized(url: url)
+        if let httpResponse = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: httpResponse)
+            if httpResponse.statusCode == 404 { throw CricketScorecardNotAvailable() }
+        }
+        return try Self.sharedDecoder.decode(CricketScorecard.self, from: data)
     }
 
     /// One soccer competition's table (zones, form) with its top scorers and assisters.

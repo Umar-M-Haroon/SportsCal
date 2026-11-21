@@ -132,7 +132,7 @@ export class HealthMonitor {
           </thead>
           <tbody>
             ${health.jobs.map(job => {
-              const triggerable = ['ESPNTeamFetchJob', 'ScheduleUpdateJob', 'ESPNFetchJob'].includes(job.name)
+              const triggerable = ['ESPNTeamFetchJob', 'ScheduleUpdateJob', 'ESPNFetchJob', 'ESPNCricketJob'].includes(job.name)
               return `
               <tr>
                 <td>${job.name}</td>

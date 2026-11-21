@@ -145,7 +145,7 @@ public extension TeamStatComparison {
                 Spec("fielding.errors", "Errors", lowerIsBetter: true),
                 Spec("pitching.pitches", "Pitches Thrown", lowerIsBetter: true),
             ]
-        case .golf, .tennis, .racing:
+        case .golf, .tennis, .racing, .cricket:
             return []
         }
     }

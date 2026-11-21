@@ -464,6 +464,29 @@ struct RacingCompetitionsSettingsSection: View {
     }
 }
 
+struct CricketCompetitionsSettingsSection: View {
+    @Environment(UserDefaultStorage.self) private var appStorage
+    private var leagues: [Leagues] { Leagues.allCases.filter { $0.isCricket } }
+
+    var body: some View {
+        Section {
+            #if os(macOS)
+            DisclosureGroup("Visible cricket competitions") {
+                ForEach(leagues, id: \.self) { league in
+                    CompetitionView(league: league, isShown: !appStorage.hiddenCompetitions.contains(league.leagueName))
+                        .environment(appStorage)
+                }
+            }
+            #else
+            NavigationLink("Visible cricket competitions") {
+                CompetitionPage(competitions: leagues)
+                    .environment(appStorage)
+            }
+            #endif
+        }
+    }
+}
+
 // MARK: - iOS Settings View
 
 struct SettingsView: View {

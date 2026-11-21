@@ -195,6 +195,7 @@ enum GameCountAudit {
         case .golf:       return storage.shouldShowGolf
         case .tennis:     return storage.shouldShowTennis
         case .racing:     return storage.shouldShowRacing
+        case .cricket:     return storage.shouldShowCricket
         }
     }
 }

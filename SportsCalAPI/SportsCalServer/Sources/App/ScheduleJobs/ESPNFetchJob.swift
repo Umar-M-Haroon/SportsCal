@@ -150,6 +150,21 @@ struct ESPNFetchJob: AsyncScheduledJob {
             newResult = result
         }
 
+        // Cricket: one ESPN score panel (every competition, today + live), fetched while a
+        // cricket league is active. A multi-day Test stays active until its end date (see
+        // `Integrator.activeLeagues`). A failed fetch keeps last tick's bucket rather than
+        // blanking live Tests; team IDs are ESPN's own (`cricket-` prefixed), never
+        // translated.
+        if active.map({ $0.contains(where: \.isCricket) }) ?? true {
+            var result = newResult ?? LiveScore()
+            if let cricket = await ESPNCricketJob.liveGames(client: context.application.client) {
+                result.cricket = cricket.isEmpty ? nil : LiveEvent(events: cricket)
+            } else {
+                result.cricket = latestLiveResult?.cricket
+            }
+            newResult = result
+        }
+
         // The rebuild is ESPN's scoreboard, which never has basketball fouls and runs or
         // hockey strength: carry them over from the snapshot it replaces (this tick's
         // play-by-play pass then refreshes the basketball ones).
@@ -885,6 +900,7 @@ struct ESPNFetchJob: AsyncScheduledJob {
             nba: dedup(score.nba), mlb: dedup(score.mlb), soccer: dedup(score.soccer),
             nfl: dedup(score.nfl), nhl: dedup(score.nhl), golf: dedup(score.golf),
             tennis: dedup(score.tennis), racing: dedup(score.racing),
+            cricket: dedup(score.cricket),
             f1Standings: score.f1Standings, worldCup: score.worldCup
         )
     }
@@ -1105,6 +1121,10 @@ struct ESPNFetchJob: AsyncScheduledJob {
         games.append(contentsOf: liveScore.golf?.events ?? [])
         games.append(contentsOf: liveScore.tennis?.events ?? [])
         games.append(contentsOf: liveScore.racing?.events ?? [])
+        // Cricket is left out on purpose: no Live Activities for cricket in v1. Its scores
+        // are display text ("137 & 144/2 (40 ov)"), and the activity content state's
+        // `homeScore`/`awayScore` are Ints.
+        // TODO(cricket): Live Activities — needs a cricket content state (innings text).
         return games
     }
 
@@ -1466,7 +1486,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
             nhl: liveScore.nhl.map { LiveEvent(events: translateEvents($0.events, bucket: "nhl")) },
             golf: liveScore.golf.map { LiveEvent(events: translateEvents($0.events, bucket: "golf")) },
             tennis: liveScore.tennis.map { LiveEvent(events: translateEvents($0.events, bucket: "tennis")) },
-            racing: liveScore.racing.map { LiveEvent(events: translateEvents($0.events, bucket: "racing")) }
+            racing: liveScore.racing.map { LiveEvent(events: translateEvents($0.events, bucket: "racing")) },
+            // ESPN-only with its own namespaced IDs (`cricket-…`): nothing to translate.
+            cricket: liveScore.cricket
         )
     }
     
@@ -1484,6 +1506,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
             golf: mergeSportEvents(schedule: schedule.golf, espn: espn.golf, resolver: resolver),
             tennis: mergeSportEvents(schedule: schedule.tennis, espn: espn.tennis, resolver: resolver),
             racing: mergeSportEvents(schedule: schedule.racing, espn: espn.racing, resolver: resolver),
+            // Same upstream on both sides, so an exact idEvent merge (`mergeSportEvents`'
+            // team-name matching and field-by-field rebuild would drop `endDate`).
+            cricket: ESPNCricketJob.mergingLive(schedule: schedule.cricket, live: espn.cricket),
             // Ridealong enrichments live on the schedule blob; carry them through or
             // every live tick wipes them until the hourly enrichment jobs re-attach
             // (symptom: Bracket CTA / F1 standings flicker in and out on the client).

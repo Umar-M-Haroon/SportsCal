@@ -37,7 +37,7 @@ struct StatScatterView: View {
             ("MLS", 4346),
             ("A-League", 4356)
         ]
-        case .golf, .tennis, .racing: return []
+        case .golf, .tennis, .racing, .cricket: return []
         }
     }
 

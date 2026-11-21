@@ -230,6 +230,11 @@ public func configure(_ app: Application) async throws {
         app.queues.schedule(worldCupEnrichmentJob)
             .hourly()
             .at(50)
+        // Cricket's schedule: an ESPN score-panel sweep (−5…+120 days), internally gated
+        // to every ~6h. Live cricket rides ESPNFetchJob and the LiveTicker.
+        app.queues.schedule(ESPNCricketJob())
+            .hourly()
+            .at(35)
         // Refreshes App Attest fraud-risk receipts that have come due and reaps
         // key records for installs long gone. Scheduled unconditionally: the
         // reaping half is what bounds `attest:key:*` growth and works with no

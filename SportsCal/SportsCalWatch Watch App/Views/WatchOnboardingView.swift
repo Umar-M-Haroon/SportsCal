@@ -88,6 +88,7 @@ struct WatchOnboardingView: View {
         defaults.set(selectedSports.contains(.golf), forKey: "shouldShowGolf")
         defaults.set(selectedSports.contains(.tennis), forKey: "shouldShowTennis")
         defaults.set(selectedSports.contains(.racing), forKey: "shouldShowRacing")
+        defaults.set(selectedSports.contains(.cricket), forKey: "shouldShowCricket")
         defaults.set(true, forKey: "watchOnboardingComplete")
 
         isPresented = false

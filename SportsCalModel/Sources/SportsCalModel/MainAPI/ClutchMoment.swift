@@ -126,7 +126,7 @@ public extension ClutchMoment {
                                    periodText: periodName(period), scoreLine: scoreLine) {
                 return moment
             }
-        case .soccer, .golf, .tennis, .racing:
+        case .soccer, .golf, .tennis, .racing, .cricket:
             return nil
         }
 

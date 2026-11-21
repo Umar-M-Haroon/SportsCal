@@ -59,6 +59,7 @@ public extension LiveScore {
             (.golf,       \.golf),
             (.tennis,     \.tennis),
             (.racing,     \.racing),
+            (.cricket,    \.cricket),
         ]
     }
 

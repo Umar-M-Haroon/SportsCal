@@ -65,7 +65,7 @@ struct MenuBarLabel: View {
                 let homeSeed = game.homeSeed.map { "(\($0)) " } ?? ""
                 let away = awaySeed + Team.shortCode(strTeamShort: gwt.awayTeam?.strTeamShort, name: game.strAwayTeam, idTeam: gwt.awayTeam?.idTeam)
                 let home = homeSeed + (Team.shortCode(strTeamShort: gwt.homeTeam?.strTeamShort, name: game.strHomeTeam, idTeam: gwt.homeTeam?.idTeam))
-                if let awayScore = game.intAwayScore, let homeScore = game.intHomeScore {
+                if let awayScore = game.compactScore(home: false), let homeScore = game.compactScore(home: true) {
                     Text("\(away) \(awayScore) - \(home) \(homeScore)")
                         .font(.caption2)
                         .monospacedDigit()

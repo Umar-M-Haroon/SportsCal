@@ -377,6 +377,7 @@ class Provider: AppIntentTimelineProvider {
                 case .golf:       return favOnly("favoritesOnlyGolf")
                 case .tennis:     return favOnly("favoritesOnlyTennis")
                 case .racing:     return favOnly("favoritesOnlyRacing")
+                case .cricket:     return favOnly("favoritesOnlyCricket")
                 }
             }()
             if favOnlyForSport && !favorites.matches(game) { return false }
@@ -422,6 +423,7 @@ class Provider: AppIntentTimelineProvider {
         if defaults?.bool(forKey: "shouldShowGolf") ?? false { sports.append(.golf) }
         if defaults?.bool(forKey: "shouldShowTennis") ?? false { sports.append(.tennis) }
         if defaults?.bool(forKey: "shouldShowRacing") ?? false { sports.append(.racing) }
+        if defaults?.bool(forKey: "shouldShowCricket") ?? false { sports.append(.cricket) }
 
         // If no sports enabled, default to basketball
         if sports.isEmpty { sports.append(.basketball) }

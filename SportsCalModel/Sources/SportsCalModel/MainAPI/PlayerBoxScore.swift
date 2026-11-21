@@ -132,7 +132,7 @@ public extension PlayerBoxScore {
     static func supports(_ sport: SportType) -> Bool {
         switch sport {
         case .basketball, .hockey, .nfl, .mlb: return true
-        case .soccer, .golf, .tennis, .racing: return false
+        case .soccer, .golf, .tennis, .racing, .cricket: return false
         }
     }
 }

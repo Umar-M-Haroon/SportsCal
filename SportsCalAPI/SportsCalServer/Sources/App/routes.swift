@@ -1486,6 +1486,19 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return encodeResult(res: detail)
     }
 
+    // One cricket match's scorecard: batting and bowling per innings, from ESPN's
+    // per-event summary (see CricketMatchService). 404 before the toss or when ESPN has
+    // nothing for the match.
+    routes.get("cricket", "match", ":eventID") { req async throws -> String in
+        guard let eventID = req.parameters.get("eventID"), CricketMatchService.isValidEventID(eventID) else {
+            throw Abort(.badRequest)
+        }
+        guard let card = await CricketMatchService.scorecard(app: req.application, eventID: eventID) else {
+            throw Abort(.notFound)
+        }
+        return encodeResult(res: card)
+    }
+
     // One soccer competition's table (with zones and form) plus its top scorers and
     // assisters. 404 for a league that isn't soccer or has none of them.
     routes.get("soccer", "competition", ":leagueID") { req async throws -> String in
@@ -1848,6 +1861,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
             ("golf", schedule.golf),
             ("tennis", schedule.tennis),
             ("racing", schedule.racing),
+            // Opt-in (`cricket=1`) like college football: see `WidgetCollegeFilter`.
+            ("cricket", schedule.cricket),
         ]
 
         var allGames: [Game] = []
@@ -1913,6 +1928,10 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 idAwayTeam: game.idAwayTeam,
                 strHomeTeam: game.strHomeTeam,
                 strAwayTeam: game.strAwayTeam,
+                // Cricket teams aren't in `/teams` (ESPN-only, namespaced IDs), so their
+                // badges ride on the game itself.
+                strHomeTeamBadge: game.isCricket ? game.strHomeTeamBadge : nil,
+                strAwayTeamBadge: game.isCricket ? game.strAwayTeamBadge : nil,
                 intHomeScore: game.intHomeScore,
                 intAwayScore: game.intAwayScore,
                 strStatus: game.strStatus,
@@ -1936,6 +1955,8 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
                 homeConference: game.homeConference,
                 awayConference: game.awayConference,
                 playoff: game.playoff,
+                // A multi-day Test's last day.
+                endDate: game.isCricket ? game.endDate : nil,
                 season: game.season, seasonPhase: game.seasonPhase,
                 sportsDBRound: game.sportsDBRound,
                 situation: game.situation, excitement: game.excitement,
@@ -1968,17 +1989,22 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 /// - `nfl=0` — drop NFL games (college on, NFL off: the client still asks for `sports=nfl`).
 /// - `motorsport=1` — include racing series other than F1 (NASCAR, …). Clients that predate
 ///   them render every racing game as an F1 weekend.
+/// - `cricket=1` — include cricket. Clients that predate it have no `SportType.cricket`
+///   and can crash on an unknown league in a flat list.
 struct WidgetCollegeFilter {
     var includeCollege = false
     var selection: CollegeFootballSelection = .default
     var includeNFL = true
     var includeMotorsport = false
+    var includeCricket = false
 
-    init(includeCollege: Bool = false, selection: CollegeFootballSelection = .default, includeNFL: Bool = true, includeMotorsport: Bool = false) {
+    init(includeCollege: Bool = false, selection: CollegeFootballSelection = .default, includeNFL: Bool = true,
+         includeMotorsport: Bool = false, includeCricket: Bool = false) {
         self.includeCollege = includeCollege
         self.selection = selection
         self.includeNFL = includeNFL
         self.includeMotorsport = includeMotorsport
+        self.includeCricket = includeCricket
     }
 
     init(query: URLQueryContainer) {
@@ -1986,6 +2012,7 @@ struct WidgetCollegeFilter {
         selection = Self.selection(from: try? query.get(String.self, at: "cfbSel"))
         includeNFL = (try? query.get(String.self, at: "nfl")) != "0"
         includeMotorsport = (try? query.get(String.self, at: "motorsport")) == "1"
+        includeCricket = (try? query.get(String.self, at: "cricket")) == "1"
     }
 
     static func selection(from raw: String?) -> CollegeFootballSelection {
@@ -1998,15 +2025,17 @@ struct WidgetCollegeFilter {
     /// The same opt-ins with every FBS game — for responses cached per variant, which
     /// must not multiply by the user's selection.
     func browsingAllFBS() -> WidgetCollegeFilter {
-        WidgetCollegeFilter(includeCollege: includeCollege, selection: .allFBS, includeNFL: includeNFL, includeMotorsport: includeMotorsport)
+        WidgetCollegeFilter(includeCollege: includeCollege, selection: .allFBS, includeNFL: includeNFL,
+                            includeMotorsport: includeMotorsport, includeCricket: includeCricket)
     }
 
     /// Stable cache-key fragment for the response variant this filter produces.
     var variantKey: String {
-        "cfb=\(includeCollege):\(selection.rawValue):nfl=\(includeNFL):motorsport=\(includeMotorsport)"
+        "cfb=\(includeCollege):\(selection.rawValue):nfl=\(includeNFL):motorsport=\(includeMotorsport):cricket=\(includeCricket)"
     }
 
     func admits(_ game: Game, favorites: Set<String>) -> Bool {
+        if game.isCricket { return includeCricket }
         if game.isMotorsportSeries { return includeMotorsport }
         if game.isCollegeFootball {
             guard includeCollege else { return false }
@@ -2022,6 +2051,17 @@ struct WidgetCollegeFilter {
 struct WidgetScheduleResponse: Codable {
     let games: [Game]
     let teams: [Team]
+}
+
+/// Whether ESPN's cricket score panel still serves `dateInt` (yyyyMMdd): future days and
+/// roughly the last month.
+func cricketPanelServes(_ dateInt: Int, now: Date = Date()) -> Bool {
+    let fmt = DateFormatter()
+    fmt.dateFormat = "yyyyMMdd"
+    fmt.timeZone = TimeZone(secondsFromGMT: 0)
+    fmt.locale = Locale(identifier: "en_US_POSIX")
+    let earliest = Int(fmt.string(from: now.addingTimeInterval(-30 * 86_400))) ?? 0
+    return dateInt >= earliest
 }
 
 func encodeResult(res: some Codable) -> String {
@@ -2067,6 +2107,18 @@ func buildESPNScheduleForDate(dateInt: Int, client: some Client) async -> (sched
         }
     }
 
+    // Cricket: one ESPN score panel for the day covers every competition. Rides under its
+    // own `cricket` key, which app versions that predate cricket ignore. ESPN only serves
+    // about a month of past cricket days (older ones 502 for good), so those aren't asked.
+    if cricketPanelServes(dateInt) {
+        do {
+            let games = try await ESPNNetworking.getCricketScorePanel(req: client, dates: dateInt).games()
+            if !games.isEmpty { bySport[.cricket] = games }
+        } catch {
+            failures += 1
+        }
+    }
+
     func merged(_ sport: SportType) -> LiveEvent? {
         guard let games = bySport[sport], !games.isEmpty else { return nil }
         return LiveEvent(events: games)
@@ -2080,6 +2132,7 @@ func buildESPNScheduleForDate(dateInt: Int, client: some Client) async -> (sched
         nhl: merged(.hockey),
         golf: merged(.golf),
         tennis: merged(.tennis),
-        racing: merged(.racing)
+        racing: merged(.racing),
+        cricket: merged(.cricket)
     ), failures)
 }

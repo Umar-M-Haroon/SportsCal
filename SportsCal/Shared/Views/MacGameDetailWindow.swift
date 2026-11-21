@@ -84,6 +84,8 @@ struct GameDetailWindow: View {
         // the left, so a soccer match flipped sides between the inspector and window.
         if game.isRace {
             RaceDetailView(game: game)
+        } else if game.isCricket {
+            CricketMatchDetailView(game: game)
         } else if game.isTennisMatch {
             TennisMatchDetailView(game: game)
         } else if game.isIndividualSport {

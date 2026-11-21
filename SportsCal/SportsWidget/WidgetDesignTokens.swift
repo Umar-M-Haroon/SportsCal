@@ -51,6 +51,7 @@ enum WidgetTokens {
         case .mlb:        return Color(light: 0xA14829, dark: 0xE89F84)
         case .nfl:        return Color(light: 0x7B3D8C, dark: 0xC8A2DA)
         case .racing:     return Color(light: 0xA53B26, dark: 0xEA9787)
+        case .cricket:    return Color(light: 0x8A5A1E, dark: 0xE0B074)
         case .tennis:     return Color(light: 0x5C7821, dark: 0xB3CC78)
         case .golf:       return Color(light: 0x1F7A65, dark: 0x85CDB7)
         }

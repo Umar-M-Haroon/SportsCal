@@ -118,6 +118,7 @@ enum PlayResolver {
         case .golf: return "golf"
         case .tennis: return "tennis"
         case .racing: return "racing"
+        case .cricket: return "cricket"
         }
     }
 

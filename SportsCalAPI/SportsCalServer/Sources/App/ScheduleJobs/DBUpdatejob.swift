@@ -74,7 +74,7 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
 
     /// Counts total games across all sports in a LiveScore
     func countGames(in score: LiveScore) -> Int {
-        [score.nba, score.mlb, score.soccer, score.nfl, score.nhl, score.golf, score.tennis, score.racing]
+        [score.nba, score.mlb, score.soccer, score.nfl, score.nhl, score.golf, score.tennis, score.racing, score.cricket]
             .compactMap { $0?.events.count }
             .reduce(0, +)
     }
@@ -264,6 +264,9 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
             if Integrator.secondaryGolfTours.contains(league) { continue }
             // Racing series beyond F1 have their own services (NASCAR, IndyCar, IMSA, WEC), below.
             if league.isMotorsportSeries { continue }
+            // Cricket is ESPN-only (ESPNCricketJob owns `schedule.cricket`); the switch
+            // below would drop TheSportsDB's cricket into the soccer bucket.
+            if league.isCricket { continue }
             // Season-scoped fetches (previous/current/next): an empty result means the
             // fetch failed (`getSchedule` swallows per-season errors), never "no games".
             fallbackLeagues.insert(league)
@@ -665,6 +668,9 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         let wcKey = RedisEndpoint.ESPN.worldCupEnrichment.getValue(isDebug: isDebug)
         let cachedInjuries = try? await redis.get(injuriesKey, asJSON: [String: [InjuryReport]].self)
         let cachedWC = try? await redis.get(wcKey, asJSON: WorldCupEnrichment.self)
+        let cachedCricket = try? await redis.get(
+            RedisEndpoint.ESPN.cricketSchedule.getValue(isDebug: isDebug), asJSON: [Game].self
+        )
         var carried: [Leagues: Int] = [:]
         var oldGameCount = 0
         var newGameCount = countGames(in: rebuilt)
@@ -697,6 +703,11 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
                     schedule.worldCup = existingSchedule?.worldCup
                 }
             }
+
+            // Cricket isn't rebuilt here: ESPNCricketJob (schedule) and ESPNFetchJob (live)
+            // own the bucket, so carry it over, or seed it from the cricket sweep's cache
+            // when the blob was flushed.
+            schedule.cricket = Self.carriedCricket(existing: existingSchedule?.cricket, cached: cachedCricket)
 
             // Excitement is scored once, when a game goes final, and ESPN drops the game off
             // its board a day later. The rebuild above starts from TheSportsDB, which never
@@ -750,6 +761,14 @@ struct ScheduleUpdateJob: AsyncScheduledJob {
         try await context.application.redis.set(lastUpdateKey, toJSON: Date())
         Self.logger.info("Schedule check complete", metadata: ["dataChanged": "\(scheduleChanged)"])
         await JobHeartbeat.recordSuccess(.scheduleUpdate, app: context.application, isDebug: isDebug)
+    }
+
+    /// The cricket bucket a rebuild keeps: the existing schedule's (live-merged, newest),
+    /// else the cricket sweep's cache. Pure, for tests.
+    static func carriedCricket(existing: LiveEvent?, cached: [Game]?) -> LiveEvent? {
+        if let existing, !existing.events.isEmpty { return existing }
+        if let cached, !cached.isEmpty { return LiveEvent(events: cached) }
+        return nil
     }
 
     /// Whether the teams key holds a non-empty JSON array, without decoding it.

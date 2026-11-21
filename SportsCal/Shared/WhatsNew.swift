@@ -81,6 +81,16 @@ enum WhatsNewAction: Hashable {
 extension WhatsNewRelease {
     /// Newest first.
     static let all: [WhatsNewRelease] = [
+        WhatsNewRelease(version: "3.4", features: [
+            WhatsNewFeature(
+                id: "cricket",
+                title: "Cricket",
+                subtitle: "Tests, ODIs and T20Is, plus the IPL, Big Bash, PSL, SA20, The Hundred and more — live scores, every innings, and the chase.",
+                systemImage: "cricket.ball",
+                tint: Color.app(.cricket),
+                action: .enableSport(.cricket)
+            ),
+        ]),
         WhatsNewRelease(version: "3.3", features: [
             WhatsNewFeature(
                 id: "college-football",

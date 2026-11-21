@@ -236,6 +236,7 @@ enum PublicGame {
         case .tennis: return 2 * 3600
         case .racing: return 2 * 3600
         case .golf: return 10 * 3600
+        case .cricket: return cricketDuration(game.cricket?.format)
         case nil: return 3 * 3600
         }
     }
@@ -257,8 +258,22 @@ enum PublicGame {
         }
     }
 
+    /// A day's play (multi-day formats run to `endDate`), or a whole limited-overs match.
+    static func cricketDuration(_ format: CricketFormat?) -> TimeInterval {
+        switch format {
+        case .test, .firstClass: return 7.5 * 3600
+        case .odi, .listA: return 8 * 3600
+        case .t20: return 3.5 * 3600
+        case .hundred: return 3 * 3600
+        case .t10: return 1.5 * 3600
+        case .other, nil: return 4 * 3600
+        }
+    }
+
     static func endDate(_ game: Game) -> Date? {
         guard let raw = game.endDate, let date = DateParsers.parse(raw) else { return nil }
+        // ESPN's cricket `endDate` is already the close of the last day ("…T23:59Z").
+        if game.sportType == .cricket { return date }
         // A golf `endDate` names the last day, often at midnight: run through it.
         return date.addingTimeInterval(86_400)
     }

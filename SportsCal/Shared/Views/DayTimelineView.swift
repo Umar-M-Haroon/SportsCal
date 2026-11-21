@@ -325,6 +325,10 @@ struct DayTimelineView: View {
             RaceDetailView(game: game)
                 .environment(viewModel)
                 .environment(favorites)
+        } else if game.isCricket {
+            CricketMatchDetailView(game: game)
+                .environment(viewModel)
+                .environment(favorites)
         } else if game.isTennisMatch {
             TennisMatchDetailView(game: game)
                 .environment(viewModel)
