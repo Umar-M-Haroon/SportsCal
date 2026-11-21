@@ -353,6 +353,8 @@ private struct ActivitySide {
     let redCards: Int
     /// Football timeouts left; nil when the feed doesn't say (and for other sports).
     let timeouts: Int?
+    /// The team's colour as 6-digit hex; nil when the activity predates it.
+    let colorHex: String?
 
     var isWinning: Bool { score > opponentScore }
 
@@ -376,13 +378,15 @@ private func activitySides(
         side: .home, name: attributes.homeTeam,
         short: shortAbbreviation(short: attributes.homeTeamShort, full: attributes.homeTeam),
         score: state.homeScore, opponentScore: state.awayScore,
-        redCards: state.soccer?.homeRedCards ?? 0, timeouts: state.situation?.homeTimeouts
+        redCards: state.soccer?.homeRedCards ?? 0, timeouts: state.situation?.homeTimeouts,
+        colorHex: attributes.homeColorHex
     )
     let away = ActivitySide(
         side: .away, name: attributes.awayTeam,
         short: shortAbbreviation(short: attributes.awayTeamShort, full: attributes.awayTeam),
         score: state.awayScore, opponentScore: state.homeScore,
-        redCards: state.soccer?.awayRedCards ?? 0, timeouts: state.situation?.awayTimeouts
+        redCards: state.soccer?.awayRedCards ?? 0, timeouts: state.situation?.awayTimeouts,
+        colorHex: attributes.awayColorHex
     )
     return attributes.displaysHomeFirst == true ? (home, away) : (away, home)
 }
@@ -467,9 +471,102 @@ private struct EqualColumns: Layout {
     }
 }
 
+// MARK: - Team colours
+
+/// A team's hex colour ("1D428A" or "#1D428A"), nudged so it reads on the activity:
+/// near-black lifts toward white on a dark surface, near-white darkens on a light
+/// one. Nil when unknown or malformed.
+private func activityTeamColor(_ hex: String?, on scheme: ColorScheme) -> Color? {
+    guard var hex = hex?.trimmingCharacters(in: .whitespaces) else { return nil }
+    if hex.hasPrefix("#") { hex.removeFirst() }
+    guard hex.count == 6, let value = UInt64(hex, radix: 16) else { return nil }
+    let red = Double((value >> 16) & 0xFF) / 255
+    let green = Double((value >> 8) & 0xFF) / 255
+    let blue = Double(value & 0xFF) / 255
+    let luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    let color = Color(red: red, green: green, blue: blue)
+    if scheme == .dark, luminance < 0.2 { return color.mix(with: .white, by: 0.4) }
+    if scheme == .light, luminance > 0.8 { return color.mix(with: .black, by: 0.4) }
+    return color
+}
+
+/// The side that leads, nil when level.
+private func leader(_ sides: (first: ActivitySide, second: ActivitySide)) -> ActivitySide? {
+    sides.first.isWinning ? sides.first : (sides.second.isWinning ? sides.second : nil)
+}
+
+/// The Lock Screen card's wash: the first side's colour fading into the second's.
+/// Nothing when either colour is unknown, so the card stays as it was.
+private struct TeamColorWash: View {
+    let first: ActivitySide
+    let second: ActivitySide
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        if let left = activityTeamColor(first.colorHex, on: scheme),
+           let right = activityTeamColor(second.colorHex, on: scheme) {
+            let strength = scheme == .dark ? 0.34 : 0.2
+            LinearGradient(colors: [left.opacity(strength), left.opacity(strength * 0.35),
+                                    right.opacity(strength * 0.35), right.opacity(strength)],
+                           startPoint: .leading, endPoint: .trailing)
+        }
+    }
+}
+
+/// Win probability as a two-colour bar, "BUF 42%" on the left and "58% KC" on the
+/// right, in display order.
+private struct ActivityWinBar: View {
+    let first: ActivitySide
+    let second: ActivitySide
+    /// The home side's chance, 0-100.
+    let homePercent: Int
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let firstPercent = first.side == .home ? homePercent : 100 - homePercent
+        let firstColor = activityTeamColor(first.colorHex, on: scheme) ?? WidgetTokens.ink
+        let secondColor = activityTeamColor(second.colorHex, on: scheme) ?? WidgetTokens.inkFaint
+        HStack(spacing: 6) {
+            Text("\(first.short) \(firstPercent)%")
+            GeometryReader { proxy in
+                let split = proxy.size.width * CGFloat(min(max(firstPercent, 0), 100)) / 100
+                HStack(spacing: 2) {
+                    Capsule().fill(firstColor).frame(width: max(split - 1, 2))
+                    Capsule().fill(secondColor)
+                }
+            }
+            .frame(height: 5)
+            Text("\(100 - firstPercent)% \(second.short)")
+        }
+        .font(.system(.caption2, design: .rounded).weight(.semibold))
+        .monospacedDigit()
+        .foregroundStyle(WidgetTokens.inkSoft)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Win probability, \(first.name) \(firstPercent) percent, \(second.name) \(100 - firstPercent) percent")
+    }
+}
+
+/// "WIN" in the winner's colour, under its side on a final.
+private struct WinnerPill: View {
+    let side: ActivitySide
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        Text("WIN")
+            .font(.system(size: 10, weight: .heavy, design: .rounded))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(activityTeamColor(side.colorHex, on: scheme) ?? WidgetTokens.ink))
+            .accessibilityLabel("\(side.name) won")
+    }
+}
+
 private struct TeamLockScreenView: View {
     let attributes: LiveSportActivityAttributes
     let state: LiveSportActivityAttributes.ContentState
+
+    private var isFinal: Bool { variantFor(progress: state.progress, status: state.status) == .final }
 
     var body: some View {
         let sides = activitySides(attributes, state)
@@ -483,6 +580,13 @@ private struct TeamLockScreenView: View {
                 scoreRow(sides, nameFont: .footnote)
                 scoreRow(sides, nameFont: nil)
             }
+            if isFinal, let winner = leader(sides) {
+                HStack {
+                    if winner.side == sides.first.side { WinnerPill(side: winner) }
+                    Spacer(minLength: 8)
+                    if winner.side == sides.second.side { WinnerPill(side: winner) }
+                }
+            }
             if sides.first.timeouts != nil || sides.second.timeouts != nil {
                 HStack {
                     timeouts(sides.first)
@@ -495,9 +599,13 @@ private struct TeamLockScreenView: View {
                     situation: situation,
                     homeName: shortAbbreviation(short: attributes.homeTeamShort, full: attributes.homeTeam),
                     awayName: shortAbbreviation(short: attributes.awayTeamShort, full: attributes.awayTeam),
-                    tint: WidgetTokens.inkSoft
+                    tint: WidgetTokens.inkSoft,
+                    showsWinProbability: false
                 )
                 .frame(maxWidth: .infinity, alignment: .center)
+                if let percent = situation.homeWinPct, !isFinal {
+                    ActivityWinBar(first: sides.first, second: sides.second, homePercent: percent)
+                }
             }
             if let soccer = state.soccer, let lastGoal = soccer.lastGoal {
                 LastGoalLine(goal: lastGoal, alignment: alignment(for: soccer.lastGoalSide, first: sides.first.side),
@@ -512,6 +620,10 @@ private struct TeamLockScreenView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
             }
         }
+        // Scores roll to the new number when an update lands.
+        .contentTransition(.numericText())
+        .animation(.spring(duration: 0.4), value: state.homeScore)
+        .animation(.spring(duration: 0.4), value: state.awayScore)
     }
 
     private func scoreRow(_ sides: (first: ActivitySide, second: ActivitySide), nameFont: Font?) -> some View {
@@ -529,6 +641,8 @@ private struct TeamLockScreenView: View {
         let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?
             .appendingPathComponent(side.name)
         let data = url.flatMap { try? Data(contentsOf: $0) }
+        // On a final the loser fades back.
+        let faded = isFinal && side.score < side.opponentScore
         return Group {
             if let nameFont {
                 IndividualTeamView(longName: side.name, score: side.score, isWinning: side.isWinning,
@@ -539,6 +653,7 @@ private struct TeamLockScreenView: View {
                                    isAway: leading, redCards: side.redCards, data: data, fallbackName: side.short)
             }
         }
+        .opacity(faded ? 0.5 : 1)
     }
 
     @ViewBuilder
@@ -566,6 +681,7 @@ private struct LeadScoreText: View {
             .monospacedDigit()
             .lineLimit(1)
             .minimumScaleFactor(0.45)
+            .contentTransition(.numericText())
     }
 
     private func score(_ value: Int, leads: Bool, trails: Bool) -> Text {
@@ -603,6 +719,8 @@ private struct MinimalScoreView: View {
 private struct ExpandedIslandSide: View {
     let side: ActivitySide
     let leading: Bool
+    /// The island is always dark.
+    private var teamColor: Color? { activityTeamColor(side.colorHex, on: .dark) }
 
     var body: some View {
         HStack {
@@ -612,12 +730,14 @@ private struct ExpandedIslandSide: View {
                     .font(.system(size: 24))
                     .fontWeight(side.isWinning ? .heavy : .regular)
                     .foregroundStyle(side.isWinning ? Color.primary : Color.secondary)
+                    .contentTransition(.numericText(value: Double(side.score)))
                 HStack(spacing: 3) {
                     if !leading, side.redCards > 0 { SoccerRedCardMark(count: side.redCards) }
                     // A code, on one line: full names ("Kansas City Chiefs") wrapped and
                     // pushed the island taller, and still truncated when scaled.
                     Text(side.short)
                         .font(.caption.weight(.semibold))
+                        .foregroundStyle(teamColor ?? Color.primary)
                         .lineLimit(1)
                     if leading, side.redCards > 0 { SoccerRedCardMark(count: side.redCards) }
                 }
@@ -643,8 +763,10 @@ struct LiveSportActivityWidget: Widget {
                     TennisLockScreenView(attributes: context.attributes, state: context.state, tennis: tennis)
                         .padding(16)
                 } else {
+                    let sides = activitySides(context.attributes, context.state)
                     TeamLockScreenView(attributes: context.attributes, state: context.state)
                         .padding(16)
+                        .background { TeamColorWash(first: sides.first, second: sides.second) }
                 }
             }
             // System chrome (the lock-screen dismiss/action control) follows the
@@ -755,11 +877,19 @@ struct LiveSportActivityWidget: Widget {
                 } else {
                     // The leader's code, with its score first on the trailing side:
                     // "KC 20-17" reads as who's winning at a glance.
-                    let lead = leaderFirst(activitySides(context.attributes, context.state))
-                    Text(lead.first.short)
-                        .font(.system(.caption, design: .rounded).weight(.heavy))
-                        .foregroundColor(WidgetTokens.ink)
-                        .accessibilityLabel(lead.first.name)
+                    let sides = activitySides(context.attributes, context.state)
+                    let lead = leaderFirst(sides)
+                    HStack(spacing: 3) {
+                        // The leader's colour; no dot when level.
+                        if leader(sides) != nil, let color = activityTeamColor(lead.first.colorHex, on: .dark) {
+                            Circle().fill(color).frame(width: 6, height: 6)
+                        }
+                        Text(lead.first.short)
+                            .font(.system(.caption, design: .rounded).weight(.heavy))
+                            .foregroundColor(WidgetTokens.ink)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(lead.first.name)
                 }
             } compactTrailing: {
                 if let race = context.state.race {
@@ -819,12 +949,18 @@ struct LiveSportActivityWidget: Widget {
                     MinimalScoreView(first: sides.first, second: sides.second)
                 }
             }
-            // Themes accent on the island's chrome only; team colors and the
-            // live red inside stay as they are.
-            .keylineTint(WidgetTokens.accent)
+            // The leading team's colour on the island's outline; the Themes accent
+            // when level or for races, tennis and activities without colours.
+            .keylineTint(keyline(context))
         }
     }
-    
+
+    private func keyline(_ context: ActivityViewContext<LiveSportActivityAttributes>) -> Color {
+        guard context.state.race == nil, context.state.tennis == nil,
+              let lead = leader(activitySides(context.attributes, context.state)),
+              let color = activityTeamColor(lead.colorHex, on: .dark) else { return WidgetTokens.accent }
+        return color
+    }
 }
 
 #Preview("Island Compact", as: .dynamicIsland(.compact), using: LiveSportActivityAttributes(homeTeam: "VGK", awayTeam: "EDM", eventID: "401459774")) {
@@ -869,7 +1005,8 @@ struct LiveSportActivityWidget: Widget {
 }
 
 private let previewSoccerAttributes = LiveSportActivityAttributes(homeTeam: "Arsenal", awayTeam: "Chelsea", eventID: "soccer",
-                                                                  homeTeamShort: "ARS", awayTeamShort: "CHE", displaysHomeFirst: true)
+                                                                  homeTeamShort: "ARS", awayTeamShort: "CHE", displaysHomeFirst: true,
+                                                                  homeColorHex: "EF0107", awayColorHex: "034694")
 private let previewSoccerState = LiveSportActivityAttributes.ContentState(
     homeScore: 2, awayScore: 1, status: "in", progress: "67'",
     soccer: LiveActivitySoccer(awayRedCards: 1, lastGoal: "Saka 64'", lastGoalSide: .home)
@@ -944,20 +1081,24 @@ private let previewRace = LiveActivityRace(session: "Race", leaders: [
 // MARK: - Gallery: every presentation for each scenario (docs/live-activities gallery)
 
 private let galleryNBA = LiveSportActivityAttributes(homeTeam: "Boston Celtics", awayTeam: "Los Angeles Lakers", eventID: "g-nba",
-                                                     homeTeamShort: "BOS", awayTeamShort: "LAL")
+                                                     homeTeamShort: "BOS", awayTeamShort: "LAL",
+                                                     homeColorHex: "007A33", awayColorHex: "552583")
 private let galleryNBAState = LiveSportActivityAttributes.ContentState(homeScore: 108, awayScore: 112, status: "in", progress: "4th 2:14",
                                                                        lastPlay: "LeBron James makes 26-foot three point jumper")
 private let galleryNHL = LiveSportActivityAttributes(homeTeam: "Vegas Golden Knights", awayTeam: "Edmonton Oilers", eventID: "g-nhl",
-                                                     homeTeamShort: "VGK", awayTeamShort: "EDM")
+                                                     homeTeamShort: "VGK", awayTeamShort: "EDM",
+                                                     homeColorHex: "B4975A", awayColorHex: "041E42")
 private let galleryNHLTied = LiveSportActivityAttributes.ContentState(homeScore: 2, awayScore: 2, status: "in", progress: "5:40 - 3rd",
                                                                       lastPlay: "Goal by Eichel (PP)")
 private let galleryMLB = LiveSportActivityAttributes(homeTeam: "Cleveland Guardians", awayTeam: "Detroit Tigers", eventID: "g-mlb",
-                                                     homeTeamShort: "CLE", awayTeamShort: "DET")
+                                                     homeTeamShort: "CLE", awayTeamShort: "DET",
+                                                     homeColorHex: "E31937", awayColorHex: "0C2340")
 private let galleryMLBState = LiveSportActivityAttributes.ContentState(homeScore: 3, awayScore: 5, status: "in", progress: "Bot 9th",
                                                                        lastPlay: "Kwan singled to left.",
                                                                        situation: LiveActivitySituation(outs: 1, bases: 3, homeWinPct: 21))
 private let galleryNFL = LiveSportActivityAttributes(homeTeam: "Kansas City Chiefs", awayTeam: "Buffalo Bills", eventID: "g-nfl",
-                                                     homeTeamShort: "KC", awayTeamShort: "BUF")
+                                                     homeTeamShort: "KC", awayTeamShort: "BUF",
+                                                     homeColorHex: "E31837", awayColorHex: "00338D")
 private let galleryNFLState = LiveSportActivityAttributes.ContentState(homeScore: 20, awayScore: 17, status: "in", progress: "4th 2:31", lastPlay: nil,
                                                                        situation: LiveActivitySituation(downDistance: "3rd & 4 at KC 12", possession: .away, redZone: true,
                                                                                                         homeWinPct: 58, homeTimeouts: 2, awayTimeouts: 1))

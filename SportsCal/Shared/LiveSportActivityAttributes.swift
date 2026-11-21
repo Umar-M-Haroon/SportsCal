@@ -80,6 +80,11 @@ struct LiveSportActivityAttributes: ActivityAttributes {
     /// and for activities started before the field existed, so a running activity
     /// never swaps sides mid-game.
     var displaysHomeFirst: Bool? = nil
+    /// Team colours as 6-digit hex ("1D428A"), for the Lock Screen wash, the win
+    /// probability bar and the island keyline. Optional: activities started before
+    /// the fields existed, and pushes from an older server, draw without them.
+    var homeColorHex: String? = nil
+    var awayColorHex: String? = nil
 }
 
 /// Pure decision helper for the dedup funnel — given the eventIDs of currently

@@ -1350,7 +1350,9 @@ struct ESPNFetchJob: AsyncScheduledJob {
             eventID: eventID,
             homeTeamShort: homeTeamShort,
             awayTeamShort: awayTeamShort,
-            displaysHomeFirst: game.displaysHomeFirst ? true : nil
+            displaysHomeFirst: game.displaysHomeFirst ? true : nil,
+            homeColorHex: game.isIndividualSport ? nil : game.homeTeamColor,
+            awayColorHex: game.isIndividualSport ? nil : game.awayTeamColor
         )
         let tennisSets = game.isTennisMatch ? game.tennisSetsWon : nil
         let contentState = ContentState(

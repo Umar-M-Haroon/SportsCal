@@ -3536,7 +3536,9 @@ extension GameViewModel {
             eventID: game.idEvent ?? "",
             homeTeamShort: homeShort,
             awayTeamShort: awayShort,
-            displaysHomeFirst: game.displaysHomeFirst ? true : nil
+            displaysHomeFirst: game.displaysHomeFirst ? true : nil,
+            homeColorHex: game.isIndividualSport ? nil : game.homeTeamColor,
+            awayColorHex: game.isIndividualSport ? nil : game.awayTeamColor
         )
         return (activityAttributes, initialContentState)
     }

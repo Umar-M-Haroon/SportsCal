@@ -401,6 +401,8 @@ struct LiveActivitySituationStrip: View {
     var homeName: String
     var awayName: String
     var tint: Color = .secondary
+    /// Off where the caller draws win probability itself (the Lock Screen's bar).
+    var showsWinProbability: Bool = true
 
     var body: some View {
         HStack(spacing: 8) {
@@ -425,7 +427,7 @@ struct LiveActivitySituationStrip: View {
             if let side = situation.emptyNet {
                 SituationChip(text: "EN · \(side == .home ? homeName : awayName)", color: .red)
             }
-            if let percent = situation.homeWinPct {
+            if showsWinProbability, let percent = situation.homeWinPct {
                 WinProbabilityLabel(home: Double(percent) / 100, homeName: homeName, awayName: awayName, showsIcon: true)
             }
         }

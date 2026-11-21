@@ -53,6 +53,9 @@ public struct LiveSportAttributes: Codable, Sendable {
     /// Soccer: the widget puts the home side first. Nil (away first) elsewhere; older
     /// app builds ignore the key.
     var displaysHomeFirst: Bool? = nil
+    /// Team colours, 6-digit hex. Older app builds ignore the keys.
+    var homeColorHex: String? = nil
+    var awayColorHex: String? = nil
 }
 
 /// Which APNS gateway a given device token belongs to. Sandbox tokens come
