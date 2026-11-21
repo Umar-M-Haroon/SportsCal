@@ -9,214 +9,166 @@ import SwiftUI
 import SportsCalModel
 import UserNotifications
 import NukeUI
+/// One pickable sport or league in onboarding.
+struct OnboardingSportChoice: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let systemImage: String
+    let sport: SportType
+    let keyPath: ReferenceWritableKeyPath<UserDefaultStorage, Bool>
+
+    static let all: [OnboardingSportChoice] = [
+        .init(id: "nfl", title: "NFL", systemImage: "football.fill", sport: .nfl, keyPath: \.shouldShowNFL),
+        .init(id: "cfb", title: "College Football", systemImage: "football.fill", sport: .nfl, keyPath: \.shouldShowCFB),
+        .init(id: "nba", title: "NBA", systemImage: "basketball.fill", sport: .basketball, keyPath: \.shouldShowNBA),
+        .init(id: "wnba", title: "WNBA", systemImage: "basketball.fill", sport: .basketball, keyPath: \.shouldShowWNBA),
+        .init(id: "mlb", title: "MLB", systemImage: "baseball.fill", sport: .mlb, keyPath: \.shouldShowMLB),
+        .init(id: "nhl", title: "NHL", systemImage: "hockey.puck.fill", sport: .hockey, keyPath: \.shouldShowNHL),
+        .init(id: "soccer", title: "Soccer", systemImage: "soccerball", sport: .soccer, keyPath: \.shouldShowSoccer),
+        .init(id: "cricket", title: "Cricket", systemImage: "cricket.ball", sport: .cricket, keyPath: \.shouldShowCricket),
+        .init(id: "golf", title: "Golf", systemImage: "figure.golf", sport: .golf, keyPath: \.shouldShowGolf),
+        .init(id: "tennis", title: "Tennis", systemImage: "tennis.racket", sport: .tennis, keyPath: \.shouldShowTennis),
+        .init(id: "racing", title: "Racing", systemImage: "flag.checkered.2.crossed", sport: .racing, keyPath: \.shouldShowRacing),
+    ]
+
+    /// A sensible first pick for where the phone is set up, so the grid never starts
+    /// empty. Pure so it can be tested.
+    static func suggested(forRegion region: String?) -> [String] {
+        switch region?.uppercased() {
+        case "US": return ["nfl", "nba"]
+        case "CA": return ["nhl", "nba"]
+        case "IN", "PK", "LK", "BD", "AF": return ["cricket"]
+        case "AU", "NZ", "ZA": return ["cricket", "soccer"]
+        default: return ["soccer"]
+        }
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+/// Onboarding step 1: pick sports from a grid of tiles.
 struct PickSportPage: View {
-    @State var subscriptionPresented: Bool = false
     @State private var teamsPresented = false
     @Environment(UserDefaultStorage.self) private var appStorage
     @Binding var sheetType: SheetType?
     @Environment(GameViewModel.self) private var viewModel
+    /// Local mirror of the toggles: the storage flags are `@ObservationIgnored`
+    /// `@AppStorage`, so writing them alone doesn't redraw the tiles.
+    @State private var selected: Set<String> = []
+    @State private var worldCup = false
+    @State private var didSeed = false
+
+    private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12)]
+
     var body: some View {
-        @Bindable var bindableAppStorage = appStorage
-        
-        List {
-            if WorldCupSeason.isActive {
-                Section {
-                    Toggle(isOn: $bindableAppStorage.shouldShowWorldCup) {
-                        Label {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("FIFA World Cup 2026")
-                                Text("Jun 11 – Jul 19 · follow every match")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: "soccerball")
-                                .modifier(SportsTint(sport: .soccer))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Pick as many as you like. You can change them any time in Settings.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                if WorldCupSeason.isActive {
+                    tile(title: "World Cup 2026", systemImage: "soccerball", sport: .soccer, isOn: worldCup) {
+                        worldCup.toggle()
+                        appStorage.shouldShowWorldCup = worldCup
+                    }
+                }
+
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(OnboardingSportChoice.all) { choice in
+                        tile(title: choice.title, systemImage: choice.systemImage, sport: choice.sport,
+                             isOn: selected.contains(choice.id)) {
+                            toggle(choice)
                         }
                     }
-                } header: {
-                    Text("Featured")
-                } footer: {
-                    Text("Turn this on to follow the World Cup without enabling all of soccer.")
                 }
-            }
 
-            Section {
-                Toggle(isOn: $bindableAppStorage.shouldShowNHL) {
-                    Label {
-                        Text("NHL")
-                    } icon: {
-                        Image(systemName: "hockey.puck.fill")
-                            .modifier(SportsTint(sport: .hockey))
-                    }
-                }
-                .onTapGesture {
-//                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-                        //                            appStorage.switchTo(sportType: .hockey)
-//                        appStorage.shouldShowNFL = false
-//                        appStorage.shouldShowNBA = false
-//                        appStorage.shouldShowNHL.toggle()
-//                        appStorage.shouldShowSoccer = false
-//                        appStorage.shouldShowMLB = false
-//                    }
-                }
-                Toggle(isOn: $bindableAppStorage.shouldShowNFL) {
-                    Label {
-                        Text("NFL")
-                    } icon: {
-                        Image(systemName: "football.fill")
-                            .modifier(SportsTint(sport: .nfl))
-                    }
-                }
-                .onTapGesture {
-//                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-//                        appStorage.shouldShowNFL.toggle()
-//                        appStorage.shouldShowNBA = false
-//                        appStorage.shouldShowNHL = false
-//                        appStorage.shouldShowSoccer = false
-//                        appStorage.shouldShowMLB = false
-//                    }
-                }
-                Toggle(isOn: $bindableAppStorage.shouldShowCFB) {
-                    Label {
-                        Text("College Football")
-                    } icon: {
-                        Image(systemName: "football.fill")
-                            .modifier(SportsTint(sport: .nfl))
-                    }
-                }
-                Toggle(isOn: $bindableAppStorage.shouldShowNBA) {
-                    Label {
-                        Text("NBA")
-                    } icon: {
-                        Image(systemName: "basketball.fill")
-                            .modifier(SportsTint(sport: .basketball))
-                    }
-                }
-                .onTapGesture {
-//                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-//                        appStorage.shouldShowNFL = false
-//                        appStorage.shouldShowNBA.toggle()
-//                        appStorage.shouldShowNHL = false
-//                        appStorage.shouldShowSoccer = false
-//                        appStorage.shouldShowMLB = false
-//                    }
-                }
-                Toggle(isOn: $bindableAppStorage.shouldShowWNBA) {
-                    Label {
-                        Text("WNBA")
-                    } icon: {
-                        Image(systemName: "basketball.fill")
-                            .modifier(SportsTint(sport: .basketball))
-                    }
-                }
-                Toggle(isOn: $bindableAppStorage.shouldShowMLB) {
-                    Label {
-                      Text("MLB")
-                    } icon: {
-                        Image(systemName: "baseball.fill")
-                            .modifier(SportsTint(sport: .mlb))
-                    }
-                }
-                .onTapGesture {
-//                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-//                        appStorage.shouldShowNFL = false
-//                        appStorage.shouldShowNBA = false
-//                        appStorage.shouldShowNHL = false
-//                        appStorage.shouldShowSoccer = false
-//                        appStorage.shouldShowMLB.toggle()
-//                    }
-                }
-                Toggle(isOn: $bindableAppStorage.shouldShowSoccer) {
-                    Label {
-                        Text("Soccer")
-                    } icon: {
-                        Image(systemName: "soccerball")
-                            .modifier(SportsTint(sport: .soccer))
-                    }
-                }
-                .onTapGesture {
-//                    if SubscriptionManager.shared.subscriptionStatus == .notSubscribed {
-//                        appStorage.shouldShowNFL = false
-//                        appStorage.shouldShowNBA = false
-//                        appStorage.shouldShowNHL = false
-//                        appStorage.shouldShowSoccer.toggle()
-//                        appStorage.shouldShowMLB = false
-//                    }
-                }
-                
-                Toggle(isOn: $bindableAppStorage.shouldShowGolf) {
-                    Label {
-                        Text("Golf")
-                    } icon: {
-                        Image(systemName: "figure.golf")
-                            .modifier(SportsTint(sport: .golf))
-                    }
-                }
-                Toggle(isOn: $bindableAppStorage.shouldShowTennis) {
-                    Label {
-                        Text("Tennis")
-                    } icon: {
-                        Image(systemName: "tennis.racket")
-                            .modifier(SportsTint(sport: .tennis))
-                    }
-                }
-                Toggle(isOn: $bindableAppStorage.shouldShowRacing) {
-                    Label {
-                        Text("Racing")
-                    } icon: {
-                        Image(systemName: "flag.checkered.2.crossed")
-                            .modifier(SportsTint(sport: .racing))
-                    }
-                }
-                Toggle(isOn: $bindableAppStorage.shouldShowCricket) {
-                    Label {
-                        Text("Cricket")
-                    } icon: {
-                        Image(systemName: "cricket.ball")
-                            .modifier(SportsTint(sport: .cricket))
-                    }
-                }
-                if appStorage.shouldShowSoccer {
-                    NavigationLink("Show Soccer Leagues") {
-                        CompetitionPage(competitions: Leagues.allCases.filter({$0.isSoccer}))
+                if selected.contains("soccer") {
+                    NavigationLink {
+                        CompetitionPage(competitions: Leagues.allCases.filter({ $0.isSoccer }))
                             .environment(appStorage)
+                    } label: {
+                        Label("Choose soccer leagues", systemImage: "list.bullet")
+                            .font(.subheadline.weight(.semibold))
                     }
                 }
-            } header: {
-                HStack {
-                    Spacer()
-                    Text("Try Scoreline Pro for multiple sports")
-                    Spacer()
-                }
             }
-            
-            Section {
-                MiniSubscriptionPage(subscriptionPresented: $subscriptionPresented)
-            } footer: {
-                Button(action: {
-                    appStorage.recomputeEnabledSports()
-                    viewModel.getInfo()
-                    teamsPresented = true
-                }, label: {
-                    Text("Continue")
-                        .disabled(!(appStorage.shouldShowSoccer || appStorage.shouldShowWorldCup || appStorage.shouldShowMLB || appStorage.shouldShowNBA || appStorage.shouldShowWNBA || appStorage.shouldShowNFL || appStorage.shouldShowCFB || appStorage.shouldShowNHL || appStorage.shouldShowGolf || appStorage.shouldShowTennis || appStorage.shouldShowRacing || appStorage.shouldShowCricket))
-                })
-                .frame(maxWidth: .infinity,alignment: .center)
-                .buttonStyle(.bordered)
-            }
-            .sheet(isPresented: $subscriptionPresented) {
-                SubscriptionSheet(subscriptionPresented: $subscriptionPresented)
-            }
+            .padding()
         }
-        .navigationBarBackButtonHidden(true)
-        .navigationTitle("Pick Sports")
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                appStorage.recomputeEnabledSports()
+                viewModel.getInfo()
+                teamsPresented = true
+            } label: {
+                Text(selected.isEmpty && !worldCup ? "Pick a Sport" : "Continue")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(6)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(selected.isEmpty && !worldCup)
+            .padding()
+            .background(.bar)
+        }
+        .navigationTitle("Your Sports")
         .navigationDestination(isPresented: $teamsPresented) {
             PickTeamsPage(sheetType: $sheetType)
         }
+        .onAppear(perform: seed)
     }
 
-    /// Contextual notification opt-in, asked after the user has picked sports.
+    /// Reads the current toggles; on a fresh install (nothing on) pre-picks the
+    /// region's usual sports so the grid starts useful rather than empty.
+    private func seed() {
+        guard !didSeed else { return }
+        didSeed = true
+        selected = Set(OnboardingSportChoice.all.filter { appStorage[keyPath: $0.keyPath] }.map(\.id))
+        worldCup = appStorage.shouldShowWorldCup
+        if selected.isEmpty && !worldCup {
+            for id in OnboardingSportChoice.suggested(forRegion: Locale.current.region?.identifier) {
+                if let choice = OnboardingSportChoice.all.first(where: { $0.id == id }) { toggle(choice) }
+            }
+        }
+    }
+
+    private func toggle(_ choice: OnboardingSportChoice) {
+        let on = !selected.contains(choice.id)
+        if on { selected.insert(choice.id) } else { selected.remove(choice.id) }
+        appStorage[keyPath: choice.keyPath] = on
+    }
+
+    private func tile(title: String, systemImage: String, sport: SportType, isOn: Bool,
+                      action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.title2)
+                    .foregroundStyle(isOn ? Color.white : Color.app(sport))
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(isOn ? Color.app(sport) : Color.app(sport).opacity(0.15)))
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, minHeight: 104)
+            .padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(isOn ? 0.16 : 0.07)))
+            .overlay(alignment: .topTrailing) {
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isOn ? Color.app(sport) : Color.secondary.opacity(0.5))
+                    .padding(8)
+            }
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(isOn ? Color.app(sport) : .clear, lineWidth: 2))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
 }
 
 // MARK: - Pick teams (onboarding step 2)
@@ -235,12 +187,17 @@ struct OnboardingTeamSection: Identifiable, Equatable {
     /// Teams that appear in the schedule for the user's enabled sports, grouped by
     /// league in the order the sports were enabled. Individual sports (golf, tennis,
     /// racing) have no teams to follow and are skipped. Pure so it can be tested.
+    /// `leagueAllowed` narrows a sport to the leagues actually picked: the NBA and
+    /// WNBA share `.basketball` and the NFL and college share `.nfl`, so a sport-level
+    /// check alone listed NFL teams to someone who only picked College Football.
     static func build(games: [Game], enabled: [SportType],
+                      leagueAllowed: (String) -> Bool = { _ in true },
                       teams: (Game) -> (home: Team, away: Team)?) -> [OnboardingTeamSection] {
         var byLeague: [String: (title: String, sport: SportType, teams: [String: Team])] = [:]
         for game in games where !game.isIndividualSport {
             guard let sport = game.sportType, enabled.contains(sport),
-                  let leagueID = game.idLeague, let pair = teams(game) else { continue }
+                  let leagueID = game.idLeague, leagueAllowed(leagueID),
+                  let pair = teams(game) else { continue }
             let title = Int(leagueID).flatMap(Leagues.init(rawValue:))?.leagueName ?? game.strLeague ?? sport.displayName
             var entry = byLeague[leagueID] ?? (title, sport, [:])
             for team in [pair.home, pair.away] {
@@ -276,6 +233,7 @@ struct PickTeamsPage: View {
     /// Built once per schedule/teams/sports change, not on every body pass: each
     /// keystroke and star toggle used to re-group the whole schedule.
     @State private var sections: [OnboardingTeamSection] = []
+    @State private var primerPresented = false
 
     /// What `sections` depends on. Live ticks patch scores in place and leave it alone.
     private struct SectionsKey: Hashable {
@@ -335,9 +293,13 @@ struct PickTeamsPage: View {
         }
         .searchable(text: $search, prompt: "Search teams")
         .navigationTitle("Your Teams")
+        .navigationDestination(isPresented: $primerPresented) {
+            NotificationPrimerPage(sheetType: $sheetType)
+        }
         .task(id: sectionsKey) {
             sections = OnboardingTeamSection.build(games: viewModel.totalGames ?? [],
                                                    enabled: appStorage.enabledSports,
+                                                   leagueAllowed: leagueAllowed,
                                                    teams: viewModel.getTeams(for:))
         }
         .safeAreaInset(edge: .bottom) {
@@ -352,6 +314,22 @@ struct PickTeamsPage: View {
             .buttonStyle(.borderedProminent)
             .padding()
             .background(.bar)
+        }
+    }
+
+    /// Only leagues the user switched on: their own toggle for WNBA / college
+    /// football, the soccer gate (all of soccer, or the World Cup alone) minus
+    /// hidden competitions, and the sport toggle for everything else.
+    private func leagueAllowed(_ leagueID: String) -> Bool {
+        guard let league = Int(leagueID).flatMap(Leagues.init(rawValue:)) else { return true }
+        if appStorage.hiddenCompetitions.contains(league.leagueName) { return false }
+        if league.isSoccer { return viewModel.soccerGamePassesEnableGate(league) }
+        switch league {
+        case .wnba: return appStorage.shouldShowWNBA
+        case .nba: return appStorage.shouldShowNBA
+        case .ncaaf: return appStorage.shouldShowCFB
+        case .nfl: return appStorage.shouldShowNFL
+        default: return true
         }
     }
 
@@ -399,25 +377,108 @@ struct PickTeamsPage: View {
     }
 
     private func finish() {
+        primerPresented = true
+    }
+}
+
+/// Last onboarding step: say what notifications are for before iOS asks. A cold
+/// system prompt is easy to refuse, and it can only be shown once.
+struct NotificationPrimerPage: View {
+    @Binding var sheetType: SheetType?
+    @Environment(UserDefaultStorage.self) private var appStorage
+    @Environment(GameViewModel.self) private var viewModel
+
+    var body: some View {
+        VStack(spacing: 28) {
+            Spacer(minLength: 12)
+            Image(systemName: "bell.badge.fill")
+                .font(.system(size: 64))
+                .symbolRenderingMode(.multicolor)
+                .accessibilityHidden(true)
+            VStack(spacing: 8) {
+                Text("Never miss a moment")
+                    .font(.title.bold())
+                Text("Turn on notifications and Scoreline tells you when it matters.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            VStack(alignment: .leading, spacing: 18) {
+                OnboardingFeatureRow(systemImage: "clock.badge", tint: .orange,
+                                     title: "Kickoff reminders", detail: "A heads-up before your teams play.")
+                OnboardingFeatureRow(systemImage: "sportscourt.fill", tint: .green,
+                                     title: "Scores as they happen", detail: "Goals, touchdowns and finals for the teams you follow.")
+                OnboardingFeatureRow(systemImage: "iphone.gen3.radiowaves.left.and.right", tint: .blue,
+                                     title: "Live on your Lock Screen", detail: "Follow a game with a Live Activity without opening the app.")
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 8) {
+                Button {
+                    finish(askForNotifications: true)
+                } label: {
+                    Text("Turn On Notifications")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(6)
+                }
+                .buttonStyle(.borderedProminent)
+                Button("Not Now") {
+                    finish(askForNotifications: false)
+                }
+                .buttonStyle(.borderless)
+            }
+            .padding()
+            .background(.bar)
+        }
+    }
+
+    private func finish(askForNotifications: Bool) {
         appStorage.shouldShowOnboarding = false
         appStorage.recomputeEnabledSports()
         MonetizationTelemetry.onboardingCompleted(sportCount: appStorage.enabledSports.count)
         viewModel.filterSports(force: true)
-        requestNotifications()
+        if askForNotifications {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
+                if granted {
+                    MonetizationTelemetry.activationNotificationsEnabled()
+                    NotificationManager.registerForRemoteNotificationsAfterGrant()
+                }
+                MonetizationTelemetry.notificationsResolved(granted: granted)
+            }
+        }
         let offered = UpsellCoordinator.shared.request(.postOnboarding) {
             sheetType = .paywall
         }
         if !offered { sheetType = .none }
     }
+}
 
-    private func requestNotifications() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
-            if granted {
-                MonetizationTelemetry.activationNotificationsEnabled()
-                NotificationManager.registerForRemoteNotificationsAfterGrant()
+/// An icon, a title and a line of detail: the welcome and notification steps.
+struct OnboardingFeatureRow: View {
+    let systemImage: String
+    let tint: Color
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.title2)
+                .foregroundStyle(tint)
+                .frame(width: 36)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline)
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            MonetizationTelemetry.notificationsResolved(granted: granted)
         }
+        .accessibilityElement(children: .combine)
     }
 }
 

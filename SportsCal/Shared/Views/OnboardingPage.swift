@@ -16,48 +16,64 @@ struct OnboardingPage: View {
     @Environment(Favorites.self) private var favorites
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading) {
-                InfoView(title: "Favorites", subTitle: "Easily Check when your favorite team plays ", image: Image(systemName: "star.fill"), tint: .yellow)
-                InfoView(title: "Notifications", subTitle: "Be notified when the game is about to start", image: Image(systemName: "app.badge.fill"), tint: .red)
-                InfoView(title: "Multiple Sports", subTitle: "Check multiple sports at a glance", image: Image(systemName: "sportscourt.fill"), tint: .green)
-                InfoView(title: "Live Activities", subTitle: "See games from anywhere with Live Activities", image: Image(systemName: "clock.badge.fill"), tint: .blue)
-                if WorldCupSeason.isActive {
-                    InfoView(title: "World Cup 2026", subTitle: "Follow every match, group, and the road to the final", image: Image(systemName: "soccerball"), tint: Color.app(.soccer))
+            ScrollView {
+                VStack(spacing: 32) {
+                    hero
+                    VStack(spacing: 8) {
+                        Text("Welcome to Scoreline")
+                            .font(.largeTitle.bold())
+                            .multilineTextAlignment(.center)
+                        Text("Every game you care about, in one place.")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    VStack(alignment: .leading, spacing: 20) {
+                        OnboardingFeatureRow(systemImage: "calendar", tint: .red,
+                                             title: "One schedule for every league",
+                                             detail: "The NFL to the Premier League, cricket to F1.")
+                        OnboardingFeatureRow(systemImage: "bolt.fill", tint: .orange,
+                                             title: "Live on your Lock Screen",
+                                             detail: "Scores and big moments with Live Activities and widgets.")
+                        OnboardingFeatureRow(systemImage: "star.fill", tint: .yellow,
+                                             title: "Built around your teams",
+                                             detail: "Follow teams for reminders, alerts and a personal feed.")
+                    }
+                    .frame(maxWidth: 480, alignment: .leading)
                 }
-                Spacer()
-                if WorldCupSeason.isActive {
-                    Button {
-                        appStorage.shouldShowWorldCup = true
-                        appStorage.recomputeEnabledSports()
-                        viewModel.filterSports(force: true)
-                        viewModel.getInfo()
-                        finishOnboarding()
-                    } label: {
-                        Label("Follow the World Cup", systemImage: "soccerball")
-                            .frame(maxWidth: .infinity)
-                            .padding(4)
-                    }
-                    .buttonStyle(BorderedProminentButtonStyle())
-                    .tint(Color.app(.soccer))
-                    .padding(.horizontal)
-                    NavigationLink {
-                        pickSportPage
-                    } label: {
-                        pickSportsLabel
-                    }
-                    .buttonStyle(BorderedButtonStyle())
-                    .padding([.horizontal, .bottom])
-                } else {
-                    NavigationLink {
-                        pickSportPage
-                    } label: {
-                        pickSportsLabel
-                    }
-                    .buttonStyle(BorderedProminentButtonStyle())
-                    .padding([.horizontal, .bottom])
-                }
+                .padding(.horizontal, 24)
+                .padding(.top, 32)
             }
-            .navigationTitle("Welcome to Scoreline!")
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 8) {
+                    NavigationLink {
+                        pickSportPage
+                    } label: {
+                        Text("Get Started")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(6)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    if WorldCupSeason.isActive {
+                        Button {
+                            appStorage.shouldShowWorldCup = true
+                            appStorage.recomputeEnabledSports()
+                            viewModel.filterSports(force: true)
+                            viewModel.getInfo()
+                            finishOnboarding()
+                        } label: {
+                            Label("Just follow the World Cup", systemImage: "soccerball")
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+                .padding()
+                .background(.bar)
+            }
+            #if os(iOS)
+            .toolbar(.hidden, for: .navigationBar)
+            #endif
         }
         // A fixed window-like size on macOS: min-only frames let the sheet open
         // at the cramped minimum, which reads as a misplaced phone modal. On
@@ -76,10 +92,20 @@ struct OnboardingPage: View {
             .environment(favorites)
     }
 
-    private var pickSportsLabel: some View {
-        Text("Pick sports manually")
-            .frame(maxWidth: .infinity)
-            .padding(4)
+    /// Sport symbols in their colours, fanned around the app's name.
+    private var hero: some View {
+        HStack(spacing: -10) {
+            ForEach([(SportType.nfl, "football.fill"), (.basketball, "basketball.fill"), (.soccer, "soccerball"),
+                     (.mlb, "baseball.fill"), (.hockey, "hockey.puck.fill")], id: \.1) { sport, symbol in
+                Image(systemName: symbol)
+                    .font(.title)
+                    .foregroundStyle(.white)
+                    .frame(width: 60, height: 60)
+                    .background(Circle().fill(Color.app(sport)))
+                    .overlay(Circle().stroke(.background, lineWidth: 3))
+            }
+        }
+        .accessibilityHidden(true)
     }
 
     /// Completes onboarding and, at this peak-intent moment, offers the Pro trial
