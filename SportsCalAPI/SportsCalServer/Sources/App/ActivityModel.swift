@@ -56,6 +56,9 @@ public struct LiveSportAttributes: Codable, Sendable {
     /// Team colours, 6-digit hex. Older app builds ignore the keys.
     var homeColorHex: String? = nil
     var awayColorHex: String? = nil
+    /// Logo URLs: the app fetches them when iOS wakes it for a push-started activity.
+    var homeBadgeURL: String? = nil
+    var awayBadgeURL: String? = nil
 }
 
 /// Which APNS gateway a given device token belongs to. Sandbox tokens come

@@ -287,6 +287,19 @@ struct LiveActivityPlaygroundView: View {
             }
         }
 
+        /// ESPN logo URLs: starting the playground fetches these exactly as a
+        /// push-started activity does (see `cacheBadgesForActivity`).
+        var logos: (home: String, away: String) {
+            let base = "https://a.espncdn.com/i/teamlogos"
+            switch self {
+            case .nba: return ("\(base)/nba/500/bos.png", "\(base)/nba/500/lal.png")
+            case .nfl: return ("\(base)/nfl/500/kc.png", "\(base)/nfl/500/buf.png")
+            case .mlb: return ("\(base)/mlb/500/cle.png", "\(base)/mlb/500/det.png")
+            case .nhl: return ("\(base)/nhl/500/vgk.png", "\(base)/nhl/500/edm.png")
+            case .soccer: return ("\(base)/soccer/500/359.png", "\(base)/soccer/500/363.png")
+            }
+        }
+
         var points: Int {
             switch self {
             case .nba: return 2
@@ -380,7 +393,9 @@ struct LiveActivityPlaygroundView: View {
                 homeTeamShort: info.homeShort, awayTeamShort: info.awayShort,
                 displaysHomeFirst: scenario == .soccer ? true : nil,
                 homeColorHex: teamColors ? info.homeHex : nil,
-                awayColorHex: teamColors ? info.awayHex : nil
+                awayColorHex: teamColors ? info.awayHex : nil,
+                homeBadgeURL: scenario.logos.home,
+                awayBadgeURL: scenario.logos.away
             )
             state = scenario.startState
             do {

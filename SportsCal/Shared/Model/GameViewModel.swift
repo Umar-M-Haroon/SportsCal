@@ -3538,7 +3538,9 @@ extension GameViewModel {
             awayTeamShort: awayShort,
             displaysHomeFirst: game.displaysHomeFirst ? true : nil,
             homeColorHex: game.isIndividualSport ? nil : game.homeTeamColor,
-            awayColorHex: game.isIndividualSport ? nil : game.awayTeamColor
+            awayColorHex: game.isIndividualSport ? nil : game.awayTeamColor,
+            homeBadgeURL: game.isIndividualSport ? nil : game.strHomeTeamBadge,
+            awayBadgeURL: game.isIndividualSport ? nil : game.strAwayTeamBadge
         )
         return (activityAttributes, initialContentState)
     }
@@ -3681,11 +3683,7 @@ extension GameViewModel {
             observePushTokenUpdates(for: activity)
             // Backfill badges for activities started via push-to-start, where the opponent
             // may not have been a favorite and thus never cached.
-            cacheBadgesForActivity(
-                eventID: activity.attributes.eventID,
-                homeTeam: activity.attributes.homeTeam,
-                awayTeam: activity.attributes.awayTeam
-            )
+            cacheBadgesForActivity(activity)
         }
     }
 
@@ -3709,11 +3707,7 @@ extension GameViewModel {
                 await self?.reconcileDuplicateActivities(for: activity)
                 await MainActor.run {
                     self?.observePushTokenUpdates(for: activity)
-                    self?.cacheBadgesForActivity(
-                        eventID: activity.attributes.eventID,
-                        homeTeam: activity.attributes.homeTeam,
-                        awayTeam: activity.attributes.awayTeam
-                    )
+                    self?.cacheBadgesForActivity(activity)
                 }
             }
         }
@@ -3793,9 +3787,27 @@ extension GameViewModel {
     /// the badge file by exact filename (`attributes.awayTeam`), so if the activity was
     /// started with a name that isn't `strTeam`/`strTeamShort`, the literal-name copy
     /// ensures the widget still finds an image instead of falling back to initials.
-    private func cacheBadgesForActivity(eventID: String, homeTeam: String, awayTeam: String) {
+    private func cacheBadgesForActivity(_ activity: Activity<LiveSportActivityAttributes>) {
+        let eventID = activity.attributes.eventID
+        let homeTeam = activity.attributes.homeTeam
+        let awayTeam = activity.attributes.awayTeam
         Task {
             guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") else { return }
+            let missing = { [homeTeam, awayTeam].contains { !FileManager.default.fileExists(atPath: containerURL.appendingPathComponent($0).path) } }
+            guard missing() else { return }
+            defer {
+                // The card was drawn before the logos existed; re-send the same content
+                // so it redraws with them instead of waiting for the next score change.
+                Task { await activity.update(activity.content) }
+            }
+
+            // A push-started activity wakes the app before any games have loaded: the
+            // attributes carry the logo URLs, so fetch those directly.
+            for (name, url) in [(homeTeam, activity.attributes.homeBadgeURL), (awayTeam, activity.attributes.awayBadgeURL)] {
+                guard let url, !FileManager.default.fileExists(atPath: containerURL.appendingPathComponent(name).path) else { continue }
+                await Self.downloadBadge(from: url, names: [name], containerURL: containerURL)
+            }
+            guard missing() else { return }
 
             // Prefer eventID-based resolution — sport context disambiguates short names.
             let allGames = (totalGames ?? []) + allLiveEvents
@@ -4001,17 +4013,36 @@ extension GameViewModel {
 
     /// Pre-caches badge images for all favorite teams to the app group container.
     func preCacheFavoriteTeamBadges() {
-        guard !favorites.teams.isEmpty else { return }
+        let autoFollow = appStorage.autoFollowEventIDs
+        guard !favorites.teams.isEmpty || !autoFollow.isEmpty else { return }
 
         Task {
             guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal") else { return }
 
             // Resolve teams on the main actor before fanning out — teamByName is main-isolated.
             let teams = favorites.teams.compactMap { teamByName[$0] }
+            // Every game the server might start an activity for in the next two days
+            // (a favourite plays, or it's auto-followed): both sides, opponents and
+            // college teams included, saved under the names the activity will carry.
+            let now = Date()
+            let horizon = now.addingTimeInterval(48 * 60 * 60)
+            let sides: [(name: String, team: Team)] = (totalGames ?? []).filter { game in
+                guard !game.isIndividualSport, let start = game.standardDate,
+                      start > now.addingTimeInterval(-4 * 60 * 60), start < horizon else { return false }
+                return favorites.contains(game) || game.idEvent.map(autoFollow.contains) == true
+            }.flatMap { game -> [(name: String, team: Team)] in
+                guard let (home, away) = getTeams(for: game) else { return [] }
+                return [(game.strHomeTeam, home), (game.strAwayTeam, away)]
+            }
             await withTaskGroup(of: Void.self) { group in
                 for team in teams {
                     group.addTask {
                         await Self.downloadAndCacheBadge(team: team, containerURL: containerURL)
+                    }
+                }
+                for side in sides {
+                    group.addTask {
+                        await Self.writeBadge(name: side.name, team: side.team, containerURL: containerURL)
                     }
                 }
             }
@@ -4039,21 +4070,40 @@ extension GameViewModel {
             return
         }
 
-        guard let badgeString = team.strTeamBadge,
-              let badgeURL = URL(string: badgeString.contains("thesportsdb.com") ? badgeString + "/tiny" : badgeString) else { return }
+        guard let badgeString = team.strTeamBadge else { return }
+        await downloadBadge(from: badgeString, names: Array(fileNames), containerURL: containerURL)
+    }
 
+    /// Downloads a logo, shrinks it to at most 180px (Live Activities run under a
+    /// tight memory cap and ESPN logos come at 500px), and writes it under each name.
+    static func downloadBadge(from badgeString: String, names: [String], containerURL: URL) async {
+        guard let badgeURL = URL(string: badgeString.contains("thesportsdb.com") ? badgeString + "/tiny" : badgeString) else { return }
         do {
             let (data, _) = try await URLSession.shared.data(for: URLRequest(url: badgeURL, cachePolicy: .returnCacheDataElseLoad))
-            guard UIImage(data: data) != nil else {
-                AppLogger.liveActivity.notice("Badge data is not a valid image for \(fileNames.joined(separator: ","))")
+            guard let image = UIImage(data: data) else {
+                AppLogger.liveActivity.notice("Badge data is not a valid image for \(names.joined(separator: ","))")
                 return
             }
-            for name in fileNames {
-                let fileURL = containerURL.appendingPathComponent(name)
-                try? data.write(to: fileURL)
+            let output = downsizedPNG(image, maxPixels: 180) ?? data
+            for name in names {
+                try? output.write(to: containerURL.appendingPathComponent(name))
             }
         } catch {
-            AppLogger.liveActivity.notice("Badge download failed for \(fileNames.joined(separator: ",")): \(error.localizedDescription)")
+            AppLogger.liveActivity.notice("Badge download failed for \(names.joined(separator: ",")): \(error.localizedDescription)")
+        }
+    }
+
+    private static func downsizedPNG(_ image: UIImage, maxPixels: CGFloat) -> Data? {
+        let pixelWidth = image.size.width * image.scale
+        let pixelHeight = image.size.height * image.scale
+        let longest = max(pixelWidth, pixelHeight)
+        guard longest > maxPixels else { return nil }
+        let ratio = maxPixels / longest
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let size = CGSize(width: (pixelWidth * ratio).rounded(), height: (pixelHeight * ratio).rounded())
+        return UIGraphicsImageRenderer(size: size, format: format).pngData { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
         }
     }
 

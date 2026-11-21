@@ -85,6 +85,11 @@ struct LiveSportActivityAttributes: ActivityAttributes {
     /// the fields existed, and pushes from an older server, draw without them.
     var homeColorHex: String? = nil
     var awayColorHex: String? = nil
+    /// Logo URLs, so the app — woken in the background when the server starts the
+    /// activity, before any games have loaded — can fetch and cache the logos the
+    /// widget reads. Optional for the same reasons as the colours.
+    var homeBadgeURL: String? = nil
+    var awayBadgeURL: String? = nil
 }
 
 /// Pure decision helper for the dedup funnel — given the eventIDs of currently
