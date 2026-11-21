@@ -184,7 +184,7 @@ public extension PlayHighlight {
                 default: break
                 }
             }
-        case .soccer, .nfl, .golf, .tennis, .racing:
+        case .soccer, .nfl, .golf, .tennis, .racing, .cricket:
             break
         }
         return out
@@ -290,7 +290,7 @@ public struct AlertMilestone: Codable, Equatable, Hashable, Sendable {
                 Preset(stat: "points", label: "points", suggested: [3, 4]),
                 Preset(stat: "saves", label: "saves", suggested: [30, 40]),
             ]
-        case .soccer, .nfl, .golf, .tennis, .racing:
+        case .soccer, .nfl, .golf, .tennis, .racing, .cricket:
             return []
         }
     }
@@ -441,7 +441,7 @@ public struct AlertRule: Codable, Equatable, Hashable, Sendable, Identifiable {
         case .mlb: return league == .mlb
         case .hockey: return league == .nhl
         case .soccer: return league.isSoccer
-        case .nfl, .golf, .tennis, .racing: return false
+        case .nfl, .golf, .tennis, .racing, .cricket: return false
         }
     }
 
@@ -451,7 +451,7 @@ public struct AlertRule: Codable, Equatable, Hashable, Sendable, Identifiable {
         case .mlb: return .mlb
         case .hockey: return .nhl
         case .nfl: return .nfl
-        case .soccer, .golf, .tennis, .racing: return nil
+        case .soccer, .golf, .tennis, .racing, .cricket: return nil
         }
     }
 
@@ -511,7 +511,7 @@ public struct AlertRule: Codable, Equatable, Hashable, Sendable, Identifiable {
         case .basketball, .nfl: return margin <= 8
         case .mlb: return margin <= 2
         case .hockey, .soccer: return margin <= 1
-        case .golf, .tennis, .racing: return true
+        case .golf, .tennis, .racing, .cricket: return true
         }
     }
 }
