@@ -414,6 +414,32 @@ private struct LastGoalLine: View {
     }
 }
 
+/// Equal-width columns. Its ideal width is the widest column times the count, so a
+/// `ViewThatFits` around it asks "does every column fit in its share?", not "does the
+/// row's total fit?" (a plain HStack let "Los Angeles Lakers" pass, then truncate).
+private struct EqualColumns: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard !subviews.isEmpty else { return .zero }
+        let count = CGFloat(subviews.count)
+        let gaps = spacing * (count - 1)
+        let column = proposal.width.map { max(0, ($0 - gaps) / count) }
+            ?? subviews.map { $0.sizeThatFits(.unspecified).width }.max() ?? 0
+        let height = subviews.map { $0.sizeThatFits(ProposedViewSize(width: column, height: proposal.height)).height }.max() ?? 0
+        return CGSize(width: column * count + gaps, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let count = CGFloat(subviews.count)
+        let column = max(0, (bounds.width - spacing * (count - 1)) / count)
+        for (index, subview) in subviews.enumerated() {
+            subview.place(at: CGPoint(x: bounds.minX + CGFloat(index) * (column + spacing), y: bounds.midY),
+                          anchor: .leading, proposal: ProposedViewSize(width: column, height: bounds.height))
+        }
+    }
+}
+
 private struct TeamLockScreenView: View {
     let attributes: LiveSportActivityAttributes
     let state: LiveSportActivityAttributes.ContentState
@@ -421,11 +447,14 @@ private struct TeamLockScreenView: View {
     var body: some View {
         let sides = activitySides(attributes, state)
         VStack(spacing: 8) {
-            HStack {
-                team(sides.first, leading: true)
-                progressLabel(for: state)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                team(sides.second, leading: false)
+            // Both sides share one name style: full names at the largest size where
+            // both fit, else both codes. Deciding per side showed "LAL" beside
+            // "Boston Celtics".
+            ViewThatFits(in: .horizontal) {
+                scoreRow(sides, nameFont: .headline)
+                scoreRow(sides, nameFont: .subheadline)
+                scoreRow(sides, nameFont: .footnote)
+                scoreRow(sides, nameFont: nil)
             }
             if sides.first.timeouts != nil || sides.second.timeouts != nil {
                 HStack {
@@ -458,15 +487,31 @@ private struct TeamLockScreenView: View {
         }
     }
 
+    private func scoreRow(_ sides: (first: ActivitySide, second: ActivitySide), nameFont: Font?) -> some View {
+        EqualColumns {
+            team(sides.first, leading: true, nameFont: nameFont)
+            progressLabel(for: state)
+                .frame(maxWidth: .infinity, alignment: .center)
+            team(sides.second, leading: false, nameFont: nameFont)
+        }
+    }
+
     /// `IndividualTeamView`'s `isAway` lays a side out leading (badge, then score).
-    private func team(_ side: ActivitySide, leading: Bool) -> some View {
+    /// A `nameFont` shows the full name at that size; nil shows the team code.
+    private func team(_ side: ActivitySide, leading: Bool, nameFont: Font?) -> some View {
         let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.Komodo.SportsCal")?
             .appendingPathComponent(side.name)
-        // Long name only; when it won't fit even a couple of sizes down, the team code
-        // stands in rather than the name truncating ("Brighton & Hove Al…").
-        return IndividualTeamView(longName: side.name, score: side.score, isWinning: side.isWinning,
-                                  isAway: leading, redCards: side.redCards, data: url.flatMap { try? Data(contentsOf: $0) },
-                                  fallbackName: side.short)
+        let data = url.flatMap { try? Data(contentsOf: $0) }
+        return Group {
+            if let nameFont {
+                IndividualTeamView(longName: side.name, score: side.score, isWinning: side.isWinning,
+                                   isAway: leading, redCards: side.redCards, data: data,
+                                   fallbackName: side.short, nameFont: nameFont)
+            } else {
+                IndividualTeamView(shortName: side.short, longName: side.name, score: side.score, isWinning: side.isWinning,
+                                   isAway: leading, redCards: side.redCards, data: data, fallbackName: side.short)
+            }
+        }
     }
 
     @ViewBuilder
@@ -474,6 +519,55 @@ private struct TeamLockScreenView: View {
         if let count = side.timeouts {
             TimeoutPips(name: side.short, count: count, tint: WidgetTokens.inkSoft)
         }
+    }
+}
+
+/// "2-1" with the leading side's score heavy and the trailing one dimmed, so the
+/// lead reads at a glance in the compact and minimal slots. A tie draws both evenly.
+private struct LeadScoreText: View {
+    let first: Int
+    let second: Int
+    let size: CGFloat
+
+    var body: some View {
+        // One Text, so "112-108" scales down as a whole instead of each number
+        // truncating to "1…" in the minimal bubble.
+        (score(first, leads: first > second, trails: first < second)
+         + Text("-").foregroundStyle(WidgetTokens.inkSoft)
+         + score(second, leads: second > first, trails: second < first))
+            .font(.system(size: size, weight: .bold, design: .rounded))
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.45)
+    }
+
+    private func score(_ value: Int, leads: Bool, trails: Bool) -> Text {
+        Text("\(value)")
+            .fontWeight(leads ? .heavy : .semibold)
+            .foregroundStyle(trails ? WidgetTokens.inkSoft : WidgetTokens.ink)
+    }
+}
+
+/// The minimal Dynamic Island slot: the small bubble beside the camera when another
+/// activity holds the island, and the iPhone Duo's outer camera cut-out. Both scores,
+/// with the leader's code above them; "TIE" when level.
+private struct MinimalScoreView: View {
+    let first: ActivitySide
+    let second: ActivitySide
+
+    var body: some View {
+        let leader = first.isWinning ? first : (second.isWinning ? second : nil)
+        VStack(spacing: 0) {
+            Text(leader?.short ?? "TIE")
+                .font(.system(size: 8, weight: .heavy, design: .rounded))
+                .foregroundStyle(leader == nil ? WidgetTokens.inkSoft : WidgetTokens.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            LeadScoreText(first: first.score, second: second.score, size: 11)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(leader.map { "\($0.name) leads, \(first.spoken), \(second.spoken)" }
+                            ?? "Tied, \(first.spoken), \(second.spoken)")
     }
 }
 
@@ -646,11 +740,9 @@ struct LiveSportActivityWidget: Widget {
                 } else {
                 let sides = activitySides(context.attributes, context.state)
                 HStack(spacing: 3) {
-                    Text("\(sides.first.score)-\(sides.second.score)")
-                        .font(.system(.caption, design: .rounded).weight(.bold))
-                        .monospacedDigit()
-                        .foregroundColor(WidgetTokens.ink)
+                    LeadScoreText(first: sides.first.score, second: sides.second.score, size: 12)
                         // "2-1" reads as "2 minus 1".
+                        .accessibilityElement(children: .ignore)
                         .accessibilityLabel("\(sides.first.short) \(sides.first.score), \(sides.second.short) \(sides.second.score)")
                     if let inning = compactInning(context.state.progress) {
                         Text(inning)
@@ -663,20 +755,21 @@ struct LiveSportActivityWidget: Widget {
                 }
             } minimal: {
                 if context.state.tennis != nil {
-                    Image(systemName: "tennisball.fill")
-                        .font(.system(size: 11, weight: .heavy))
-                        .foregroundColor(WidgetTokens.ink)
+                    VStack(spacing: 0) {
+                        Image(systemName: "tennisball.fill")
+                            .font(.system(size: 7, weight: .heavy))
+                            .foregroundColor(WidgetTokens.ink)
+                        LeadScoreText(first: context.state.homeScore, second: context.state.awayScore, size: 11)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Sets \(context.attributes.homeTeam) \(context.state.homeScore), \(context.attributes.awayTeam) \(context.state.awayScore)")
                 } else if let race = context.state.race {
                     Image(systemName: race.isGolf ? "figure.golf" : "flag.checkered")
                         .font(.system(size: 11, weight: .heavy))
                         .foregroundColor(WidgetTokens.ink)
                 } else {
-                // Same constraint as compact — use abbreviation text.
-                let first = activitySides(context.attributes, context.state).first
-                Text(first.short)
-                    .font(.system(size: 11, weight: .heavy, design: .rounded))
-                    .foregroundColor(WidgetTokens.ink)
-                    .accessibilityLabel(first.spoken)
+                    let sides = activitySides(context.attributes, context.state)
+                    MinimalScoreView(first: sides.first, second: sides.second)
                 }
             }
         }
@@ -797,5 +890,52 @@ private let previewRace = LiveActivityRace(session: "Race", leaders: [
 } contentStates: {
     LiveSportActivityAttributes.ContentState(homeScore: 0, awayScore: 0, status: "in", progress: "Lap 23/62", race: previewRace)
 }
+
+// MARK: - Gallery: every presentation for each scenario (docs/live-activities gallery)
+
+private let galleryNBA = LiveSportActivityAttributes(homeTeam: "Boston Celtics", awayTeam: "Los Angeles Lakers", eventID: "g-nba",
+                                                     homeTeamShort: "BOS", awayTeamShort: "LAL")
+private let galleryNBAState = LiveSportActivityAttributes.ContentState(homeScore: 108, awayScore: 112, status: "in", progress: "4th 2:14",
+                                                                       lastPlay: "LeBron James makes 26-foot three point jumper")
+private let galleryNHL = LiveSportActivityAttributes(homeTeam: "Vegas Golden Knights", awayTeam: "Edmonton Oilers", eventID: "g-nhl",
+                                                     homeTeamShort: "VGK", awayTeamShort: "EDM")
+private let galleryNHLTied = LiveSportActivityAttributes.ContentState(homeScore: 2, awayScore: 2, status: "in", progress: "5:40 - 3rd",
+                                                                      lastPlay: "Goal by Eichel (PP)")
+private let galleryMLB = LiveSportActivityAttributes(homeTeam: "Cleveland Guardians", awayTeam: "Detroit Tigers", eventID: "g-mlb",
+                                                     homeTeamShort: "CLE", awayTeamShort: "DET")
+private let galleryMLBState = LiveSportActivityAttributes.ContentState(homeScore: 3, awayScore: 5, status: "in", progress: "Bot 9th",
+                                                                       lastPlay: "Kwan singled to left.",
+                                                                       situation: LiveActivitySituation(outs: 1, bases: 3, homeWinPct: 21))
+private let galleryNFL = LiveSportActivityAttributes(homeTeam: "Kansas City Chiefs", awayTeam: "Buffalo Bills", eventID: "g-nfl",
+                                                     homeTeamShort: "KC", awayTeamShort: "BUF")
+private let galleryNFLState = LiveSportActivityAttributes.ContentState(homeScore: 20, awayScore: 17, status: "in", progress: "4th 2:31", lastPlay: nil,
+                                                                       situation: LiveActivitySituation(downDistance: "3rd & 4 at KC 12", possession: .away, redZone: true,
+                                                                                                        homeWinPct: 58, homeTimeouts: 2, awayTimeouts: 1))
+private let gallerySoccerHT = LiveSportActivityAttributes.ContentState(homeScore: 0, awayScore: 0, status: "in", progress: "HT")
+private let galleryNBAFinal = LiveSportActivityAttributes.ContentState(homeScore: 121, awayScore: 117, status: "post", progress: "Final/OT")
+private let galleryTennis = LiveSportActivityAttributes(homeTeam: "Jannik Sinner", awayTeam: "Carlos Alcaraz", eventID: "g-tennis")
+private let galleryTennisState = LiveSportActivityAttributes.ContentState(homeScore: 1, awayScore: 1, status: "in", progress: "3rd Set",
+                                                                          tennis: LiveActivityTennis(sets: [
+                                                                            .init(home: 7, away: 6, homeTiebreak: 7, awayTiebreak: 4, winner: .home),
+                                                                            .init(home: 4, away: 6, winner: .away),
+                                                                            .init(home: 3, away: 2),
+                                                                          ], server: .home))
+private let galleryF1 = LiveSportActivityAttributes(homeTeam: "Singapore Grand Prix", awayTeam: "Formula 1", eventID: "g-f1", homeTeamShort: "F1")
+private let galleryF1State = LiveSportActivityAttributes.ContentState(homeScore: 0, awayScore: 0, status: "in", progress: "Lap 23/62", race: previewRace)
+private let galleryGolf = LiveSportActivityAttributes(homeTeam: "The Masters", awayTeam: "Ludvig Åberg", eventID: "g-golf", homeTeamShort: "GOLF")
+private let galleryGolfState = LiveSportActivityAttributes.ContentState(homeScore: 0, awayScore: 0, status: "in", progress: "Round 3 - In Progress", race: previewGolf)
+
+// One preview per scenario; switch Xcode's "View Style" variant (Lock Screen,
+// StandBy, Smart Stack, compact, minimal, expanded) to see every presentation.
+#Preview("Gallery · NBA", as: .content, using: galleryNBA) { LiveSportActivityWidget() } contentStates: { galleryNBAState }
+#Preview("Gallery · NHL tied", as: .content, using: galleryNHL) { LiveSportActivityWidget() } contentStates: { galleryNHLTied }
+#Preview("Gallery · MLB", as: .content, using: galleryMLB) { LiveSportActivityWidget() } contentStates: { galleryMLBState }
+#Preview("Gallery · NFL", as: .content, using: galleryNFL) { LiveSportActivityWidget() } contentStates: { galleryNFLState }
+#Preview("Gallery · Soccer", as: .content, using: previewSoccerAttributes) { LiveSportActivityWidget() } contentStates: { previewSoccerState }
+#Preview("Gallery · Soccer HT", as: .content, using: previewSoccerAttributes) { LiveSportActivityWidget() } contentStates: { gallerySoccerHT }
+#Preview("Gallery · NBA final", as: .content, using: galleryNBA) { LiveSportActivityWidget() } contentStates: { galleryNBAFinal }
+#Preview("Gallery · Tennis", as: .content, using: galleryTennis) { LiveSportActivityWidget() } contentStates: { galleryTennisState }
+#Preview("Gallery · F1", as: .content, using: galleryF1) { LiveSportActivityWidget() } contentStates: { galleryF1State }
+#Preview("Gallery · Golf", as: .content, using: galleryGolf) { LiveSportActivityWidget() } contentStates: { galleryGolfState }
 #endif
 #endif

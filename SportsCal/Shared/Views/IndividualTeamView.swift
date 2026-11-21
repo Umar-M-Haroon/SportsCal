@@ -55,6 +55,10 @@ struct IndividualTeamView: View {
     /// stepped down a size or two. The Lock Screen Live Activity passes the team code:
     /// its full names shrank to fit but "Brighton & Hove Albion" still truncated.
     var fallbackName: String? = nil
+    /// A fixed font for `longName`, with no fallback step: a caller that lays out two
+    /// sides together (the Lock Screen Live Activity) picks one size for both, so one
+    /// side doesn't show a code while the other shows a full name.
+    var nameFont: Font? = nil
     /// Score / fallback-code sizes track Dynamic Type; 24pt / 14pt at the default size.
     @ScaledMetric(relativeTo: .title2) private var scoreSize: CGFloat = 24
     @ScaledMetric(relativeTo: .subheadline) private var codeSize: CGFloat = 14
@@ -64,8 +68,10 @@ struct IndividualTeamView: View {
             Circle()
                 .fill(Color.gray.opacity(0.2))
                 .frame(width: 40, height: 40)
-            if let shortName {
-                Text(Team.shortCode(strTeamShort: nil, name: shortName))
+            // The real team code when we have it: initials built from the name read
+            // "BCE" for Boston Celtics.
+            if let code = fallbackName ?? shortName {
+                Text(Team.shortCode(strTeamShort: code, name: longName ?? code))
                     .font(.system(size: codeSize, weight: .bold))
                     .foregroundColor(.secondary)
             } else if let longName {
@@ -181,7 +187,9 @@ struct IndividualTeamView: View {
                     if !isAway { redCardMark }
                     // One line, shrunk to fit: wrapping let SwiftUI break a long word
                     // mid-way ("Vanderbilt Com-modores").
-                    if let fallbackName, shortName == nil {
+                    if let nameFont, shortName == nil {
+                        nameText(name, font: nameFont)
+                    } else if let fallbackName, shortName == nil {
                         // Whole name at full size, then a size or two down, then the code.
                         // ViewThatFits measures unscaled text, so the steps stand in for
                         // minimumScaleFactor; the code still scales rather than truncating.
