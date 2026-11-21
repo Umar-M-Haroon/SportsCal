@@ -127,6 +127,22 @@ protocol APNSSending: Sendable {
 
     /// A plain alert notification (no Live Activity). `eventID` rides in the payload
     /// so a tap opens the game; alerts for one match share a notification thread.
+    /// `options` adds a notification category, extra payload keys and a collapse ID
+    /// (custom alerts); soccer and golf alerts send none.
+    func sendAlert(
+        deviceToken: String,
+        appID: String,
+        title: String,
+        body: String,
+        eventID: String,
+        type: String,
+        options: AlertOptions,
+        environment: APNSEnvironment
+    ) async throws -> APNSSendResult
+}
+
+extension APNSSending {
+    /// A plain alert with no category or extra keys (soccer, golf).
     func sendAlert(
         deviceToken: String,
         appID: String,
@@ -135,13 +151,32 @@ protocol APNSSending: Sendable {
         eventID: String,
         type: String,
         environment: APNSEnvironment
-    ) async throws -> APNSSendResult
+    ) async throws -> APNSSendResult {
+        try await sendAlert(
+            deviceToken: deviceToken, appID: appID, title: title, body: body,
+            eventID: eventID, type: type, options: AlertOptions(), environment: environment
+        )
+    }
+}
+
+/// The optional parts of a plain alert.
+struct AlertOptions: Sendable, Equatable {
+    /// `aps.category`, for the app's notification actions.
+    var category: String? = nil
+    /// Payload `ruleID` (custom alerts).
+    var ruleID: String? = nil
+    /// Payload `athleteID` (custom player alerts).
+    var athleteID: String? = nil
+    /// `apns-collapse-id` (at most 64 bytes): an APNS redelivery replaces rather than repeats.
+    var collapseID: String? = nil
 }
 
 /// Custom keys on a plain alert, read by the app's notification tap handler.
 struct AlertPayload: Codable, Sendable {
     let eventID: String
     let type: String
+    var ruleID: String? = nil
+    var athleteID: String? = nil
 }
 
 /// Production implementation that delegates to `VaporAPNS`. Picks the APNS
@@ -247,19 +282,22 @@ final class VaporAPNSSending: APNSSending {
         body: String,
         eventID: String,
         type: String,
+        options: AlertOptions,
         environment: APNSEnvironment
     ) async throws -> APNSSendResult {
         let client = await client(for: environment)
-        let notification = APNSAlertNotification(
+        var notification = APNSAlertNotification(
             alert: APNSAlertNotificationContent(title: .raw(title), body: .raw(body)),
             // A goal alert an hour late is worse than none.
             expiration: .timeIntervalSince1970InSeconds(Int(Date().timeIntervalSince1970) + 15 * 60),
             priority: .immediately,
             topic: appID,
-            payload: AlertPayload(eventID: eventID, type: type),
+            payload: AlertPayload(eventID: eventID, type: type, ruleID: options.ruleID, athleteID: options.athleteID),
             sound: .default,
-            threadID: eventID
+            threadID: eventID,
+            category: options.category
         )
+        notification.collapseID = options.collapseID
         do {
             try await client.sendAlertNotification(notification, deviceToken: deviceToken)
             return APNSSendResult(

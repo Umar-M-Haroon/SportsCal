@@ -305,6 +305,9 @@ public struct SoccerMatchEvent: Codable, Equatable, Hashable, Identifiable {
     public var shortText: String?
     /// Athletes involved — for a goal: [scorer, assister]; for a sub: [in, out].
     public var playerNames: [String]
+    /// ESPN athlete IDs, in the same order as `playerNames` (custom player alerts match
+    /// on these). Nil from older servers.
+    public var athleteIDs: [String]?
 
     public init(
         id: String,
@@ -316,7 +319,8 @@ public struct SoccerMatchEvent: Codable, Equatable, Hashable, Identifiable {
         scoringPlay: Bool = false,
         text: String? = nil,
         shortText: String? = nil,
-        playerNames: [String] = []
+        playerNames: [String] = [],
+        athleteIDs: [String]? = nil
     ) {
         self.id = id
         self.type = type
@@ -328,6 +332,7 @@ public struct SoccerMatchEvent: Codable, Equatable, Hashable, Identifiable {
         self.text = text
         self.shortText = shortText
         self.playerNames = playerNames
+        self.athleteIDs = athleteIDs
     }
 }
 
