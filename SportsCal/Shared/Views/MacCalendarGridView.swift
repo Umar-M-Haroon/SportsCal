@@ -115,7 +115,7 @@ struct MacCalendarGridView: View {
                     .fontWeight(isToday ? .bold : .regular)
                     .foregroundStyle(
                         isSelected ? Color.white
-                        : isToday ? Color.accentColor
+                        : isToday ? Color.appAccent
                         : inMonth ? Color.primary : Color.secondary.opacity(0.5)
                     )
                 HStack(spacing: 2) {
@@ -130,7 +130,7 @@ struct MacCalendarGridView: View {
             .frame(maxWidth: .infinity, minHeight: 34)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isSelected ? Color.accentColor : Color.clear)
+                    .fill(isSelected ? Color.appAccent : Color.clear)
             )
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }

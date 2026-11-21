@@ -209,7 +209,7 @@ struct F1LapChartView: View {
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Capsule().fill(isOn ? Color.accentColor.opacity(0.18) : Color.gray.opacity(0.1)))
+                        .background(Capsule().fill(isOn ? Color.appAccent.opacity(0.18) : Color.gray.opacity(0.1)))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Highlight \(line.name)")

@@ -291,7 +291,7 @@ struct GolfLeaderboardWidgetView: View {
             if (player.thruHole ?? "").isEmpty, let tee = Self.teeTimeText(player) {
                 Text(tee)
                     .font(.system(size: 9))
-                    .foregroundColor(.blue)
+                    .foregroundColor(WidgetTokens.accent)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .frame(width: 52, alignment: .trailing)

@@ -130,6 +130,7 @@ struct SportsCalApp: App {
                 #if os(iOS)
                 .modifier(WindowAdScope())
                 #endif
+                .appAccentScope()
                 .environment(subscriptionManager)
                 .environment(appStorage)
                 .environment(favorites)
@@ -139,6 +140,14 @@ struct SportsCalApp: App {
                     // Every window runs onAppear; launch bookkeeping runs once.
                     LaunchOnce.run("appLaunch") { onLaunch() }
                 }
+                #if os(iOS)
+                // Themes are Pro: a lapsed subscriber returns to the primary icon
+                // (the accent falls back by itself in AppAccentScope). `isPro` is
+                // seeded from the cached value, so true→false is a real lapse.
+                .onChange(of: subscriptionManager.isPro) { _, isPro in
+                    if !isPro { AppIconChoice.resetIfNotEntitled() }
+                }
+                #endif
                 .onChange(of: appStorage.debugMode) { _, newValue in
                     if newValue {
                         serverDiscovery.start()
@@ -301,6 +310,7 @@ struct SportsCalApp: App {
         MenuBarExtra {
             if subscriptionManager.isPro {
                 MenuBarContentView()
+                    .appAccentScope()
                     .environment(appStorage)
                     .environment(favorites)
                     .environment(viewModel)
@@ -350,6 +360,7 @@ struct SportsCalApp: App {
 
         Settings {
             MacSettingsView()
+                .appAccentScope()
                 .environment(appStorage)
                 .environment(favorites)
                 .environment(viewModel)
@@ -373,6 +384,7 @@ struct SportsCalApp: App {
                 #if os(iOS)
                 .modifier(WindowAdScope())
                 #endif
+                .appAccentScope()
                 .environment(viewModel)
                 .environment(favorites)
                 .environment(appStorage)

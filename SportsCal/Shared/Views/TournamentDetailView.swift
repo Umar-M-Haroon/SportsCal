@@ -231,7 +231,7 @@ struct TournamentDetailView: View {
                 ForEach(0..<totalRounds, id: \.self) { i in
                     if i > 0 {
                         Rectangle()
-                            .fill(i <= currentRound ? Color.accentColor : Color.gray.opacity(0.3))
+                            .fill(i <= currentRound ? Color.appAccent : Color.gray.opacity(0.3))
                             .frame(height: 2)
                     }
                     ZStack {
@@ -264,7 +264,7 @@ struct TournamentDetailView: View {
 
     private func roundColor(index: Int, current: Int) -> Color {
         if index < current { return .green }
-        if index == current { return game.hasDoneStatus && game.strStatus != "pre" ? .green : .accentColor }
+        if index == current { return game.hasDoneStatus && game.strStatus != "pre" ? .green : .appAccent }
         return Color.gray.opacity(0.4)
     }
 
@@ -380,10 +380,10 @@ struct TournamentDetailView: View {
                 VStack(spacing: 4) {
                     Image(systemName: isFollowing ? "clock.badge.fill" : "clock.badge")
                         .font(.title3)
-                        .foregroundColor(isFollowing ? .accentColor : .secondary)
+                        .foregroundColor(isFollowing ? .appAccent : .secondary)
                     Text(isFollowing ? "Following" : "Auto-Follow")
                         .font(.caption2)
-                        .foregroundColor(isFollowing ? .accentColor : .secondary)
+                        .foregroundColor(isFollowing ? .appAccent : .secondary)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -438,10 +438,10 @@ struct TournamentDetailView: View {
                         }
                         .font(.caption.bold())
                     }
-                    .foregroundColor(.accentColor)
+                    .foregroundColor(.appAccent)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
-                    .background(Color.accentColor.opacity(0.1))
+                    .background(Color.appAccent.opacity(0.1))
                     .cornerRadius(8)
                 }
 
@@ -550,7 +550,7 @@ struct TournamentDetailView: View {
                 favoriteButton(name: entry.name, isFavorite: isFavPlayer)
             }
             .opacity(entry.isCut == true ? 0.5 : 1.0)
-            .background(comparingPlayerName == entry.name ? Color.accentColor.opacity(0.1) : Color.clear)
+            .background(comparingPlayerName == entry.name ? Color.appAccent.opacity(0.1) : Color.clear)
             .cornerRadius(4)
             .contextMenu {
                 Button(isFavPlayer ? "Remove from Favorites" : "Add to Favorites",
@@ -668,7 +668,7 @@ struct TournamentDetailView: View {
                 if entry.thruHole == nil, let tee = GolfScoreStyle.teeTimeText(entry) {
                     Text(tee)
                         .font(.caption2)
-                        .foregroundColor(.blue)
+                        .foregroundColor(.appAccent)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .frame(width: thruWidth, alignment: .trailing)

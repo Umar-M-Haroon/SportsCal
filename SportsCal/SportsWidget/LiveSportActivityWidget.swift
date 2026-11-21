@@ -514,16 +514,21 @@ private struct ExpandedIslandSide: View {
 struct LiveSportActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: LiveSportActivityAttributes.self) { context in
-            if let race = context.state.race {
-                RaceLockScreenView(raceName: context.attributes.homeTeam, state: context.state, race: race)
-                    .padding(16)
-            } else if let tennis = context.state.tennis {
-                TennisLockScreenView(attributes: context.attributes, state: context.state, tennis: tennis)
-                    .padding(16)
-            } else {
-                TeamLockScreenView(attributes: context.attributes, state: context.state)
-                    .padding(16)
+            Group {
+                if let race = context.state.race {
+                    RaceLockScreenView(raceName: context.attributes.homeTeam, state: context.state, race: race)
+                        .padding(16)
+                } else if let tennis = context.state.tennis {
+                    TennisLockScreenView(attributes: context.attributes, state: context.state, tennis: tennis)
+                        .padding(16)
+                } else {
+                    TeamLockScreenView(attributes: context.attributes, state: context.state)
+                        .padding(16)
+                }
             }
+            // System chrome (the lock-screen dismiss/action control) follows the
+            // Themes accent.
+            .activitySystemActionForegroundColor(WidgetTokens.accent)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -679,6 +684,9 @@ struct LiveSportActivityWidget: Widget {
                     .accessibilityLabel(first.spoken)
                 }
             }
+            // Themes accent on the island's chrome only; team colors and the
+            // live red inside stay as they are.
+            .keylineTint(WidgetTokens.accent)
         }
     }
     

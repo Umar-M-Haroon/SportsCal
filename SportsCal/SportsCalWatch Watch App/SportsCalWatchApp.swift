@@ -12,6 +12,8 @@ import SportsCalModel
 @main
 struct SportsCalWatchApp: App {
     @State private var viewModel = WatchViewModel()
+    /// Themes accent mirrored from the phone (see WatchSyncService); -1 = default.
+    @AppStorage(AppAccentReader.effectiveHexKey) private var accentHex: Int = -1
 
     init() {
         WatchSyncService.shared.activate()
@@ -30,6 +32,7 @@ struct SportsCalWatchApp: App {
         WindowGroup {
             WatchContentView()
                 .environment(viewModel)
+                .tint(accentHex >= 0 ? Color(accentHex: accentHex) : nil)
         }
     }
 }

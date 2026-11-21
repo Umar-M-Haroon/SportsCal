@@ -257,7 +257,7 @@ struct TeamDetailView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .tint(isFavorited ? .yellow : .accentColor)
+            .tint(isFavorited ? .yellow : .appAccent)
             .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)

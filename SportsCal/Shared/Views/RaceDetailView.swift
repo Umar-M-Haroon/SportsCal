@@ -383,7 +383,7 @@ struct RaceDetailView: View {
                 VStack(spacing: 4) {
                     Image(systemName: isFollowing ? "clock.badge.checkmark.fill" : "clock.badge")
                         .font(.title3)
-                        .foregroundColor(isFollowing ? .accentColor : .secondary)
+                        .foregroundColor(isFollowing ? .appAccent : .secondary)
                     Text(isFollowing ? "Following" : "Follow")
                         .font(.caption2)
                         .foregroundColor(.secondary)
@@ -416,10 +416,10 @@ struct RaceDetailView: View {
                 VStack(spacing: 4) {
                     Image(systemName: isFollowing ? "clock.badge.fill" : "clock.badge")
                         .font(.title3)
-                        .foregroundColor(isFollowing ? .accentColor : .secondary)
+                        .foregroundColor(isFollowing ? .appAccent : .secondary)
                     Text(isFollowing ? "Following" : "Auto-Follow")
                         .font(.caption2)
-                        .foregroundColor(isFollowing ? .accentColor : .secondary)
+                        .foregroundColor(isFollowing ? .appAccent : .secondary)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -990,7 +990,7 @@ struct F1SessionPicker: View {
             VStack(spacing: 3) {
                 Text(session.shortName)
                     .font(.subheadline.weight(isSelected ? .bold : .semibold))
-                    .foregroundStyle(isSelected ? Color.accentColor : (isUpcoming ? .secondary : .primary))
+                    .foregroundStyle(isSelected ? Color.appAccent : (isUpcoming ? .secondary : .primary))
                     .minimumScaleFactor(0.8)
                 tileDetail(session)
                     .font(.caption2)
