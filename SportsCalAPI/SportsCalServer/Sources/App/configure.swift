@@ -156,6 +156,7 @@ public func configure(_ app: Application) async throws {
         let defaultPath = app.directory.workingDirectory + "pbp_archive.sqlite"
         let archivePath = Environment.get("PBP_ARCHIVE_PATH") ?? defaultPath
         app.pbpArchive = try await PBPArchive.bootstrap(path: archivePath)
+        app.lifecycle.use(PBPArchiveLifecycle())
         app.logger.info("📦 PBP archive opened at \(archivePath)")
     } catch {
         app.logger.error("⚠️ PBP archive failed to open — historical plays won't persist: \(error)")
