@@ -1,10 +1,10 @@
-New in 3.3 — please try:
+New in 3.4 — please try:
 
-• More racing: NASCAR Cup, IndyCar, IMSA and WEC join F1. Turn them on from the card on an F1 race page, or Racing's leagues in your sport settings. Check race pages (running order, classes and crews for IMSA/WEC, standings) and Browse › Racing.
-• A-League: fixtures, live scores and standings.
-• Tennis & golf coverage: pick Grand Slams/majors only, big events, or everything.
-• More golf tours: DP World, LPGA, LIV, Champions and Korn Ferry.
-• Soccer match centre: lineups, shots, momentum and commentary on match pages.
-• College rankings: AP, Coaches and lower-division polls, week by week. Browse › Football › College Football › the league card › Rankings.
+• Player & Game Alerts: follow a player or set an alert for a game situation (Settings › Player & Game Alerts). One alert is free; more need Pro. Tell us if an alert arrives late, twice, or not at all.
+• Cricket: Tests, ODIs, T20Is and the big franchise leagues, with live scores and full scorecards. Turn it on in your sport settings.
+• Themes: new app accent colours and alternate app icons (Settings › Themes).
+• Share cards: the share button on any game, race or match page makes an image card with a link.
+• Live Activities: team colours and logos, a win-probability bar, better layouts for golf, F1 and tennis, plus CarPlay and Apple Watch Smart Stack.
+• New onboarding: if you can, delete and reinstall to try the new first-run setup.
 
 Tell us about anything that looks wrong, is slow, or crashes (shake or screenshot to send feedback).
