@@ -141,7 +141,9 @@ enum MonetizationTelemetry {
         private func resolve() async -> String {
             if let cached { return cached }
             let value = await Self.detect()
-            cached = value
+            // A failed AppTransaction lookup can be transient (offline launch),
+            // so don't pin "unknown" for the whole process — retry next event.
+            if value != "unknown" { cached = value }
             return value
         }
 
@@ -149,6 +151,12 @@ enum MonetizationTelemetry {
             #if DEBUG
             return "debug"
             #else
+            // Release builds that never came from the App Store or TestFlight:
+            // simulator runs (the screenshot harness reinstalls fresh every
+            // run) and ad-hoc / development-signed iOS installs (the OTA lane).
+            // These carry no App Store transaction and used to land in
+            // "unknown", inflating install cohorts with dev traffic.
+            if isNonStoreBuild { return "debug" }
             guard let result = try? await AppTransaction.shared else { return "unknown" }
             let environment: AppStore.Environment
             switch result {
@@ -161,6 +169,20 @@ enum MonetizationTelemetry {
             case .xcode: return "debug"
             default: return "unknown"
             }
+            #endif
+        }
+
+        /// Simulator, or an iOS build that still embeds its provisioning
+        /// profile. App Store and TestFlight iOS builds have it stripped; ad-hoc
+        /// and development builds keep it. Not used on macOS, where Mac App
+        /// Store builds legitimately ship `embedded.provisionprofile`.
+        static var isNonStoreBuild: Bool {
+            #if targetEnvironment(simulator)
+            return true
+            #elseif os(iOS)
+            return Bundle.main.path(forResource: "embedded", ofType: "mobileprovision") != nil
+            #else
+            return false
             #endif
         }
     }
