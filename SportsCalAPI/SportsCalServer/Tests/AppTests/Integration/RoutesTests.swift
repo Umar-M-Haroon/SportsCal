@@ -388,6 +388,25 @@ final class RoutesTests: XCTestCase {
                        "the plain counter still counts every ping")
     }
 
+    func testAdminKeyAcceptsAnyHashInCommaSeparatedList() async throws {
+        func hash(_ s: String) -> String { SHA256.hash(data: Data(s.utf8)).map { String(format: "%02x", $0) }.joined() }
+        // Rotation shape as written on prod: new,new(dup),old — with stray whitespace.
+        setenv("ADMIN_API_KEY_HASH", "\(hash("new-key")), \(hash("new-key")),\(hash("old-key"))", 1)
+        defer { unsetenv("ADMIN_API_KEY_HASH") }
+
+        for key in ["new-key", "old-key"] {
+            try app.test(.GET, "api/admin/telemetry?days=1", headers: ["X-Admin-API-Key": key]) { res in
+                XCTAssertEqual(res.status, .ok, "\(key) should be accepted")
+            }
+        }
+        try app.test(.GET, "api/admin/telemetry?days=1", headers: ["X-Admin-API-Key": "wrong-key"]) { res in
+            XCTAssertEqual(res.status, .forbidden)
+        }
+        try app.test(.GET, "api/admin/telemetry?days=1") { res in
+            XCTAssertEqual(res.status, .forbidden, "missing header")
+        }
+    }
+
     func testAdminTelemetryReportsChannelsActiveUsersAndConversion() async throws {
         let adminKey = "admin-test-key"
         let adminHash = SHA256.hash(data: Data(adminKey.utf8)).map { String(format: "%02x", $0) }.joined()
