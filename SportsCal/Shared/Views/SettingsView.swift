@@ -527,6 +527,9 @@ struct SettingsView: View {
     @State private var showResetSuggestionsConfirm = false
     @State private var showRestoreResult = false
     @State private var restoreMessage = ""
+    #if os(iOS)
+    @State private var showCustomerCenter = false
+    #endif
     @State private var whatsNewRelease: WhatsNewRelease?
     @Environment(\.openURL) private var openURL
     var isTestFlight: Bool {
@@ -632,6 +635,15 @@ struct SettingsView: View {
                             whatsNewRelease = release
                         }
                     }
+                    #if os(iOS)
+                    // RevenueCat Customer Center: plan details, cancel/refund flows,
+                    // cancellation survey and win-back offers. iOS-only in RevenueCatUI.
+                    if !SubscriptionManager.isManagedExternally, SubscriptionManager.shared.isPro {
+                        Button("Manage Scoreline Pro") {
+                            showCustomerCenter = true
+                        }
+                    }
+                    #endif
                     if !SubscriptionManager.isManagedExternally {
                         Button("Restore Purchases") {
                             Task {
@@ -680,6 +692,11 @@ struct SettingsView: View {
             } message: {
                 Text(restoreMessage)
             }
+            #if os(iOS)
+            .presentCustomerCenter(isPresented: $showCustomerCenter, onDismiss: {
+                showCustomerCenter = false
+            })
+            #endif
             .onAppear {
                 if isTestFlight {
                     appStorage.debugMode = true
