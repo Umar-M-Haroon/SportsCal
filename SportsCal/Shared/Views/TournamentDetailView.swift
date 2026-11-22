@@ -79,6 +79,7 @@ struct TournamentDetailView: View {
             courseDifficultySection
         }
         .detailNavigationTitle(league?.leagueName ?? "Tournament")
+        .toolbar { ShareCardButton(game: game) }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

@@ -61,6 +61,8 @@ enum MonetizationTelemetry {
         static let customAlertRuleCreated = "custom_alert_rule_created"
         static let customAlertCapHit = "custom_alert_cap_hit"
         static let customAlertAction = "custom_alert_action"
+        // Growth: a rendered share card handed to a share target.
+        static let shareCardShared = "share_card_shared"
     }
 
     /// Core emit. Safe to call from any thread; the network send is detached and
