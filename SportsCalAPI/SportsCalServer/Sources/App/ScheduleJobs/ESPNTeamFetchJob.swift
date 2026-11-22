@@ -108,6 +108,13 @@ struct ESPNTeamFetchJob: AsyncScheduledJob {
             }
         }
 
+        // Suffix-insensitive keys, kept only when unambiguous (one team per key).
+        var clubKeyIDs: [String: Set<String>] = [:]
+        for (name, id) in nameToID {
+            clubKeyIDs[Self.clubKey(name), default: []].insert(id)
+        }
+        let clubKeyToID = clubKeyIDs.compactMapValues { $0.count == 1 ? $0.first : nil }
+
         // Common city abbreviation expansions for matching
         let cityExpansions: [String: String] = [
             "la ": "los angeles ",
@@ -166,6 +173,18 @@ struct ESPNTeamFetchJob: AsyncScheduledJob {
                     if matchedID != nil { break }
                 }
 
+                // Club-suffix variants: ESPN says "Chicago Fire FC" / "Inter Miami CF" /
+                // "D.C. United" where TheSportsDB says "Chicago Fire" / "Inter Miami" /
+                // "DC United". Ten MLS clubs went unmatched (no ESPN logo or ID map).
+                if matchedID == nil {
+                    for candidate in nameCandidates {
+                        if let id = clubKeyToID[Self.clubKey(candidate)] {
+                            matchedID = id
+                            break
+                        }
+                    }
+                }
+
                 if let matchedID {
                     matches.append((bucket, espnTeam, matchedID, true))
                 } else if let fallbackID = Self.suffixFallbackMatch(espnTeam: espnTeam, nameToID: nameToID) {
@@ -208,6 +227,27 @@ struct ESPNTeamFetchJob: AsyncScheduledJob {
         }
 
         return (Array(teamsByID.values), espnToTSDB)
+    }
+
+    /// ESPN names that differ from TheSportsDB's beyond a club suffix.
+    static let clubAliases: [String: String] = [
+        "red bull new york": "new york red bulls",
+        "lafc": "los angeles",  // "Los Angeles FC" minus its suffix
+    ]
+
+    /// Lowercased name with a trailing club suffix (FC/SC/CF/AFC) dropped and
+    /// "D.C." folded to "dc", for matching across the two feeds' naming.
+    static func clubKey(_ name: String) -> String {
+        var key = name.lowercased()
+            .replacingOccurrences(of: "d.c.", with: "dc")
+            .replacingOccurrences(of: "é", with: "e")
+            .replacingOccurrences(of: "á", with: "a")
+            .trimmingCharacters(in: .whitespaces)
+        for suffix in [" fc", " sc", " cf", " afc"] where key.hasSuffix(suffix) {
+            key = String(key.dropLast(suffix.count))
+            break
+        }
+        return clubAliases[key] ?? key
     }
 
     /// Loose match for an ESPN team no name field matched exactly: the one TheSportsDB

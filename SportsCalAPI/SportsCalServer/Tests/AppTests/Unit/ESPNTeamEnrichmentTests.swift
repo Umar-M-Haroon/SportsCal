@@ -64,6 +64,48 @@ final class ESPNTeamEnrichmentTests: XCTestCase {
         XCTAssertEqual(teams.first?.strTeamShort, "ALA")
     }
 
+    /// MLS: ESPN adds club suffixes TheSportsDB drops. These ten went unmatched on
+    /// prod (Nov 2026), so they had no ESPN logo or ID mapping.
+    func test_mlsClubSuffixesAndAliasesMatch() {
+        let pairs: [(tsdbID: String, tsdb: String, espn: String, abbr: String)] = [
+            ("135851", "Atlanta United", "Atlanta United FC", "ATL"),
+            ("134154", "Chicago Fire", "Chicago Fire FC", "CHI"),
+            ("134152", "DC United", "D.C. United", "DC"),
+            ("134150", "Houston Dynamo", "Houston Dynamo FC", "HOU"),
+            ("137699", "Inter Miami", "Inter Miami CF", "MIA"),
+            ("136050", "Los Angeles FC", "LAFC", "LAFC"),
+            ("135852", "Minnesota United", "Minnesota United FC", "MIN"),
+            ("135853", "Orlando City", "Orlando City SC", "ORL"),
+            ("134156", "New York Red Bulls", "Red Bull New York", "RBNY"),
+            ("134157", "Seattle Sounders", "Seattle Sounders FC", "SEA"),
+        ]
+        // Same-city teams in other sports must not be claimed.
+        let tsdb = pairs.map { Team(idTeam: $0.tsdbID, strTeam: $0.tsdb, strTeamShort: nil) }
+            + [Team(idTeam: "134880", strTeam: "Atlanta Hawks", strTeamShort: "ATL"),
+               Team(idTeam: "134152x", strTeam: "Seattle Kraken", strTeamShort: "SEA")]
+        let espn: [Leagues: TeamResponse] = [
+            .MLS: response(pairs.enumerated().map { i, p in
+                espnTeam(id: "\(100 + i)", display: p.espn, name: p.espn, abbreviation: p.abbr, logo: "mls/\(p.abbr).png")
+            }),
+        ]
+        let (teams, idMap) = ESPNTeamFetchJob().returnUpdatedTeams(teams: tsdb, espnTeamsByLeague: espn)
+        let byID = Dictionary(uniqueKeysWithValues: teams.map { ($0.idTeam!, $0) })
+        for p in pairs {
+            XCTAssertEqual(byID[p.tsdbID]?.strTeamBadge, "mls/\(p.abbr).png", p.espn)
+        }
+        XCTAssertEqual(idMap.count, pairs.count)
+        XCTAssertNil(byID["134880"]?.strTeamBadge)
+        XCTAssertNil(byID["134152x"]?.strTeamBadge)
+    }
+
+    func test_clubKey() {
+        XCTAssertEqual(ESPNTeamFetchJob.clubKey("Chicago Fire FC"), "chicago fire")
+        XCTAssertEqual(ESPNTeamFetchJob.clubKey("D.C. United"), "dc united")
+        XCTAssertEqual(ESPNTeamFetchJob.clubKey("Orlando City SC"), "orlando city")
+        XCTAssertEqual(ESPNTeamFetchJob.clubKey("LAFC"), ESPNTeamFetchJob.clubKey("Los Angeles FC"))
+        XCTAssertEqual(ESPNTeamFetchJob.clubKey("Arsenal"), "arsenal")
+    }
+
     /// NFL: ESPN's 2-letter codes are the real ones and must reach the payload as-is.
     func test_nflTwoLetterCodesPassThrough() {
         let tsdb = [

@@ -44,6 +44,13 @@ actor PBPArchive {
         try? await connection.close()
     }
 
+    /// Non-isolated close for Vapor's synchronous shutdown path. SQLiteNIO
+    /// asserts if a connection is deinitialized while still open, which took
+    /// down whole test processes that boot the full app.
+    nonisolated func closeFuture() -> EventLoopFuture<Void> {
+        connection.close()
+    }
+
     // MARK: - Schema
 
     private func migrate() async throws {
@@ -221,6 +228,18 @@ import Vapor
 
 struct PBPArchiveKey: StorageKey {
     typealias Value = PBPArchive
+}
+
+/// Closes the archive's SQLite connection when the app shuts down, before
+/// `Application.storage` is torn down (its deinit would otherwise assert).
+struct PBPArchiveLifecycle: LifecycleHandler {
+    func shutdown(_ application: Application) {
+        try? application.pbpArchive?.closeFuture().wait()
+    }
+
+    func shutdownAsync(_ application: Application) async {
+        await application.pbpArchive?.close()
+    }
 }
 
 extension Application {
