@@ -50,12 +50,15 @@ struct RaceDetailView: View {
     var body: some View {
         // The series beyond F1 (NASCAR, IndyCar, IMSA, WEC) have their own page (car
         // numbers, classes, stages); the favourite/follow/calendar/notify actions are shared.
-        if game.isMotorsportSeries {
-            MotorsportRaceDetailView(game: game) { actionsRow }
-                .sheet(item: $sheetType, content: sheetContent)
-        } else {
-            f1Body
+        Group {
+            if game.isMotorsportSeries {
+                MotorsportRaceDetailView(game: game) { actionsRow }
+                    .sheet(item: $sheetType, content: sheetContent)
+            } else {
+                f1Body
+            }
         }
+        .toolbar { ShareCardButton(game: game) }
     }
 
     private var f1Body: some View {

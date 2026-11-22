@@ -62,6 +62,7 @@ struct TennisMatchDetailView: View {
             }
         }
         .task(id: game.id) { await loadHeadToHead() }
+        .toolbar { ShareCardButton(game: game) }
         .detailNavigationTitle(game.tournamentName ?? league?.leagueName ?? "Match Details")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)

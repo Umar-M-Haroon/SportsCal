@@ -169,15 +169,7 @@ struct GameDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
-            if let id = game.idEvent, let url = DeepLink.url(for: .game(idEvent: id)) {
-                ShareLink(
-                    item: url,
-                    subject: Text(game.matchupTitle),
-                    message: Text("Follow \(game.matchupTitle) live on Scoreline")
-                ) {
-                    Image(systemName: "square.and.arrow.up")
-                }
-            }
+            ShareCardButton(game: game, homeTeam: homeTeam, awayTeam: awayTeam)
         }
         .refreshable { await refreshSections() }
         .task { await initialLoad() }
