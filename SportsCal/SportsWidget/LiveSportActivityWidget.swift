@@ -176,12 +176,36 @@ private func raceTeamColor(_ hex: String?) -> Color {
     return Color(red: Double((value >> 16) & 0xFF) / 255, green: Double((value >> 8) & 0xFF) / 255, blue: Double(value & 0xFF) / 255)
 }
 
-/// "Lap 23/62" → "L23"; anything else passes through trimmed for the compact slot.
-private func compactLap(_ progress: String?, session: String) -> String {
-    guard let progress, !progress.isEmpty else { return session }
+/// "Lap 23/62" → ["L23/62", "L23"], widest first, for a ViewThatFits in the compact
+/// slot; anything else passes through trimmed.
+private func compactLapOptions(_ progress: String?, session: String) -> [String] {
+    guard let progress, !progress.isEmpty else { return [session] }
     let digits = progress.split(whereSeparator: { !$0.isNumber })
-    if progress.lowercased().contains("lap"), let lap = digits.first { return "L\(lap)" }
-    return String(progress.prefix(6))
+    if progress.lowercased().contains("lap"), let lap = digits.first {
+        if digits.count > 1, let total = digits.dropFirst().first { return ["L\(lap)/\(total)", "L\(lap)"] }
+        return ["L\(lap)"]
+    }
+    return [String(progress.prefix(6))]
+}
+
+/// "S. Scheffler" → "Scheffler", for the compact slot.
+private func golfSurname(_ code: String) -> String {
+    let parts = code.split(separator: " ", maxSplits: 1)
+    guard parts.count == 2, parts[0].count == 2, parts[0].hasSuffix(".") else { return code }
+    return String(parts[1])
+}
+
+/// The golfer the Dynamic Island leads with: the followed player — outside the top
+/// three (`following`) or inside it (matched by the activity's `awayTeam`, the
+/// followed name, in the leaderboard's "S. Scheffler" form) — else the leader.
+private func golfFocus(_ race: LiveActivityRace, following name: String) -> (driver: LiveActivityRace.Driver, isFollowed: Bool)? {
+    if let following = race.following { return (following, true) }
+    let parts = name.split(separator: " ")
+    if parts.count >= 2, let initial = parts.first?.first {
+        let code = "\(initial). \(parts.dropFirst().joined(separator: " "))"
+        if let match = race.leaders.first(where: { $0.code == code }) { return (match, true) }
+    }
+    return race.leaders.first.map { ($0, false) }
 }
 
 private struct RaceLeaderRow: View {
@@ -250,10 +274,11 @@ private struct TennisSideRow: View {
             Circle()
                 .fill(tennis.server == side ? WidgetTokens.live : Color.clear)
                 .frame(width: 6, height: 6)
-            Text(name)
+            // "J. Sinner", stepping down to "Sinner" / "SIN" before it would truncate.
+            TennisNameText(name: TennisPlayerName(name))
                 .font(.system(.subheadline, design: .rounded).weight(tennis.winner == side ? .heavy : .semibold))
                 .foregroundStyle(ink)
-                .lineLimit(1)
+                .layoutPriority(1)
             Spacer(minLength: 4)
             ForEach(Array(tennis.sets.enumerated()), id: \.offset) { _, set in
                 Text(set.text(for: side))
@@ -292,10 +317,136 @@ private struct TennisLockScreenView: View {
     }
 }
 
-/// "6-4 3-2" style compact score: the set in play (or the last one).
-private func tennisCompactScore(_ tennis: LiveActivityTennis) -> String {
-    guard let current = tennis.sets.last else { return "0-0" }
-    return "\(current.home)-\(current.away)"
+/// A tennis player's name in the forms the slots can afford, surname-led so the
+/// player stays recognisable when it shortens: "J. Sinner", "Sinner", "SIN".
+/// Doubles pairs ("Granollers / Zeballos") shorten each side. Names already given
+/// initialled ("J. Sinner") pass through.
+struct TennisPlayerName {
+    /// "J. Sinner"
+    let initialed: String
+    /// "Sinner"
+    let surname: String
+    /// "SIN"
+    let code: String
+
+    init(_ full: String) {
+        let players = full.components(separatedBy: "/")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let parts = (players.isEmpty ? [full] : players).map(Self.split)
+        initialed = parts.map { part in
+            guard let initial = part.given.first?.first else { return part.surname }
+            return "\(initial). \(part.surname)"
+        }.joined(separator: " / ")
+        surname = parts.map(\.surname).joined(separator: " / ")
+        if parts.count > 1 {
+            // Doubles: each player's initial is all the minimal slot can carry.
+            code = parts.compactMap { Self.fold($0.surname).first.map(String.init) }.joined(separator: "/")
+        } else {
+            code = String(Self.fold(surname).prefix(3))
+        }
+    }
+
+    /// "Alex de Minaur" → (["Alex"], "de Minaur"): lowercase particles stay with the surname.
+    private static func split(_ name: String) -> (given: [String], surname: String) {
+        var words = name.split(separator: " ").map(String.init)
+        guard words.count > 1 else { return ([], name) }
+        var surname = [words.removeLast()]
+        while words.count > 1, let last = words.last, let first = last.first, first.isLowercase {
+            surname.insert(words.removeLast(), at: 0)
+        }
+        return (words, surname.joined(separator: " "))
+    }
+
+    private static func fold(_ text: String) -> String {
+        text.folding(options: [.diacriticInsensitive], locale: nil)
+            .filter { $0.isLetter }
+            .uppercased()
+    }
+}
+
+/// A tennis name that steps down to fit its slot: "J. Sinner", then "Sinner", then "SIN".
+private struct TennisNameText: View {
+    let name: TennisPlayerName
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            Text(name.initialed).lineLimit(1)
+            Text(name.surname).lineLimit(1)
+            Text(name.code).lineLimit(1)
+        }
+    }
+}
+
+/// Who's ahead in the match: the winner, else more sets, else more games in the set
+/// being played. Nil when it's level.
+private func tennisLeader(_ state: LiveSportActivityAttributes.ContentState, _ tennis: LiveActivityTennis) -> GameSituation.Side? {
+    if let winner = tennis.winner { return winner }
+    if state.homeScore != state.awayScore { return state.homeScore > state.awayScore ? .home : .away }
+    if let current = tennis.sets.last, current.winner == nil, current.home != current.away {
+        return current.home > current.away ? .home : .away
+    }
+    return nil
+}
+
+/// The player the compact island names: the leader, else whoever is serving, else home.
+private func tennisFocus(_ state: LiveSportActivityAttributes.ContentState, _ tennis: LiveActivityTennis) -> GameSituation.Side {
+    tennisLeader(state, tennis) ?? tennis.server ?? .home
+}
+
+/// The compact trailing score, read from `focus`'s side like team sports' "KC 20-17":
+/// sets won (dimmed) then games in the current set, with a dot beside the server's
+/// number. Narrow slots (landscape) drop the sets.
+private struct TennisCompactScore: View {
+    let state: LiveSportActivityAttributes.ContentState
+    let tennis: LiveActivityTennis
+    let focus: GameSituation.Side
+
+    private var other: GameSituation.Side { focus == .home ? .away : .home }
+
+    var body: some View {
+        let sets = focus == .home ? (state.homeScore, state.awayScore) : (state.awayScore, state.homeScore)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 4) {
+                Text("\(sets.0)-\(sets.1)")
+                    .foregroundStyle(WidgetTokens.inkSoft)
+                games
+            }
+            games
+        }
+        .font(.system(.caption, design: .rounded).weight(.bold))
+        .monospacedDigit()
+        .lineLimit(1)
+        .foregroundStyle(WidgetTokens.ink)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
+    }
+
+    private var spoken: String {
+        var text = "Sets \(state.homeScore)-\(state.awayScore)"
+        if let current = tennis.sets.last { text += ", games \(current.home)-\(current.away)" }
+        if let server = tennis.server { text += server == focus ? ", serving" : ", receiving" }
+        return text
+    }
+
+    @ViewBuilder
+    private var games: some View {
+        if let current = tennis.sets.last {
+            let mine = focus == .home ? current.home : current.away
+            let theirs = focus == .home ? current.away : current.home
+            HStack(spacing: 2) {
+                if tennis.server == focus { serveDot }
+                Text("\(mine)-\(theirs)")
+                if tennis.server == other { serveDot }
+            }
+        } else {
+            Text(focus == .home ? "\(state.homeScore)-\(state.awayScore)" : "\(state.awayScore)-\(state.homeScore)")
+        }
+    }
+
+    private var serveDot: some View {
+        Circle().fill(WidgetTokens.live).frame(width: 4, height: 4)
+    }
 }
 
 private struct RaceLockScreenView: View {
@@ -732,6 +883,8 @@ private struct ExpandedIslandSide: View {
                     .font(.system(size: 24))
                     .fontWeight(side.isWinning ? .heavy : .regular)
                     .foregroundStyle(side.isWinning ? Color.primary : Color.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .contentTransition(.numericText(value: Double(side.score)))
                 HStack(spacing: 3) {
                     if !leading, side.redCards > 0 { SoccerRedCardMark(count: side.redCards) }
@@ -891,82 +1044,98 @@ struct LiveSportActivityWidget: Widget {
                 .activitySystemActionForegroundColor(WidgetTokens.accent)
         } dynamicIsland: { context in
             DynamicIsland {
+                // Every region is one line per text. Unlimited Text (team scores, golf
+                // and F1 gaps, the HALF pill) gets measured at narrow widths as wrapped,
+                // and the island reserved that height: a large empty band under the
+                // bottom region. Tennis, whose texts were already limited, never had it.
                 DynamicIslandExpandedRegion(.leading) {
-                    if let race = context.state.race {
-                        Label(race.session, systemImage: race.isGolf ? "figure.golf" : "flag.checkered")
-                            .font(.system(.caption, design: .rounded).weight(.bold))
-                            .foregroundStyle(WidgetTokens.ink)
-                    } else if context.state.tennis != nil {
-                        Image(systemName: "tennisball.fill")
-                            .foregroundStyle(WidgetTokens.ink)
-                            .padding(.leading, 6)
-                    } else {
-                        ExpandedIslandSide(side: activitySides(context.attributes, context.state).first, leading: true)
+                    Group {
+                        if let race = context.state.race {
+                            Label(race.session, systemImage: race.isGolf ? "figure.golf" : "flag.checkered")
+                                .font(.system(.caption, design: .rounded).weight(.bold))
+                                .foregroundStyle(WidgetTokens.ink)
+                        } else if context.state.tennis != nil {
+                            Image(systemName: "tennisball.fill")
+                                .foregroundStyle(WidgetTokens.ink)
+                                .padding(.leading, 6)
+                        } else {
+                            ExpandedIslandSide(side: activitySides(context.attributes, context.state).first, leading: true)
+                        }
                     }
+                    .lineLimit(1)
                 }
 
                 DynamicIslandExpandedRegion(.trailing) {
-                    if context.state.race != nil || context.state.tennis != nil {
-                        progressLabel(for: context.state)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                            .padding(.trailing, 6)
-                    } else {
-                        ExpandedIslandSide(side: activitySides(context.attributes, context.state).second, leading: false)
+                    Group {
+                        if context.state.race != nil || context.state.tennis != nil {
+                            progressLabel(for: context.state)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                                .padding(.trailing, 6)
+                        } else {
+                            ExpandedIslandSide(side: activitySides(context.attributes, context.state).second, leading: false)
+                        }
                     }
+                    .lineLimit(1)
                 }
                 
                 DynamicIslandExpandedRegion(.center) {
-                    // "LIVE" only while play is running: not over a FINAL or HALF pill.
-                    if context.state.race == nil && context.state.tennis == nil,
-                       variantFor(progress: context.state.progress, status: context.state.status) == .live {
-                        LiveAnimatedView()
-                            .transition(.scale(scale: 2.5))
+                    Group {
+                        // "LIVE" only while play is running: not over a FINAL or HALF pill.
+                        if context.state.race == nil && context.state.tennis == nil,
+                           variantFor(progress: context.state.progress, status: context.state.status) == .live {
+                            LiveAnimatedView()
+                                .transition(.scale(scale: 2.5))
+                        }
                     }
+                    .lineLimit(1)
                 }
                 
                 DynamicIslandExpandedRegion(.bottom) {
-                    if let race = context.state.race {
-                        VStack(spacing: 4) {
-                            ForEach(Array(race.leaders.enumerated()), id: \.offset) { _, driver in
-                                RaceLeaderRow(driver: driver, ink: WidgetTokens.ink, isGolf: race.isGolf)
+                    Group {
+                        if let race = context.state.race {
+                            VStack(spacing: 4) {
+                                ForEach(Array(race.leaders.enumerated()), id: \.offset) { _, driver in
+                                    RaceLeaderRow(driver: driver, ink: WidgetTokens.ink, isGolf: race.isGolf)
+                                }
+                                if let following = race.following {
+                                    RaceLeaderRow(driver: following, ink: WidgetTokens.ink, isGolf: true)
+                                }
                             }
-                            if let following = race.following {
-                                RaceLeaderRow(driver: following, ink: WidgetTokens.ink, isGolf: true)
+                        } else if let tennis = context.state.tennis {
+                            VStack(spacing: 4) {
+                                TennisSideRow(name: context.attributes.homeTeam, side: .home, tennis: tennis, sets: context.state.homeScore, ink: WidgetTokens.ink)
+                                TennisSideRow(name: context.attributes.awayTeam, side: .away, tennis: tennis, sets: context.state.awayScore, ink: WidgetTokens.ink)
                             }
-                        }
-                    } else if let tennis = context.state.tennis {
-                        VStack(spacing: 4) {
-                            TennisSideRow(name: context.attributes.homeTeam, side: .home, tennis: tennis, sets: context.state.homeScore, ink: WidgetTokens.ink)
-                            TennisSideRow(name: context.attributes.awayTeam, side: .away, tennis: tennis, sets: context.state.awayScore, ink: WidgetTokens.ink)
-                        }
-                    } else {
-                    VStack(spacing: 2) {
-                        progressLabel(for: context.state)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                        if let situation = context.state.situation {
-                            LiveActivitySituationStrip(
-                                situation: situation,
-                                homeName: shortAbbreviation(short: context.attributes.homeTeamShort, full: context.attributes.homeTeam),
-                                awayName: shortAbbreviation(short: context.attributes.awayTeamShort, full: context.attributes.awayTeam),
-                                tint: WidgetTokens.ink
-                            )
-                            .frame(maxWidth: .infinity, alignment: .center)
-                        }
-                        if let soccer = context.state.soccer, let lastGoal = soccer.lastGoal {
-                            LastGoalLine(goal: lastGoal,
-                                         alignment: alignment(for: soccer.lastGoalSide, first: activitySides(context.attributes, context.state).first.side),
-                                         tint: WidgetTokens.ink)
-                        }
-                        if let lastPlay = context.state.lastPlay, !lastPlay.isEmpty {
-                            Text(lastPlay)
-                                .font(.system(.caption2, design: .rounded).weight(.medium))
-                                .foregroundStyle(WidgetTokens.ink)
-                                .lineLimit(1)
+                        } else {
+                        VStack(spacing: 2) {
+                            progressLabel(for: context.state)
                                 .frame(maxWidth: .infinity, alignment: .center)
+                            if let situation = context.state.situation {
+                                LiveActivitySituationStrip(
+                                    situation: situation,
+                                    homeName: shortAbbreviation(short: context.attributes.homeTeamShort, full: context.attributes.homeTeam),
+                                    awayName: shortAbbreviation(short: context.attributes.awayTeamShort, full: context.attributes.awayTeam),
+                                    tint: WidgetTokens.ink
+                                )
+                                .frame(maxWidth: .infinity, alignment: .center)
+                            }
+                            if let soccer = context.state.soccer, let lastGoal = soccer.lastGoal {
+                                LastGoalLine(goal: lastGoal,
+                                             alignment: alignment(for: soccer.lastGoalSide, first: activitySides(context.attributes, context.state).first.side),
+                                             tint: WidgetTokens.ink)
+                            }
+                            if let lastPlay = context.state.lastPlay, !lastPlay.isEmpty {
+                                Text(lastPlay)
+                                    .font(.system(.caption2, design: .rounded).weight(.medium))
+                                    .foregroundStyle(WidgetTokens.ink)
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            }
+                        }
                         }
                     }
-                    }
+                    .lineLimit(1)
                 }
                 
             } compactLeading: {
@@ -975,22 +1144,57 @@ struct LiveSportActivityWidget: Widget {
                 // Use the team's short abbreviation instead — always legible,
                 // never tinted, identifies the team at a glance. Real logos still
                 // show in expanded and on the lock screen.
+                // Individual sports lead with a name the way team sports lead with
+                // the leader's code, each stepping down (icon + name → name → icon)
+                // so the narrow landscape slot never shows "icon …".
                 if let race = context.state.race {
-                    HStack(spacing: 3) {
-                        Image(systemName: race.isGolf ? "figure.golf" : "flag.checkered")
-                        Text((race.following ?? race.leaders.first)?.code ?? race.session)
-                            .lineLimit(1)
+                    let icon = Image(systemName: race.isGolf ? "figure.golf" : "flag.checkered")
+                    Group {
+                        if race.isGolf, let focus = golfFocus(race, following: context.attributes.awayTeam) {
+                            // Golf: the followed player, else the leader ("Scheffler").
+                            let surname = golfSurname(focus.driver.code)
+                            ViewThatFits(in: .horizontal) {
+                                HStack(spacing: 3) { icon; Text(surname).lineLimit(1) }
+                                Text(surname).lineLimit(1)
+                                Text(String(surname.prefix(3)).uppercased()).lineLimit(1)
+                                icon
+                            }
+                            .accessibilityLabel(focus.driver.code)
+                        } else if !race.isGolf, let lead = race.leaders.first {
+                            // Racing: the leader's code beside their team colour ("▌PIA").
+                            let bar = RoundedRectangle(cornerRadius: 1.5)
+                                .fill(raceTeamColor(lead.teamColor))
+                                .frame(width: 3, height: 12)
+                            ViewThatFits(in: .horizontal) {
+                                HStack(spacing: 3) { icon; bar; Text(lead.code).lineLimit(1) }
+                                HStack(spacing: 3) { bar; Text(lead.code).lineLimit(1) }
+                                Text(lead.code).lineLimit(1).minimumScaleFactor(0.7)
+                            }
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("\(lead.code) leads")
+                        } else {
+                            ViewThatFits(in: .horizontal) {
+                                HStack(spacing: 3) { icon; Text(race.session).lineLimit(1) }
+                                icon
+                            }
+                        }
                     }
                     .font(.system(.caption, design: .rounded).weight(.heavy))
                     .foregroundColor(WidgetTokens.ink)
-                } else if context.state.tennis != nil {
-                    HStack(spacing: 3) {
-                        Image(systemName: "tennisball.fill")
-                        Text("\(context.state.homeScore)-\(context.state.awayScore)")
-                            .monospacedDigit()
+                } else if let tennis = context.state.tennis {
+                    // The leader's name (else the server's), like team sports' leader code.
+                    let focus = tennisFocus(context.state, tennis)
+                    let name = TennisPlayerName(focus == .home ? context.attributes.homeTeam : context.attributes.awayTeam)
+                    let icon = Image(systemName: "tennisball.fill")
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 3) { icon; Text(name.surname).lineLimit(1) }
+                        Text(name.surname).lineLimit(1)
+                        Text(name.code).lineLimit(1)
+                        icon
                     }
                     .font(.system(.caption, design: .rounded).weight(.heavy))
                     .foregroundColor(WidgetTokens.ink)
+                    .accessibilityLabel(focus == .home ? context.attributes.homeTeam : context.attributes.awayTeam)
                 } else {
                     // The leader's code, with its score first on the trailing side:
                     // "KC 20-17" reads as who's winning at a glance.
@@ -1010,16 +1214,36 @@ struct LiveSportActivityWidget: Widget {
                 }
             } compactTrailing: {
                 if let race = context.state.race {
-                    Text(race.isGolf ? ((race.following ?? race.leaders.first)?.gap ?? race.session)
-                         : compactLap(context.state.progress, session: race.session))
-                        .font(.system(.caption, design: .rounded).weight(.bold))
-                        .monospacedDigit()
-                        .foregroundColor(WidgetTokens.ink)
+                    Group {
+                        if race.isGolf, let focus = golfFocus(race, following: context.attributes.awayTeam) {
+                            // Leader: score to par ("-15"). Followed player: place and
+                            // score ("T24 -6"), the place alone when narrow.
+                            let score = Text(focus.driver.gap ?? "E")
+                                .foregroundColor(golfScoreColor(focus.driver.gap, ink: WidgetTokens.ink))
+                            if focus.isFollowed, let place = focus.driver.label {
+                                ViewThatFits(in: .horizontal) {
+                                    HStack(spacing: 3) { Text(place); score }
+                                    Text(place)
+                                }
+                            } else {
+                                score
+                            }
+                        } else if race.isGolf {
+                            Text(race.session)
+                        } else {
+                            // "L23/62", or "L23" when narrow.
+                            let laps = compactLapOptions(context.state.progress, session: race.session)
+                            ViewThatFits(in: .horizontal) {
+                                ForEach(laps, id: \.self) { Text($0) }
+                            }
+                        }
+                    }
+                    .font(.system(.caption, design: .rounded).weight(.bold))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .foregroundColor(WidgetTokens.ink)
                 } else if let tennis = context.state.tennis {
-                    Text(tennisCompactScore(tennis))
-                        .font(.system(.caption, design: .rounded).weight(.bold))
-                        .monospacedDigit()
-                        .foregroundColor(WidgetTokens.ink)
+                    TennisCompactScore(state: context.state, tennis: tennis, focus: tennisFocus(context.state, tennis))
                 } else {
                 let sides = leaderFirst(activitySides(context.attributes, context.state))
                 HStack(spacing: 3) {
@@ -1037,23 +1261,36 @@ struct LiveSportActivityWidget: Widget {
                 }
                 }
             } minimal: {
-                if context.state.tennis != nil {
+                if let tennis = context.state.tennis {
+                    // Like team sports: the leader's code over the sets, leader first
+                    // ("SIN" over "1-0"); the ball over "1-1" when level.
+                    let leader = tennisLeader(context.state, tennis)
+                    let sets = leader == .away ? (context.state.awayScore, context.state.homeScore)
+                                               : (context.state.homeScore, context.state.awayScore)
                     VStack(spacing: 0) {
-                        Image(systemName: "tennisball.fill")
-                            .font(.system(size: 7, weight: .heavy))
-                            .foregroundColor(WidgetTokens.ink)
-                        LeadScoreText(first: context.state.homeScore, second: context.state.awayScore, size: 11)
+                        if let leader {
+                            Text(TennisPlayerName(leader == .home ? context.attributes.homeTeam : context.attributes.awayTeam).code)
+                                .font(.system(size: 8, weight: .heavy, design: .rounded))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        } else {
+                            Image(systemName: "tennisball.fill")
+                                .font(.system(size: 7, weight: .heavy))
+                        }
+                        LeadScoreText(first: sets.0, second: sets.1, size: 11)
                     }
+                    .foregroundColor(WidgetTokens.ink)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Sets \(context.attributes.homeTeam) \(context.state.homeScore), \(context.attributes.awayTeam) \(context.state.awayScore)")
                 } else if let race = context.state.race {
                     // Golf: your player's place ("T24"), else the leader's score.
                     // Racing: the leader's code ("PIA").
-                    let focus = race.following ?? race.leaders.first
+                    let golf = race.isGolf ? golfFocus(race, following: context.attributes.awayTeam) : nil
+                    let focus = race.leaders.first
                     VStack(spacing: 0) {
                         Image(systemName: race.isGolf ? "figure.golf" : "flag.checkered")
                             .font(.system(size: 7, weight: .heavy))
-                        Text((race.isGolf ? (race.following?.label ?? focus?.gap) : focus?.code) ?? race.session)
+                        Text((race.isGolf ? (golf.flatMap { $0.isFollowed ? $0.driver.label : $0.driver.gap }) : focus?.code) ?? race.session)
                             .font(.system(size: 11, weight: .heavy, design: .rounded))
                             .monospacedDigit()
                             .lineLimit(1)
@@ -1196,6 +1433,53 @@ private let previewRace = LiveActivityRace(session: "Race", leaders: [
     LiveSportActivityWidget()
 } contentStates: {
     LiveSportActivityAttributes.ContentState(homeScore: 0, awayScore: 0, status: "in", progress: "Lap 23/62", race: previewRace)
+}
+
+// Individual sports in the island: golf leads with the followed player, tennis with
+// the leader's surname and the current set (serve dot), F1 with the leader and lap.
+#Preview("Island Compact · Golf", as: .dynamicIsland(.compact), using: LiveSportActivityAttributes(homeTeam: "The Masters", awayTeam: "Ludvig Åberg", eventID: "golf", homeTeamShort: "GOLF")) {
+    LiveSportActivityWidget()
+} contentStates: {
+    LiveSportActivityAttributes.ContentState(homeScore: 0, awayScore: 0, status: "in", progress: "Round 3 - In Progress", race: previewGolf)
+}
+
+private let previewTennisAttributes = LiveSportActivityAttributes(homeTeam: "Jannik Sinner", awayTeam: "Carlos Alcaraz", eventID: "tennis")
+private let previewTennisState = LiveSportActivityAttributes.ContentState(homeScore: 1, awayScore: 0, status: "in", progress: "2nd Set", tennis: LiveActivityTennis(sets: [
+    .init(home: 7, away: 6, homeTiebreak: 7, awayTiebreak: 4, winner: .home),
+    .init(home: 3, away: 4),
+], server: .away))
+
+#Preview("Island Compact · Tennis", as: .dynamicIsland(.compact), using: previewTennisAttributes) {
+    LiveSportActivityWidget()
+} contentStates: {
+    previewTennisState
+}
+
+#Preview("Island Minimal · Tennis", as: .dynamicIsland(.minimal), using: previewTennisAttributes) {
+    LiveSportActivityWidget()
+} contentStates: {
+    previewTennisState
+}
+
+#Preview("Island Expanded · Tennis", as: .dynamicIsland(.expanded), using: previewTennisAttributes) {
+    LiveSportActivityWidget()
+} contentStates: {
+    previewTennisState
+}
+
+// Long names step down "F. Auger-Aliassime" → "Auger-Aliassime" → "AUG" instead of truncating.
+#Preview("Notification · Tennis long names", as: .content, using: LiveSportActivityAttributes(
+    homeTeam: "Alejandro Davidovich Fokina", awayTeam: "Felix Auger-Aliassime", eventID: "tennis-long")) {
+    LiveSportActivityWidget()
+} contentStates: {
+    previewTennisState
+}
+
+#Preview("Island Compact · Tennis doubles", as: .dynamicIsland(.compact), using: LiveSportActivityAttributes(
+    homeTeam: "Marcel Granollers / Horacio Zeballos", awayTeam: "Kevin Krawietz / Tim Pütz", eventID: "tennis-dbl")) {
+    LiveSportActivityWidget()
+} contentStates: {
+    previewTennisState
 }
 
 // MARK: - Gallery: every presentation for each scenario (docs/live-activities gallery)
