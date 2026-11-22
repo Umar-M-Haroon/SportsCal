@@ -337,6 +337,21 @@ final class RoutesTests: XCTestCase {
                        "pre-channel clients feed the namespaced per-day counter under `unknown`")
     }
 
+    func testTelemetryShareCardSharedIsAllowedWithSportAndStateBreakouts() async throws {
+        try app.test(.POST, "v2025/telemetry", headers: authed, beforeRequest: { req in
+            try req.content.encode(ClientTelemetryEvent(event: "share_card_shared", fields: [
+                "sport": "racing", "state": "final", "channel": "appstore",
+            ]))
+        }) { res in
+            XCTAssertEqual(res.status, .ok)
+        }
+        let day = telemetryDay
+        let snapshot = kv.rawSnapshot
+        XCTAssertEqual(snapshot["telemetry:client.share_card_shared:appstore:\(day)"], "1")
+        XCTAssertEqual(snapshot["telemetry:client.share_card_shared:appstore:sport=racing:\(day)"], "1")
+        XCTAssertEqual(snapshot["telemetry:client.share_card_shared:appstore:state=final:\(day)"], "1")
+    }
+
     func testTelemetryChannelTaggedEventWritesChannelDimensionAndUniqueKeys() async throws {
         var headers = authed
         headers.add(name: "X-Install-ID", value: "install-1")

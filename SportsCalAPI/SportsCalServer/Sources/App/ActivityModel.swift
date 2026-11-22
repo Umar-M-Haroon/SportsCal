@@ -111,6 +111,8 @@ struct ClientTelemetryEvent: Codable, Content {
         "custom_alert_rule_created",
         "custom_alert_cap_hit",
         "custom_alert_action",
+        // Growth: share cards.
+        "share_card_shared",
     ]).union(activationEvents)
 
     /// The install-once activation funnel, in funnel order. Clients send each at
@@ -158,14 +160,18 @@ struct ClientTelemetryEvent: Codable, Content {
         "custom_alert_rule_created": ["kind", "sport"],
         "custom_alert_cap_hit": ["kind"],
         "custom_alert_action": ["action"],
+        "share_card_shared": ["sport", "state"],
     ]
 
     /// Keep in sync with iOS `UpsellTrigger` raw values and `ProFeature` cases.
     static let breakoutValues: [String: Set<String>] = [
         "trigger": ["post_onboarding", "free_reminder_cap", "favorite_live_opened", "nth_session", "theme", "custom_alert_cap"],
-        // iOS `AlertRule.Kind` raw values, the custom alert sports, and notification actions.
+        // iOS `AlertRule.Kind` raw values, `SportType` raw values (custom alerts send the
+        // team sports; share cards any sport), and notification actions.
         "kind": ["playerPlay", "playerMilestone", "gameSituation"],
-        "sport": ["basketball", "mlb", "hockey", "soccer", "nfl"],
+        "sport": ["basketball", "mlb", "hockey", "soccer", "nfl", "golf", "tennis", "racing", "cricket"],
+        // iOS `ShareCardModel.Phase`.
+        "state": ["upcoming", "live", "final"],
         "action": ["mute", "turn_off"],
         "feature": ["adFree", "proSettings", "goalAlerts", "preGameReminders", "unlimitedReminders", "calendarExport", "customAlerts", "themes"],
         // iOS `ActivationSignals.sportCountBucket`.
