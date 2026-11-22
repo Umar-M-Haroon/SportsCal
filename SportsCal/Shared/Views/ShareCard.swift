@@ -164,7 +164,14 @@ struct ShareCardModel {
     private static func cardColor(_ hex: String?, fallback: Color) -> Color {
         var environment = EnvironmentValues()
         environment.colorScheme = .dark
-        return (Color(hex: hex) ?? fallback).legible(in: environment)
+        let base = Color(hex: hex) ?? fallback
+        // Stricter than the app-wide `legible`: the card is always near-black, and
+        // navies just above its 6% cut (Chelsea, Yankees) were unreadable.
+        let resolved = base.resolve(in: environment)
+        let luminance = 0.2126 * Double(resolved.linearRed)
+            + 0.7152 * Double(resolved.linearGreen)
+            + 0.0722 * Double(resolved.linearBlue)
+        return luminance < 0.12 ? base.mix(with: .white, by: 0.5) : base
     }
 
     // MARK: Team sports
@@ -539,13 +546,13 @@ struct ShareCardView: View {
                 .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
         } else {
             ZStack {
+                // No logo: a team-colour monogram. Not the code — it's printed
+                // right below, and "BOS" over "BOS" read as a glitch.
                 Circle().fill(side.color.opacity(0.22))
                 Circle().strokeBorder(side.color.opacity(0.7), lineWidth: 2)
-                Text(String(side.code.prefix(3)))
-                    .font(.system(size: 28, weight: .black))
+                Text(String(side.name.prefix(1)))
+                    .font(.system(size: 46, weight: .black))
                     .foregroundStyle(side.color)
-                    .minimumScaleFactor(0.5)
-                    .padding(12)
             }
         }
     }
@@ -641,6 +648,9 @@ struct ShareCardView: View {
                     .foregroundStyle(ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                    // Without this the value column took width first and each
+                    // row's name shrank by a different amount.
+                    .layoutPriority(1)
                 if isLeader, let leaderLabel {
                     Text(leaderLabel.uppercased())
                         .font(.system(size: 10, weight: .heavy))
@@ -651,9 +661,10 @@ struct ShareCardView: View {
             Spacer(minLength: 8)
             if let value = row.value {
                 Text(value)
-                    .font(.system(size: isLeader ? 18 : 15, weight: isLeader ? .bold : .semibold).monospacedDigit())
+                    .font(.system(size: 15, weight: isLeader ? .bold : .semibold).monospacedDigit())
                     .foregroundStyle(row.valueColor ?? (isLeader ? ink : inkSoft))
                     .lineLimit(1)
+                    .fixedSize()
             }
         }
         .padding(.vertical, isLeader ? 13 : 10)

@@ -322,6 +322,9 @@ private struct TennisLockScreenView: View {
 /// Doubles pairs ("Granollers / Zeballos") shorten each side. Names already given
 /// initialled ("J. Sinner") pass through.
 struct TennisPlayerName {
+    /// "Jannik Sinner": used wherever it fits (the Lock Screen), which also keeps
+    /// two-part surnames whole ("Alejandro Davidovich Fokina", not "A. Fokina").
+    let full: String
     /// "J. Sinner"
     let initialed: String
     /// "Sinner"
@@ -334,6 +337,7 @@ struct TennisPlayerName {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
         let parts = (players.isEmpty ? [full] : players).map(Self.split)
+        self.full = (players.isEmpty ? [full] : players).joined(separator: " / ")
         initialed = parts.map { part in
             guard let initial = part.given.first?.first else { return part.surname }
             return "\(initial). \(part.surname)"
@@ -371,6 +375,7 @@ private struct TennisNameText: View {
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
+            Text(name.full).lineLimit(1)
             Text(name.initialed).lineLimit(1)
             Text(name.surname).lineLimit(1)
             Text(name.code).lineLimit(1)
@@ -412,7 +417,13 @@ private struct TennisCompactScore: View {
                     .foregroundStyle(WidgetTokens.inkSoft)
                 games
             }
-            games
+            // Narrow: keep whichever score decided the named player. A set leader
+            // trailing in games read as "Sinner 3-4" — as if Sinner were losing.
+            if sets.0 != sets.1 {
+                Text("\(sets.0)-\(sets.1)")
+            } else {
+                games
+            }
         }
         .font(.system(.caption, design: .rounded).weight(.bold))
         .monospacedDigit()
