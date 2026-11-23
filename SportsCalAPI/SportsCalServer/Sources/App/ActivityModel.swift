@@ -27,6 +27,9 @@ public struct ContentState: Codable, Hashable {
     var soccer: LiveActivitySoccer? = nil
     /// Tennis: games per set, tiebreaks, serve. `homeScore`/`awayScore` carry sets won.
     var tennis: LiveActivityTennis? = nil
+    /// A clutch moment's short label ("RED ZONE") while one is on. The widget shows
+    /// it as an amber pill; older app builds ignore the key.
+    var clutch: String? = nil
 
     /// Deterministic content hash, safe to share across processes. Swift's
     /// `Hashable.hashValue` uses a per-process random seed and cannot be used
