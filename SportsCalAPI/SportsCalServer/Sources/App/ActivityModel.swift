@@ -165,6 +165,8 @@ struct ClientTelemetryEvent: Codable, Content {
         "paywall_shown": ["trigger", "featured", "platform"],
         "paywall_dismissed": ["trigger", "outcome"],
         "purchase_completed": ["plan", "trigger", "platform"],
+        // The app attaches the same paywall context to a trial start.
+        "trial_started": ["plan", "trigger", "platform"],
         "paywall_plan_selected": ["plan"],
         "paywall_purchase_started": ["plan", "trigger", "platform"],
         "paywall_purchase_cancelled": ["plan"],

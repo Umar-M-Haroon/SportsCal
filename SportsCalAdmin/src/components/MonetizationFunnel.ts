@@ -385,6 +385,13 @@ export class MonetizationFunnel {
   }
 
   /** value → count for one event's `field` breakout over the window (selected channel). */
+  /** Paid purchases plus trials started, by `field` (both carry the paywall's context). */
+  private boughtDim(data: TelemetryResponse, field: string, days: string[]): Record<string, number> {
+    const out = this.dim(data, 'purchase_completed', field, days)
+    for (const [k, v] of Object.entries(this.dim(data, 'trial_started', field, days))) out[k] = (out[k] || 0) + v
+    return out
+  }
+
   private dim(data: TelemetryResponse, event: string, field: string, days: string[]): Record<string, number> {
     const out: Record<string, number> = {}
     for (const [key, n] of this.breakouts(data, event, days)) {
@@ -444,7 +451,7 @@ export class MonetizationFunnel {
     const startedByPlan = this.dim(data, 'paywall_purchase_started', 'plan', days)
     const cancelledByPlan = this.dim(data, 'paywall_purchase_cancelled', 'plan', days)
     const failedByPlan = this.dim(data, 'paywall_purchase_failed', 'plan', days)
-    const boughtByPlan = this.dim(data, 'purchase_completed', 'plan', days)
+    const boughtByPlan = this.boughtDim(data, 'plan', days)
     const planRows = keysWithOther(PLANS, [selected, startedByPlan, cancelledByPlan, failedByPlan, boughtByPlan])
       .map((p) => {
         const st = startedByPlan[p] || 0
@@ -457,12 +464,12 @@ export class MonetizationFunnel {
         <thead><tr><th>Plan</th><th>Selected</th><th>Started</th><th>Cancelled</th><th>Failed</th><th>Purchased</th><th>Started → bought</th></tr></thead>
         <tbody>${planRows}</tbody>
       </table>
-      <p style="color:var(--text-secondary); margin-bottom:1.5rem;">“Selected” counts taps that switched plan rows. Trials carry no plan, so “Purchased” is paid purchases only.</p>`
+      <p style="color:var(--text-secondary); margin-bottom:1.5rem;">“Selected” counts taps that switched plan rows. “Purchased” counts paid purchases and trials started from the paywall.</p>`
 
     // 3. Trigger conversion + featured.
     const shownByTrigger = this.dim(data, 'paywall_shown', 'trigger', days)
     const startedByTrigger = this.dim(data, 'paywall_purchase_started', 'trigger', days)
-    const boughtByTrigger = this.dim(data, 'purchase_completed', 'trigger', days)
+    const boughtByTrigger = this.boughtDim(data, 'trigger', days)
     const dismissedByTrigger = this.dim(data, 'paywall_dismissed', 'trigger', days)
     const triggers = [...new Set([shownByTrigger, startedByTrigger, boughtByTrigger, dismissedByTrigger].flatMap(Object.keys))]
       .sort((a, b) => (shownByTrigger[b] || 0) - (shownByTrigger[a] || 0))
@@ -490,7 +497,7 @@ export class MonetizationFunnel {
     // 4. iOS vs Mac.
     const shownByPlatform = this.dim(data, 'paywall_shown', 'platform', days)
     const startedByPlatform = this.dim(data, 'paywall_purchase_started', 'platform', days)
-    const boughtByPlatform = this.dim(data, 'purchase_completed', 'platform', days)
+    const boughtByPlatform = this.boughtDim(data, 'platform', days)
     const platformRows = keysWithOther(['ios', 'macos'], [shownByPlatform, startedByPlatform, boughtByPlatform])
       .map((p) => {
         const shown = shownByPlatform[p] || 0
