@@ -3,10 +3,11 @@
 //
 //  The "hot" part of the schedule (recent and upcoming games) and on-demand history.
 //
-//  The full schedule is ~50k games / 34MB of JSON, 79% of it more than 60 days old,
-//  and every app decoded and filtered all of it at launch. New apps fetch slices with
-//  `?window=hot` and ask `/schedules/history` for older games only when a screen needs
-//  them (a team's season, a past month, a league's results, one game). The full
+//  The full schedule is ~50k games / 33MB of JSON, ~29MB of it games that finished
+//  more than two weeks ago, and every app decoded and filtered all of it at launch.
+//  New apps fetch slices with `?window=hot` (the last two weeks and everything ahead,
+//  ~6MB) and ask `/schedules/history` for older games only when a screen needs them
+//  (a team's season, a past month, a league's results, one game). The full
 //  `/schedules` and plain slices are unchanged for shipped apps.
 //
 
@@ -16,20 +17,20 @@ import SportsCalModel
 
 enum ScheduleWindow {
     /// Days before today the hot window keeps: the recent results every screen shows.
+    /// Everything ahead is kept (a team's remaining season, an offseason team's next
+    /// game): it's ~2.7MB, and lazily loading it would touch every forward-looking view.
     static let hotPastDays = 14
-    /// Days after today it keeps: the upcoming fixtures.
-    static let hotFutureDays = 60
 
     /// UTC day number, so the hot window (and its cache variant) moves once a day.
     static func dayIndex(_ date: Date) -> Int {
         Int(floor(date.timeIntervalSince1970 / 86_400))
     }
 
-    static func hotRange(now: Date) -> ClosedRange<Date> {
-        let start = Calendar(identifier: .gregorian).startOfDay(for: now)
-        let from = start.addingTimeInterval(-Double(hotPastDays) * 86_400)
-        let to = start.addingTimeInterval(Double(hotFutureDays + 1) * 86_400)
-        return from...to
+    /// Start of the hot window: midnight UTC `hotPastDays` ago.
+    static func hotStart(now: Date) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar.startOfDay(for: now).addingTimeInterval(-Double(hotPastDays) * 86_400)
     }
 
     /// When a game starts and its last day (a race's final session, a golf
@@ -40,12 +41,12 @@ enum ScheduleWindow {
         return (start, max(start, end))
     }
 
-    /// In the window if any part of the game (a golf week, a race weekend) falls inside
-    /// it, or if it's under way.
-    static func overlaps(_ game: Game, _ range: ClosedRange<Date>) -> Bool {
+    /// Hot if any part of the game (a golf week, a race weekend) is on or after `start`,
+    /// if it's under way, or if it has no date (nothing to place it by, so keep it).
+    static func isHot(_ game: Game, start: Date) -> Bool {
         if game.strStatus == "in" { return true }
-        guard let (start, end) = span(of: game) else { return false }
-        return end >= range.lowerBound && start <= range.upperBound
+        guard let (_, end) = span(of: game) else { return true }
+        return end >= start
     }
 
     /// `key`'s slice with each game list cut to `isIncluded`. Members that aren't game
@@ -75,8 +76,8 @@ enum ScheduleWindow {
     }
 
     static func hotBody(for key: LiveScore.WireKey, in source: String, now: Date) -> String {
-        let range = hotRange(now: now)
-        return filteredBody(for: key, in: source) { overlaps($0, range) }
+        let start = hotStart(now: now)
+        return filteredBody(for: key, in: source) { isHot($0, start: start) }
     }
 }
 
