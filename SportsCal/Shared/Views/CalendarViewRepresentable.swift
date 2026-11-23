@@ -283,8 +283,29 @@ enum DecorationViewFactory {
         if showFavorites, let star = image(systemName: "star.fill", size: iconSize, color: .systemYellow) {
             stack.addArrangedSubview(UIImageView(image: star))
         }
-        return stack
+        return SizedDecorationView(content: stack)
     }
+}
+
+/// `UICalendarView` sizes a custom decoration from its intrinsic content size, and a
+/// bare `UIStackView` has none (it sizes through constraints), so the dots were laid
+/// out at zero size and never showed. This reports the stack's fitted size.
+private final class SizedDecorationView: UIView {
+    private let content: UIView
+    private let fittedSize: CGSize
+
+    init(content: UIView) {
+        self.content = content
+        self.fittedSize = content.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+        super.init(frame: CGRect(origin: .zero, size: fittedSize))
+        content.frame = bounds
+        content.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        addSubview(content)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var intrinsicContentSize: CGSize { fittedSize }
 }
 
 extension Date {
