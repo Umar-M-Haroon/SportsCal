@@ -1677,6 +1677,15 @@ public enum TennisDraw {
     ///
     /// Order matters — "womens" contains "mens".
     public init?(slug: String?) {
+        // Fast path for the slugs ESPN actually sends: this runs for every tennis match
+        // on every filter pass (26k+), and the lowercase + substring searches below were
+        // over half of that pass.
+        switch slug {
+        case "mens-singles", "mens-doubles": self = .tour(.atp); return
+        case "womens-singles", "womens-doubles": self = .tour(.wta); return
+        case "mixed-doubles": self = .mixed; return
+        default: break
+        }
         guard let slug = slug?.lowercased() else { return nil }
         if slug.contains("mixed") { self = .mixed }
         else if slug.contains("women") || slug.contains("girls") { self = .tour(.wta) }

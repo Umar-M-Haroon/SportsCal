@@ -58,8 +58,17 @@ final class TeamsManager {
     /// idTeam for a name or alias if known. Used by Favorites for migration.
     func teamID(forName name: String) -> String? {
         if let id = byExactName[name] { return id }
-        return byNameKey[TeamsManager.normalize(name)]
+        // Misses are mostly tennis players and golfers (not teams), asked for on every
+        // filter pass; the diacritic-folding normalize was the cost. Memoize by raw name.
+        if let memo = missMemo.withLock({ $0[name] }) { return memo.isEmpty ? nil : memo }
+        let id = byNameKey[TeamsManager.normalize(name)]
+        missMemo.withLock { $0[name] = id ?? "" }
+        return id
     }
+
+    /// `teamID(forName:)` results for names not in `byExactName` ("" = no team).
+    /// Cleared whenever the name tables are rebuilt.
+    @ObservationIgnored private let missMemo = OSAllocatedUnfairLock(initialState: [String: String]())
 
     /// Rebuilds `collegeTeams` from the schedule. FCS opponents are left out: they appear
     /// once or twice a season and would crowd the directory.
@@ -187,6 +196,7 @@ final class TeamsManager {
         }
         self.byNameKey = byNameKey
         self.byExactName = byExactName
+        missMemo.withLock { $0.removeAll() }
     }
 
     private static func normalize(_ s: String) -> String {

@@ -381,7 +381,7 @@ public class GameViewModel: NSObject {
     /// roll back) fresher network data.
     @ObservationIgnored private var launchCacheTask: Task<Void, Never>?
     /// Cache for makeGameWithTeams() results, keyed by game ID
-    private var gameWithTeamsCache: [String: GameWithTeams] = [:]
+    @ObservationIgnored private var gameWithTeamsCache: [String: GameWithTeams] = [:]
     /// Compound key for `gamesWithTeamsDateCache` so cached entries built under one
     /// filter state survive when the user toggles to another and back. Filter-only
     /// changes used to wipe every visible day's cached `[GameWithTeams]`.
@@ -389,16 +389,26 @@ public class GameViewModel: NSObject {
         let date: Date
         let filterHash: Int
     }
-    /// Cache for gamesWithTeams(for:) results, keyed by (day, filterHash).
-    private var gamesWithTeamsDateCache: [DateCacheKey: [GameWithTeams]] = [:] {
-        // Every path that clears this has changed the games; the day dots follow.
+    /// Cache for gamesWithTeams(for:) results, keyed by (day, filterHash). Filled
+    /// lazily, a day at a time, as days are shown (see `userPrefGamesByDay`); not
+    /// observed, since filling it during a view update must not invalidate views
+    /// (`dayContentRevision` carries content changes).
+    @ObservationIgnored private var gamesWithTeamsDateCache: [DateCacheKey: [GameWithTeams]] = [:] {
+        // Every path that clears this has changed the games; the day dots and the
+        // day buckets follow.
         didSet {
             if gamesWithTeamsDateCache.isEmpty {
                 datesWithGamesCache = nil
                 nextGameBySportCache = [:]
+                userPrefGamesByDay = nil
             }
         }
     }
+    /// The user-preference games bucketed by day, without team lookups, for one filter
+    /// state. `sortByDate` used to resolve teams for every such game on every pass
+    /// (20k+ lookups, most of the pass) to fill `gamesWithTeamsDateCache` for days
+    /// nobody opened; now `gamesWithTeams(for:)` resolves a day the first time it's shown.
+    @ObservationIgnored private var userPrefGamesByDay: (filterHash: Int, days: [Date: [Game]])?
     /// `nextGame(for:after:)` per (sport, day, filter state): each miss is a pass over
     /// every game, and the Mac board asks for every sport with nothing today on each
     /// redraw, including every live tick.
@@ -2295,6 +2305,17 @@ public class GameViewModel: NSObject {
                 games: sectionGames
             )
         }
+        // Merges keep each game's date, so only the changed games' days need patching.
+        if var buckets = userPrefGamesByDay {
+            let calendar = Calendar.current
+            let touchedDays = Set(changedByID.values.compactMap { $0.standardDate.map { calendar.startOfDay(for: $0) } })
+            for day in touchedDays {
+                guard var dayGames = buckets.days[day] else { continue }
+                patch(&dayGames)
+                buckets.days[day] = dayGames
+            }
+            userPrefGamesByDay = buckets
+        }
         for key in Array(gamesWithTeamsDateCache.keys) {
             guard var dayGames = gamesWithTeamsDateCache[key] else { continue }
             patch(&dayGames)
@@ -3035,23 +3056,24 @@ public class GameViewModel: NSObject {
         // Populate gamesWithTeams date cache as a byproduct of sortByDate
         // This uses ALL user-pref games (not limited), keyed by (start-of-day, filterHash)
         // so toggling sport filters doesn't wipe entries built under other filter states.
-        var dateCache: [Date: [GameWithTeams]] = [:]
         // The day strip's dots (`datesWithGames()`) come from the same games, so they're
         // collected here too instead of in a second full preference pass that DayPage's
         // body used to trigger right after this method published its results.
-        var datesWithGames = Set<DateComponents>()
+        // Bucketed by integer day index: hashing a calendar-carrying DateComponents
+        // (or a Date) per game was most of this loop over 20k+ games.
+        var gamesByDayIndex: [Int: [Game]] = [:]
         let userPrefGames = knownUserPrefGames ?? getGamesFromUserPreferences()
         for game in userPrefGames {
             guard let gameDate = game.standardDate else { continue }
-            let dayIndex = days.index(for: gameDate)
-            datesWithGames.insert(days.dayComponents(forIndex: dayIndex))
-            if let gwt = makeGameWithTeams(game) {
-                dateCache[days.startOfDay(forIndex: dayIndex), default: []].append(gwt)
-            }
+            gamesByDayIndex[days.index(for: gameDate), default: []].append(game)
         }
-        // Sort each day's games by date
-        for (key, games) in dateCache {
-            dateCache[key] = games.sorted { ($0.game.standardDate ?? .distantPast) < ($1.game.standardDate ?? .distantPast) }
+        var gamesByDay: [Date: [Game]] = Dictionary(minimumCapacity: gamesByDayIndex.count)
+        var datesWithGames = Set<DateComponents>(minimumCapacity: gamesByDayIndex.count)
+        for (dayIndex, games) in gamesByDayIndex {
+            datesWithGames.insert(days.dayComponents(forIndex: dayIndex))
+            gamesByDay[days.startOfDay(forIndex: dayIndex)] = games.sorted {
+                ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast)
+            }
         }
         // Keep only the current filter generation.
         //
@@ -3063,17 +3085,16 @@ public class GameViewModel: NSObject {
         // a full set of per-day `[GameWithTeams]` arrays per toggle, for the session.
         let hash = currentFilterStateHash
         gamesWithTeamsDateCache = [:]
-        for (day, games) in dateCache {
-            gamesWithTeamsDateCache[DateCacheKey(date: day, filterHash: hash)] = games
-        }
+        userPrefGamesByDay = (hash, gamesByDay)
         // After the cache refill: emptying it above clears this memo (see its didSet).
         datesWithGamesCache = (hash, datesWithGames)
         dayContentRevision &+= 1
 
-        withAnimation {
-            sortedGames = limitedSorted
-            sortedGamesWithTeams = sortedWithTeams
-        }
+        // Plain assignment: inside `withAnimation` the observation willSet made SwiftUI
+        // flush a transaction and update its graph synchronously, in the middle of this
+        // pass (most of sortByDate's main-thread time).
+        sortedGames = limitedSorted
+        sortedGamesWithTeams = sortedWithTeams
     }
     
     func setFavorites() {
@@ -3096,9 +3117,16 @@ public class GameViewModel: NSObject {
         let start = calendar.startOfDay(for: date)
         let key = DateCacheKey(date: start, filterHash: currentFilterStateHash)
 
-        // Check date cache first (populated by sortByDate)
+        // Check date cache first (filled a day at a time, below)
         if let cached = gamesWithTeamsDateCache[key] {
             return cached
+        }
+        // The day's games are already bucketed: resolve just this day's teams.
+        if let buckets = userPrefGamesByDay, buckets.filterHash == key.filterHash,
+           let dayGames = buckets.days[start] {
+            let result = dayGames.compactMap { makeGameWithTeams($0) }
+            gamesWithTeamsDateCache[key] = result
+            return result
         }
 
         // Cache miss — compute and store
