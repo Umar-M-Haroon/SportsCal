@@ -29,9 +29,6 @@ struct LiveSportActivityAttributes: ActivityAttributes {
         var soccer: LiveActivitySoccer? = nil
         /// Tennis: games per set, tiebreaks, serve; the scores carry sets won.
         var tennis: LiveActivityTennis? = nil
-        /// A clutch moment's short label ("RED ZONE") while one is on; the widget
-        /// shows an amber pill. Optional for the same reasons as `situation`.
-        var clutch: String? = nil
 
         /// The state for `game` as the app sees it. Mirrors the server's APNS state so a
         /// foreground update and a push agree (and the state diff doesn't flap).
@@ -55,21 +52,8 @@ struct LiveSportActivityAttributes: ActivityAttributes {
                 situation: LiveActivitySituation(game.situation),
                 race: race,
                 soccer: LiveActivitySoccer(game: game),
-                tennis: LiveActivityTennis(game: game),
-                clutch: clutchLabel(for: game)
+                tennis: LiveActivityTennis(game: game)
             )
-        }
-
-        /// Mirrors the server's `clutch` (`APNSJob`): the moment on right now, no
-        /// previous state, so a foreground update and a push agree.
-        static func clutchLabel(for game: SportsCalModel.Game) -> String? {
-            guard !game.hasDoneStatus, let sport = game.sportType, let situation = game.situation,
-                  let home = Int(game.intHomeScore ?? ""), let away = Int(game.intAwayScore ?? "") else { return nil }
-            let league = game.idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))
-            return ClutchMoment.detect(
-                sport: sport, league: league, phase: game.resolvedSeasonPhase, situation: situation, previous: nil,
-                homeScore: home, awayScore: away, homeName: game.strHomeTeam, awayName: game.strAwayTeam
-            )?.kind.shortLabel
         }
     }
 

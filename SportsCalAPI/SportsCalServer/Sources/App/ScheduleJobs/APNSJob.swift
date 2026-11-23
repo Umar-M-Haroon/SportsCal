@@ -239,9 +239,6 @@ struct APNSJob: AsyncScheduledJob {
         let stateKey = RedisEndpoint.eventState(event.id + "-" + tokenString).getValue(isDebug: isDebug).rawValue
 
         if !event.hasDoneStatus {
-            // Shown on the activity for everyone (the alert is the Pro part). No
-            // previous state here: a favourite flip only matters as an alert.
-            let clutchLabel = Self.clutchMoment(event: event, homeScore: homeScore, awayScore: awayScore, previous: nil)?.kind.shortLabel
             let contentState = ContentState(
                 homeScore: homeScore,
                 awayScore: awayScore,
@@ -251,8 +248,7 @@ struct APNSJob: AsyncScheduledJob {
                 situation: LiveActivitySituation(event.situation),
                 race: race,
                 soccer: LiveActivitySoccer(game: event),
-                tennis: tennis,
-                clutch: clutchLabel
+                tennis: tennis
             )
             let savedState = try? await kv.getJSON(stateKey, as: ContentState.self)
             guard savedState != contentState else { return }

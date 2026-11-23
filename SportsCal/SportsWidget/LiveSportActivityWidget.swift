@@ -107,26 +107,11 @@ private func progressLabel(for state: LiveSportActivityAttributes.ContentState) 
     switch variant {
     case .live:
         if let formatted = state.progress {
-            VStack(spacing: 3) {
-                HStack(spacing: 4) {
-                    Circle().fill(WidgetTokens.live).frame(width: 5, height: 5)
-                    Text(formatted)
-                        .font(.system(.caption, design: .monospaced).weight(.semibold))
-                        .foregroundStyle(WidgetTokens.live)
-                }
-                // Crunch time / tying run up: the moment worth looking up for. Football's
-                // red zone already has its own badge in the situation strip.
-                if let clutch = state.clutch, !(clutch == "RED ZONE" && state.situation?.redZone == true) {
-                    Text(clutch)
-                        .font(.system(.caption2, design: .rounded).weight(.heavy))
-                        .tracking(0.6)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .foregroundStyle(WidgetTokens.star)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 1)
-                        .background(WidgetTokens.star.opacity(0.18), in: Capsule())
-                }
+            HStack(spacing: 4) {
+                Circle().fill(WidgetTokens.live).frame(width: 5, height: 5)
+                Text(formatted)
+                    .font(.system(.caption, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(WidgetTokens.live)
             }
         }
     case .halftime:
@@ -157,15 +142,6 @@ private func progressLabel(for state: LiveSportActivityAttributes.ContentState) 
     }
 }
 
-
-extension LiveSportActivityAttributes.ContentState {
-    /// The small CarPlay / Watch card has no room for the clutch pill's second line.
-    var withoutClutch: Self {
-        var copy = self
-        copy.clutch = nil
-        return copy
-    }
-}
 
 /// "FINAL", or "FINAL/OT" / "FINAL/2OT" / "FINAL/SO" when the game went past regulation.
 private func finalLabel(_ progress: String?) -> String {
@@ -1001,7 +977,7 @@ private struct SmallActivityView: View {
                 VStack(spacing: 4) {
                     TennisSideRow(name: attributes.homeTeam, side: .home, tennis: tennis, sets: state.homeScore, ink: WidgetTokens.ink)
                     TennisSideRow(name: attributes.awayTeam, side: .away, tennis: tennis, sets: state.awayScore, ink: WidgetTokens.ink)
-                    progressLabel(for: state.withoutClutch)
+                    progressLabel(for: state)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1013,7 +989,7 @@ private struct SmallActivityView: View {
                     SmallTeamRow(side: sides.first, isFinal: isFinal)
                     SmallTeamRow(side: sides.second, isFinal: isFinal)
                     HStack(spacing: 6) {
-                        progressLabel(for: state.withoutClutch)
+                        progressLabel(for: state)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                         Spacer(minLength: 4)
@@ -1541,14 +1517,6 @@ private let galleryNFL = LiveSportActivityAttributes(homeTeam: "Kansas City Chie
 private let galleryNFLState = LiveSportActivityAttributes.ContentState(homeScore: 20, awayScore: 17, status: "in", progress: "4th 2:31", lastPlay: nil,
                                                                        situation: LiveActivitySituation(downDistance: "3rd & 4 at KC 12", possession: .away, redZone: true,
                                                                                                         homeWinPct: 58, homeTimeouts: 2, awayTimeouts: 1))
-private let galleryNBAClutch: LiveSportActivityAttributes.ContentState = {
-    var state = galleryNBAState
-    state.homeScore = 108
-    state.awayScore = 107
-    state.progress = "4th 1:12"
-    state.clutch = "CRUNCH TIME"
-    return state
-}()
 private let gallerySoccerHT = LiveSportActivityAttributes.ContentState(homeScore: 0, awayScore: 0, status: "in", progress: "HT")
 private let galleryNBAFinal = LiveSportActivityAttributes.ContentState(homeScore: 121, awayScore: 117, status: "post", progress: "Final/OT")
 private let galleryTennis = LiveSportActivityAttributes(homeTeam: "Jannik Sinner", awayTeam: "Carlos Alcaraz", eventID: "g-tennis")
@@ -1575,7 +1543,6 @@ private let galleryGolfState = LiveSportActivityAttributes.ContentState(homeScor
 #Preview("Gallery · Tennis", as: .content, using: galleryTennis) { LiveSportActivityWidget() } contentStates: { galleryTennisState }
 #Preview("Gallery · F1", as: .content, using: galleryF1) { LiveSportActivityWidget() } contentStates: { galleryF1State }
 #Preview("Gallery · Golf", as: .content, using: galleryGolf) { LiveSportActivityWidget() } contentStates: { galleryGolfState }
-#Preview("Gallery · NBA clutch", as: .content, using: galleryNBA) { LiveSportActivityWidget() } contentStates: { galleryNBAClutch }
 #Preview("Gallery · NFL final", as: .content, using: galleryNFL) { LiveSportActivityWidget() } contentStates: { LiveSportActivityAttributes.ContentState(homeScore: 27, awayScore: 24, status: "post", progress: "Final/OT") }
 #endif
 #endif

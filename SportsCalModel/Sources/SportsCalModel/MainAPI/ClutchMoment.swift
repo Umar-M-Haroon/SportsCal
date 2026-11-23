@@ -37,25 +37,6 @@ public struct ClutchMoment: Equatable, Hashable, Sendable {
         case scoringRun
         /// Late, the favourite flipped: win probability crossed 50%.
         case favoriteFlipped
-
-        /// A few uppercase words for a Live Activity's clutch pill ("RED ZONE"): the
-        /// alert title names teams and is too long for the island.
-        public var shortLabel: String {
-            switch self {
-            case .tyingRunAtPlate: return "TYING RUN UP"
-            case .goAheadRunInScoringPosition: return "GO-AHEAD RUN ON"
-            case .basesLoaded: return "BASES LOADED"
-            case .redZone: return "RED ZONE"
-            case .crunchTime: return "CRUNCH TIME"
-            case .finalMinutesOneGoal: return "ONE-GOAL GAME"
-            case .tiedLate: return "TIED LATE"
-            case .suddenDeathOvertime: return "SUDDEN DEATH"
-            case .shootout: return "SHOOTOUT"
-            case .goaliePulled: return "EMPTY NET"
-            case .scoringRun: return "ON A RUN"
-            case .favoriteFlipped: return "MOMENTUM SWING"
-            }
-        }
     }
 
     public let kind: Kind
