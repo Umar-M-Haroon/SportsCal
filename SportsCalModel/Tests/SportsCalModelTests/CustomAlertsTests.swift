@@ -194,7 +194,7 @@ final class CustomAlertsTests: XCTestCase {
           {"id":"r1","kind":"playerPlay","sport":"basketball","athleteID":"3975","teamID":"134865",
            "playTypes":["threePointer","halfCourtHeave"],"finalPeriodOnly":true},
           {"id":"r2","kind":"futureKind","sport":"basketball"},
-          {"id":"r3","kind":"gameSituation","sport":"cricket"},
+          {"id":"r3","kind":"gameSituation","sport":"curling"},
           {"id":"r4","kind":"gameSituation","sport":"hockey","situation":"newSituation","closeGameOnly":"yes"}
         ]}
         """
