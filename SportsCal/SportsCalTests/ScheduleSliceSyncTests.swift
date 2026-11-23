@@ -43,6 +43,23 @@ final class ScheduleSliceSyncTests: XCTestCase {
                        "WNBA rides with the NBA, the World Cup with soccer, college with football")
     }
 
+    func testCollegeBasketballAloneTurnsBasketballOn() {
+        defaults.set(true, forKey: "shouldShowCBB")
+        XCTAssertEqual(ScheduleSliceSync.enabledSports(defaults: defaults), [.basketball])
+    }
+
+    func testBasketballLeaguesFollowTheirOwnSwitches() {
+        let nbaOnly = BasketballPreference(showNBA: true, showWNBA: false, showCollege: false)
+        XCTAssertTrue(nbaOnly.admits(.nba))
+        XCTAssertFalse(nbaOnly.admits(.ncaaMBBTournament), "an NBA pick no longer brings college games")
+        XCTAssertFalse(nbaOnly.admits(.wnba))
+        let collegeOnly = BasketballPreference(showNBA: false, showWNBA: false, showCollege: true)
+        XCTAssertTrue(collegeOnly.isOn)
+        XCTAssertTrue(collegeOnly.admits(.ncaaMBBTournament))
+        XCTAssertFalse(collegeOnly.admits(.nba))
+        XCTAssertFalse(BasketballPreference(showNBA: false, showWNBA: false, showCollege: false).isOn)
+    }
+
     func testFavoriteSlicesAreRememberedAndKeptWhenAbsent() {
         let arsenal = Game(idEvent: "1", idLeague: "4328", strHomeTeam: "Arsenal", strAwayTeam: "Chelsea", isoDate: nil)
         let lakers = Game(idEvent: "2", idLeague: "4387", strHomeTeam: "Lakers", strAwayTeam: "Celtics", isoDate: nil)

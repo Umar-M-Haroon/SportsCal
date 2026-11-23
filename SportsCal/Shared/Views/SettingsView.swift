@@ -338,16 +338,17 @@ struct BasketballCompetitionsSettingsSection: View {
 
     var body: some View {
         Section {
+            // Real per-league switches (NBA, WNBA, college), not visibility rows: the
+            // WNBA and college basketball are off unless switched on.
             #if os(macOS)
             DisclosureGroup("Visible basketball competitions") {
-                ForEach(Leagues.allCases.filter({ $0.isBasketball }), id: \.self) { league in
-                    CompetitionView(league: league, isShown: !appStorage.hiddenCompetitions.contains(league.leagueName))
-                        .environment(appStorage)
-                }
+                BasketballLeagueToggles()
+                    .environment(appStorage)
             }
             #else
             NavigationLink("Visible basketball competitions") {
-                CompetitionPage(competitions: Leagues.allCases.filter({ $0.isBasketball }))
+                Form { BasketballLeagueToggles() }
+                    .navigationTitle("Basketball")
                     .environment(appStorage)
             }
             #endif

@@ -96,6 +96,7 @@ final class GameCountParityTests: XCTestCase {
         let storage = makeStorage(allSportsOn: true, hidePastEvents: false)
         storage.shouldShowNBA = false
         storage.shouldShowWNBA = false
+        storage.shouldShowCBB = false
         let vm = makeViewModel(storage: storage)
 
         // Fixture games are anchored to today.
@@ -114,6 +115,7 @@ final class GameCountParityTests: XCTestCase {
     private func makeStorage(allSportsOn: Bool, hidePastEvents: Bool) -> UserDefaultStorage {
         let s = UserDefaultStorage()
         s.shouldShowNBA = allSportsOn
+        s.shouldShowCBB = allSportsOn
         s.shouldShowNFL = allSportsOn
         s.shouldShowNHL = allSportsOn
         s.shouldShowSoccer = allSportsOn

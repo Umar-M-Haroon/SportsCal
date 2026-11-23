@@ -216,7 +216,7 @@ struct ModernMacWindow: View {
 
     private func isSportEnabled(_ sport: SportType) -> Bool {
         switch sport {
-        case .basketball: return storage.shouldShowNBA || storage.shouldShowWNBA
+        case .basketball: return storage.shouldShowNBA || storage.shouldShowWNBA || storage.shouldShowCBB
         case .soccer:     return storage.shouldShowSoccer
         case .hockey:     return storage.shouldShowNHL
         case .mlb:        return storage.shouldShowMLB

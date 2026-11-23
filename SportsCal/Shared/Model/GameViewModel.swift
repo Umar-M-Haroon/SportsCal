@@ -521,13 +521,14 @@ public class GameViewModel: NSObject {
         if appStorage.shouldShowMLB, let events = currentLiveInfo?.mlb?.events, !events.isEmpty {
             sports.append(.mlb)
         }
-        if (appStorage.shouldShowNBA || appStorage.shouldShowWNBA), let events = currentLiveInfo?.nba?.events, !events.isEmpty {
+        let basketball = appStorage.basketballPreference
+        if basketball.isOn, let events = currentLiveInfo?.nba?.events, !events.isEmpty {
             let filtered = events.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
                 if !league.isBasketball || context.hiddenCompetitions.contains(league.leagueName) { return false }
-                return league == .wnba ? appStorage.shouldShowWNBA : appStorage.shouldShowNBA
+                return basketball.admits(league)
             }
             if !filtered.isEmpty { sports.append(.basketball) }
         }
@@ -748,7 +749,8 @@ public class GameViewModel: NSObject {
                 games.append(contentsOf: applyFavoritesFilter(baseballGames, favoritesOnly: appStorage.favoritesOnlyMLB, context: context))
             }
         }
-        if appStorage.shouldShowNBA || appStorage.shouldShowWNBA {
+        let basketball = appStorage.basketballPreference
+        if basketball.isOn {
             var basketballGames = currentLiveInfo?.nba?.events
             basketballGames?.removeAll(where: { game in
                 guard let leagueString = game.idLeague,
@@ -757,7 +759,7 @@ public class GameViewModel: NSObject {
                     return true
                 }
                 if !league.isBasketball || context.hiddenCompetitions.contains(league.leagueName) { return true }
-                return league == .wnba ? !appStorage.shouldShowWNBA : !appStorage.shouldShowNBA
+                return !basketball.admits(league)
             })
             if let basketballGames {
                 games.append(contentsOf: applyFavoritesFilter(basketballGames, favoritesOnly: appStorage.favoritesOnlyNBA, context: context))
@@ -887,15 +889,22 @@ public class GameViewModel: NSObject {
         // main via `setGames`. Until it lands `networkState` stays `.loading`; the fetch
         // below is a background refresh, so a cache that decodes before the network
         // answers still means no loading flash once the list is up.
+        // The network and disk reads start here, not inside the main-actor tasks below:
+        // those only run once the first frame is built (~0.7s on an iPhone simulator),
+        // and everything queued behind them used to wait that long to begin.
+        if Self.prefetchesAtLaunch {
+            LaunchPrefetch.start()
+        }
+        // Snapshot-first: the small launch board puts today's games on screen while the
+        // full cache decodes alongside it.
+        let full = Task.detached(priority: .userInitiated) {
+            GameViewModel.readLaunchCaches()
+        }
+        let board = Task.detached(priority: .userInitiated) {
+            GameViewModel.readLaunchBoard()
+        }
         launchCacheTask = Task { [weak self] in
-            // Snapshot-first: the small launch board puts today's games on screen
-            // while the full cache decodes alongside it.
-            let full = Task.detached(priority: .userInitiated) {
-                GameViewModel.readLaunchCaches()
-            }
-            if let board = await Task.detached(priority: .userInitiated, operation: {
-                GameViewModel.readLaunchBoard()
-            }).value {
+            if let board = await board.value {
                 self?.applyLaunchBoard(board)
             }
             let loaded = await full.value
@@ -1290,7 +1299,12 @@ public class GameViewModel: NSObject {
     
     private func handleLiveGames() async throws {
         AppLogger.networking.info("Getting live games")
-        var liveInfo = try await NetworkHandler.getLiveSnapshot()
+        var liveInfo: LiveScore
+        if let prefetched = LaunchPrefetch.takeLive() {
+            liveInfo = try await prefetched.value
+        } else {
+            liveInfo = try await NetworkHandler.getLiveSnapshot()
+        }
         // The merge needs the cached schedule to merge into.
         await launchCacheTask?.value
         // Merge live scores into schedule before filtering out completed games
@@ -1318,7 +1332,12 @@ public class GameViewModel: NSObject {
     
     private func handleTeams() async throws {
         AppLogger.networking.info("Getting teams")
-        let fetchedTeams = try await NetworkHandler.getTeams()
+        let fetchedTeams: [Team]
+        if let prefetched = LaunchPrefetch.takeTeams() {
+            fetchedTeams = try await prefetched.value
+        } else {
+            fetchedTeams = try await NetworkHandler.getTeams()
+        }
         // Let the launch cache land first so it can't overwrite these fresher teams.
         await launchCacheTask?.value
         self.teams = fetchedTeams
@@ -1862,6 +1881,9 @@ public class GameViewModel: NSObject {
     
     @objc
     private func getData() async {
+        let fetchToken = Perf.begin("fetch")
+        defer { Perf.end("fetch", fetchToken) }
+        let phase1 = Perf.begin("fetchTeamsLive")
         // Phase 1: Fetch teams + live snapshot first (fast), then connect WebSocket immediately.
         // This ensures live games appear without waiting for full schedule fetch.
         var fetchFailed = await withTaskGroup(of: Bool.self) { group -> Bool in
@@ -1877,6 +1899,7 @@ public class GameViewModel: NSObject {
             for await taskFailed in group { failed = failed || taskFailed }
             return failed
         }
+        Perf.end("fetchTeamsLive", phase1)
         // Re-run after both teams and live data are available so live events render with team badges
         updateLiveData()
         // Reconcile any running Live Activities against the freshly fetched REST snapshot,
@@ -1888,6 +1911,8 @@ public class GameViewModel: NSObject {
         ensureWebSocketConnected()
 
         // Phase 2: Fetch full schedules (slower, per-sport)
+        let phase2 = Perf.begin("fetchSchedule")
+        defer { Perf.end("fetchSchedule", phase2) }
         do { try await self.handleGames() }
         catch {
             AppLogger.networking.error("handleGames failed: \(error.localizedDescription)")
@@ -2701,7 +2726,8 @@ public class GameViewModel: NSObject {
     struct FilterInputs: @unchecked Sendable {
         let gamesDict: [SportType: [Game]]
         let context: GameFilterContext
-        let showMLB, showNBA, showWNBA, showNHL, showGolf, showTennis, showRacing, showCricket: Bool
+        let showMLB, showNHL, showGolf, showTennis, showRacing, showCricket: Bool
+        let basketball: BasketballPreference
         let favoritesOnlySoccer, favoritesOnlyMLB, favoritesOnlyNBA, favoritesOnlyNFL, favoritesOnlyNHL: Bool
         let favoritesOnlyGolf, favoritesOnlyTennis, favoritesOnlyRacing, favoritesOnlyCricket: Bool
         let coverageGolf: EventCoverage
@@ -2714,10 +2740,10 @@ public class GameViewModel: NSObject {
         FilterInputs(
             gamesDict: gamesDict,
             context: GameFilterContext(appStorage: appStorage),
-            showMLB: appStorage.shouldShowMLB, showNBA: appStorage.shouldShowNBA,
-            showWNBA: appStorage.shouldShowWNBA, showNHL: appStorage.shouldShowNHL,
+            showMLB: appStorage.shouldShowMLB, showNHL: appStorage.shouldShowNHL,
             showGolf: appStorage.shouldShowGolf, showTennis: appStorage.shouldShowTennis,
             showRacing: appStorage.shouldShowRacing, showCricket: appStorage.shouldShowCricket,
+            basketball: appStorage.basketballPreference,
             favoritesOnlySoccer: appStorage.favoritesOnlySoccer, favoritesOnlyMLB: appStorage.favoritesOnlyMLB,
             favoritesOnlyNBA: appStorage.favoritesOnlyNBA, favoritesOnlyNFL: appStorage.favoritesOnlyNFL,
             favoritesOnlyNHL: appStorage.favoritesOnlyNHL, favoritesOnlyGolf: appStorage.favoritesOnlyGolf,
@@ -2757,15 +2783,14 @@ public class GameViewModel: NSObject {
         if inputs.showMLB {
             allGames.append(contentsOf: favoritesFiltered(gamesDict[.mlb] ?? [], inputs.favoritesOnlyMLB))
         }
-        let showNBA = inputs.showNBA
-        let showWNBA = inputs.showWNBA
-        if showNBA || showWNBA, let basketballGames = gamesDict[.basketball] {
+        let basketball = inputs.basketball
+        if basketball.isOn, let basketballGames = gamesDict[.basketball] {
             let filtered = basketballGames.filter { game in
                 guard let leagueString = game.idLeague,
                       let intLeague = Int(leagueString),
                       let league = Leagues(rawValue: intLeague) else { return false }
                 if !league.isBasketball || context.hiddenCompetitions.contains(league.leagueName) { return false }
-                return league == .wnba ? showWNBA : showNBA
+                return basketball.admits(league)
             }
             allGames.append(contentsOf: favoritesFiltered(filtered, inputs.favoritesOnlyNBA))
         }
@@ -2956,6 +2981,7 @@ public class GameViewModel: NSObject {
         hasher.combine(appStorage.shouldShowMLB)
         hasher.combine(appStorage.shouldShowNBA)
         hasher.combine(appStorage.shouldShowWNBA)
+        hasher.combine(appStorage.shouldShowCBB)
         hasher.combine(appStorage.shouldShowNFL)
         hasher.combine(appStorage.shouldShowCFB)
         hasher.combine(appStorage.cfbSelection)
@@ -3027,6 +3053,11 @@ public class GameViewModel: NSObject {
             guard let self, !Task.isCancelled, generation == self.filterGeneration else { return }
             self.applyFilterPass(output, filterHash: hash)
         }
+    }
+
+    /// The app itself, not tests or an extension (the widget compiles this file too).
+    static var prefetchesAtLaunch: Bool {
+        !filtersSynchronously && Bundle.main.bundleURL.pathExtension == "app"
     }
 
     /// Whether filter passes run inline (tests and snapshot fixtures read the results

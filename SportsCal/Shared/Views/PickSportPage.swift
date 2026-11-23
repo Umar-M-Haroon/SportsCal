@@ -22,6 +22,7 @@ struct OnboardingSportChoice: Identifiable, Hashable {
         .init(id: "cfb", title: "College Football", systemImage: "football.fill", sport: .nfl, keyPath: \.shouldShowCFB),
         .init(id: "nba", title: "NBA", systemImage: "basketball.fill", sport: .basketball, keyPath: \.shouldShowNBA),
         .init(id: "wnba", title: "WNBA", systemImage: "basketball.fill", sport: .basketball, keyPath: \.shouldShowWNBA),
+        .init(id: "cbb", title: "College Basketball", systemImage: "basketball.fill", sport: .basketball, keyPath: \.shouldShowCBB),
         .init(id: "mlb", title: "MLB", systemImage: "baseball.fill", sport: .mlb, keyPath: \.shouldShowMLB),
         .init(id: "nhl", title: "NHL", systemImage: "hockey.puck.fill", sport: .hockey, keyPath: \.shouldShowNHL),
         .init(id: "soccer", title: "Soccer", systemImage: "soccerball", sport: .soccer, keyPath: \.shouldShowSoccer),
@@ -187,9 +188,10 @@ struct OnboardingTeamSection: Identifiable, Equatable {
     /// Teams that appear in the schedule for the user's enabled sports, grouped by
     /// league in the order the sports were enabled. Individual sports (golf, tennis,
     /// racing) have no teams to follow and are skipped. Pure so it can be tested.
-    /// `leagueAllowed` narrows a sport to the leagues actually picked: the NBA and
-    /// WNBA share `.basketball` and the NFL and college share `.nfl`, so a sport-level
-    /// check alone listed NFL teams to someone who only picked College Football.
+    /// `leagueAllowed` narrows a sport to the leagues actually picked: the NBA, WNBA and
+    /// college basketball share `.basketball` and the NFL and college share `.nfl`, so a
+    /// sport-level check alone listed NFL teams to someone who only picked College
+    /// Football, and college basketball teams to someone who only picked the NBA.
     static func build(games: [Game], enabled: [SportType],
                       leagueAllowed: (String) -> Bool = { _ in true },
                       teams: (Game) -> (home: Team, away: Team)?) -> [OnboardingTeamSection] {
@@ -327,7 +329,7 @@ struct PickTeamsPage: View {
     }
 
     /// Only leagues the user switched on: their own toggle for WNBA / college
-    /// football, the soccer gate (all of soccer, or the World Cup alone) minus
+    /// football / college basketball, the soccer gate (all of soccer, or the World Cup alone) minus
     /// hidden competitions, and the sport toggle for everything else.
     private func leagueAllowed(_ leagueID: String) -> Bool {
         guard let league = Int(leagueID).flatMap(Leagues.init(rawValue:)) else { return true }
@@ -337,6 +339,7 @@ struct PickTeamsPage: View {
         case .wnba: return appStorage.shouldShowWNBA
         case .nba: return appStorage.shouldShowNBA
         case .ncaaf: return appStorage.shouldShowCFB
+        case .ncaaMBBTournament: return appStorage.shouldShowCBB
         case .nfl: return appStorage.shouldShowNFL
         default: return true
         }

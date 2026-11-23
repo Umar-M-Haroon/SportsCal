@@ -307,6 +307,7 @@ struct ContentView: View {
             .onChange(of: storage.hiddenCompetitions) { _, _ in
                 viewModel.filterSports()
             }
+            .modifier(RefiltersOnBasketballSwitches(storage: storage, viewModel: viewModel))
             .onChange(of: storage.shouldShowWorldCup) { _, _ in
                 viewModel.filterSports(force: true)
                 viewModel.reconcileWorldCupFollows()
@@ -1040,5 +1041,22 @@ private struct AlertRegistrationTriggers: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: .customAlertRulesDidChange)) { _ in
                 customAlertsChanged()
             }
+    }
+}
+
+/// Re-filters when the basketball league switches (NBA / WNBA / college) change. They
+/// live in Settings, which has no view model to re-filter with.
+private struct RefiltersOnBasketballSwitches: ViewModifier {
+    let storage: UserDefaultStorage
+    let viewModel: GameViewModel
+    @State private var last: BasketballPreference?
+
+    func body(content: Content) -> some View {
+        content.onChange(of: storage.preferenceVersion) { _, _ in
+            let basketball = storage.basketballPreference
+            guard basketball != last else { return }
+            last = basketball
+            viewModel.filterSports()
+        }
     }
 }

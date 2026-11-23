@@ -251,7 +251,7 @@ private struct ModernDayContent: View {
 
     private func isSportEnabled(_ sport: SportType) -> Bool {
         switch sport {
-        case .basketball: return storage.shouldShowNBA || storage.shouldShowWNBA
+        case .basketball: return storage.shouldShowNBA || storage.shouldShowWNBA || storage.shouldShowCBB
         case .soccer:     return storage.shouldShowSoccer
         case .hockey:     return storage.shouldShowNHL
         case .mlb:        return storage.shouldShowMLB
@@ -1027,7 +1027,7 @@ private struct ModernDayContent: View {
         if viewModel.networkState == .loading && total.isEmpty { return .loading }
         if viewModel.networkState == .failed && total.isEmpty { return .failed }
 
-        let anySportOn = storage.shouldShowNBA || storage.shouldShowWNBA ||
+        let anySportOn = storage.shouldShowNBA || storage.shouldShowWNBA || storage.shouldShowCBB ||
             storage.shouldShowNFL || storage.shouldShowCFB || storage.shouldShowNHL ||
             storage.shouldShowSoccer || storage.shouldShowMLB ||
             storage.shouldShowGolf || storage.shouldShowTennis ||

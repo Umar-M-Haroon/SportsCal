@@ -27,6 +27,9 @@ class UserDefaultStorage {
     /// College football, switched on separately from the NFL; both feed the football
     /// section. See `FootballPreference`.
     @ObservationIgnored @AppStorage("shouldShowCFB") var shouldShowCFB: Bool = false
+    /// College basketball, switched on separately from the NBA (it used to ride on the
+    /// NBA switch, so an NBA pick brought every college game). See `BasketballPreference`.
+    @ObservationIgnored @AppStorage("shouldShowCBB") var shouldShowCBB: Bool = false
     @ObservationIgnored @AppStorage("favoritesOnlyNBA") var favoritesOnlyNBA: Bool = false
     @ObservationIgnored @AppStorage("favoritesOnlyNFL") var favoritesOnlyNFL: Bool = false
     @ObservationIgnored @AppStorage("favoritesOnlyNHL") var favoritesOnlyNHL: Bool = false
@@ -298,7 +301,8 @@ class UserDefaultStorage {
     /// or a one-tap "turn this on"), so an active Focus can't mask the real value.
     func userShouldShow(_ sport: SportType) -> Bool {
         switch sport {
-        case .basketball: return shouldShowNBA
+        // Basketball is on when any of its leagues is, as football is.
+        case .basketball: return basketballPreference.isOn
         case .soccer:     return shouldShowSoccer
         case .hockey:     return shouldShowNHL
         case .mlb:        return shouldShowMLB
@@ -319,6 +323,7 @@ class UserDefaultStorage {
 
     init() {
         seedDefaultHiddenCompetitions()
+        migrateCollegeBasketballSwitch()
         // One-time cleanup: perform() used to set focusFilterActive
         // unconditionally and Focus deactivation never cleared it, leaving the
         // override stuck on and sport toggles unresponsive. A genuinely active
@@ -329,6 +334,16 @@ class UserDefaultStorage {
             defaults?.set(true, forKey: "focusFilterStuckFlagCleanupDone")
         }
         recomputeEnabledSports()
+    }
+
+    /// College basketball got its own switch; an existing install keeps seeing it exactly
+    /// when it did before (NBA on, competition not hidden). Fresh installs pick it in
+    /// onboarding. Runs once: the key existing means it has been decided.
+    private func migrateCollegeBasketballSwitch() {
+        guard UserDefaults.standard.object(forKey: "shouldShowCBB") == nil else { return }
+        let existingInstall = !shouldShowOnboarding
+        shouldShowCBB = existingInstall && shouldShowNBA
+            && !hiddenCompetitions.contains(Leagues.ncaaMBBTournament.leagueName)
     }
 
     /// Hides each `isHiddenByDefault` league the first time this build sees it, for new
@@ -395,6 +410,7 @@ class UserDefaultStorage {
         set(shouldShowCricket, forKey: "shouldShowCricket")
         set(shouldShowWNBA, forKey: "shouldShowWNBA")
         set(shouldShowCFB, forKey: "shouldShowCFB")
+        set(shouldShowCBB, forKey: "shouldShowCBB")
         set(favoritesOnlyNBA, forKey: "favoritesOnlyNBA")
         set(favoritesOnlyNFL, forKey: "favoritesOnlyNFL")
         set(favoritesOnlyNHL, forKey: "favoritesOnlyNHL")
@@ -449,7 +465,10 @@ class UserDefaultStorage {
 
     func toggleSport(_ sport: SportType, enabled: Bool) {
         switch sport {
-        case .basketball: shouldShowNBA = enabled
+        // Turning basketball off turns off all its leagues; turning it on means the NBA.
+        case .basketball:
+            shouldShowNBA = enabled
+            if !enabled { shouldShowWNBA = false; shouldShowCBB = false }
         case .soccer:     shouldShowSoccer = enabled
         case .hockey:     shouldShowNHL = enabled
         case .mlb:        shouldShowMLB = enabled
@@ -542,6 +561,11 @@ class UserDefaultStorage {
         bumpPreferenceVersion()
     }
 
+    /// NBA / WNBA / college switches, resolved once for a filter pass.
+    var basketballPreference: BasketballPreference {
+        BasketballPreference(showNBA: shouldShowNBA, showWNBA: shouldShowWNBA, showCollege: shouldShowCBB)
+    }
+
     /// NFL / college switches and college coverage, resolved once for a filter pass.
     var footballPreference: FootballPreference {
         FootballPreference(showNFL: shouldShowNFL, showCollege: shouldShowCFB, college: cfbSelection)
@@ -557,6 +581,8 @@ class UserDefaultStorage {
         shouldShowNFL = false
         shouldShowCFB = false
         shouldShowNBA = false
+        shouldShowWNBA = false
+        shouldShowCBB = false
         shouldShowNHL = false
         shouldShowSoccer = false
         shouldShowMLB = false
@@ -610,4 +636,23 @@ extension Array: @retroactive RawRepresentable where Element: Codable {
 extension Notification.Name {
     /// College football was switched on or off (see `UserDefaultStorage.recomputeEnabledSports`).
     static let collegeFootballSwitchDidChange = Notification.Name("collegeFootballSwitchDidChange")
+}
+
+/// Which basketball leagues are on: the NBA, the WNBA and college each have their own
+/// switch, and the basketball section shows when any is on.
+struct BasketballPreference: Equatable, Sendable {
+    var showNBA: Bool
+    var showWNBA: Bool
+    var showCollege: Bool
+
+    var isOn: Bool { showNBA || showWNBA || showCollege }
+
+    /// Whether `league`'s games show (hidden competitions are checked separately).
+    func admits(_ league: Leagues) -> Bool {
+        switch league {
+        case .wnba: showWNBA
+        case .ncaaMBBTournament: showCollege
+        default: showNBA
+        }
+    }
 }

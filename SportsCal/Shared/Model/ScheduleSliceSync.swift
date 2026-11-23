@@ -12,6 +12,7 @@
 //
 
 import Foundation
+import Synchronization
 import SportsCalModel
 
 enum ScheduleSliceSync {
@@ -44,7 +45,7 @@ enum ScheduleSliceSync {
     static func enabledSports(defaults: UserDefaults = .standard) -> Set<SportType> {
         func on(_ key: String) -> Bool { defaults.bool(forKey: key) }
         var sports = Set<SportType>()
-        if on("shouldShowNBA") || on("shouldShowWNBA") { sports.insert(.basketball) }
+        if on("shouldShowNBA") || on("shouldShowWNBA") || on("shouldShowCBB") { sports.insert(.basketball) }
         // The World Cup rides in the soccer slice: turning it on pulls soccer in.
         if on("shouldShowSoccer") || on("shouldShowWorldCup") { sports.insert(.soccer) }
         if on("shouldShowNHL") { sports.insert(.hockey) }
@@ -72,14 +73,13 @@ enum ScheduleSliceSync {
         let base = NetworkHandler.baseURL()
         // A validator is only sent for a slice the cached snapshot actually holds.
         let stored = cached == nil ? [:] : SliceETagStore.etags(base: base)
-
-        let results = try await withThrowingTaskGroup(of: (LiveScore.WireKey, NetworkHandler.SliceFetchResult).self) { group in
-            for key in wanted {
-                group.addTask { (key, try await NetworkHandler.fetchScheduleSlice(key, ifNoneMatch: stored[key])) }
-            }
-            var all: [LiveScore.WireKey: NetworkHandler.SliceFetchResult] = [:]
-            for try await (key, result) in group { all[key] = result }
-            return all
+        // The launch's requests may already be in flight (`LaunchPrefetch`); they count
+        // only if they asked exactly this.
+        let results: [LiveScore.WireKey: NetworkHandler.SliceFetchResult]
+        if let prefetched = LaunchPrefetch.takeSlices(base: base, wanted: wanted, stored: stored) {
+            results = try await prefetched.value
+        } else {
+            results = try await fetchSlices(wanted: wanted, stored: stored)
         }
 
         var parts: [LiveScore] = []
@@ -101,6 +101,88 @@ enum ScheduleSliceSync {
         }
         let changed = anyFresh || Set(wanted) != Set(stored.keys)
         return Outcome(snapshot: LiveScore.combining(parts), etags: etags, changed: changed)
+    }
+
+    /// Every wanted slice, concurrently, revalidated with `stored`.
+    static func fetchSlices(wanted: [LiveScore.WireKey], stored: [LiveScore.WireKey: String]) async throws
+        -> [LiveScore.WireKey: NetworkHandler.SliceFetchResult] {
+        try await withThrowingTaskGroup(of: (LiveScore.WireKey, NetworkHandler.SliceFetchResult).self) { group in
+            for key in wanted {
+                group.addTask { (key, try await NetworkHandler.fetchScheduleSlice(key, ifNoneMatch: stored[key])) }
+            }
+            var all: [LiveScore.WireKey: NetworkHandler.SliceFetchResult] = [:]
+            for try await (key, result) in group { all[key] = result }
+            return all
+        }
+    }
+}
+
+/// The launch's first requests (teams, the live snapshot, the schedule slices), sent the
+/// moment the view model exists. Left to `getData` they waited for the main actor, which
+/// is busy building the first frame for ~0.7-1.2s, and the schedule then waited behind
+/// teams and live. Each is taken at most once, and only by a fetch asking exactly what
+/// was prefetched (same server; for slices, the same keys and validators), so a changed
+/// environment or a cache that failed to load just fetches normally.
+enum LaunchPrefetch {
+    private struct Slices {
+        let wanted: [LiveScore.WireKey]
+        let stored: [LiveScore.WireKey: String]
+        let task: Task<[LiveScore.WireKey: NetworkHandler.SliceFetchResult], Error>
+    }
+
+    private struct State {
+        let base: String
+        var teams: Task<[Team], Error>?
+        var live: Task<LiveScore, Error>?
+        var slices: Slices?
+    }
+
+    private static let state = Mutex<State?>(nil)
+
+    static func start() {
+        let base = NetworkHandler.baseURL()
+        let wanted = ScheduleSliceSync.currentWantedKeys()
+        // What `refresh` will send if the cached snapshot loads; if it doesn't, the ETag
+        // store is cleared first, the validators differ, and this goes unused.
+        let stored = SliceETagStore.etags(base: base)
+        let prefetch = State(
+            base: base,
+            teams: Task.detached(priority: .userInitiated) { try await NetworkHandler.getTeams() },
+            live: Task.detached(priority: .userInitiated) { try await NetworkHandler.getLiveSnapshot() },
+            slices: Slices(wanted: wanted, stored: stored, task: Task.detached(priority: .userInitiated) {
+                try await ScheduleSliceSync.fetchSlices(wanted: wanted, stored: stored)
+            })
+        )
+        state.withLock { $0 = prefetch }
+    }
+
+    static func takeTeams() -> Task<[Team], Error>? {
+        state.withLock { state in
+            guard state?.base == NetworkHandler.baseURL() else { return nil }
+            defer { state?.teams = nil }
+            return state?.teams
+        }
+    }
+
+    static func takeLive() -> Task<LiveScore, Error>? {
+        state.withLock { state in
+            guard state?.base == NetworkHandler.baseURL() else { return nil }
+            defer { state?.live = nil }
+            return state?.live
+        }
+    }
+
+    static func takeSlices(base: String, wanted: [LiveScore.WireKey], stored: [LiveScore.WireKey: String])
+        -> Task<[LiveScore.WireKey: NetworkHandler.SliceFetchResult], Error>? {
+        state.withLock { state in
+            guard let slices = state?.slices, state?.base == base else { return nil }
+            state?.slices = nil
+            guard slices.wanted == wanted, slices.stored == stored else {
+                slices.task.cancel()
+                return nil
+            }
+            return slices.task
+        }
     }
 }
 

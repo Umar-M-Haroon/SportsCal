@@ -44,6 +44,9 @@ struct SportPickerSheet: View {
                             if sport == .nfl {
                                 footballLeagues
                                     .padding(.leading, 28)
+                            } else if sport == .basketball {
+                                basketballLeagues
+                                    .padding(.leading, 28)
                             } else if leagues(for: sport).count > 1 {
                                 leagueManager(for: sport)
                                     .padding(.leading, 28)
@@ -124,6 +127,11 @@ struct SportPickerSheet: View {
             }
         }
         #endif
+    }
+
+    @ViewBuilder
+    private var basketballLeagues: some View {
+        BasketballLeagueToggles()
     }
 
     /// NFL and college switched on separately, with college's picks under it. Stands in
@@ -249,6 +257,38 @@ struct CollegeSelectionList: View {
                     ))
                 }
             }
+        }
+    }
+}
+
+/// NBA, WNBA and college basketball switched on separately, as football is. They stand in
+/// for the generic "Leagues" row: the WNBA and college have their own switches, which a
+/// hidden-competition row couldn't turn on. Switching a league on also un-hides it, so an
+/// old hidden-competition choice can't leave the switch inert.
+struct BasketballLeagueToggles: View {
+    @Environment(UserDefaultStorage.self) private var storage
+
+    var body: some View {
+        // The switches are @ObservationIgnored; recomputeEnabledSports bumps this.
+        let _ = storage.preferenceVersion
+        leagueSwitch("NBA", systemImage: "basketball.fill", league: .nba, isOn: \.shouldShowNBA)
+        leagueSwitch("WNBA", systemImage: "basketball.fill", league: .wnba, isOn: \.shouldShowWNBA)
+        leagueSwitch("College Basketball", systemImage: "building.columns", league: .ncaaMBBTournament, isOn: \.shouldShowCBB)
+    }
+
+    private func leagueSwitch(_ title: String, systemImage: String, league: Leagues,
+                              isOn keyPath: ReferenceWritableKeyPath<UserDefaultStorage, Bool>) -> some View {
+        Toggle(isOn: Binding(
+            get: { storage[keyPath: keyPath] && !storage.hiddenCompetitions.contains(league.leagueName) },
+            set: { on in
+                storage[keyPath: keyPath] = on
+                if on { storage.hiddenCompetitions.removeAll { $0 == league.leagueName } }
+                storage.recomputeEnabledSports()
+            }
+        )) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
     }
 }
