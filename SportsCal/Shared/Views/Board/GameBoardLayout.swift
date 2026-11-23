@@ -64,6 +64,15 @@ struct GameBoardLayout<GameContent: View>: View {
     private let liveFirst = false
     @State private var peekedSport: SportType?
     #endif
+    /// The board's horizontal position, by column, for the Mac's edge arrows.
+    @State private var boardScroll = ScrollPosition(idType: SportType.self)
+    /// Whether columns are hidden past each edge (drives the arrows).
+    @State private var hiddenEdges = HiddenEdges()
+
+    struct HiddenEdges: Equatable {
+        var leading = false
+        var trailing = false
+    }
 
     private static var railWidth: CGFloat { 76 }
 
@@ -135,9 +144,64 @@ struct GameBoardLayout<GameContent: View>: View {
                 }
                 // Rest on whole columns, never half of one.
                 .scrollTargetBehavior(.viewAligned)
+                .scrollPosition($boardScroll)
+                .onScrollGeometryChange(for: HiddenEdges.self) { geometry in
+                    HiddenEdges(
+                        leading: geometry.contentOffset.x > 4,
+                        trailing: geometry.contentOffset.x + geometry.containerSize.width < geometry.contentSize.width - 4
+                    )
+                } action: { _, edges in
+                    hiddenEdges = edges
+                }
+                #if os(macOS)
+                // No swipe on a mouse and the scroller is hidden: without these a
+                // narrow window gives no hint that more sports sit to the side.
+                .overlay(alignment: .leading) {
+                    if hiddenEdges.leading {
+                        pageButton(systemImage: "chevron.left", help: "Previous sports") {
+                            page(by: -1, ids: fullColumns.map(\.id) + rails.map(\.id))
+                        }
+                    }
+                }
+                .overlay(alignment: .trailing) {
+                    if hiddenEdges.trailing {
+                        pageButton(systemImage: "chevron.right", help: "More sports") {
+                            page(by: 1, ids: fullColumns.map(\.id) + rails.map(\.id))
+                        }
+                    }
+                }
+                .animation(.easeInOut(duration: 0.15), value: hiddenEdges)
+                #endif
             }
         }
     }
+
+    #if os(macOS)
+    private func pageButton(systemImage: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .bold))
+                .frame(width: 30, height: 30)
+                .background(.regularMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(.primary.opacity(0.12)))
+                .shadow(color: .black.opacity(0.2), radius: 4, y: 1)
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .padding(.horizontal, 6)
+        .transition(.opacity)
+    }
+
+    /// Scrolls one column toward `delta`, from the column at the leading edge.
+    private func page(by delta: Int, ids: [SportType]) {
+        guard !ids.isEmpty else { return }
+        let current = boardScroll.viewID(type: SportType.self).flatMap { ids.firstIndex(of: $0) } ?? 0
+        let target = min(max(current + delta, 0), ids.count - 1)
+        withAnimation(.easeInOut(duration: 0.25)) {
+            boardScroll.scrollTo(id: ids[target], anchor: .leading)
+        }
+    }
+    #endif
 
     /// Live games across every sport, favorites first.
     private func liveStripView(_ live: [GameWithTeams]) -> some View {
