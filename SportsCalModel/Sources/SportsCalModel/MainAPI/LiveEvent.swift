@@ -1197,6 +1197,8 @@ extension Game {
     ///
     /// `@unchecked Sendable`: the box is only mutated while uniquely referenced by one
     /// `Game` value, the same exclusivity a stored struct field has.
+    /// Rarely-set payloads (`situation`, `scoreboardExtras`, …) stay `@Indirect`
+    /// in here too, so each box is ~0.8 KB rather than ~2 KB and a clone shares them.
     final class Storage: @unchecked Sendable {
         var idLiveScore: String? = nil
         var idEvent: String? = nil
@@ -1226,8 +1228,8 @@ extension Game {
         var awayTeamColor: String? = nil
         var homeRecord: String? = nil
         var awayRecord: String? = nil
-        var circuitInfo: F1CircuitInfo? = nil
-        var golfCourseInfo: GolfCourseInfo? = nil
+        @Indirect var circuitInfo: F1CircuitInfo?
+        @Indirect var golfCourseInfo: GolfCourseInfo?
         var endDate: String? = nil
         var legDisplay: String? = nil
         var aggregateScore: String? = nil
@@ -1241,14 +1243,14 @@ extension Game {
         var homeInjuries: [InjuryReport]? = nil
         var awayInjuries: [InjuryReport]? = nil
         var raceTiming: F1RaceTiming? = nil
-        var playoff: PlayoffContext? = nil
+        @Indirect var playoff: PlayoffContext?
         var lastPlayScoreboardID: String? = nil
         var season: String? = nil
         var seasonPhase: SeasonPhase? = nil
         var sportsDBRound: Int? = nil
-        var situation: GameSituation? = nil
+        @Indirect var situation: GameSituation?
         var excitement: Int? = nil
-        var scoreboardExtras: ScoreboardExtras? = nil
+        @Indirect var scoreboardExtras: ScoreboardExtras?
         var homeAbbreviation: String? = nil
         var awayAbbreviation: String? = nil
         var timeTBD: Bool? = nil
@@ -1287,8 +1289,8 @@ extension Game {
             c.awayTeamColor = awayTeamColor
             c.homeRecord = homeRecord
             c.awayRecord = awayRecord
-            c.circuitInfo = circuitInfo
-            c.golfCourseInfo = golfCourseInfo
+            c._circuitInfo = _circuitInfo   // shares the box
+            c._golfCourseInfo = _golfCourseInfo   // shares the box
             c.endDate = endDate
             c.legDisplay = legDisplay
             c.aggregateScore = aggregateScore
@@ -1302,14 +1304,14 @@ extension Game {
             c.homeInjuries = homeInjuries
             c.awayInjuries = awayInjuries
             c.raceTiming = raceTiming
-            c.playoff = playoff
+            c._playoff = _playoff   // shares the box
             c.lastPlayScoreboardID = lastPlayScoreboardID
             c.season = season
             c.seasonPhase = seasonPhase
             c.sportsDBRound = sportsDBRound
-            c.situation = situation
+            c._situation = _situation   // shares the box
             c.excitement = excitement
-            c.scoreboardExtras = scoreboardExtras
+            c._scoreboardExtras = _scoreboardExtras   // shares the box
             c.homeAbbreviation = homeAbbreviation
             c.awayAbbreviation = awayAbbreviation
             c.timeTBD = timeTBD
