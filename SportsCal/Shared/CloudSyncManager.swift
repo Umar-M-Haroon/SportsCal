@@ -295,16 +295,54 @@ final class CloudSyncManager {
             name: UserDefaults.didChangeNotification,
             object: nil
         )
+        // Pushes are debounced; don't lose one when the app leaves.
+        for name in ["UIApplicationDidEnterBackgroundNotification",
+                     "NSApplicationDidResignActiveNotification",
+                     "NSApplicationWillTerminateNotification"] {
+            NotificationCenter.default.addObserver(
+                forName: Notification.Name(name), object: nil, queue: nil
+            ) { [weak self] _ in
+                self?.flushPendingPush()
+            }
+        }
     }
 
     @objc private func userDefaultsDidChange() {
         guard !isApplyingRemote else { return }
-        pushAllToCloud()
+        schedulePush()
     }
 
     @objc private func favoritesDidChange() {
         guard !isApplyingRemote else { return }
-        pushAllToCloud()
+        schedulePush()
+    }
+
+    // `UserDefaults.didChangeNotification` fires for every defaults write in the app,
+    // including the app's own bookkeeping, and pushing re-reads every synced key and
+    // calls `synchronize()`. Inline on main, that ran many times during launch alone.
+    // Coalesce a burst of changes into one push, off the main thread.
+    private let pushQueue = DispatchQueue(label: "com.sportscal.cloudsync.push", qos: .utility)
+    private var pendingPush: DispatchWorkItem?
+    private let pushLock = NSLock()
+
+    private func schedulePush() {
+        pushLock.lock()
+        defer { pushLock.unlock() }
+        pendingPush?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.pushAllToCloud() }
+        pendingPush = work
+        pushQueue.asyncAfter(deadline: .now() + 1.5, execute: work)
+    }
+
+    /// Pushes a pending change now (the app is going to the background or quitting).
+    func flushPendingPush() {
+        pushLock.lock()
+        let work = pendingPush
+        pendingPush = nil
+        pushLock.unlock()
+        guard let work, !work.isCancelled else { return }
+        work.cancel()
+        pushQueue.sync { self.pushAllToCloud() }
     }
 
     private func pushAllToCloud() {
@@ -324,7 +362,11 @@ final class CloudSyncManager {
         let now = Date()
         kvStore.set(now.timeIntervalSince1970, forKey: timestampKey)
         kvStore.synchronize()
-        lastPushDate = now
+        if Thread.isMainThread {
+            lastPushDate = now
+        } else {
+            DispatchQueue.main.async { self.lastPushDate = now }
+        }
     }
 
     // MARK: - Diagnostics

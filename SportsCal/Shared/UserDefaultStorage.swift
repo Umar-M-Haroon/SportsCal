@@ -375,35 +375,44 @@ class UserDefaultStorage {
 
     /// Mirror sport preference flags to the shared app group so widgets can read them
     private func syncSportPrefsToAppGroup() {
-        let defaults = UserDefaults(suiteName: Self.suiteName)
-        defaults?.set(shouldShowNBA, forKey: "shouldShowNBA")
-        defaults?.set(shouldShowNFL, forKey: "shouldShowNFL")
-        defaults?.set(shouldShowNHL, forKey: "shouldShowNHL")
-        defaults?.set(shouldShowSoccer, forKey: "shouldShowSoccer")
-        defaults?.set(shouldShowWorldCup, forKey: "shouldShowWorldCup")
-        defaults?.set(shouldShowMLB, forKey: "shouldShowMLB")
-        defaults?.set(shouldShowGolf, forKey: "shouldShowGolf")
-        defaults?.set(shouldShowTennis, forKey: "shouldShowTennis")
-        defaults?.set(shouldShowRacing, forKey: "shouldShowRacing")
-        defaults?.set(shouldShowCricket, forKey: "shouldShowCricket")
-        defaults?.set(shouldShowWNBA, forKey: "shouldShowWNBA")
-        defaults?.set(shouldShowCFB, forKey: "shouldShowCFB")
-        defaults?.set(favoritesOnlyNBA, forKey: "favoritesOnlyNBA")
-        defaults?.set(favoritesOnlyNFL, forKey: "favoritesOnlyNFL")
-        defaults?.set(favoritesOnlyNHL, forKey: "favoritesOnlyNHL")
-        defaults?.set(favoritesOnlySoccer, forKey: "favoritesOnlySoccer")
-        defaults?.set(favoritesOnlyMLB, forKey: "favoritesOnlyMLB")
-        defaults?.set(favoritesOnlyGolf, forKey: "favoritesOnlyGolf")
-        defaults?.set(favoritesOnlyTennis, forKey: "favoritesOnlyTennis")
-        defaults?.set(favoritesOnlyRacing, forKey: "favoritesOnlyRacing")
-        defaults?.set(favoritesOnlyCricket, forKey: "favoritesOnlyCricket")
-        defaults?.set(coverageTennis.rawValue, forKey: "coverageTennis")
-        defaults?.set(coverageGolf.rawValue, forKey: "coverageGolf")
-        defaults?.set(cfbSelection.rawValue, forKey: CollegeFootballSelection.storageKey)
-        defaults?.set(hiddenCompetitions, forKey: "hiddenCompetitions")
-        defaults?.set(visibleMotorsportSeries, forKey: NetworkHandler.visibleMotorsportSeriesKey)
-        defaults?.set(favoritesOnlyCompetitions, forKey: "favoritesOnlyCompetitions")
+        // Each app-group write is a round trip to cfprefsd and posts a defaults
+        // change (which the iCloud sync listens to). This runs on every recompute,
+        // usually with nothing changed, so write only the values that differ.
+        guard let defaults = Self.appGroupDefaults else { return }
+        func set(_ value: Any, forKey key: String) {
+            if let current = defaults.object(forKey: key) as? NSObject, current.isEqual(value) { return }
+            defaults.set(value, forKey: key)
+        }
+        set(shouldShowNBA, forKey: "shouldShowNBA")
+        set(shouldShowNFL, forKey: "shouldShowNFL")
+        set(shouldShowNHL, forKey: "shouldShowNHL")
+        set(shouldShowSoccer, forKey: "shouldShowSoccer")
+        set(shouldShowWorldCup, forKey: "shouldShowWorldCup")
+        set(shouldShowMLB, forKey: "shouldShowMLB")
+        set(shouldShowGolf, forKey: "shouldShowGolf")
+        set(shouldShowTennis, forKey: "shouldShowTennis")
+        set(shouldShowRacing, forKey: "shouldShowRacing")
+        set(shouldShowCricket, forKey: "shouldShowCricket")
+        set(shouldShowWNBA, forKey: "shouldShowWNBA")
+        set(shouldShowCFB, forKey: "shouldShowCFB")
+        set(favoritesOnlyNBA, forKey: "favoritesOnlyNBA")
+        set(favoritesOnlyNFL, forKey: "favoritesOnlyNFL")
+        set(favoritesOnlyNHL, forKey: "favoritesOnlyNHL")
+        set(favoritesOnlySoccer, forKey: "favoritesOnlySoccer")
+        set(favoritesOnlyMLB, forKey: "favoritesOnlyMLB")
+        set(favoritesOnlyGolf, forKey: "favoritesOnlyGolf")
+        set(favoritesOnlyTennis, forKey: "favoritesOnlyTennis")
+        set(favoritesOnlyRacing, forKey: "favoritesOnlyRacing")
+        set(favoritesOnlyCricket, forKey: "favoritesOnlyCricket")
+        set(coverageTennis.rawValue, forKey: "coverageTennis")
+        set(coverageGolf.rawValue, forKey: "coverageGolf")
+        set(cfbSelection.rawValue, forKey: CollegeFootballSelection.storageKey)
+        set(hiddenCompetitions, forKey: "hiddenCompetitions")
+        set(visibleMotorsportSeries, forKey: NetworkHandler.visibleMotorsportSeriesKey)
+        set(favoritesOnlyCompetitions, forKey: "favoritesOnlyCompetitions")
     }
+
+    private static let appGroupDefaults = UserDefaults(suiteName: suiteName)
 
     /// League names of the non-F1 racing series that aren't hidden. Widgets ask the
     /// server for those series only when this is non-empty (see `NetworkHandler`).

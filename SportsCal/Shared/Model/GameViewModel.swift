@@ -170,7 +170,7 @@ public class GameViewModel: NSObject {
     nonisolated static func purgeLegacyCacheFiles() {
         let fm = FileManager.default
         guard let dir = fm.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
-        let currentFilenames: Set<String> = ["games", "teams", "live"]
+        let currentFilenames: Set<String> = ["games", "teams", "live", "launch-board"]
             .map { cacheFilename(base: $0) }
             .reduce(into: []) { $0.insert($1) }
         if let contents = try? fm.contentsOfDirectory(atPath: dir.path) {
@@ -877,9 +877,17 @@ public class GameViewModel: NSObject {
         // below is a background refresh, so a cache that decodes before the network
         // answers still means no loading flash once the list is up.
         launchCacheTask = Task { [weak self] in
-            let loaded = await Task.detached(priority: .userInitiated) {
+            // Snapshot-first: the small launch board puts today's games on screen
+            // while the full cache decodes alongside it.
+            let full = Task.detached(priority: .userInitiated) {
                 GameViewModel.readLaunchCaches()
-            }.value
+            }
+            if let board = await Task.detached(priority: .userInitiated, operation: {
+                GameViewModel.readLaunchBoard()
+            }).value {
+                self?.applyLaunchBoard(board)
+            }
+            let loaded = await full.value
             self?.applyLaunchCaches(loaded)
         }
         getInfo(backgroundRefresh: true)
@@ -938,6 +946,85 @@ public class GameViewModel: NSObject {
     /// What `init` found on disk (or in the bundle) to show before the first fetch.
     /// `@unchecked`: plain value data (SportsCalModel's types aren't annotated
     /// `Sendable` yet) handed once from the detached cache reader to main.
+    // MARK: - Launch board (snapshot-first launch)
+
+    /// The small snapshot shown before the full schedule cache decodes: the games from
+    /// yesterday through the next two days, plus anything live, with their teams.
+    /// Decoding it takes a few ms instead of ~0.9s for the full 30MB+ cache.
+    struct LaunchBoard: Codable {
+        var schedule: LiveScore
+        var teams: [Team]
+        var writtenAt: Date
+    }
+
+    /// True while the board shows the launch snapshot rather than the full schedule.
+    /// The full cache (or a fetch) replaces it, and nothing is written back from it.
+    @ObservationIgnored private(set) var isShowingLaunchBoard = false
+    @ObservationIgnored private var applyingLaunchBoard = false
+    /// The schedule last handed to `setGames`, for writing the launch board.
+    @ObservationIgnored private var latestSchedule: LiveScore?
+
+    nonisolated static var launchBoardURL: URL? {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+            .appendingPathComponent(cacheFilename(base: "launch-board"))
+    }
+
+    nonisolated static func readLaunchBoard() -> LaunchBoard? {
+        let token = Perf.begin("launchBoardDecode")
+        defer { Perf.end("launchBoardDecode", token) }
+        guard let url = launchBoardURL else { return nil }
+        do {
+            let data = try Data(contentsOf: url)
+            let board = try NetworkHandler.sharedDecoder.decode(LaunchBoard.self, from: data)
+            // Only today's board is worth showing; an old one would flash wrong days.
+            guard Date().timeIntervalSince(board.writtenAt) < 60 * 60 * 18 else { return nil }
+            return board
+        } catch {
+            if Perf.printsTimings {
+                FileHandle.standardOutput.write(Data("PERF launchBoard unavailable: \(error)\n".utf8))
+            }
+            return nil
+        }
+    }
+
+    /// Writes the launch board from the latest full schedule. Called with the other
+    /// coalesced side effects (at most once a minute) and when backgrounding.
+    private func writeLaunchBoard() {
+        guard !isShowingLaunchBoard, let schedule = latestSchedule, let url = Self.launchBoardURL else {
+            Perf.event("launchBoardWriteSkipped")
+            return
+        }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let from = calendar.date(byAdding: .day, value: -1, to: today),
+              let to = calendar.date(byAdding: .day, value: 3, to: today) else { return }
+        let liveIDs = Set(liveEvents.map(\.id))
+        let board = schedule.filteringGames { game in
+            if liveIDs.contains(game.id) || game.strStatus == "in" { return true }
+            guard let date = game.standardDate else { return false }
+            return date >= from && date < to
+        }
+        var teamIDs = Set<String>()
+        for game in [board.nba, board.mlb, board.soccer, board.nfl, board.nhl, board.golf, board.tennis, board.racing, board.cricket]
+            .compactMap({ $0?.events }).joined() {
+            if let id = game.idHomeTeam { teamIDs.insert(id) }
+            if let id = game.idAwayTeam { teamIDs.insert(id) }
+        }
+        let teams = self.teams.filter { $0.idTeam.map(teamIDs.contains) ?? false }
+        let snapshot = LaunchBoard(schedule: board, teams: teams, writtenAt: Date())
+        Task.detached(priority: .utility) {
+            do {
+                let data = try JSONEncoder().encode(snapshot)
+                try data.write(to: url, options: .atomic)
+                Perf.event("launchBoardWritten")
+            } catch {
+                if Perf.printsTimings {
+                    FileHandle.standardOutput.write(Data("PERF launchBoard write failed: \(error)\n".utf8))
+                }
+            }
+        }
+    }
+
     struct LaunchCaches: @unchecked Sendable {
         /// Games from the on-disk cache, possibly past their lifetime.
         var games: LiveScore?
@@ -957,6 +1044,8 @@ public class GameViewModel: NSObject {
     /// closer to the truth than the bundled baseline, which is cut at release time and
     /// can be weeks old. The baseline is only consulted when there is no disk cache.
     nonisolated static func readLaunchCaches() -> LaunchCaches {
+        let perfToken = Perf.begin("launchCacheDecode")
+        defer { Perf.end("launchCacheDecode", perfToken) }
         // Delete any cache files from prior schema versions so a stale on-disk copy
         // can never out-vote a fresh fetch. Bump Self.cacheSchemaVersion whenever
         // Game/LiveScore gains or changes fields.
@@ -999,12 +1088,32 @@ public class GameViewModel: NSObject {
 
     /// Applies `readLaunchCaches()`'s result on main. Never overwrites data a fetch has
     /// already delivered (the fetch paths await this task, so that's belt and braces).
+    /// Shows the launch board. Skipped if real data already arrived.
+    func applyLaunchBoard(_ board: LaunchBoard) {
+        guard totalGames?.isEmpty ?? true else {
+            if Perf.printsTimings { Perf.event("launchBoardSkipped") }
+            return
+        }
+        if teams.isEmpty, !board.teams.isEmpty {
+            teams = board.teams
+            buildTeamLookupCaches()
+        }
+        isShowingLaunchBoard = true
+        applyingLaunchBoard = true
+        // No widget/Spotlight work from a partial schedule.
+        setGames(result: board.schedule, skipSideEffects: true)
+        applyingLaunchBoard = false
+        if networkState == .loading { networkState = .loaded }
+        Perf.event("launchBoardShown")
+    }
+
     func applyLaunchCaches(_ loaded: LaunchCaches) {
         // Teams *before* games. setGames() runs a full filterSports pass (snapshot
         // write + Spotlight index + 45k filter/sort); doing it before teams exist
         // produced a wasted teams-less first pass that immediately re-ran once teams
         // arrived. Teams-first makes that first pass correct.
-        if teams.isEmpty {
+        // The launch board carried only its own games' teams; take the full set.
+        if teams.isEmpty || isShowingLaunchBoard {
             if let cachedTeams = loaded.teams, !cachedTeams.isEmpty {
                 teams = cachedTeams
                 teamCache?.insert(cachedTeams, for: "teams")
@@ -1014,7 +1123,8 @@ public class GameViewModel: NSObject {
                 buildTeamLookupCaches()
             }
         }
-        guard totalGames?.isEmpty ?? true else { return }
+        guard totalGames?.isEmpty ?? true || isShowingLaunchBoard else { return }
+        isShowingLaunchBoard = false
         var hasCachedData = false
         if let games = loaded.games {
             gameCache?.insert(games, for: "games")
@@ -2254,6 +2364,10 @@ public class GameViewModel: NSObject {
     }
 
     func setGames(result: LiveScore, skipLiveUpdate: Bool = false, skipSideEffects: Bool = false) {
+        let perfToken = Perf.begin("setGames")
+        defer { Perf.end("setGames", perfToken) }
+        latestSchedule = result
+        if !applyingLaunchBoard { isShowingLaunchBoard = false }
         // Invalidate caches since games changed
         gameWithTeamsCache.removeAll()
         gamesWithTeamsDateCache.removeAll()
@@ -2653,6 +2767,8 @@ public class GameViewModel: NSObject {
     }
 
     func filterSports(searchString: String? = nil, force: Bool = false, skipLiveUpdate: Bool = false, skipSideEffects: Bool = false) {
+        let perfToken = Perf.begin("filterSports")
+        defer { Perf.end("filterSports", perfToken) }
         fetchMissingSlicesIfNeeded()
         // Refresh filter-state hash so subsequent reads/writes use the right scope.
         currentFilterStateHash = computeFilterStateHash()
@@ -2677,8 +2793,8 @@ public class GameViewModel: NSObject {
                 SportType(league: Leagues.init(rawValue: Int(game.idLeague!)!)!)
             })
         }
-        let userPrefGames = getGamesFromUserPreferences()
-        filteredGames = filterAndSortGamesFromUserPreferences(games: userPrefGames)
+        let userPrefGames = Perf.measure("fs.prefs") { getGamesFromUserPreferences() }
+        filteredGames = Perf.measure("fs.filterSort") { filterAndSortGamesFromUserPreferences(games: userPrefGames) }
         // Invalidate the memoized calendar set — it's rebuilt lazily on next access
         // (Calendar/Browse tab), not eagerly here. filterSports is the single
         // chokepoint for every change that affects calendar membership (data
@@ -2686,13 +2802,13 @@ public class GameViewModel: NSObject {
         _calendarGamesCache = nil
         _nextGameByTeamID = nil
 
-        rebuildSportCountsCache()
+        Perf.measure("fs.counts") { rebuildSportCountsCache() }
         AppLogger.viewModel.info("Total games: \(self.totalGames?.count ?? 0), filtered: \(self.filteredGames?.count ?? 0)")
-        handleSearch(searchString: searchString)
-        sortByDate(userPrefGames: userPrefGames)
-        setFavorites()
+        Perf.measure("fs.search") { handleSearch(searchString: searchString) }
+        Perf.measure("fs.sortByDate") { sortByDate(userPrefGames: userPrefGames) }
+        Perf.measure("fs.favorites") { setFavorites() }
         if !skipLiveUpdate {
-            updateLiveData()
+            Perf.measure("fs.liveData") { updateLiveData() }
         }
 
         // The widget snapshot, Spotlight reindex, and intent donation are skipped
@@ -2753,7 +2869,11 @@ public class GameViewModel: NSObject {
     }
 
     private func runDerivedSideEffects() {
+        // A partial schedule must not reach the widget snapshot, Spotlight or the
+        // launch board; the full cache's setGames runs these moments later.
+        guard !isShowingLaunchBoard else { return }
         lastSideEffectRun = Date()
+        writeLaunchBoard()
 
         // Write trimmed snapshot for widget extension off main actor.
         // With "Hide past events" on (the default) `filteredGames` starts at *now*, so

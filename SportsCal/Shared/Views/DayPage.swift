@@ -478,6 +478,9 @@ struct DayPage: View {
         dayData.allGames.count
     }
 
+    /// `boardVisible` is the end of the launch budget; mark only the first one.
+    @MainActor private static var reportedBoardVisible = false
+
     var body: some View {
         Group {
             if isBoardLayout {
@@ -485,6 +488,11 @@ struct DayPage: View {
             } else {
                 listBody
             }
+        }
+        .onChange(of: visibleCountForDay > 0, initial: true) { _, hasGames in
+            guard hasGames, !Self.reportedBoardVisible else { return }
+            Self.reportedBoardVisible = true
+            Perf.event("boardVisible")
         }
         #if os(iOS)
         .onChange(of: gamesLayout) { oldLayout, newLayout in
@@ -617,6 +625,7 @@ struct DayPage: View {
     private var boardInspector: some View {
         if let id = boardSelectedGameID, let gwt = boardGameWithTeams(byID: id) {
             boardDetailView(for: gwt)
+                .onAppear { Perf.event("detailShown") }
                 .environment(\.hostSetsDetailTitle, true)
                 .id(id)   // rebuild section loaders when the selection changes
                 // Keep a comfortable reading measure on very wide inspector panes
@@ -749,6 +758,7 @@ struct DayPage: View {
     /// Tapping a board cell shows its detail: inline in the inspector on macOS,
     /// pushed full-screen on iOS.
     private func selectBoardGame(_ gwt: GameWithTeams) {
+        Perf.event("detailRequested")
         #if os(macOS)
         boardSelectedGameID = gwt.id
         boardInspectorVisible = true

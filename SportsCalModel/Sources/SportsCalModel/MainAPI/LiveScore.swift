@@ -632,6 +632,17 @@ public struct LiveScore: Equatable {
     public var f1Standings: F1Standings?
     public var worldCup: WorldCupEnrichment?
 
+    /// The same schedule with only the games that pass `isIncluded`; standings and
+    /// World Cup enrichment carry over. Used for the small launch-board snapshot.
+    public func filteringGames(_ isIncluded: (Game) -> Bool) -> LiveScore {
+        func keep(_ event: LiveEvent?) -> LiveEvent? {
+            event.map { LiveEvent(events: $0.events.filter(isIncluded)) }
+        }
+        return LiveScore(nba: keep(nba), mlb: keep(mlb), soccer: keep(soccer), nfl: keep(nfl),
+                         nhl: keep(nhl), golf: keep(golf), tennis: keep(tennis), racing: keep(racing),
+                         cricket: keep(cricket), f1Standings: f1Standings, worldCup: worldCup)
+    }
+
     public func event(for sport: SportType) -> LiveEvent? {
         switch sport {
         case .basketball: return nba
