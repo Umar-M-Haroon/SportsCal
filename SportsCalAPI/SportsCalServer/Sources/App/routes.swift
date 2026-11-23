@@ -599,6 +599,26 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
             throw Abort(.notFound)
         }
         let schedule = try await currentSchedule(req)
+        // `?window=hot`: only recent and upcoming games (see `ScheduleWindow`). New apps
+        // ask for this and fetch older games from `/schedules/history` on demand. The
+        // window moves daily, so the day is part of its version.
+        if req.query[String.self, at: "window"] == "hot" {
+            let now = Date()
+            let day = ScheduleWindow.dayIndex(now)
+            let variant = "slice:\(key.rawValue):hot"
+            let calendarVersion = schedule.calendar?[key.rawValue] ?? schedule.version
+            let etag = HTTPCaching.etag(version: "\(calendarVersion)|\(day)", variant: variant)
+            if HTTPCaching.notModified(req, etag: etag) {
+                return HTTPCaching.respond(req, etag: etag) { "" }
+            }
+            // Rebuilt when its fixtures change or the day turns, like the ETag: live ticks
+            // rewrite the blob every minute, and re-cutting every sport per tick would
+            // cost seconds of CPU a minute (scores arrive over the socket anyway).
+            let body = await DerivedPayloadCache.shared.value(variant: variant, version: "\(calendarVersion)|\(day)", source: schedule.value) { source in
+                ScheduleWindow.hotBody(for: key, in: source, now: now)
+            } ?? ScheduleWindow.hotBody(for: key, in: schedule.value, now: now)
+            return HTTPCaching.respond(req, etag: etag) { body }
+        }
         let variant = "slice:\(key.rawValue)"
         let etag = HTTPCaching.etag(version: schedule.calendar?[key.rawValue] ?? schedule.version, variant: variant)
         if HTTPCaching.notModified(req, etag: etag) {
@@ -607,6 +627,32 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         let body = await DerivedPayloadCache.shared.value(variant: variant, version: schedule.version, source: schedule.value) { source in
             ScheduleSlice.body(for: key, in: source)
         } ?? ScheduleSlice.body(for: key, in: schedule.value)
+        return HTTPCaching.respond(req, etag: etag) { body }
+    }
+
+    //MARK: - Schedule history
+    // Older games for apps that fetch only the hot window: one slice (`key`), narrowed by
+    // any of `from`/`to` (yyyyMMdd, inclusive), `team`, `league` or `event`. Same body
+    // shape as a slice. The slice's games stay decoded per calendar version
+    // (`ScheduleHistoryIndex`), so a request is a filter plus a small encode.
+    routes.get("schedules", "history") { req async throws -> Response in
+        guard let query = ScheduleHistoryQuery(
+            key: req.query[String.self, at: "key"],
+            from: req.query[String.self, at: "from"],
+            to: req.query[String.self, at: "to"],
+            team: req.query[String.self, at: "team"],
+            league: req.query[String.self, at: "league"],
+            event: req.query[String.self, at: "event"]
+        ) else {
+            throw Abort(.badRequest)
+        }
+        let schedule = try await currentSchedule(req)
+        let calendarVersion = schedule.calendar?[query.key.rawValue] ?? schedule.version
+        let etag = HTTPCaching.etag(version: calendarVersion, variant: query.variant)
+        if HTTPCaching.notModified(req, etag: etag) {
+            return HTTPCaching.respond(req, etag: etag) { "" }
+        }
+        let body = await ScheduleHistoryIndex.shared.body(for: query, source: schedule.value, stamp: calendarVersion)
         return HTTPCaching.respond(req, etag: etag) { body }
     }
 
