@@ -7,25 +7,16 @@
 
 import SwiftUI
 import RevenueCat
-import RevenueCatUI
 
 struct SubscriptionSheet: View {
     @Binding var subscriptionPresented: Bool
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        #if os(macOS)
-        // RevenueCatUI can't render our dashboard paywall on macOS (legacy
-        // templates are iOS-only: it shows an "Unknown error / platform not
-        // supported" fallback in a narrow column), so the Mac draws its own.
-        MacPaywallView(onFinish: close)
-        #else
-        PaywallView(displayCloseButton: true)
-            .onPurchaseCompleted { _ in close() }
-            .onRestoreCompleted { info in
-                if info.entitlements["Pro"]?.isActive == true { close() }
-            }
-        #endif
+        // Our own paywall on every platform. RevenueCatUI's can't render the
+        // dashboard (legacy) paywall on macOS at all, and on iOS its template only
+        // said "Get the ultimate experience" without saying what Pro includes.
+        ProPaywallView(onFinish: close)
     }
 
     /// Hosts drive this sheet either with this binding or with an enum
@@ -36,13 +27,13 @@ struct SubscriptionSheet: View {
     }
 }
 
-#if os(macOS)
-// MARK: - Mac paywall
+// MARK: - Paywall
 
-/// Native Mac paywall: benefits on the left, plans from the current
-/// RevenueCat offering on the right. Purchases go through RevenueCat, so the
-/// entitlement, receipts and telemetry match iOS.
-struct MacPaywallView: View {
+/// Scoreline Pro paywall: what Pro includes, then plans from the current
+/// RevenueCat offering. Two panes on the Mac, one scrolling column on iPhone and
+/// iPad. Purchases go through RevenueCat, so entitlements and receipts are the same
+/// as with RevenueCatUI.
+struct ProPaywallView: View {
     var onFinish: () -> Void
 
     @State private var packages: [Package] = []
@@ -61,6 +52,13 @@ struct MacPaywallView: View {
     }
 
     var body: some View {
+        content
+            .task { await loadOffering() }
+            .onDisappear { MonetizationTelemetry.paywallDismissed() }
+    }
+
+    #if os(macOS)
+    private var content: some View {
         HStack(spacing: 0) {
             benefitsPane
                 .frame(width: 330)
@@ -81,16 +79,53 @@ struct MacPaywallView: View {
             .help("Close")
             .padding(14)
         }
-        .task { await loadOffering() }
-        .onDisappear { MonetizationTelemetry.paywallDismissed() }
     }
+    #else
+    private var content: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                benefitsPane
+                planChoices
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+            }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .safeAreaInset(edge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                if let message {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                purchaseButton
+                footer
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 4)
+            .background(.bar)
+        }
+        .overlay(alignment: .topTrailing) {
+            Button(action: onFinish) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 30, height: 30)
+                    .background(.black.opacity(0.25), in: Circle())
+            }
+            .accessibilityLabel("Close")
+            .padding(16)
+        }
+    }
+    #endif
 
     // MARK: Benefits
 
     private var benefitsPane: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
+            #if os(macOS)
+            appIcon
                 .frame(width: 64, height: 64)
                 .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
                 .padding(.bottom, 14)
@@ -101,10 +136,33 @@ struct MacPaywallView: View {
                 .font(.callout)
                 .foregroundStyle(.white.opacity(0.75))
                 .padding(.top, 2)
+            #else
+            // iPhone: icon beside the title and one line per benefit, so every plan
+            // sits above the purchase button without scrolling.
+            HStack(spacing: 14) {
+                appIcon
+                    .frame(width: 52, height: 52)
+                    .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Scoreline Pro")
+                        .font(.system(size: 26, weight: .bold))
+                    Text("More from every game you follow.")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.75))
+                }
+            }
+            .padding(.trailing, 36) // clear of the close button
+            #endif
 
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: Self.benefitSpacing) {
+                #if os(macOS)
                 benefit("menubar.rectangle", "Live scores in the menu bar",
                         "Every game you follow, one glance away.")
+                #else
+                benefit("bell.and.waves.left.and.right", ProFeature.goalAlerts.displayName,
+                        "Your phone buzzes the moment your team scores.")
+                benefit("nosign", "No Ads", "Scores and schedules without ads.")
+                #endif
                 benefit("bell.badge.waveform", ProFeature.customAlerts.displayName,
                         ProFeature.customAlerts.blurb)
                 benefit("alarm", ProFeature.preGameReminders.displayName,
@@ -114,13 +172,17 @@ struct MacPaywallView: View {
                 benefit("slider.horizontal.3", ProFeature.proSettings.displayName,
                         ProFeature.proSettings.blurb)
             }
-            .padding(.top, 26)
+            .padding(.top, Self.benefitSpacing + 8)
 
             Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
+        #if os(macOS)
         .padding(28)
         .padding(.top, 8)
+        #else
+        .padding(20)
+        #endif
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background {
             LinearGradient(
@@ -128,6 +190,17 @@ struct MacPaywallView: View {
                 startPoint: .topLeading, endPoint: .bottomTrailing
             )
         }
+    }
+
+    @ViewBuilder
+    private var appIcon: some View {
+        #if os(macOS)
+        Image(nsImage: NSApp.applicationIconImage)
+            .resizable()
+        #else
+        AppIconThumbnail(icon: .standard)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        #endif
     }
 
     private func benefit(_ symbol: String, _ title: String, _ detail: String) -> some View {
@@ -138,39 +211,54 @@ struct MacPaywallView: View {
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.callout.weight(.semibold))
+                #if os(macOS)
                 Text(detail)
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.75))
                     .fixedSize(horizontal: false, vertical: true)
+                #endif
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(detail)
     }
+
+    #if os(macOS)
+    private static var benefitSpacing: CGFloat { 14 }
+    #else
+    private static var benefitSpacing: CGFloat { 10 }
+    #endif
 
     // MARK: Plans
 
-    private var plansPane: some View {
+    /// "Choose your plan" and the plan rows, shared by both layouts.
+    private var planChoices: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Choose your plan")
                 .font(.title3.weight(.semibold))
                 .padding(.bottom, 14)
 
-            Group {
-                if isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if loadFailed || packages.isEmpty {
-                    loadErrorView
-                } else {
-                    VStack(spacing: 10) {
-                        ForEach(packages, id: \.identifier) { package in
-                            planRow(package)
-                        }
+            if isLoading {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, minHeight: 120)
+            } else if loadFailed || packages.isEmpty {
+                loadErrorView
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(packages, id: \.identifier) { package in
+                        planRow(package)
                     }
-                    Spacer(minLength: 0)
                 }
             }
-            .frame(maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    #if os(macOS)
+    private var plansPane: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            planChoices
+                .frame(maxHeight: .infinity, alignment: .top)
 
             if let message {
                 Text(message)
@@ -187,6 +275,7 @@ struct MacPaywallView: View {
         .padding(28)
         .padding(.top, 8)
     }
+    #endif
 
     private var loadErrorView: some View {
         VStack(spacing: 10) {
@@ -200,7 +289,7 @@ struct MacPaywallView: View {
                 .foregroundStyle(.secondary)
             Button("Try Again") { Task { await loadOffering() } }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 160)
     }
 
     private func planRow(_ package: Package) -> some View {
@@ -289,7 +378,11 @@ struct MacPaywallView: View {
                 Link("Terms of Use", destination: Self.termsURL)
                 Link("Privacy Policy", destination: Self.privacyURL)
             }
+            #if os(macOS)
             .buttonStyle(.link)
+            #else
+            .buttonStyle(.borderless)
+            #endif
             .font(.caption)
         }
     }
@@ -433,7 +526,6 @@ struct MacPaywallView: View {
         }
     }
 }
-#endif
 
 #Preview {
     SubscriptionSheet(subscriptionPresented: .constant(true))

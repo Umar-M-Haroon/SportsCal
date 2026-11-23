@@ -529,9 +529,8 @@ struct SettingsView: View {
     @State private var restoreMessage = ""
     #if os(iOS)
     @State private var showCustomerCenter = false
-    #else
-    @State private var showMacPaywall = false
     #endif
+    @State private var showPaywall = false
     @State private var whatsNewRelease: WhatsNewRelease?
     @Environment(\.openURL) private var openURL
     var isTestFlight: Bool {
@@ -581,17 +580,10 @@ struct SettingsView: View {
                     }
                     .foregroundStyle(.primary)
                 }
-                #if os(macOS)
-                // RevenueCatUI's paywall can't render on macOS; use the native sheet.
-                Button("Scoreline Pro") { showMacPaywall = true }
-                    .sheet(isPresented: $showMacPaywall) {
-                        SubscriptionSheet(subscriptionPresented: $showMacPaywall)
+                Button("Scoreline Pro") { showPaywall = true }
+                    .sheet(isPresented: $showPaywall) {
+                        SubscriptionSheet(subscriptionPresented: $showPaywall)
                     }
-                #else
-                NavigationLink("Scoreline Pro") {
-                    PaywallView()
-                }
-                #endif
                 // Per-sport league visibility now lives inside Manage Sports, under the
                 // sport it belongs to, rather than as a stack of separate top-level
                 // sections here. The section types below are still used by the Mac

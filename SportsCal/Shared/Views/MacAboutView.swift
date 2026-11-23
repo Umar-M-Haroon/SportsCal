@@ -97,7 +97,7 @@ struct MacAboutView: View {
             .buttonStyle(.bordered)
             .controlSize(.large)
 
-            Text("© Komodo LLC")
+            Text("© 2026 Mighty Panda LLC")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
