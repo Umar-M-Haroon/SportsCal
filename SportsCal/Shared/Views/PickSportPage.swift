@@ -215,8 +215,17 @@ struct OnboardingTeamSection: Identifiable, Equatable {
             }
             .sorted { lhs, rhs in
                 let l = enabled.firstIndex(of: lhs.sport) ?? .max, r = enabled.firstIndex(of: rhs.sport) ?? .max
-                return l != r ? l < r : lhs.title < rhs.title
+                if l != r { return l < r }
+                // The pro league leads its sport: someone who picked the NBA should see
+                // NBA teams first, not "College Basketball" because it sorts earlier.
+                let lCollege = isCollege(lhs.id), rCollege = isCollege(rhs.id)
+                if lCollege != rCollege { return !lCollege }
+                return lhs.title < rhs.title
             }
+    }
+
+    private static func isCollege(_ leagueID: String) -> Bool {
+        leagueID == String(Leagues.ncaaf.rawValue) || leagueID == String(Leagues.ncaaMBBTournament.rawValue)
     }
 }
 
