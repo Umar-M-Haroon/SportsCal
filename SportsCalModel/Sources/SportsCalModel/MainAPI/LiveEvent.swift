@@ -778,8 +778,23 @@ public enum DateParsers {
 }
 
 // MARK: - Event
+/// A fixture. Copy-on-write: the fields live in one shared `Storage` box (see below),
+/// so a `Game` is pointer-sized and the many `[Game]` copies the app keeps share one
+/// payload per game. Writes through a `var` clone the box first if it's shared.
 public struct Game: Identifiable, Equatable, Hashable {
+    private var _storage: Storage
+
+    /// The box, cloned first if another `Game` shares it, ready to write.
+    @inline(__always)
+    private mutating func _uniqueStorage() -> Storage {
+        if !isKnownUniquelyReferenced(&_storage) {
+            _storage = _storage.copy()
+        }
+        return _storage
+    }
+
     public init(idLiveScore: String? = nil, idEvent: String? = nil, strSport: String? = nil, idLeague: String? = nil, strLeague: String? = nil, idHomeTeam: String? = nil, idAwayTeam: String? = nil, strHomeTeam: String, strAwayTeam: String, strHomeTeamBadge: String? = nil, strAwayTeamBadge: String? = nil, intHomeScore: String? = nil, intAwayScore: String? = nil, strPlayer: String?? = nil, idPlayer: String?? = nil, intEventScore: String?? = nil, intEventScoreTotal: String?? = nil, strStatus: String? = nil, strProgress: String? = nil, strEventTime: String? = nil, dateEvent: String? = nil, updated: String? = nil, strTimestamp: String? = nil, lastPlay: String? = nil, homeLinescores: [Double]? = nil, awayLinescores: [Double]? = nil, homeLeaders: [GameLeader]? = nil, awayLeaders: [GameLeader]? = nil, isCompleted: Bool? = false, isoDate: Date?, leaderboardEntries: [LeaderboardEntry]? = nil, sessions: [EventSession]? = nil, venueName: String? = nil, homeTeamColor: String? = nil, awayTeamColor: String? = nil, homeRecord: String? = nil, awayRecord: String? = nil, circuitInfo: F1CircuitInfo? = nil, golfCourseInfo: GolfCourseInfo? = nil, legDisplay: String? = nil, aggregateScore: String? = nil, homeSeed: Int? = nil, awaySeed: Int? = nil, homeConference: String? = nil, awayConference: String? = nil, tournamentName: String? = nil, round: String? = nil, drawSlug: String? = nil, homeInjuries: [InjuryReport]? = nil, awayInjuries: [InjuryReport]? = nil, raceTiming: F1RaceTiming? = nil, playoff: PlayoffContext? = nil, lastPlayScoreboardID: String? = nil, endDate: String? = nil, season: String? = nil, seasonPhase: SeasonPhase? = nil, sportsDBRound: Int? = nil, situation: GameSituation? = nil, excitement: Int? = nil, scoreboardExtras: ScoreboardExtras? = nil, homeAbbreviation: String? = nil, awayAbbreviation: String? = nil, timeTBD: Bool? = nil) {
+        self._storage = Storage()
         self.idLiveScore = idLiveScore
         self.idEvent = idEvent
         self._strSport = strSport
@@ -864,49 +879,179 @@ public struct Game: Identifiable, Equatable, Hashable {
         let when = strTimestamp ?? isoDate.map { String($0.timeIntervalSince1970) } ?? "?"
         return "syn:\(idLeague ?? "?")|\(strHomeTeam)|\(strAwayTeam)|\(when)"
     }
-    public let idLiveScore, idEvent: String?
-    public let idLeague: String?
-    public let idHomeTeam, idAwayTeam: String?
-    public let strHomeTeam: String
-    public let strAwayTeam: String
-    public let strHomeTeamBadge, strAwayTeamBadge: String?
-    public let intHomeScore, intAwayScore: String?
-    public let strStatus, strProgress: String?
-    public let strTimestamp: String?
-    public let lastPlay: String?
-    public let homeLinescores: [Double]?
-    public let awayLinescores: [Double]?
-    public let homeLeaders: [GameLeader]?
-    public let awayLeaders: [GameLeader]?
-    public var isCompleted: Bool? = false
-    public var isoDate: Date?
-    public var leaderboardEntries: [LeaderboardEntry]?
-    public let sessions: [EventSession]?
-    public let venueName: String?
-    public let homeTeamColor: String?
-    public let awayTeamColor: String?
-    public let homeRecord: String?
-    public let awayRecord: String?
-    @Indirect public internal(set) var circuitInfo: F1CircuitInfo?
-    @Indirect public var golfCourseInfo: GolfCourseInfo?
+    public internal(set) var idLiveScore: String? {
+        get { _storage.idLiveScore }
+        set { _uniqueStorage().idLiveScore = newValue }
+    }
+    public internal(set) var idEvent: String? {
+        get { _storage.idEvent }
+        set { _uniqueStorage().idEvent = newValue }
+    }
+    public internal(set) var idLeague: String? {
+        get { _storage.idLeague }
+        set { _uniqueStorage().idLeague = newValue }
+    }
+    public internal(set) var idHomeTeam: String? {
+        get { _storage.idHomeTeam }
+        set { _uniqueStorage().idHomeTeam = newValue }
+    }
+    public internal(set) var idAwayTeam: String? {
+        get { _storage.idAwayTeam }
+        set { _uniqueStorage().idAwayTeam = newValue }
+    }
+    public internal(set) var strHomeTeam: String {
+        get { _storage.strHomeTeam }
+        set { _uniqueStorage().strHomeTeam = newValue }
+    }
+    public internal(set) var strAwayTeam: String {
+        get { _storage.strAwayTeam }
+        set { _uniqueStorage().strAwayTeam = newValue }
+    }
+    public internal(set) var strHomeTeamBadge: String? {
+        get { _storage.strHomeTeamBadge }
+        set { _uniqueStorage().strHomeTeamBadge = newValue }
+    }
+    public internal(set) var strAwayTeamBadge: String? {
+        get { _storage.strAwayTeamBadge }
+        set { _uniqueStorage().strAwayTeamBadge = newValue }
+    }
+    public internal(set) var intHomeScore: String? {
+        get { _storage.intHomeScore }
+        set { _uniqueStorage().intHomeScore = newValue }
+    }
+    public internal(set) var intAwayScore: String? {
+        get { _storage.intAwayScore }
+        set { _uniqueStorage().intAwayScore = newValue }
+    }
+    public internal(set) var strStatus: String? {
+        get { _storage.strStatus }
+        set { _uniqueStorage().strStatus = newValue }
+    }
+    public internal(set) var strProgress: String? {
+        get { _storage.strProgress }
+        set { _uniqueStorage().strProgress = newValue }
+    }
+    public internal(set) var strTimestamp: String? {
+        get { _storage.strTimestamp }
+        set { _uniqueStorage().strTimestamp = newValue }
+    }
+    public internal(set) var lastPlay: String? {
+        get { _storage.lastPlay }
+        set { _uniqueStorage().lastPlay = newValue }
+    }
+    public internal(set) var homeLinescores: [Double]? {
+        get { _storage.homeLinescores }
+        set { _uniqueStorage().homeLinescores = newValue }
+    }
+    public internal(set) var awayLinescores: [Double]? {
+        get { _storage.awayLinescores }
+        set { _uniqueStorage().awayLinescores = newValue }
+    }
+    public internal(set) var homeLeaders: [GameLeader]? {
+        get { _storage.homeLeaders }
+        set { _uniqueStorage().homeLeaders = newValue }
+    }
+    public internal(set) var awayLeaders: [GameLeader]? {
+        get { _storage.awayLeaders }
+        set { _uniqueStorage().awayLeaders = newValue }
+    }
+    public var isCompleted: Bool? {
+        get { _storage.isCompleted }
+        set { _uniqueStorage().isCompleted = newValue }
+        _modify { yield &_uniqueStorage().isCompleted }
+    }
+    public var isoDate: Date? {
+        get { _storage.isoDate }
+        set { _uniqueStorage().isoDate = newValue }
+        _modify { yield &_uniqueStorage().isoDate }
+    }
+    public var leaderboardEntries: [LeaderboardEntry]? {
+        get { _storage.leaderboardEntries }
+        set { _uniqueStorage().leaderboardEntries = newValue }
+        _modify { yield &_uniqueStorage().leaderboardEntries }
+    }
+    public internal(set) var sessions: [EventSession]? {
+        get { _storage.sessions }
+        set { _uniqueStorage().sessions = newValue }
+    }
+    public internal(set) var venueName: String? {
+        get { _storage.venueName }
+        set { _uniqueStorage().venueName = newValue }
+    }
+    public internal(set) var homeTeamColor: String? {
+        get { _storage.homeTeamColor }
+        set { _uniqueStorage().homeTeamColor = newValue }
+    }
+    public internal(set) var awayTeamColor: String? {
+        get { _storage.awayTeamColor }
+        set { _uniqueStorage().awayTeamColor = newValue }
+    }
+    public internal(set) var homeRecord: String? {
+        get { _storage.homeRecord }
+        set { _uniqueStorage().homeRecord = newValue }
+    }
+    public internal(set) var awayRecord: String? {
+        get { _storage.awayRecord }
+        set { _uniqueStorage().awayRecord = newValue }
+    }
+    public internal(set) var circuitInfo: F1CircuitInfo? {
+        get { _storage.circuitInfo }
+        set { _uniqueStorage().circuitInfo = newValue }
+        _modify { yield &_uniqueStorage().circuitInfo }
+    }
+    public var golfCourseInfo: GolfCourseInfo? {
+        get { _storage.golfCourseInfo }
+        set { _uniqueStorage().golfCourseInfo = newValue }
+        _modify { yield &_uniqueStorage().golfCourseInfo }
+    }
     /// Last day of a multi-day event — a golf tournament's Sunday. Nil for single-day games.
     /// `strTimestamp` stays the start, so an event spans `strTimestamp...endDate`.
-    public let endDate: String?
-    public let legDisplay: String?
-    public let aggregateScore: String?
-    public let homeSeed: Int?
-    public let awaySeed: Int?
+    public internal(set) var endDate: String? {
+        get { _storage.endDate }
+        set { _uniqueStorage().endDate = newValue }
+    }
+    public internal(set) var legDisplay: String? {
+        get { _storage.legDisplay }
+        set { _uniqueStorage().legDisplay = newValue }
+    }
+    public internal(set) var aggregateScore: String? {
+        get { _storage.aggregateScore }
+        set { _uniqueStorage().aggregateScore = newValue }
+    }
+    public internal(set) var homeSeed: Int? {
+        get { _storage.homeSeed }
+        set { _uniqueStorage().homeSeed = newValue }
+    }
+    public internal(set) var awaySeed: Int? {
+        get { _storage.awaySeed }
+        set { _uniqueStorage().awaySeed = newValue }
+    }
     /// College football: each team's conference as a `CollegeConference` raw value ("sec", "bigTen"; "fcs" for
     /// a lower-division opponent). Nil for every other league. Drives the conference
     /// picks and sections — read `collegeConferences` for the typed values.
-    public var homeConference: String?
-    public var awayConference: String?
+    public var homeConference: String? {
+        get { _storage.homeConference }
+        set { _uniqueStorage().homeConference = newValue }
+        _modify { yield &_uniqueStorage().homeConference }
+    }
+    public var awayConference: String? {
+        get { _storage.awayConference }
+        set { _uniqueStorage().awayConference = newValue }
+        _modify { yield &_uniqueStorage().awayConference }
+    }
     /// Tennis: ESPN tournament grouping ("Wimbledon"). Mutable so the server can
     /// suffix past-season editions ("Wimbledon 2025") and keep them browsable
     /// without merging into the current edition of the same name.
-    public var tournamentName: String?
+    public var tournamentName: String? {
+        get { _storage.tournamentName }
+        set { _uniqueStorage().tournamentName = newValue }
+        _modify { yield &_uniqueStorage().tournamentName }
+    }
     /// Tennis: round name (e.g. "Quarterfinal", "Round of 16"). Nil for non-tennis.
-    public let round: String?
+    public internal(set) var round: String? {
+        get { _storage.round }
+        set { _uniqueStorage().round = newValue }
+    }
     /// Tennis: which draw this match belongs to — ESPN's grouping slug, e.g.
     /// `mens-singles`, `womens-doubles`, `mixed-doubles`. Nil for non-tennis.
     ///
@@ -914,55 +1059,115 @@ public struct Game: Identifiable, Equatable, Hashable {
     /// from it at ingest, but the two can drift: the schedule merge keeps the schedule's
     /// league while taking the draw from ESPN. The draw is also what lets mixed doubles
     /// belong to *both* tours, which a single `idLeague` cannot express.
-    public let drawSlug: String?
-    public let homeInjuries: [InjuryReport]?
-    public let awayInjuries: [InjuryReport]?
-    public let raceTiming: F1RaceTiming?
-    @Indirect public internal(set) var playoff: PlayoffContext?
+    public internal(set) var drawSlug: String? {
+        get { _storage.drawSlug }
+        set { _uniqueStorage().drawSlug = newValue }
+    }
+    public internal(set) var homeInjuries: [InjuryReport]? {
+        get { _storage.homeInjuries }
+        set { _uniqueStorage().homeInjuries = newValue }
+    }
+    public internal(set) var awayInjuries: [InjuryReport]? {
+        get { _storage.awayInjuries }
+        set { _uniqueStorage().awayInjuries = newValue }
+    }
+    public internal(set) var raceTiming: F1RaceTiming? {
+        get { _storage.raceTiming }
+        set { _uniqueStorage().raceTiming = newValue }
+    }
+    public internal(set) var playoff: PlayoffContext? {
+        get { _storage.playoff }
+        set { _uniqueStorage().playoff = newValue }
+        _modify { yield &_uniqueStorage().playoff }
+    }
 
     /// Transient scoreboard play ID (`competition.situation.lastPlay.id`) used server-side to
     /// decide when to re-fetch play-by-play from ESPN's summary endpoint. Not persisted to Redis
     /// or sent to clients — absent from Codable keys on purpose.
-    public let lastPlayScoreboardID: String?
+    public internal(set) var lastPlayScoreboardID: String? {
+        get { _storage.lastPlayScoreboardID }
+        set { _uniqueStorage().lastPlayScoreboardID = newValue }
+    }
 
     /// The season this game belongs to, in TheSportsDB's label format: "2025-2026", or
     /// "2025" for single-year leagues. Sent as `strSeason`, TheSportsDB's own key, so
     /// schedule rows carry it straight through. Read ``resolvedSeason`` for display.
-    public var season: String?
+    public var season: String? {
+        get { _storage.season }
+        set { _uniqueStorage().season = newValue }
+        _modify { yield &_uniqueStorage().season }
+    }
     /// Preseason / regular season / play-in / playoffs, for leagues that have them.
     /// `.regular` is omitted on the wire — read ``resolvedSeasonPhase``.
-    public var seasonPhase: SeasonPhase?
+    public var seasonPhase: SeasonPhase? {
+        get { _storage.seasonPhase }
+        set { _uniqueStorage().seasonPhase = newValue }
+        _modify { yield &_uniqueStorage().seasonPhase }
+    }
     /// TheSportsDB `intRound`, decoded on ingest so ``SeasonPhase/assignPhases(_:league:)``
     /// can derive `seasonPhase`. ESPN-built football rows put the regular-season week
     /// here too. Encoded for football (the week, read ``footballWeek``) and soccer (the
     /// matchday) only.
-    public let sportsDBRound: Int?
+    public internal(set) var sportsDBRound: Int? {
+        get { _storage.sportsDBRound }
+        set { _uniqueStorage().sportsDBRound = newValue }
+    }
 
     /// Live state beyond the score — count and runners, down and distance, win
     /// probability. Only meaningful while `strStatus == "in"`, and only encoded then,
     /// so a final game never carries a stale situation on the wire.
-    @Indirect public var situation: GameSituation?
+    public var situation: GameSituation? {
+        get { _storage.situation }
+        set { _uniqueStorage().situation = newValue }
+        _modify { yield &_uniqueStorage().situation }
+    }
     /// "Worth watching" score, 0...100, for a finished game whose league publishes win
     /// probability. Spoiler-free by design: it says how tense the game was, not who won.
-    public var excitement: Int?
+    public var excitement: Int? {
+        get { _storage.excitement }
+        set { _uniqueStorage().excitement = newValue }
+        _modify { yield &_uniqueStorage().excitement }
+    }
     /// ESPN scoreboard extras: winner, shootout goals, R/H/E and pitchers, goals and
     /// cards, TV. Read through the forwarding properties (`homeWinner`, `soccerDetails`,
     /// …). Every `Game(...)` rebuild must carry it, like `season`/`seasonPhase`; a merge
     /// takes a fresh ESPN copy whole. See ``ScoreboardExtras``.
-    @Indirect public var scoreboardExtras: ScoreboardExtras?
+    public var scoreboardExtras: ScoreboardExtras? {
+        get { _storage.scoreboardExtras }
+        set { _uniqueStorage().scoreboardExtras = newValue }
+        _modify { yield &_uniqueStorage().scoreboardExtras }
+    }
     /// The source's own team abbreviation ("BYU", "UCLA", "BC"). Only sent for leagues
     /// whose teams aren't in the `/teams` directory (college football), where the app
     /// would otherwise have to guess a code from the name.
-    public var homeAbbreviation: String?
-    public var awayAbbreviation: String?
+    public var homeAbbreviation: String? {
+        get { _storage.homeAbbreviation }
+        set { _uniqueStorage().homeAbbreviation = newValue }
+        _modify { yield &_uniqueStorage().homeAbbreviation }
+    }
+    public var awayAbbreviation: String? {
+        get { _storage.awayAbbreviation }
+        set { _uniqueStorage().awayAbbreviation = newValue }
+        _modify { yield &_uniqueStorage().awayAbbreviation }
+    }
     /// The date is set but the kickoff time isn't (ESPN `timeValid == false`; it parks
     /// the game at midnight Eastern). Read ``isTimeTBD``, which also covers old servers.
-    public var timeTBD: Bool?
+    public var timeTBD: Bool? {
+        get { _storage.timeTBD }
+        set { _uniqueStorage().timeTBD = newValue }
+        _modify { yield &_uniqueStorage().timeTBD }
+    }
 
     // MARK: - Computed Properties (derived from idLeague)
     // Private storage for backward compatibility when decoding old data
-    private let _strSport: String?
-    private let _strLeague: String?
+    private var _strSport: String? {
+        get { _storage._strSport }
+        set { _uniqueStorage()._strSport = newValue }
+    }
+    private var _strLeague: String? {
+        get { _storage._strLeague }
+        set { _uniqueStorage()._strLeague = newValue }
+    }
 
     /// Sport type, computed from idLeague when possible
     public var strSport: String? {
@@ -978,6 +1183,276 @@ public struct Game: Identifiable, Equatable, Hashable {
             return league.leagueName
         }
         return _strLeague
+    }
+}
+
+
+// MARK: - Storage
+
+extension Game {
+    /// The fields of a `Game`, held out of line so every copy of a game (the
+    /// schedule, per-sport buckets, filtered/sorted/day caches...) shares one payload
+    /// and a `Game` is a single pointer wide. Copy-on-write: a write through a
+    /// shared `Game` first clones the box (`_uniqueStorage()`), so value semantics hold.
+    ///
+    /// `@unchecked Sendable`: the box is only mutated while uniquely referenced by one
+    /// `Game` value, the same exclusivity a stored struct field has.
+    final class Storage: @unchecked Sendable {
+        var idLiveScore: String? = nil
+        var idEvent: String? = nil
+        var idLeague: String? = nil
+        var idHomeTeam: String? = nil
+        var idAwayTeam: String? = nil
+        var strHomeTeam: String = ""
+        var strAwayTeam: String = ""
+        var strHomeTeamBadge: String? = nil
+        var strAwayTeamBadge: String? = nil
+        var intHomeScore: String? = nil
+        var intAwayScore: String? = nil
+        var strStatus: String? = nil
+        var strProgress: String? = nil
+        var strTimestamp: String? = nil
+        var lastPlay: String? = nil
+        var homeLinescores: [Double]? = nil
+        var awayLinescores: [Double]? = nil
+        var homeLeaders: [GameLeader]? = nil
+        var awayLeaders: [GameLeader]? = nil
+        var isCompleted: Bool? = false
+        var isoDate: Date? = nil
+        var leaderboardEntries: [LeaderboardEntry]? = nil
+        var sessions: [EventSession]? = nil
+        var venueName: String? = nil
+        var homeTeamColor: String? = nil
+        var awayTeamColor: String? = nil
+        var homeRecord: String? = nil
+        var awayRecord: String? = nil
+        var circuitInfo: F1CircuitInfo? = nil
+        var golfCourseInfo: GolfCourseInfo? = nil
+        var endDate: String? = nil
+        var legDisplay: String? = nil
+        var aggregateScore: String? = nil
+        var homeSeed: Int? = nil
+        var awaySeed: Int? = nil
+        var homeConference: String? = nil
+        var awayConference: String? = nil
+        var tournamentName: String? = nil
+        var round: String? = nil
+        var drawSlug: String? = nil
+        var homeInjuries: [InjuryReport]? = nil
+        var awayInjuries: [InjuryReport]? = nil
+        var raceTiming: F1RaceTiming? = nil
+        var playoff: PlayoffContext? = nil
+        var lastPlayScoreboardID: String? = nil
+        var season: String? = nil
+        var seasonPhase: SeasonPhase? = nil
+        var sportsDBRound: Int? = nil
+        var situation: GameSituation? = nil
+        var excitement: Int? = nil
+        var scoreboardExtras: ScoreboardExtras? = nil
+        var homeAbbreviation: String? = nil
+        var awayAbbreviation: String? = nil
+        var timeTBD: Bool? = nil
+        var _strSport: String? = nil
+        var _strLeague: String? = nil
+
+        init() {}
+
+        func copy() -> Storage {
+            let c = Storage()
+            c.idLiveScore = idLiveScore
+            c.idEvent = idEvent
+            c.idLeague = idLeague
+            c.idHomeTeam = idHomeTeam
+            c.idAwayTeam = idAwayTeam
+            c.strHomeTeam = strHomeTeam
+            c.strAwayTeam = strAwayTeam
+            c.strHomeTeamBadge = strHomeTeamBadge
+            c.strAwayTeamBadge = strAwayTeamBadge
+            c.intHomeScore = intHomeScore
+            c.intAwayScore = intAwayScore
+            c.strStatus = strStatus
+            c.strProgress = strProgress
+            c.strTimestamp = strTimestamp
+            c.lastPlay = lastPlay
+            c.homeLinescores = homeLinescores
+            c.awayLinescores = awayLinescores
+            c.homeLeaders = homeLeaders
+            c.awayLeaders = awayLeaders
+            c.isCompleted = isCompleted
+            c.isoDate = isoDate
+            c.leaderboardEntries = leaderboardEntries
+            c.sessions = sessions
+            c.venueName = venueName
+            c.homeTeamColor = homeTeamColor
+            c.awayTeamColor = awayTeamColor
+            c.homeRecord = homeRecord
+            c.awayRecord = awayRecord
+            c.circuitInfo = circuitInfo
+            c.golfCourseInfo = golfCourseInfo
+            c.endDate = endDate
+            c.legDisplay = legDisplay
+            c.aggregateScore = aggregateScore
+            c.homeSeed = homeSeed
+            c.awaySeed = awaySeed
+            c.homeConference = homeConference
+            c.awayConference = awayConference
+            c.tournamentName = tournamentName
+            c.round = round
+            c.drawSlug = drawSlug
+            c.homeInjuries = homeInjuries
+            c.awayInjuries = awayInjuries
+            c.raceTiming = raceTiming
+            c.playoff = playoff
+            c.lastPlayScoreboardID = lastPlayScoreboardID
+            c.season = season
+            c.seasonPhase = seasonPhase
+            c.sportsDBRound = sportsDBRound
+            c.situation = situation
+            c.excitement = excitement
+            c.scoreboardExtras = scoreboardExtras
+            c.homeAbbreviation = homeAbbreviation
+            c.awayAbbreviation = awayAbbreviation
+            c.timeTBD = timeTBD
+            c._strSport = _strSport
+            c._strLeague = _strLeague
+            return c
+        }
+
+        /// Field-by-field equality, one comparison per statement to keep the type
+        /// checker fast (Linux has choked on long `&&` chains).
+        func isEqual(to o: Storage) -> Bool {
+            guard idLiveScore == o.idLiveScore else { return false }
+            guard idEvent == o.idEvent else { return false }
+            guard idLeague == o.idLeague else { return false }
+            guard idHomeTeam == o.idHomeTeam else { return false }
+            guard idAwayTeam == o.idAwayTeam else { return false }
+            guard strHomeTeam == o.strHomeTeam else { return false }
+            guard strAwayTeam == o.strAwayTeam else { return false }
+            guard strHomeTeamBadge == o.strHomeTeamBadge else { return false }
+            guard strAwayTeamBadge == o.strAwayTeamBadge else { return false }
+            guard intHomeScore == o.intHomeScore else { return false }
+            guard intAwayScore == o.intAwayScore else { return false }
+            guard strStatus == o.strStatus else { return false }
+            guard strProgress == o.strProgress else { return false }
+            guard strTimestamp == o.strTimestamp else { return false }
+            guard lastPlay == o.lastPlay else { return false }
+            guard homeLinescores == o.homeLinescores else { return false }
+            guard awayLinescores == o.awayLinescores else { return false }
+            guard homeLeaders == o.homeLeaders else { return false }
+            guard awayLeaders == o.awayLeaders else { return false }
+            guard isCompleted == o.isCompleted else { return false }
+            guard isoDate == o.isoDate else { return false }
+            guard leaderboardEntries == o.leaderboardEntries else { return false }
+            guard sessions == o.sessions else { return false }
+            guard venueName == o.venueName else { return false }
+            guard homeTeamColor == o.homeTeamColor else { return false }
+            guard awayTeamColor == o.awayTeamColor else { return false }
+            guard homeRecord == o.homeRecord else { return false }
+            guard awayRecord == o.awayRecord else { return false }
+            guard circuitInfo == o.circuitInfo else { return false }
+            guard golfCourseInfo == o.golfCourseInfo else { return false }
+            guard endDate == o.endDate else { return false }
+            guard legDisplay == o.legDisplay else { return false }
+            guard aggregateScore == o.aggregateScore else { return false }
+            guard homeSeed == o.homeSeed else { return false }
+            guard awaySeed == o.awaySeed else { return false }
+            guard homeConference == o.homeConference else { return false }
+            guard awayConference == o.awayConference else { return false }
+            guard tournamentName == o.tournamentName else { return false }
+            guard round == o.round else { return false }
+            guard drawSlug == o.drawSlug else { return false }
+            guard homeInjuries == o.homeInjuries else { return false }
+            guard awayInjuries == o.awayInjuries else { return false }
+            guard raceTiming == o.raceTiming else { return false }
+            guard playoff == o.playoff else { return false }
+            guard lastPlayScoreboardID == o.lastPlayScoreboardID else { return false }
+            guard season == o.season else { return false }
+            guard seasonPhase == o.seasonPhase else { return false }
+            guard sportsDBRound == o.sportsDBRound else { return false }
+            guard situation == o.situation else { return false }
+            guard excitement == o.excitement else { return false }
+            guard scoreboardExtras == o.scoreboardExtras else { return false }
+            guard homeAbbreviation == o.homeAbbreviation else { return false }
+            guard awayAbbreviation == o.awayAbbreviation else { return false }
+            guard timeTBD == o.timeTBD else { return false }
+            guard _strSport == o._strSport else { return false }
+            guard _strLeague == o._strLeague else { return false }
+            return true
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(idLiveScore)
+            hasher.combine(idEvent)
+            hasher.combine(idLeague)
+            hasher.combine(idHomeTeam)
+            hasher.combine(idAwayTeam)
+            hasher.combine(strHomeTeam)
+            hasher.combine(strAwayTeam)
+            hasher.combine(strHomeTeamBadge)
+            hasher.combine(strAwayTeamBadge)
+            hasher.combine(intHomeScore)
+            hasher.combine(intAwayScore)
+            hasher.combine(strStatus)
+            hasher.combine(strProgress)
+            hasher.combine(strTimestamp)
+            hasher.combine(lastPlay)
+            hasher.combine(homeLinescores)
+            hasher.combine(awayLinescores)
+            hasher.combine(homeLeaders)
+            hasher.combine(awayLeaders)
+            hasher.combine(isCompleted)
+            hasher.combine(isoDate)
+            hasher.combine(leaderboardEntries)
+            hasher.combine(sessions)
+            hasher.combine(venueName)
+            hasher.combine(homeTeamColor)
+            hasher.combine(awayTeamColor)
+            hasher.combine(homeRecord)
+            hasher.combine(awayRecord)
+            hasher.combine(circuitInfo)
+            hasher.combine(golfCourseInfo)
+            hasher.combine(endDate)
+            hasher.combine(legDisplay)
+            hasher.combine(aggregateScore)
+            hasher.combine(homeSeed)
+            hasher.combine(awaySeed)
+            hasher.combine(homeConference)
+            hasher.combine(awayConference)
+            hasher.combine(tournamentName)
+            hasher.combine(round)
+            hasher.combine(drawSlug)
+            hasher.combine(homeInjuries)
+            hasher.combine(awayInjuries)
+            hasher.combine(raceTiming)
+            hasher.combine(playoff)
+            hasher.combine(lastPlayScoreboardID)
+            hasher.combine(season)
+            hasher.combine(seasonPhase)
+            hasher.combine(sportsDBRound)
+            hasher.combine(situation)
+            hasher.combine(excitement)
+            hasher.combine(scoreboardExtras)
+            hasher.combine(homeAbbreviation)
+            hasher.combine(awayAbbreviation)
+            hasher.combine(timeTBD)
+            hasher.combine(_strSport)
+            hasher.combine(_strLeague)
+        }
+    }
+}
+
+extension Game: Sendable {}
+
+extension Game {
+    /// Equal when every field is equal; two copies of one game share a box, so the
+    /// common case is a pointer compare.
+    public static func == (lhs: Game, rhs: Game) -> Bool {
+        if lhs._storage === rhs._storage { return true }
+        return lhs._storage.isEqual(to: rhs._storage)
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        _storage.hash(into: &hasher)
     }
 }
 
@@ -1015,6 +1490,7 @@ extension Game: Codable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        _storage = Storage()
         idLiveScore = try container.decodeIfPresent(String.self, forKey: .idLiveScore)
         idEvent = try container.decodeIfPresent(String.self, forKey: .idEvent)
         idLeague = try container.decodeIfPresent(String.self, forKey: .idLeague)
