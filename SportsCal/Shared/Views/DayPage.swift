@@ -53,6 +53,14 @@ private struct MacBoardAffordances: ViewModifier {
             .animation(.easeOut(duration: 0.12), value: isHovered)
             .pointerStyle(.link)
             .onHover { isHovered = $0 }
+            // McMaster-style: a short dwell starts loading the game's detail, so
+            // the click that usually follows opens it instantly.
+            .task(id: isHovered) {
+                guard isHovered else { return }
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled else { return }
+                DetailPrefetch.warm(game)
+            }
             .draggable(dragPayload)
             .contextMenu {
                 Button("Open in New Window") {

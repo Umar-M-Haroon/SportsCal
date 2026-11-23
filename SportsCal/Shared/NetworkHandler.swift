@@ -799,11 +799,25 @@ struct NetworkHandler {
     /// Fetches the cached ESPN play-by-play array for a specific event (NBA/NFL/NHL/MLB).
     /// Throws `PlayByPlayNotAvailable` on 404 — the server hasn't captured plays yet for this event.
     /// `includePlayers` also asks for the player box score and scoring summary (game detail).
+    /// Memoized for a few seconds: long enough that a click right after a hover
+    /// prefetch joins that request, shorter than any live polling interval.
     static func fetchPlayByPlay(
         eventID: String,
         sport: String? = nil,
         league: String? = nil,
         includePlayers: Bool = false
+    ) async throws -> CachedPlays {
+        let key = "plays|\(eventID)|\(sport ?? "")|\(league ?? "")|\(includePlayers)"
+        return try await ResponseMemo.shared.value(key, ttl: 4) {
+            try await fetchPlayByPlayUncached(eventID: eventID, sport: sport, league: league, includePlayers: includePlayers)
+        }
+    }
+
+    private static func fetchPlayByPlayUncached(
+        eventID: String,
+        sport: String?,
+        league: String?,
+        includePlayers: Bool
     ) async throws -> CachedPlays {
         var components = URLComponents(string: "\(baseURL())/plays/\(eventID)")!
         var queryItems: [URLQueryItem] = []
@@ -1167,7 +1181,15 @@ struct NetworkHandler {
         return apsEnvironment == "development" ? "sandbox" : "production"
     }
 
+    /// Standings change at most between games: shared for 5 minutes, so the game
+    /// detail (and a hover prefetch of it) is instant after the first open.
     static func getStandings(for leagueID: String) async throws -> Standing {
+        try await ResponseMemo.shared.value("standings|\(leagueID)", ttl: 300) {
+            try await fetchStandingsUncached(for: leagueID)
+        }
+    }
+
+    private static func fetchStandingsUncached(for leagueID: String) async throws -> Standing {
         let urlString = "\(baseURL())/standings/\(leagueID)"
         let url = URL(string: urlString)!
         let (data, response) = try await performAuthorized(url: url)
@@ -1266,7 +1288,14 @@ struct NetworkHandler {
     /// summary on demand. League, day and team names let it find the match on ESPN when
     /// the game carries a TheSportsDB id it hasn't mapped yet.
     /// Throws `SoccerMatchNotAvailable` on 404.
+    /// Memoized briefly, like `fetchPlayByPlay`.
     static func getSoccerMatch(for game: Game, leagueSlug: String?) async throws -> SoccerMatchDetail {
+        try await ResponseMemo.shared.value("soccer|\(game.idEvent ?? game.id)|\(leagueSlug ?? "")", ttl: 4) {
+            try await getSoccerMatchUncached(for: game, leagueSlug: leagueSlug)
+        }
+    }
+
+    private static func getSoccerMatchUncached(for game: Game, leagueSlug: String?) async throws -> SoccerMatchDetail {
         guard let eventID = game.idEvent else { throw SoccerMatchNotAvailable() }
         let encoded = eventID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? eventID
         guard var components = URLComponents(string: "\(baseURL())/soccer/match/\(encoded)") else {
@@ -1604,5 +1633,43 @@ enum ScheduleETagStore {
 
     static func clear() {
         defaults.removeObject(forKey: defaultsKey)
+    }
+}
+
+
+/// A short-lived, in-flight-sharing memo for read-only API responses. Two callers
+/// asking for the same key within `ttl` share one request (a hover prefetch and
+/// the click that follows), and a failed request is not kept.
+actor ResponseMemo {
+    static let shared = ResponseMemo()
+
+    /// The decoded responses are value types that aren't marked Sendable; they're
+    /// never mutated after decoding, so carrying them across the actor is safe.
+    private struct Box: @unchecked Sendable { let value: Any }
+    private struct Entry {
+        let started: Date
+        let task: Task<Box, Error>
+    }
+    private var entries: [String: Entry] = [:]
+
+    func value<T>(_ key: String, ttl: TimeInterval,
+                  fetch: @escaping @Sendable () async throws -> T) async throws -> T {
+        let now = Date()
+        if let entry = entries[key], now.timeIntervalSince(entry.started) < ttl,
+           let value = try? await entry.task.value.value as? T {
+            return value
+        }
+        let task = Task<Box, Error> { Box(value: try await fetch()) }
+        entries[key] = Entry(started: now, task: task)
+        if entries.count > 200 {
+            entries = entries.filter { now.timeIntervalSince($0.value.started) < 300 }
+        }
+        do {
+            guard let value = try await task.value.value as? T else { throw CancellationError() }
+            return value
+        } catch {
+            if entries[key]?.started == now { entries[key] = nil }
+            throw error
+        }
     }
 }

@@ -59,6 +59,7 @@ final class GameDetailSectionsModel {
             standing = try await NetworkHandler.getStandings(for: leagueID)
             standingsLoading = false
             standingsErrorMessage = nil
+            Perf.event("detailStandingsLoaded")
         } catch let urlError as URLError {
             standingsLoading = false
             switch urlError.code {
@@ -77,7 +78,10 @@ final class GameDetailSectionsModel {
 
     func loadPlays(eventID: String, sport: String?, league: String?) async {
         playsLoading = true
-        defer { playsLoading = false }
+        defer {
+            playsLoading = false
+            Perf.event("detailPlaysLoaded")
+        }
         do {
             let cached = try await NetworkHandler.fetchPlayByPlay(
                 eventID: eventID, sport: sport, league: league, includePlayers: true
@@ -216,34 +220,11 @@ struct GameDetailView: View {
         }
     }
 
-    private var supportsPlayByPlay: Bool {
-        switch sportType {
-        case .basketball, .nfl, .hockey, .mlb, .soccer: return true
-        default: return false
-        }
-    }
+    private var supportsPlayByPlay: Bool { game.supportsPlayByPlay }
 
-    private var pbpSportPath: String? {
-        switch sportType {
-        case .basketball: return "basketball"
-        case .nfl:        return "football"
-        case .hockey:     return "hockey"
-        case .mlb:        return "baseball"
-        case .soccer:     return "soccer"
-        default:          return nil
-        }
-    }
+    private var pbpSportPath: String? { game.playByPlaySportPath }
 
-    private var pbpLeagueSlug: String? {
-        switch sportType {
-        case .basketball: return league?.espnSlug ?? "nba"
-        case .nfl:        return league?.espnSlug ?? "nfl"
-        case .hockey:     return "nhl"
-        case .mlb:        return "mlb"
-        case .soccer:     return league?.espnSlug
-        default:          return nil
-        }
-    }
+    private var pbpLeagueSlug: String? { game.playByPlayLeagueSlug }
 
     // MARK: - Classic hero
     /// The hero's left and right teams: away then home, home then away for soccer.
@@ -1598,12 +1579,7 @@ struct GameDetailSections: View {
 
     // MARK: Play-by-play
 
-    private var supportsPlayByPlay: Bool {
-        switch sportType {
-        case .basketball, .nfl, .hockey, .mlb, .soccer: return true
-        default: return false
-        }
-    }
+    private var supportsPlayByPlay: Bool { game.supportsPlayByPlay }
 
     private var availablePeriods: [Int] {
         let set = Set(model.plays.compactMap { $0.period?.number })
@@ -1884,27 +1860,9 @@ struct GameDetailSections: View {
         game.periodLabel(period)
     }
 
-    private var pbpSportPath: String? {
-        switch sportType {
-        case .basketball: return "basketball"
-        case .nfl:        return "football"
-        case .hockey:     return "hockey"
-        case .mlb:        return "baseball"
-        case .soccer:     return "soccer"
-        default:          return nil
-        }
-    }
+    private var pbpSportPath: String? { game.playByPlaySportPath }
 
-    private var pbpLeagueSlug: String? {
-        switch sportType {
-        case .basketball: return league?.espnSlug ?? "nba"
-        case .nfl:        return league?.espnSlug ?? "nfl"
-        case .hockey:     return "nhl"
-        case .mlb:        return "mlb"
-        case .soccer:     return league?.espnSlug
-        default:          return nil
-        }
-    }
+    private var pbpLeagueSlug: String? { game.playByPlayLeagueSlug }
 }
 
 // MARK: - Play-by-play list rows
@@ -2160,6 +2118,72 @@ private struct DetailNavigationTitle: ViewModifier {
             content
         } else {
             content.navigationTitle(title)
+        }
+    }
+}
+
+
+// MARK: - Detail requests (shared by the detail views and the hover prefetch)
+
+extension Game {
+    private var detailLeague: Leagues? { idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:)) }
+    private var detailSport: SportType? { detailLeague.map { SportType(league: $0) } }
+
+    var supportsPlayByPlay: Bool {
+        switch detailSport {
+        case .basketball, .nfl, .hockey, .mlb, .soccer: return true
+        default: return false
+        }
+    }
+
+    var playByPlaySportPath: String? {
+        switch detailSport {
+        case .basketball: return "basketball"
+        case .nfl:        return "football"
+        case .hockey:     return "hockey"
+        case .mlb:        return "baseball"
+        case .soccer:     return "soccer"
+        default:          return nil
+        }
+    }
+
+    var playByPlayLeagueSlug: String? {
+        switch detailSport {
+        case .basketball: return detailLeague?.espnSlug ?? "nba"
+        case .nfl:        return detailLeague?.espnSlug ?? "nfl"
+        case .hockey:     return "nhl"
+        case .mlb:        return "mlb"
+        case .soccer:     return detailLeague?.espnSlug
+        default:          return nil
+        }
+    }
+}
+
+/// Warms the requests a game's detail makes (standings, plays, the soccer match
+/// centre) so opening it is instant. Responses land in `ResponseMemo`, which the
+/// detail's own loads then hit, or join if still in flight.
+enum DetailPrefetch {
+    static func warm(_ game: Game) {
+        Perf.event("detailPrefetch")
+        Task.detached(priority: .utility) {
+            async let standings: Void = {
+                if let league = game.idLeague, !game.isIndividualSport {
+                    _ = try? await NetworkHandler.getStandings(for: league)
+                }
+            }()
+            async let plays: Void = {
+                if let eventID = game.idEvent, game.supportsPlayByPlay {
+                    _ = try? await NetworkHandler.fetchPlayByPlay(
+                        eventID: eventID, sport: game.playByPlaySportPath, league: game.playByPlayLeagueSlug)
+                }
+            }()
+            async let soccer: Void = {
+                if game.sportType == .soccer, game.idEvent != nil {
+                    let slug = game.idLeague.flatMap(Int.init).flatMap(Leagues.init(rawValue:))?.espnSlug
+                    _ = try? await NetworkHandler.getSoccerMatch(for: game, leagueSlug: slug)
+                }
+            }()
+            _ = await (standings, plays, soccer)
         }
     }
 }
