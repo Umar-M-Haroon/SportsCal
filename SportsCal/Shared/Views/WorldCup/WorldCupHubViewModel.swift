@@ -34,7 +34,11 @@ final class WorldCupHubViewModel {
         async let standings: Void = loadStandings()
         async let bracketLoad: Void = loadBracketIfNeeded()
         async let scorersLoad: Void = loadScorersIfNeeded()
-        _ = await (standings, bracketLoad, scorersLoad)
+        // The tournament's matches beyond the schedule's last two weeks of results.
+        async let matches: Void = viewModel.loadHistory(ScheduleHistoryRequest(
+            keys: [.soccer], league: String(Leagues.FIFA_World_Cup.rawValue)
+        ))
+        _ = await (standings, bracketLoad, scorersLoad, matches)
     }
 
     func loadStandings() async {

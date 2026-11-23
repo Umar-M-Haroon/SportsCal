@@ -140,6 +140,17 @@ struct TeamDetailView: View {
                 proxy.scrollTo(anchor, anchor: .center)
                 didScrollToAnchor = true
             }
+            // The schedule only carries the last two weeks of results; the rest of the
+            // season loads here. It lands above the current game, so put that back in
+            // view if the page has only just opened.
+            .task(id: team.idTeam ?? team.strTeam ?? "") {
+                guard let key = schedule.allGames.first.map(LiveScore.WireKey.key(for:)), key != .meta else { return }
+                let started = Date()
+                await viewModel.loadHistory(ScheduleHistoryRequest(keys: [key], team: team.idTeam, teamName: team.strTeam))
+                guard !Task.isCancelled, Date().timeIntervalSince(started) < 2, let anchor = seasons.anchorGameID else { return }
+                try? await Task.sleep(for: .milliseconds(80))
+                proxy.scrollTo(anchor, anchor: .center)
+            }
         }
         .task(id: team.idTeam) { await loadDetail() }
         .task(id: schedule.primaryLeague?.rawValue) {

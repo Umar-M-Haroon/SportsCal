@@ -409,7 +409,12 @@ struct ContentView: View {
             // finished live game) would show a bare "Game not found", so it
             // just leaves the main window as it is.
             Task { @MainActor in
-                for _ in 0..<16 {
+                for attempt in 0..<16 {
+                    // Past the first couple of seconds (the live feed's turn), an id
+                    // still unknown may be an older game: ask the history once.
+                    if attempt == 4 {
+                        await viewModel.loadHistoricalGame(eventID: eventID)
+                    }
                     if viewModel.game(forEventID: eventID) != nil {
                         #if os(macOS)
                         // Mac gives a notification tap its own detail window rather

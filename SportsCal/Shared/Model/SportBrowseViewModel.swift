@@ -69,6 +69,16 @@ class SportBrowseViewModel {
             fetchedGames = cached
             snapshotRevision = viewModel.dayContentRevision
             categorizeIfNeeded(cached)
+            isLoading = false
+            // The schedule carries only the last two weeks of results; earlier seasons
+            // and matchdays fill in behind the page. `filterSports(force:)` regroups
+            // `gamesDict` before the merge returns, so it can be read straight away.
+            await viewModel.loadHistory(Self.historyRequest(for: sport))
+            if let updated = viewModel.gamesDict[sport], updated.count != fetchedGames.count {
+                fetchedGames = updated
+                categorizeIfNeeded(updated)
+            }
+            return
         } else {
             // Sport not in enabled list — fetch from network
             do {
@@ -81,6 +91,16 @@ class SportBrowseViewModel {
         }
 
         isLoading = false
+    }
+
+    /// Everything earlier in `sport`'s slices. Tennis is ~17MB of matches, so only the
+    /// last three months of it.
+    static func historyRequest(for sport: SportType) -> ScheduleHistoryRequest {
+        let keys = LiveScore.wireKeys(for: sport, college: NetworkHandler.wantsCollegeFootball,
+                                      motorsport: NetworkHandler.wantsMotorsportSeries)
+        guard sport == .tennis else { return ScheduleHistoryRequest(keys: keys) }
+        let from = Calendar.current.date(byAdding: .day, value: -90, to: Date())
+        return ScheduleHistoryRequest(keys: keys, from: from, to: Date())
     }
 
     /// Tennis browse drills in by tournament (see `BrowsePage.tennisTournamentSections`) and only

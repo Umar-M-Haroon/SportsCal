@@ -632,7 +632,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
 
     //MARK: - Schedule history
     // Older games for apps that fetch only the hot window: one slice (`key`), narrowed by
-    // any of `from`/`to` (yyyyMMdd, inclusive), `team`, `league` or `event`. Same body
+    // any of `from`/`to` (yyyyMMdd, inclusive), `team` (ID) / `name`, `league` or `event`. Same body
     // shape as a slice. The slice's games stay decoded per calendar version
     // (`ScheduleHistoryIndex`), so a request is a filter plus a small encode.
     routes.get("schedules", "history") { req async throws -> Response in
@@ -641,6 +641,7 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
             from: req.query[String.self, at: "from"],
             to: req.query[String.self, at: "to"],
             team: req.query[String.self, at: "team"],
+            name: req.query[String.self, at: "name"],
             league: req.query[String.self, at: "league"],
             event: req.query[String.self, at: "event"]
         ) else {

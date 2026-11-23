@@ -208,6 +208,11 @@ struct GameDetailView: View {
     }
 
     private func initialLoad() async {
+        // Head-to-head reads earlier meetings, which the schedule only carries for the
+        // last two weeks; every game the home side played covers them all.
+        if !game.isIndividualSport, case let key = LiveScore.WireKey.key(for: game), key != .meta {
+            viewModel.requestHistory(ScheduleHistoryRequest(keys: [key], team: game.idHomeTeam, teamName: game.strHomeTeam))
+        }
         await sectionsModel.loadStandings(
             leagueID: game.idLeague,
             isIndividualSport: game.isIndividualSport

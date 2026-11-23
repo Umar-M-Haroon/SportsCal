@@ -20,6 +20,16 @@ struct F1DriverView: View {
             standings: viewModel.f1Standings,
             weekends: (viewModel.totalGames ?? []).filter { $0.sportType == .racing }
         )
+        // The season's earlier weekends (the schedule only carries the last two weeks of
+        // results). From last January, for the off-season, when the page shows last year.
+        .task {
+            let calendar = Calendar.current
+            let lastYear = calendar.component(.year, from: Date()) - 1
+            let from = calendar.date(from: DateComponents(year: lastYear, month: 1, day: 1))
+            await viewModel.loadHistory(ScheduleHistoryRequest(
+                keys: [.racing], from: from, to: Date(), league: String(Leagues.formula1.rawValue)
+            ))
+        }
     }
 }
 

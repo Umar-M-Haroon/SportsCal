@@ -62,4 +62,12 @@ extension GameViewModel {
         allLiveEvents.first { $0.id == id }
             ?? totalGames?.first { $0.idEvent == id }
     }
+
+    /// Fetches a game older than the schedule's two weeks of results (a link or an old
+    /// notification) into `totalGames`, when nothing loaded has it.
+    @MainActor
+    func loadHistoricalGame(eventID id: String) async {
+        guard totalGames != nil, game(forEventID: id) == nil else { return }
+        await loadHistory(ScheduleHistoryRequest(keys: LiveScore.WireKey.allCases, event: id))
+    }
 }

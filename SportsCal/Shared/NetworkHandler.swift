@@ -619,9 +619,12 @@ struct NetworkHandler {
     }
 
     /// One sport's slice of the schedule (see `ScheduleSliceSync`), revalidated with
-    /// `ifNoneMatch` when the caller holds that slice.
+    /// `ifNoneMatch` when the caller holds that slice. Only the hot window: the last two
+    /// weeks and everything ahead (older games come from `fetchScheduleHistory` when a
+    /// screen needs them). A server without windows ignores the parameter and sends the
+    /// whole slice, which still works.
     static func fetchScheduleSlice(_ key: LiveScore.WireKey, ifNoneMatch: String?) async throws -> SliceFetchResult {
-        let url = URL(string: "\(baseURL())/schedules/sports/\(key.rawValue)")!
+        let url = URL(string: "\(baseURL())/schedules/sports/\(key.rawValue)?window=hot")!
         let (data, response) = try await performAuthorized(url: url) { request in
             request.cachePolicy = .reloadIgnoringLocalCacheData
             if let ifNoneMatch {
@@ -643,6 +646,21 @@ struct NetworkHandler {
             // Never decode an error body: `LiveScore` decodes leniently, and an error
             // object would read as a sport with no games and wipe it.
             throw URLError(.badServerResponse)
+        }
+    }
+
+    /// Older games from `key`'s slice matching `request` (`/schedules/history`). Nil when
+    /// the server predates it (404); it then serves whole slices, so nothing is missing.
+    static func fetchScheduleHistory(_ key: LiveScore.WireKey, request: ScheduleHistoryRequest) async throws -> LiveScore? {
+        var components = URLComponents(string: "\(baseURL())/schedules/history")!
+        components.queryItems = request.queryItems(for: key)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, response) = try await performAuthorized(url: url) { _ in }
+        guard let httpResponse = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        switch httpResponse.statusCode {
+        case 200: return try Self.sharedDecoder.decode(LiveScore.self, from: data)
+        case 404: return nil
+        default: throw URLError(.badServerResponse)
         }
     }
 
@@ -1670,6 +1688,69 @@ actor ResponseMemo {
         } catch {
             if entries[key]?.started == now { entries[key] = nil }
             throw error
+        }
+    }
+}
+
+// MARK: - Schedule history
+
+/// Older games a screen needs (the slices only carry the last two weeks and what's
+/// ahead): any of a day range, a team, a league or one event, across `keys`. Hashable so
+/// identical asks share one fetch.
+struct ScheduleHistoryRequest: Hashable, Sendable {
+    var keys: [LiveScore.WireKey]
+    /// Local days, inclusive. Sent padded by a day each side, since the server's days
+    /// are UTC; the extra games are harmless.
+    var from: Date?
+    var to: Date?
+    var team: String?
+    /// A team's name, matched as well as `team` (some games carry raw ESPN IDs).
+    var teamName: String?
+    var league: String?
+    var event: String?
+
+    init(keys: [LiveScore.WireKey], from: Date? = nil, to: Date? = nil,
+         team: String? = nil, teamName: String? = nil, league: String? = nil, event: String? = nil) {
+        self.keys = keys.filter { $0 != .meta }
+        let calendar = Calendar.current
+        self.from = from.map { calendar.startOfDay(for: $0) }
+        self.to = to.map { calendar.startOfDay(for: $0) }
+        self.team = team
+        self.teamName = teamName
+        self.league = league
+        self.event = event
+    }
+
+
+    func queryItems(for key: LiveScore.WireKey) -> [URLQueryItem] {
+        let formatter = NetworkHandler.dayKeyFormatter
+        let day: TimeInterval = 86_400
+        var items = [URLQueryItem(name: "key", value: key.rawValue)]
+        if let from { items.append(URLQueryItem(name: "from", value: formatter.string(from: from.addingTimeInterval(-day)))) }
+        if let to { items.append(URLQueryItem(name: "to", value: formatter.string(from: to.addingTimeInterval(day)))) }
+        if let team { items.append(URLQueryItem(name: "team", value: team)) }
+        if let teamName { items.append(URLQueryItem(name: "name", value: teamName)) }
+        if let league { items.append(URLQueryItem(name: "league", value: league)) }
+        if let event { items.append(URLQueryItem(name: "event", value: event)) }
+        return items
+    }
+}
+
+extension LiveScore.WireKey {
+    /// The slice `game` travels in (`.meta`, which no history request asks for, when
+    /// its league is unknown).
+    static func key(for game: Game) -> LiveScore.WireKey {
+        guard let sport = game.sportType else { return .meta }
+        return switch sport {
+        case .basketball: .nba
+        case .mlb: .mlb
+        case .soccer: .soccer
+        case .nfl: game.isCollegeFootball ? .ncaaf : .nfl
+        case .hockey: .nhl
+        case .golf: .golf
+        case .tennis: .tennis
+        case .racing: game.isMotorsportSeries ? .motorsport : .racing
+        case .cricket: .cricket
         }
     }
 }

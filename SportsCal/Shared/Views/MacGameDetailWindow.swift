@@ -20,6 +20,8 @@ struct GameDetailWindow: View {
     /// The last game this window resolved, kept on screen while its id is briefly
     /// missing (a live tick between feeds) so pushed team pages survive.
     @State private var lastGame: Game?
+    /// Asking the history for a game the schedule no longer carries.
+    @State private var isLookingUpHistory = false
 
     /// Live games often carry a different id (ESPN) than their schedule row
     /// (TheSportsDB), so look in both, then match the fixture of the game last
@@ -53,7 +55,7 @@ struct GameDetailWindow: View {
                         .environment(viewModel)
                         .environment(favorites)
                 }
-            } else if gameID != nil && viewModel.totalGames == nil {
+            } else if gameID != nil && (viewModel.totalGames == nil || isLookingUpHistory) {
                 // A restored window opens before the schedule has loaded.
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -71,6 +73,13 @@ struct GameDetailWindow: View {
         .navigationTitle(game.map { $0.matchupTitle } ?? "Game")
         .onChange(of: game, initial: true) { _, newGame in
             if let newGame { lastGame = newGame }
+        }
+        // An older game (a restored window, an old link): fetch it once the schedule is in.
+        .task(id: viewModel.totalGames == nil) {
+            guard let gameID, game == nil, viewModel.totalGames != nil else { return }
+            isLookingUpHistory = true
+            await viewModel.loadHistoricalGame(eventID: gameID)
+            isLookingUpHistory = false
         }
     }
 

@@ -81,18 +81,21 @@ enum ScheduleWindow {
     }
 }
 
-/// A `/schedules/history` request: one slice, narrowed by any of a date range, a team,
-/// a league or a single event.
+/// A `/schedules/history` request: one slice, narrowed by any of a date range, a team
+/// (`team` ID and/or `name`, either matching, as the app's team page matches), a league
+/// or a single event.
 struct ScheduleHistoryQuery: Equatable {
     let key: LiveScore.WireKey
     let from: Date?
     let to: Date?
     let team: String?
+    let name: String?
     let league: String?
     let event: String?
 
     /// Parses and bounds the query. Nil for anything malformed (a 400).
-    init?(key rawKey: String?, from: String?, to: String?, team: String?, league: String?, event: String?) {
+    init?(key rawKey: String?, from: String?, to: String?, team: String?, name: String? = nil,
+          league: String?, event: String?) {
         guard let rawKey, let key = LiveScore.WireKey(rawValue: rawKey) else { return nil }
         func day(_ s: String?) -> Date?? {
             guard let s else { return .some(nil) }
@@ -110,13 +113,19 @@ struct ScheduleHistoryQuery: Equatable {
             guard !s.isEmpty, s.count <= 40, s.unicodeScalars.allSatisfy(allowed.contains) else { return nil }
             return .some(s)
         }
-        guard let from = day(from), let to = day(to),
-              let team = id(team), let league = id(league), let event = id(event) else { return nil }
+        func teamName(_ s: String?) -> String?? {
+            guard let s else { return .some(nil) }
+            guard !s.isEmpty, s.count <= 80, !s.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { return nil }
+            return .some(s)
+        }
+        guard let from = day(from), let to = day(to), let team = id(team), let name = teamName(name),
+              let league = id(league), let event = id(event) else { return nil }
         if let from, let to, to < from { return nil }
         self.key = key
         self.from = from
         self.to = to.map { $0.addingTimeInterval(86_400) }   // `to` is inclusive
         self.team = team
+        self.name = name
         self.league = league
         self.event = event
     }
@@ -124,7 +133,11 @@ struct ScheduleHistoryQuery: Equatable {
     func admits(_ game: Game) -> Bool {
         if let event, game.idEvent != event, game.id != event { return false }
         if let league, game.idLeague != league { return false }
-        if let team, game.idHomeTeam != team, game.idAwayTeam != team { return false }
+        if team != nil || name != nil {
+            let byID = team.map { game.idHomeTeam == $0 || game.idAwayTeam == $0 } ?? false
+            let byName = name.map { game.strHomeTeam == $0 || game.strAwayTeam == $0 } ?? false
+            if !byID && !byName { return false }
+        }
         if from != nil || to != nil {
             guard let (start, end) = ScheduleWindow.span(of: game) else { return false }
             if let from, end < from { return false }
@@ -136,7 +149,7 @@ struct ScheduleHistoryQuery: Equatable {
     /// Stable cache/ETag key for this query.
     var variant: String {
         func f(_ d: Date?) -> String { d.map { String(Int($0.timeIntervalSince1970)) } ?? "" }
-        return "history:\(key.rawValue)|\(f(from))|\(f(to))|\(team ?? "")|\(league ?? "")|\(event ?? "")"
+        return "history:\(key.rawValue)|\(f(from))|\(f(to))|\(team ?? "")|\(name ?? "")|\(league ?? "")|\(event ?? "")"
     }
 }
 

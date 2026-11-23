@@ -84,7 +84,15 @@ struct CalendarViewRepresentable: UIViewRepresentable {
         var dayComponents = DayComponentsCache()
         let groupedGames = dayComponents.group(filteredCalendarGames)
         let groupedLiveGames = dayComponents.group(viewModel.allLiveEvents)
-        return CalendarCoordinator(games: groupedGames, liveGames: groupedLiveGames, favorites: favorites.teams, showFavoritesOnly: showFavoritesOnly, onSelectDay: onSelectDay)
+        let coordinator = CalendarCoordinator(games: groupedGames, liveGames: groupedLiveGames, favorites: favorites.teams, showFavoritesOnly: showFavoritesOnly, onSelectDay: onSelectDay)
+        // Paging back past the schedule's two weeks of results loads that month.
+        coordinator.onVisibleMonth = { [viewModel] components in
+            guard let date = Calendar.current.date(from: components) else { return }
+            viewModel.requestHistory(forMonthContaining: date)
+        }
+        // This month's first days can predate the schedule's two weeks of results.
+        viewModel.requestHistory(forMonthContaining: navigateToDate ?? Date())
+        return coordinator
     }
 
     typealias UIViewType = UICalendarView
@@ -105,6 +113,8 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
     private(set) var dayDecorations: [DateComponents: DayDecoration] = [:]
     private var decorationAppearance: UIUserInterfaceStyle = .unspecified
     var onSelectDay: (DateComponents) -> Void
+    /// The month now on screen, after the user pages.
+    var onVisibleMonth: ((DateComponents) -> Void)?
     /// Wide layouts keep the tapped day highlighted; compact ones clear it so the
     /// same day can be tapped again after its sheet closes.
     var keepsSelection = false
@@ -117,6 +127,10 @@ class CalendarCoordinator: NSObject, UICalendarViewDelegate, UICalendarSelection
         self.showFavoritesOnly = showFavoritesOnly
         self.onSelectDay = onSelectDay
         self.dayDecorations = Self.decorations(for: games, favorites: favorites)
+    }
+
+    func calendarView(_ calendarView: UICalendarView, didChangeVisibleDateComponentsFrom previousDateComponents: DateComponents) {
+        onVisibleMonth?(calendarView.visibleDateComponents)
     }
 
     func dateSelection(_ selection: UICalendarSelectionSingleDate, didSelectDate dateComponents: DateComponents?) {

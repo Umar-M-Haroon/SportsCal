@@ -2402,7 +2402,7 @@ public class GameViewModel: NSObject {
             .flatMap({$0})
         // Days the user browsed outside the snapshot's window survive a refresh; they
         // used to vanish here and stay blank until relaunch.
-        totalGames = reapplyingOnDemandDays(to: snapshotGames)
+        totalGames = reapplyingHistory(to: reapplyingOnDemandDays(to: snapshotGames))
         TeamsManager.shared.updateCollegeTeams(from: result.nfl?.events ?? [])
         if let standings = result.f1Standings {
             f1Standings = standings
@@ -2434,6 +2434,12 @@ public class GameViewModel: NSObject {
         let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: date)
         let key = Self.onDemandDayKeyFormatter.string(from: dayStart)
+        // The month around a day before the schedule's window, for its neighbours' dots
+        // (the day itself comes whole from the fetch below). Not for days inside it:
+        // launch would pay for the start of every month.
+        if dayStart < Self.historyBoundary() {
+            requestHistory(forMonthContaining: dayStart)
+        }
         guard !onDemandFetchedDays.contains(key) else { return }
 
         // The cached /schedules blob is authoritative (and enriched) for the live
@@ -2501,6 +2507,122 @@ public class GameViewModel: NSObject {
         let existingIDs = Set(result.map(\.id))
         result.append(contentsOf: incoming.filter { !existingIDs.contains($0.id) })
         return result
+    }
+
+    // MARK: - Schedule history
+
+    /// Games older than the snapshot's window that screens asked for, by ID. Re-added
+    /// after each refresh (`setGames`), so a team page stays complete across live ticks.
+    @ObservationIgnored private var historyGames: [String: Game] = [:]
+    /// Each distinct ask, fetched once per session (failed asks are forgotten so a
+    /// later visit retries). Concurrent asks share the task.
+    @ObservationIgnored private var historyTasks: [ScheduleHistoryRequest: Task<Void, Never>] = [:]
+
+    /// Loads `request`'s older games into `totalGames` (and so into every screen that
+    /// reads it). Returns once they're merged; cheap to call again.
+    @MainActor
+    func loadHistory(_ request: ScheduleHistoryRequest) async {
+        guard !request.keys.isEmpty, totalGames != nil else { return }
+        if let task = historyTasks[request] {
+            await task.value
+            return
+        }
+        let task = Task { @MainActor [weak self] in
+            let games = await Self.fetchHistory(request)
+            guard let self else { return }
+            guard let games else {
+                self.historyTasks[request] = nil
+                return
+            }
+            self.mergeHistory(games)
+        }
+        historyTasks[request] = task
+        await task.value
+    }
+
+    /// Fire-and-forget `loadHistory`, for `onAppear`-style call sites.
+    @MainActor
+    func requestHistory(_ request: ScheduleHistoryRequest) {
+        Task { await loadHistory(request) }
+    }
+
+    /// Older games for local days `from...to` across the slices the app shows. A no-op
+    /// for days the schedule already covers (the last two weeks and everything ahead).
+    @MainActor
+    func requestHistory(from: Date, to: Date) {
+        let hotStart = Self.historyBoundary()
+        guard from < hotStart else { return }
+        requestHistory(ScheduleHistoryRequest(keys: ScheduleSliceSync.currentWantedKeys(),
+                                              from: from, to: min(to, hotStart)))
+    }
+
+    /// The first local day the schedule's slices fully cover (they keep the last two
+    /// weeks, by UTC day, so one day of margin).
+    nonisolated static func historyBoundary(now: Date = Date()) -> Date {
+        let calendar = Calendar.current
+        return calendar.date(byAdding: .day, value: -13, to: calendar.startOfDay(for: now)) ?? now
+    }
+
+    /// `requestHistory(from:to:)` for the whole month around `date` (one request per
+    /// month, however the user pages).
+    @MainActor
+    func requestHistory(forMonthContaining date: Date) {
+        let calendar = Calendar.current
+        guard let month = calendar.dateInterval(of: .month, for: date) else { return }
+        requestHistory(from: month.start, to: month.end.addingTimeInterval(-1))
+    }
+
+    /// `request` across its keys, concurrently. Nil if any fetch failed.
+    private nonisolated static func fetchHistory(_ request: ScheduleHistoryRequest) async -> [Game]? {
+        do {
+            return try await withThrowingTaskGroup(of: [Game].self) { group in
+                for key in request.keys {
+                    group.addTask {
+                        guard let part = try await NetworkHandler.fetchScheduleHistory(key, request: request) else { return [] }
+                        return [part.nhl, part.nfl, part.soccer, part.mlb, part.nba, part.golf,
+                                part.tennis, part.racing, part.cricket].compactMap { $0?.events }.flatMap { $0 }
+                    }
+                }
+                var all: [Game] = []
+                for try await part in group { all.append(contentsOf: part) }
+                return all
+            }
+        } catch {
+            AppLogger.viewModel.error("History fetch failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    @MainActor
+    private func mergeHistory(_ games: [Game]) {
+        guard !games.isEmpty else { return }
+        for game in games where historyGames[game.id] == nil {
+            historyGames[game.id] = game
+        }
+        let before = totalGames ?? []
+        let merged = reapplyingHistory(to: before)
+        guard merged.count != before.count else { return }
+        gameWithTeamsCache.removeAll()
+        gamesWithTeamsDateCache.removeAll()
+        totalGames = merged
+        filterSports(force: true, skipLiveUpdate: true)
+    }
+
+    /// `games` plus every history game it doesn't already have. The snapshot's copy of
+    /// a game wins: it's the fresher one. Days fetched whole on demand
+    /// (`onDemandGamesByDay`) are left to that fetch, which is authoritative for its day
+    /// and carries ESPN IDs: adding history's copies would show those games twice.
+    private func reapplyingHistory(to games: [Game]) -> [Game] {
+        guard !historyGames.isEmpty else { return games }
+        let present = Set(games.lazy.map(\.id))
+        let calendar = Calendar.current
+        let ownedDays = Set(onDemandGamesByDay.keys)
+        let missing = historyGames.values.filter { game in
+            guard !present.contains(game.id) else { return false }
+            guard !ownedDays.isEmpty, let date = game.standardDate else { return true }
+            return !ownedDays.contains(calendar.startOfDay(for: date))
+        }
+        return missing.isEmpty ? games : games + missing
     }
 
     /// Re-applies the on-demand days the snapshot doesn't own: past days and those more
