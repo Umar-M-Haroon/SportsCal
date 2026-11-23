@@ -580,7 +580,10 @@ struct SettingsView: View {
                     }
                     .foregroundStyle(.primary)
                 }
-                Button("Scoreline Pro") { showPaywall = true }
+                Button("Scoreline Pro") {
+                    UpsellCoordinator.shared.noteDirectOpen(.settings)
+                    showPaywall = true
+                }
                     .sheet(isPresented: $showPaywall) {
                         SubscriptionSheet(subscriptionPresented: $showPaywall)
                     }

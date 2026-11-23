@@ -131,6 +131,7 @@ struct MacAboutView: View {
             }
         } else {
             Button {
+                UpsellCoordinator.shared.noteDirectOpen(.about)
                 showPaywall = true
             } label: {
                 Label("Upgrade to Scoreline Pro…", systemImage: "star.fill")

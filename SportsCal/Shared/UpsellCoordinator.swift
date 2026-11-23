@@ -40,6 +40,35 @@ enum UpsellTrigger: String {
     /// tapped a locked Game Alerts situation.
     case customAlertCap = "custom_alert_cap"
 
+    // Direct opens: the user went looking for Pro. No throttling applies.
+    /// Settings → Scoreline Pro.
+    case settings = "settings"
+    /// Mac About panel / Settings → About.
+    case about = "about"
+    /// The Mac menu bar extra's "Subscribe…" (free users see no live scores there).
+    case menuBar = "menu_bar"
+    /// "Remove ads" on a native ad card.
+    case adCard = "ad_card"
+    /// A paywall opened without a known reason (a hub's Pro alert, older paths).
+    case direct = "direct"
+
+    /// The Pro feature the paywall should lead with for this trigger, if any.
+    var featured: PaywallFeature? {
+        switch self {
+        case .theme: return .themes
+        case .customAlertCap: return .customAlerts
+        case .freeReminderCapHit: return .reminders
+        case .adCard: return .adFree
+        case .menuBar: return .menuBar
+        #if os(macOS)
+        case .favoriteLiveGameOpened: return .menuBar
+        #else
+        case .favoriteLiveGameOpened: return .scoreAlerts
+        #endif
+        default: return nil
+        }
+    }
+
     /// The post-onboarding trial offer is a one-time peak-intent moment, exempt
     /// from the day-cooldown (still bounded by the per-session cap).
     var respectsCooldown: Bool { self != .postOnboarding }
@@ -83,7 +112,8 @@ final class UpsellCoordinator {
 
     /// Consider showing a paywall for `trigger`. Returns true and invokes
     /// `present` iff the user is free, not suppressed, and within the throttle.
-    /// Records the timestamp + emits `paywall_shown` telemetry as a side effect.
+    /// Records the timestamp and hands the trigger to the paywall, which records
+    /// `paywall_shown` when it appears.
     ///
     /// - Parameter suppressed: pass true to skip even an eligible prompt (e.g. a
     ///   live match is on screen and we don't want to interrupt it).
@@ -110,7 +140,7 @@ final class UpsellCoordinator {
 
         sessionCount += 1
         defaults.set(now, forKey: Keys.lastShown)
-        MonetizationTelemetry.paywallShown(trigger: trigger.rawValue)
+        pendingTrigger = trigger
         present()
         return true
     }
@@ -128,8 +158,26 @@ final class UpsellCoordinator {
         guard !SubscriptionManager.shared.isPro else { return false }
         sessionCount += 1
         defaults.set(now, forKey: Keys.lastShown)
-        MonetizationTelemetry.paywallShown(trigger: trigger.rawValue)
+        pendingTrigger = trigger
         present()
         return true
+    }
+
+    // MARK: - Trigger hand-off to the paywall
+
+    /// Why the next paywall is opening. The paywall takes it when it appears and
+    /// records `paywall_shown` itself, so direct opens (Settings, the ad card, the
+    /// Mac menu bar) are counted too, and it can lead with the matching feature.
+    @ObservationIgnored private var pendingTrigger: UpsellTrigger?
+
+    /// Tags a direct open (no throttling: the user asked for it).
+    func noteDirectOpen(_ trigger: UpsellTrigger) {
+        pendingTrigger = trigger
+    }
+
+    /// The trigger for the paywall that's appearing now; `.direct` if none was noted.
+    func takePendingTrigger() -> UpsellTrigger {
+        defer { pendingTrigger = nil }
+        return pendingTrigger ?? .direct
     }
 }

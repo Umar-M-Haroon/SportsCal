@@ -20,6 +20,7 @@
 //
 
 import Foundation
+import Synchronization
 import SportsCalModel
 import StoreKit
 import Sentry
@@ -36,6 +37,12 @@ enum MonetizationTelemetry {
     enum Event {
         static let paywallShown = "paywall_shown"
         static let paywallDismissed = "paywall_dismissed"
+        // Inside the paywall: plan taps, purchase attempts and their outcomes.
+        static let paywallPlanSelected = "paywall_plan_selected"
+        static let paywallPurchaseStarted = "paywall_purchase_started"
+        static let paywallPurchaseCancelled = "paywall_purchase_cancelled"
+        static let paywallPurchaseFailed = "paywall_purchase_failed"
+        static let paywallRestore = "paywall_restore"
         static let purchaseCompleted = "purchase_completed"
         static let trialStarted = "trial_started"
         static let gateHit = "gate_hit"
@@ -293,13 +300,37 @@ enum MonetizationTelemetry {
 
     // MARK: - Typed conveniences
 
-    static func paywallShown(trigger: String) {
-        record(Event.paywallShown, ["trigger": trigger])
+    /// `featured` is the feature the paywall led with (`PaywallFeature` raw value) or `none`.
+    static func paywallShown(trigger: String, featured: String = "none") {
+        record(Event.paywallShown, ["trigger": trigger, "featured": featured])
     }
 
-    static func paywallDismissed() {
-        record(Event.paywallDismissed)
+    static func paywallDismissed(trigger: String, purchased: Bool) {
+        record(Event.paywallDismissed, ["trigger": trigger, "outcome": purchased ? "purchased" : "closed"])
     }
+
+    static func paywallPlanSelected(plan: String) {
+        record(Event.paywallPlanSelected, ["plan": plan])
+    }
+
+    /// Also stashes the plan and trigger so the `purchase_completed` / `trial_started`
+    /// that `SubscriptionManager` sends when Pro activates can carry them.
+    static func paywallPurchaseStarted(plan: String, trigger: String) {
+        pendingPurchase.withLock { $0 = ["plan": plan, "trigger": trigger] }
+        record(Event.paywallPurchaseStarted, ["plan": plan, "trigger": trigger])
+    }
+
+    static func paywallPurchaseEnded(plan: String, cancelled: Bool) {
+        pendingPurchase.withLock { $0 = nil }
+        record(cancelled ? Event.paywallPurchaseCancelled : Event.paywallPurchaseFailed, ["plan": plan])
+    }
+
+    static func paywallRestore(restored: Bool) {
+        record(Event.paywallRestore, ["result": restored ? "restored" : "none"])
+    }
+
+    /// Plan + trigger of the purchase in flight from the paywall (see `paywallPurchaseStarted`).
+    private static let pendingPurchase = Mutex<[String: String]?>(nil)
 
     static func gateHit(_ feature: ProFeature) {
         record(Event.gateHit, ["feature": feature.rawValue])
@@ -309,7 +340,13 @@ enum MonetizationTelemetry {
     /// this layer, so callers pass whether the active entitlement is in its
     /// introductory/trial period.
     static func purchaseCompleted(isTrial: Bool) {
-        record(isTrial ? Event.trialStarted : Event.purchaseCompleted)
+        // From the paywall: which plan, and what led there. Empty for a renewal on
+        // another device or an Offer Code.
+        let context = pendingPurchase.withLock { value -> [String: String] in
+            defer { value = nil }
+            return value ?? [:]
+        }
+        record(isTrial ? Event.trialStarted : Event.purchaseCompleted, context)
     }
 
     static func ratingPromptShown() {

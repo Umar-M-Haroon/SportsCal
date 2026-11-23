@@ -24,6 +24,7 @@ struct NativeAdCardView: View {
             // throttled), in this window only.
             Button {
                 MonetizationTelemetry.adUpsellTapped()
+                UpsellCoordinator.shared.noteDirectOpen(.adCard)
                 requestPaywall()
             } label: {
                 Text("Remove ads with Pro")

@@ -43,6 +43,10 @@ struct ProPaywallView: View {
     @State private var isPurchasing = false
     @State private var isRestoring = false
     @State private var message: String?
+    /// Why this paywall opened (taken from `UpsellCoordinator` on appear).
+    @State private var trigger: UpsellTrigger = .direct
+    @State private var didAppear = false
+    @State private var purchased = false
 
     private static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
     private static let privacyURL = URL(string: "https://sportscal.app/privacy")!
@@ -54,7 +58,16 @@ struct ProPaywallView: View {
     var body: some View {
         content
             .task { await loadOffering() }
-            .onDisappear { MonetizationTelemetry.paywallDismissed() }
+            .onAppear {
+                guard !didAppear else { return }
+                didAppear = true
+                trigger = UpsellCoordinator.shared.takePendingTrigger()
+                MonetizationTelemetry.paywallShown(trigger: trigger.rawValue,
+                                                   featured: featured?.rawValue ?? "none")
+            }
+            .onDisappear {
+                MonetizationTelemetry.paywallDismissed(trigger: trigger.rawValue, purchased: purchased)
+            }
     }
 
     #if os(macOS)
@@ -132,7 +145,7 @@ struct ProPaywallView: View {
 
             Text("Scoreline Pro")
                 .font(.system(size: 26, weight: .bold))
-            Text("More from every game you follow.")
+            Text(featured?.pitch ?? "More from every game you follow.")
                 .font(.callout)
                 .foregroundStyle(.white.opacity(0.75))
                 .padding(.top, 2)
@@ -146,7 +159,7 @@ struct ProPaywallView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Scoreline Pro")
                         .font(.system(size: 26, weight: .bold))
-                    Text("More from every game you follow.")
+                    Text(featured?.pitch ?? "More from every game you follow.")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.75))
                 }
@@ -155,22 +168,9 @@ struct ProPaywallView: View {
             #endif
 
             VStack(alignment: .leading, spacing: Self.benefitSpacing) {
-                #if os(macOS)
-                benefit("menubar.rectangle", "Live scores in the menu bar",
-                        "Every game you follow, one glance away.")
-                #else
-                benefit("bell.and.waves.left.and.right", ProFeature.goalAlerts.displayName,
-                        "Your phone buzzes the moment your team scores.")
-                benefit("nosign", "No Ads", "Scores and schedules without ads.")
-                #endif
-                benefit("bell.badge.waveform", ProFeature.customAlerts.displayName,
-                        ProFeature.customAlerts.blurb)
-                benefit("alarm", ProFeature.preGameReminders.displayName,
-                        "Reminders before kickoff, for every team you follow.")
-                benefit("paintpalette", ProFeature.themes.displayName,
-                        "Accent colors, team colors and app icons.")
-                benefit("slider.horizontal.3", ProFeature.proSettings.displayName,
-                        ProFeature.proSettings.blurb)
+                ForEach(orderedFeatures, id: \.self) { feature in
+                    benefit(feature, isFeatured: feature == featured)
+                }
             }
             .padding(.top, Self.benefitSpacing + 8)
 
@@ -201,6 +201,31 @@ struct ProPaywallView: View {
         AppIconThumbnail(icon: .standard)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         #endif
+    }
+
+    /// The feature this paywall leads with, from its trigger (a theme tap → Themes).
+    private var featured: PaywallFeature? {
+        trigger.featured.flatMap { PaywallFeature.forPlatform.contains($0) ? $0 : nil }
+    }
+
+    /// This platform's benefits, the featured one first.
+    private var orderedFeatures: [PaywallFeature] {
+        let all = PaywallFeature.forPlatform
+        guard let featured else { return all }
+        return [featured] + all.filter { $0 != featured }
+    }
+
+    private func benefit(_ feature: PaywallFeature, isFeatured: Bool) -> some View {
+        benefit(feature.symbol, feature.title, feature.detail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, isFeatured ? 6 : 0)
+            .padding(.horizontal, isFeatured ? 8 : 0)
+            .background {
+                if isFeatured {
+                    RoundedRectangle(cornerRadius: 10).fill(.white.opacity(0.16))
+                }
+            }
+            .padding(.horizontal, isFeatured ? -8 : 0)
     }
 
     private func benefit(_ symbol: String, _ title: String, _ detail: String) -> some View {
@@ -296,7 +321,9 @@ struct ProPaywallView: View {
         let isSelected = package.identifier == selected?.identifier
         let badge = badgeText(for: package)
         return Button {
+            guard package.identifier != selectedID else { return }
             selectedID = package.identifier
+            MonetizationTelemetry.paywallPlanSelected(plan: Self.planKey(package))
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
@@ -479,6 +506,16 @@ struct ProPaywallView: View {
 
     // MARK: Actions
 
+    /// Telemetry key for a package: monthly / annual / lifetime (anything else: other).
+    private static func planKey(_ package: Package) -> String {
+        switch package.packageType {
+        case .monthly: return "monthly"
+        case .annual: return "annual"
+        case .lifetime: return "lifetime"
+        default: return "other"
+        }
+    }
+
     private func loadOffering() async {
         isLoading = true
         loadFailed = false
@@ -500,17 +537,28 @@ struct ProPaywallView: View {
 
     private func purchase() async {
         guard let package = selected else { return }
+        let plan = Self.planKey(package)
         message = nil
         isPurchasing = true
         defer { isPurchasing = false }
+        MonetizationTelemetry.paywallPurchaseStarted(plan: plan, trigger: trigger.rawValue)
         do {
             let result = try await Purchases.shared.purchase(package: package)
-            if result.userCancelled { return }
+            if result.userCancelled {
+                MonetizationTelemetry.paywallPurchaseEnded(plan: plan, cancelled: true)
+                return
+            }
+            // Sends purchase_completed / trial_started (with plan + trigger) on the
+            // false→true flip.
             SubscriptionManager.shared.updateProStatus(from: result.customerInfo)
-            if SubscriptionManager.shared.isPro { onFinish() }
+            if SubscriptionManager.shared.isPro {
+                purchased = true
+                onFinish()
+            }
         } catch let error as ErrorCode where error == .purchaseCancelledError {
-            return
+            MonetizationTelemetry.paywallPurchaseEnded(plan: plan, cancelled: true)
         } catch {
+            MonetizationTelemetry.paywallPurchaseEnded(plan: plan, cancelled: false)
             message = error.localizedDescription
         }
     }
@@ -519,10 +567,85 @@ struct ProPaywallView: View {
         message = nil
         isRestoring = true
         defer { isRestoring = false }
-        if await SubscriptionManager.shared.restorePurchases() {
+        let restored = await SubscriptionManager.shared.restorePurchases()
+        MonetizationTelemetry.paywallRestore(restored: restored)
+        if restored {
             onFinish()
         } else {
             message = "No active Scoreline Pro purchase was found for this Apple Account."
+        }
+    }
+}
+
+// MARK: - Benefits
+
+/// A Pro benefit as the paywall lists it. Raw values are the `featured` telemetry
+/// field (matching `ProFeature` where one exists), so keep them stable.
+enum PaywallFeature: String, CaseIterable {
+    case scoreAlerts = "goalAlerts"
+    case adFree
+    case menuBar
+    case customAlerts
+    case reminders = "preGameReminders"
+    case themes
+    case proSettings
+
+    /// What this platform's paywall lists, in order. The Mac has no ads and no
+    /// score alerts (no Live Activities), but has the menu bar.
+    static var forPlatform: [PaywallFeature] {
+        #if os(macOS)
+        return [.menuBar, .customAlerts, .reminders, .themes, .proSettings]
+        #else
+        return [.scoreAlerts, .adFree, .customAlerts, .reminders, .themes, .proSettings]
+        #endif
+    }
+
+    var symbol: String {
+        switch self {
+        case .scoreAlerts: return "bell.and.waves.left.and.right"
+        case .adFree: return "nosign"
+        case .menuBar: return "menubar.rectangle"
+        case .customAlerts: return "bell.badge.waveform"
+        case .reminders: return "alarm"
+        case .themes: return "paintpalette"
+        case .proSettings: return "slider.horizontal.3"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .scoreAlerts: return ProFeature.goalAlerts.displayName
+        case .adFree: return "No Ads"
+        case .menuBar: return "Live scores in the menu bar"
+        case .customAlerts: return ProFeature.customAlerts.displayName
+        case .reminders: return ProFeature.preGameReminders.displayName
+        case .themes: return ProFeature.themes.displayName
+        case .proSettings: return ProFeature.proSettings.displayName
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .scoreAlerts: return "Your phone buzzes the moment your team scores."
+        case .adFree: return "Scores and schedules without ads."
+        case .menuBar: return "Every game you follow, one glance away."
+        case .customAlerts: return ProFeature.customAlerts.blurb
+        case .reminders: return "Reminders before kickoff, for every team you follow."
+        case .themes: return "Accent colors, team colors and app icons."
+        case .proSettings: return ProFeature.proSettings.blurb
+        }
+    }
+
+    /// The header line when the paywall leads with this feature.
+    var pitch: String {
+        switch self {
+        case .scoreAlerts: return "Feel every goal, even with your phone locked."
+        case .adFree: return "Keep the scores, lose the ads."
+        case .menuBar: return "Live scores, right in your menu bar."
+        case .customAlerts: return "Alerts for every player and moment you care about."
+        case .reminders: return "Never miss kickoff for any team you follow."
+        case .themes: return "Make Scoreline yours."
+        case .proSettings: return "Shape the schedule the way you like it."
         }
     }
 }

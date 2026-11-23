@@ -327,6 +327,7 @@ struct SportsCalApp: App {
                         // Bring the main window forward, then ask ContentView to
                         // present the paywall (it listens for .requestPaywall).
                         NSApp.activate(ignoringOtherApps: true)
+                        UpsellCoordinator.shared.noteDirectOpen(.menuBar)
                         NotificationCenter.default.post(name: .requestPaywall, object: nil)
                     }
                     .buttonStyle(.borderedProminent)

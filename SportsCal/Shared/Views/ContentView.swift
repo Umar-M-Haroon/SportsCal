@@ -342,8 +342,12 @@ struct ContentView: View {
                     checkIntentOpenSport()
                     #if DEBUG
                     // `-ForcePaywall YES` opens the paywall at launch, even for Pro
-                    // users, so the sheet can be checked without a gate.
-                    if UserDefaults.standard.bool(forKey: "ForcePaywall") {
+                    // users, so the sheet can be checked without a gate. Pass a trigger
+                    // instead (`-ForcePaywall theme`) to see the contextual version.
+                    if let force = UserDefaults.standard.string(forKey: "ForcePaywall") {
+                        if let trigger = UpsellTrigger(rawValue: force) {
+                            UpsellCoordinator.shared.noteDirectOpen(trigger)
+                        }
                         sheetType = .paywall
                     }
                     #endif
