@@ -646,6 +646,7 @@ struct SettingsView: View {
                     // cancellation survey and win-back offers. iOS-only in RevenueCatUI.
                     if !SubscriptionManager.isManagedExternally, SubscriptionManager.shared.isPro {
                         Button("Manage Scoreline Pro") {
+                            SubscriptionManager.shared.configure()
                             showCustomerCenter = true
                         }
                     }

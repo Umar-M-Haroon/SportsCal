@@ -521,7 +521,7 @@ struct ProPaywallView: View {
         loadFailed = false
         defer { isLoading = false }
         do {
-            let offering = try await Purchases.shared.offerings().current
+            let offering = try await SubscriptionManager.shared.purchases.offerings().current
             let order: [PackageType] = [.monthly, .annual, .lifetime]
             packages = (offering?.availablePackages ?? []).sorted {
                 (order.firstIndex(of: $0.packageType) ?? order.count)
@@ -543,7 +543,7 @@ struct ProPaywallView: View {
         defer { isPurchasing = false }
         MonetizationTelemetry.paywallPurchaseStarted(plan: plan, trigger: trigger.rawValue)
         do {
-            let result = try await Purchases.shared.purchase(package: package)
+            let result = try await SubscriptionManager.shared.purchases.purchase(package: package)
             if result.userCancelled {
                 MonetizationTelemetry.paywallPurchaseEnded(plan: plan, cancelled: true)
                 return

@@ -144,7 +144,7 @@ struct MacAboutView: View {
 
     private func loadPlan() async {
         guard subscriptionManager.isPro,
-              let info = try? await Purchases.shared.customerInfo(),
+              let info = try? await SubscriptionManager.shared.purchases.customerInfo(),
               let pro = info.entitlements["Pro"], pro.isActive else {
             planStatus = nil
             managementURL = nil

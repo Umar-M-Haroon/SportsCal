@@ -187,8 +187,12 @@ enum CustomAlertRegistrar {
         return token
     }
 
+    /// Configures RevenueCat if launch hasn't yet: a notification action can run
+    /// this before the deferred launch setup, and a nil id would re-register the
+    /// device without its Pro identity.
+    @MainActor
     private static var revenueCatAppUserID: String? {
-        Purchases.isConfigured ? Purchases.shared.appUserID : nil
+        SubscriptionManager.isManagedExternally ? nil : SubscriptionManager.shared.purchases.appUserID
     }
 
     /// Sends the registration if it differs from the last one this server accepted.
@@ -217,7 +221,7 @@ enum CustomAlertRegistrar {
 
         let registration = CustomAlertRegistration(
             token: token,
-            revenueCatAppUserID: revenueCatAppUserID,
+            revenueCatAppUserID: await revenueCatAppUserID,
             sandbox: NetworkHandler.isSandboxAPNS,
             rules: rules
         )

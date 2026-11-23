@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import RevenueCat
+import SportsCalModel
 import os
 
 @Observable
@@ -61,8 +62,25 @@ public class SubscriptionManager: @unchecked Sendable {
         #endif
     }
 
-    /// Call once at app launch (e.g., in SportsCalApp.init)
+    private var didConfigure = false
+
+    /// RevenueCat, configured on first use. Use this rather than `Purchases.shared`,
+    /// which traps if `configure()` hasn't run yet (launch defers it past the
+    /// first frame).
+    @MainActor
+    public var purchases: Purchases {
+        configure()
+        return Purchases.shared
+    }
+
+    /// Sets up RevenueCat. Runs once; later calls do nothing. Launch calls it
+    /// shortly after the first frame (about 60 ms of main-thread work that
+    /// otherwise delays the first screen). Until then `isPro` comes from the
+    /// cached value.
+    @MainActor
     public func configure() {
+        guard !didConfigure else { return }
+        didConfigure = true
         #if SETAPP
         // Setapp flavor: never initialize RevenueCat or fetch entitlements —
         // the app is unlocked for the entire session. (See `isManagedExternally`.)
@@ -70,8 +88,10 @@ public class SubscriptionManager: @unchecked Sendable {
         UserDefaults.standard.set(true, forKey: "isSubscribed")
         return
         #else
-        Purchases.logLevel = .warn
-        Purchases.configure(withAPIKey: Constants.revenueCatAPIKey)
+        Perf.measure("revenueCatConfigure") {
+            Purchases.logLevel = .warn
+            Purchases.configure(withAPIKey: Constants.revenueCatAPIKey)
+        }
 
         // Listen for customer info changes
         Task { @MainActor in
@@ -90,7 +110,7 @@ public class SubscriptionManager: @unchecked Sendable {
     @MainActor
     public func refreshStatus() async {
         do {
-            let customerInfo = try await Purchases.shared.customerInfo()
+            let customerInfo = try await purchases.customerInfo()
             updateProStatus(from: customerInfo)
         } catch {
             AppLogger.general.error("Failed to get customer info: \(error.localizedDescription)")
@@ -102,7 +122,7 @@ public class SubscriptionManager: @unchecked Sendable {
     @MainActor
     public func restorePurchases() async -> Bool {
         do {
-            let customerInfo = try await Purchases.shared.restorePurchases()
+            let customerInfo = try await purchases.restorePurchases()
             updateProStatus(from: customerInfo)
             return isPro
         } catch {

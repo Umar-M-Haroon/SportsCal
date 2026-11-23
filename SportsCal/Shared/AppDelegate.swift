@@ -7,11 +7,52 @@
 
 import Foundation
 import Sentry
+import SportsCalModel
 import UserNotifications
 import os
 #if os(iOS)
 import GoogleMobileAds
 #endif
+
+/// Sentry setup, shared by the iOS and Mac app delegates.
+enum CrashReporting {
+    /// Starts Sentry from a background queue. Sentry builds its client (file moves,
+    /// previous-session state) on the calling thread and hops to main only for the
+    /// parts that need it, so this keeps roughly 70 ms off the launch path.
+    static func start() {
+        guard !Constants.sentryDSN.isEmpty else {
+            AppLogger.general.error("Sentry DSN missing — crash reporting disabled for this build")
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            Perf.measure("sentryStart") {
+                SentrySDK.start(configureOptions: configure)
+            }
+        }
+    }
+
+    private static func configure(_ options: Options) {
+        options.dsn = Constants.sentryDSN
+        #if DEBUG
+        // Unset, the environment defaults to "production": Xcode runs then file
+        // app-hang issues (unsymbolicated, so one issue per hang) and alert like
+        // real users. Alert rules filter to environment:production.
+        options.environment = "debug"
+        #endif
+        options.tracesSampleRate = 0.05
+        options.beforeSend = { event in
+            // Redact breadcrumbs that may carry device tokens or push payloads.
+            event.breadcrumbs = event.breadcrumbs?.map { crumb in
+                if let message = crumb.message,
+                   message.contains("token") || message.contains("notification") {
+                    crumb.message = "[REDACTED]"
+                }
+                return crumb
+            }
+            return event
+        }
+    }
+}
 
 extension Notification.Name {
     /// Posted when the user taps a game notification; userInfo carries "eventID".
@@ -55,31 +96,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Mute / Turn off buttons on custom player and game alerts.
         CustomAlertActions.registerCategories()
 
-        if !Constants.sentryDSN.isEmpty {
-            SentrySDK.start { options in
-                options.dsn = Constants.sentryDSN
-                #if DEBUG
-                // Unset, the environment defaults to "production": Xcode runs then file
-                // app-hang issues (unsymbolicated, so one issue per hang) and alert like
-                // real users. Alert rules filter to environment:production.
-                options.environment = "debug"
-                #endif
-                options.tracesSampleRate = 0.05
-                options.beforeSend = { event in
-                    // Redact breadcrumbs that may carry device tokens or push payloads.
-                    event.breadcrumbs = event.breadcrumbs?.map { crumb in
-                        if let message = crumb.message,
-                           message.contains("token") || message.contains("notification") {
-                            crumb.message = "[REDACTED]"
-                        }
-                        return crumb
-                    }
-                    return event
-                }
-            }
-        } else {
-            AppLogger.general.error("Sentry DSN missing — crash reporting disabled for this build")
-        }
+        CrashReporting.start()
 
         return true
     }
@@ -228,31 +245,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Mute / Turn off buttons on custom player and game alerts.
         CustomAlertActions.registerCategories()
 
-        if !Constants.sentryDSN.isEmpty {
-            SentrySDK.start { options in
-                options.dsn = Constants.sentryDSN
-                #if DEBUG
-                // Unset, the environment defaults to "production": Xcode runs then file
-                // app-hang issues (unsymbolicated, so one issue per hang) and alert like
-                // real users. Alert rules filter to environment:production.
-                options.environment = "debug"
-                #endif
-                options.tracesSampleRate = 0.05
-                options.beforeSend = { event in
-                    // Redact breadcrumbs that may carry device tokens or push payloads.
-                    event.breadcrumbs = event.breadcrumbs?.map { crumb in
-                        if let message = crumb.message,
-                           message.contains("token") || message.contains("notification") {
-                            crumb.message = "[REDACTED]"
-                        }
-                        return crumb
-                    }
-                    return event
-                }
-            }
-        } else {
-            AppLogger.general.error("Sentry DSN missing — crash reporting disabled for this build")
-        }
+        CrashReporting.start()
     }
 
     func application(_ application: NSApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {

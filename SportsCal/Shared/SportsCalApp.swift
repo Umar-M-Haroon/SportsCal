@@ -82,7 +82,6 @@ struct SportsCalApp: App {
         #endif
         try? Tips.configure()
         CloudSyncManager.shared.startSync(storage: storage, favorites: favs)
-        SubscriptionManager.shared.configure()
         #if os(iOS)
         PhoneWatchSyncService.shared.activate()
         #endif
@@ -91,6 +90,13 @@ struct SportsCalApp: App {
     /// Once-per-process launch work, run from the first window's onAppear.
     private func onLaunch() {
         appStorage.launches += 1
+        // RevenueCat waits until the first screen is up; `isPro` is the cached
+        // value until then, and anything that needs RevenueCat sooner configures
+        // it through `SubscriptionManager.purchases`.
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            SubscriptionManager.shared.configure()
+        }
         MonetizationTelemetry.appActive()
         MonetizationTelemetry.observeForegroundActivation()
         NetworkHandler.currentEnvironment = appStorage.serverEnvironment
