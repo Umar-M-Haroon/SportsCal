@@ -371,6 +371,26 @@ final class RoutesTests: XCTestCase {
         XCTAssertFalse(snapshot.keys.contains { $0.contains("412") }, "build is log-only, never a key segment")
     }
 
+    func testTelemetryPaywallPurchaseStartedBreaksOutPlanTriggerAndPlatform() async throws {
+        var headers = authed
+        headers.add(name: "X-Install-ID", value: "install-2")
+        try app.test(.POST, "v2025/telemetry", headers: headers, beforeRequest: { req in
+            try req.content.encode(ClientTelemetryEvent(event: "paywall_purchase_started", fields: [
+                "plan": "lifetime", "trigger": "menu_bar", "channel": "appstore", "platform": "macos",
+            ]))
+        }) { res in
+            XCTAssertEqual(res.status, .ok)
+        }
+        let day = telemetryDay
+        let snapshot = kv.rawSnapshot
+        XCTAssertEqual(snapshot["telemetry:client.paywall_purchase_started:appstore:\(day)"], "1")
+        XCTAssertEqual(snapshot["telemetry:client.paywall_purchase_started:appstore:plan=lifetime:\(day)"], "1")
+        XCTAssertEqual(snapshot["telemetry:client.paywall_purchase_started:appstore:trigger=menu_bar:\(day)"], "1")
+        XCTAssertEqual(snapshot["telemetry:client.paywall_purchase_started:appstore:platform=macos:\(day)"], "1")
+        let uniques = try await kv.hllCount(["telemetry:uniq:client.paywall_purchase_started:appstore:\(day)"])
+        XCTAssertEqual(uniques, 1)
+    }
+
     func testTelemetryUnknownChannelIsNormalized() async throws {
         try app.test(.POST, "v2025/telemetry", headers: authed, beforeRequest: { req in
             try req.content.encode(ClientTelemetryEvent(event: "gate_hit", fields: ["channel": "evil*chan"]))

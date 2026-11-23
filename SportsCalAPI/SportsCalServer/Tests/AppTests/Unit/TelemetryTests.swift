@@ -75,6 +75,72 @@ final class TelemetryTests: XCTestCase {
         XCTAssertFalse(snapshot.keys.contains { $0.contains("other=x") }, "non-allow-listed fields aren't broken out")
     }
 
+    // MARK: - Paywall funnel
+
+    func testPaywallFunnelEventsAreAllowListed() {
+        for event in ["paywall_shown", "paywall_dismissed", "purchase_completed", "trial_started",
+                      "paywall_plan_selected", "paywall_purchase_started", "paywall_purchase_cancelled",
+                      "paywall_purchase_failed", "paywall_restore"] {
+            XCTAssertTrue(ClientTelemetryEvent.allowedEvents.contains(event), event)
+        }
+        XCTAssertTrue(ClientTelemetryEvent.uniqueEvents.contains("paywall_purchase_started"))
+        XCTAssertFalse(ClientTelemetryEvent.uniqueEvents.contains("paywall_plan_selected"),
+                       "plan taps are per-event only")
+        // Every broken-out field has a bounded value set (else every value is `other`).
+        for field in Set(ClientTelemetryEvent.breakoutFields.values.flatMap { $0 }) {
+            XCTAssertNotNil(ClientTelemetryEvent.breakoutValues[field], "no value set for \(field)")
+        }
+    }
+
+    func testPaywallFunnelBreakoutsAreBounded() async throws {
+        let clock = MutableClock()
+        let kv = InMemoryKeyValueStore(clock: clock)
+        let counters = ClientTelemetryCounters(kv: kv, clock: clock)
+        let rec = { (event: String, platform: String, fields: [String: String]) in
+            await counters.record(event: event, channel: "appstore", platform: platform, installID: "A", fields: fields)
+        }
+
+        await rec("paywall_shown", "macos", ["trigger": "menu_bar", "featured": "menuBar", "platform": "macos"])
+        await rec("paywall_shown", "ios", ["trigger": "direct", "featured": "bogus", "platform": "unknown"])
+        await rec("paywall_dismissed", "ios", ["trigger": "settings", "outcome": "closed"])
+        await rec("paywall_dismissed", "ios", ["trigger": "settings", "outcome": "rage-quit"])
+        await rec("paywall_plan_selected", "ios", ["plan": "lifetime"])
+        await rec("paywall_purchase_started", "ios", ["plan": "annual", "trigger": "ad_card", "platform": "ios"])
+        await rec("paywall_purchase_cancelled", "ios", ["plan": "annual"])
+        await rec("paywall_purchase_failed", "ios", ["plan": "weekly"])
+        await rec("paywall_restore", "ios", ["result": "none"])
+        await rec("purchase_completed", "ios", ["plan": "monthly", "trigger": "feature_gate", "platform": "ios"])
+
+        let day = TelemetryKeys.epochDay(clock.now)
+        let snapshot = kv.rawSnapshot
+        func count(_ event: String, _ dim: String) -> String? {
+            snapshot["telemetry:client.\(event):appstore:\(dim):\(day)"]
+        }
+        XCTAssertEqual(count("paywall_shown", "trigger=menu_bar"), "1")
+        XCTAssertEqual(count("paywall_shown", "featured=menuBar"), "1")
+        XCTAssertEqual(count("paywall_shown", "platform=macos"), "1")
+        XCTAssertEqual(count("paywall_shown", "trigger=direct"), "1")
+        XCTAssertEqual(count("paywall_shown", "featured=other"), "1", "unknown featured collapses to other")
+        XCTAssertEqual(count("paywall_shown", "platform=other"), "1", "unknown platform collapses to other")
+        XCTAssertEqual(count("paywall_dismissed", "trigger=settings"), "2")
+        XCTAssertEqual(count("paywall_dismissed", "outcome=closed"), "1")
+        XCTAssertEqual(count("paywall_dismissed", "outcome=other"), "1")
+        XCTAssertEqual(count("paywall_plan_selected", "plan=lifetime"), "1")
+        XCTAssertEqual(count("paywall_purchase_started", "plan=annual"), "1")
+        XCTAssertEqual(count("paywall_purchase_started", "trigger=ad_card"), "1")
+        XCTAssertEqual(count("paywall_purchase_started", "platform=ios"), "1")
+        XCTAssertEqual(count("paywall_purchase_cancelled", "plan=annual"), "1")
+        XCTAssertEqual(count("paywall_purchase_failed", "plan=other"), "1")
+        XCTAssertEqual(count("paywall_restore", "result=none"), "1")
+        XCTAssertEqual(count("purchase_completed", "plan=monthly"), "1")
+        XCTAssertEqual(count("purchase_completed", "trigger=feature_gate"), "1")
+        XCTAssertEqual(count("purchase_completed", "platform=ios"), "1")
+        XCTAssertFalse(snapshot.keys.contains { $0.contains("bogus") || $0.contains("weekly") || $0.contains("rage") })
+
+        let started = try await kv.hllCount([TelemetryKeys.unique("client.paywall_purchase_started", channel: "appstore", day: day)])
+        XCTAssertEqual(started, 1, "purchase starts are counted per user")
+    }
+
     func testAppActiveFeedsPerChannelPlatformDAU() async throws {
         let clock = MutableClock()
         let kv = InMemoryKeyValueStore(clock: clock)

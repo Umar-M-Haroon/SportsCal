@@ -19,6 +19,11 @@ const EVENTS = [
   'paywall_dismissed',
   'purchase_completed',
   'trial_started',
+  'paywall_plan_selected',
+  'paywall_purchase_started',
+  'paywall_purchase_cancelled',
+  'paywall_purchase_failed',
+  'paywall_restore',
   'activation_first_favorite',
   'activation_notifications_enabled',
   'ad_upsell_tapped',
@@ -41,6 +46,12 @@ const CHANNEL_LABELS: Record<ChannelChoice, string> = {
 }
 /** Real channels summed for "All" (legacy counters are added on top). */
 const REAL_CHANNELS = ['appstore', 'testflight', 'debug', 'unknown']
+
+/** Bounded value sets the server breaks paywall events out by (`other` = anything else). */
+const PLANS = ['monthly', 'annual', 'lifetime']
+const PLATFORM_LABELS: Record<string, string> = { ios: 'iOS', macos: 'Mac', other: 'Unknown' }
+
+type Stage = { label: string; value: number; note: string }
 
 export class MonetizationFunnel {
   private container: HTMLElement | null = null
@@ -168,23 +179,7 @@ export class MonetizationFunnel {
       { label: 'Paywall shown', value: t.paywall_shown, note: this.pct(t.paywall_shown, t.gate_hit) + ' of gate hits' },
       { label: 'Purchase or trial', value: conversions, note: this.pct(conversions, t.paywall_shown) + ' of paywalls' },
     ]
-    const maxStage = Math.max(1, ...stages.map((s) => s.value))
-
-    const bars = stages
-      .map((s) => {
-        const w = Math.max(2, Math.round((s.value / maxStage) * 100))
-        return `
-          <div style="margin-bottom:0.85rem;">
-            <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem;">
-              <span><strong>${s.label}</strong></span>
-              <span style="color:var(--text-secondary);">${s.value.toLocaleString()} · ${s.note}</span>
-            </div>
-            <div style="background:var(--bg-secondary, #1e1e1e); border-radius:6px; overflow:hidden;">
-              <div style="width:${w}%; background:var(--accent, #3b82f6); height:22px; border-radius:6px;"></div>
-            </div>
-          </div>`
-      })
-      .join('')
+    const bars = this.renderBars(stages)
 
     const stat = (label: string, value: number | string, sub = '') => `
       <div class="stat-card">
@@ -212,6 +207,8 @@ export class MonetizationFunnel {
         ${stat('Ad “remove ads” taps', t.ad_upsell_tapped)}
       </div>
 
+      ${this.renderPaywall(data, days, t)}
+
       ${this.renderBreakouts(data, days)}
 
       <h3 style="margin:0.5rem 0 0.75rem; font-size:0.95rem;">Activation & engagement</h3>
@@ -222,6 +219,26 @@ export class MonetizationFunnel {
         ${stat('app_active pings', t.app_active)}
       </div>
     `
+  }
+
+  /** Horizontal funnel bars, scaled to the widest stage. */
+  private renderBars(stages: Stage[]): string {
+    const maxStage = Math.max(1, ...stages.map((s) => s.value))
+    return stages
+      .map((s) => {
+        const w = Math.max(2, Math.round((s.value / maxStage) * 100))
+        return `
+          <div style="margin-bottom:0.85rem;">
+            <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem;">
+              <span><strong>${s.label}</strong></span>
+              <span style="color:var(--text-secondary);">${s.value.toLocaleString()} · ${s.note}</span>
+            </div>
+            <div style="background:var(--bg-secondary, #1e1e1e); border-radius:6px; overflow:hidden;">
+              <div style="width:${w}%; background:var(--accent, #3b82f6); height:22px; border-radius:6px;"></div>
+            </div>
+          </div>`
+      })
+      .join('')
   }
 
   private renderActiveUsers(data: TelemetryResponse): string {
@@ -367,6 +384,162 @@ export class MonetizationFunnel {
     `
   }
 
+  /** value → count for one event's `field` breakout over the window (selected channel). */
+  private dim(data: TelemetryResponse, event: string, field: string, days: string[]): Record<string, number> {
+    const out: Record<string, number> = {}
+    for (const [key, n] of this.breakouts(data, event, days)) {
+      const [f, ...rest] = key.split('=')
+      if (f === field) out[rest.join('=')] = n
+    }
+    return out
+  }
+
+  /**
+   * In-paywall funnel: shown → purchase started → completed (purchase or trial),
+   * plus plan mix, per-trigger conversion, iOS vs Mac, restore and dismiss
+   * outcomes. Breakdowns read the `field=value` counters the server keeps for
+   * paywall events, so they're per-event (not per-user), channel-tagged only,
+   * and all zero until the paywall-funnel app build ships.
+   */
+  private renderPaywall(data: TelemetryResponse, days: string[], t: Totals): string {
+    const heading = '<h3 style="margin:0.5rem 0 0.75rem; font-size:0.95rem;">Paywall</h3>'
+    if (this.channel === 'legacy') {
+      return `${heading}<p style="color:var(--text-secondary); margin-bottom:1.5rem;">Paywall breakdowns are channel-tagged only — pick a channel.</p>`
+    }
+    const muted = (text: string) => `<span style="color:var(--text-secondary)">${text}</span>`
+    const n = (v: number) => v.toLocaleString()
+    const subhead = (text: string) => `<h4 style="margin:0.5rem 0 0.5rem; font-size:0.85rem;">${text}</h4>`
+    const completed = t.purchase_completed + t.trial_started
+    const started = t.paywall_purchase_started
+    /** Known keys always shown (zeros included); `other` only when non-zero. */
+    const keysWithOther = (known: string[], maps: Record<string, number>[]) =>
+      maps.some((m) => (m.other || 0) > 0) ? [...known, 'other'] : known
+
+    // 1. Funnel.
+    const bars = this.renderBars([
+      { label: 'Paywall shown', value: t.paywall_shown, note: 'every open, incl. direct' },
+      { label: 'Purchase started', value: started, note: this.pct(started, t.paywall_shown) + ' of shown' },
+      {
+        label: 'Completed (purchase or trial)',
+        value: completed,
+        note: `${this.pct(completed, started)} of started · ${this.pct(completed, t.paywall_shown)} of shown`,
+      },
+    ])
+    const startedUsers = data.uniqueInstalls?.[this.channel]?.['client.paywall_purchase_started'] || 0
+    const stat = (label: string, value: number, sub = '') => `
+      <div class="stat-card">
+        <div class="stat-value">${n(value)}</div>
+        <div class="stat-label">${label}${sub ? ` ${muted(`(${sub})`)}` : ''}</div>
+      </div>`
+    const funnelStats = `
+      <div class="stats-grid" style="margin-bottom:1.5rem;">
+        ${stat('Purchase cancelled', t.paywall_purchase_cancelled, this.pct(t.paywall_purchase_cancelled, started) + ' of started')}
+        ${stat('Purchase failed', t.paywall_purchase_failed, this.pct(t.paywall_purchase_failed, started) + ' of started')}
+        ${stat('Users who started a purchase', startedUsers, 'unique installs')}
+        ${stat('Plan row taps', t.paywall_plan_selected)}
+      </div>`
+
+    // 2. Plan mix.
+    const selected = this.dim(data, 'paywall_plan_selected', 'plan', days)
+    const startedByPlan = this.dim(data, 'paywall_purchase_started', 'plan', days)
+    const cancelledByPlan = this.dim(data, 'paywall_purchase_cancelled', 'plan', days)
+    const failedByPlan = this.dim(data, 'paywall_purchase_failed', 'plan', days)
+    const boughtByPlan = this.dim(data, 'purchase_completed', 'plan', days)
+    const planRows = keysWithOther(PLANS, [selected, startedByPlan, cancelledByPlan, failedByPlan, boughtByPlan])
+      .map((p) => {
+        const st = startedByPlan[p] || 0
+        const done = boughtByPlan[p] || 0
+        return `<tr><td>${p}</td><td>${n(selected[p] || 0)}</td><td>${n(st)}</td><td>${n(cancelledByPlan[p] || 0)}</td><td>${n(failedByPlan[p] || 0)}</td><td>${n(done)}</td><td>${this.pct(done, st)}</td></tr>`
+      })
+      .join('')
+    const planTable = `
+      <table style="max-width:680px; margin-bottom:0.5rem;">
+        <thead><tr><th>Plan</th><th>Selected</th><th>Started</th><th>Cancelled</th><th>Failed</th><th>Purchased</th><th>Started → bought</th></tr></thead>
+        <tbody>${planRows}</tbody>
+      </table>
+      <p style="color:var(--text-secondary); margin-bottom:1.5rem;">“Selected” counts taps that switched plan rows. Trials carry no plan, so “Purchased” is paid purchases only.</p>`
+
+    // 3. Trigger conversion + featured.
+    const shownByTrigger = this.dim(data, 'paywall_shown', 'trigger', days)
+    const startedByTrigger = this.dim(data, 'paywall_purchase_started', 'trigger', days)
+    const boughtByTrigger = this.dim(data, 'purchase_completed', 'trigger', days)
+    const dismissedByTrigger = this.dim(data, 'paywall_dismissed', 'trigger', days)
+    const triggers = [...new Set([shownByTrigger, startedByTrigger, boughtByTrigger, dismissedByTrigger].flatMap(Object.keys))]
+      .sort((a, b) => (shownByTrigger[b] || 0) - (shownByTrigger[a] || 0))
+    const triggerRows = triggers
+      .map((tr) => {
+        const shown = shownByTrigger[tr] || 0
+        const done = boughtByTrigger[tr] || 0
+        return `<tr><td>${tr}</td><td>${n(shown)}</td><td>${n(startedByTrigger[tr] || 0)}</td><td>${n(done)}</td><td>${this.pct(done, shown)}</td><td>${n(dismissedByTrigger[tr] || 0)}</td></tr>`
+      })
+      .join('')
+    const triggerTable = triggerRows
+      ? `<table style="max-width:680px; margin-bottom:1rem;">
+          <thead><tr><th>Trigger</th><th>Shown</th><th>Started</th><th>Purchased</th><th>Shown → bought</th><th>Dismissed</th></tr></thead>
+          <tbody>${triggerRows}</tbody>
+        </table>`
+      : `<p style="color:var(--text-secondary); margin-bottom:1rem;">No trigger-tagged paywall events yet.</p>`
+    const featured = Object.entries(this.dim(data, 'paywall_shown', 'featured', days)).sort((a, b) => b[1] - a[1])
+    const featuredTable = featured.length
+      ? `<table style="max-width:420px; margin-bottom:1.5rem;">
+          <thead><tr><th>Featured (paywall led with)</th><th>Shown</th><th>% of shown</th></tr></thead>
+          <tbody>${featured.map(([f, c]) => `<tr><td>${f}</td><td>${n(c)}</td><td>${this.pct(c, t.paywall_shown)}</td></tr>`).join('')}</tbody>
+        </table>`
+      : ''
+
+    // 4. iOS vs Mac.
+    const shownByPlatform = this.dim(data, 'paywall_shown', 'platform', days)
+    const startedByPlatform = this.dim(data, 'paywall_purchase_started', 'platform', days)
+    const boughtByPlatform = this.dim(data, 'purchase_completed', 'platform', days)
+    const platformRows = keysWithOther(['ios', 'macos'], [shownByPlatform, startedByPlatform, boughtByPlatform])
+      .map((p) => {
+        const shown = shownByPlatform[p] || 0
+        const st = startedByPlatform[p] || 0
+        const done = boughtByPlatform[p] || 0
+        return `<tr><td>${PLATFORM_LABELS[p] || p}</td><td>${n(shown)}</td><td>${n(st)}</td><td>${n(done)}</td><td>${this.pct(st, shown)}</td><td>${this.pct(done, shown)}</td></tr>`
+      })
+      .join('')
+    const platformTable = `
+      <table style="max-width:680px; margin-bottom:1.5rem;">
+        <thead><tr><th>Platform</th><th>Shown</th><th>Started</th><th>Purchased</th><th>Shown → started</th><th>Shown → bought</th></tr></thead>
+        <tbody>${platformRows}</tbody>
+      </table>`
+
+    // 5. Restore + dismiss outcomes.
+    const outcomeTable = (title: string, labels: Record<string, string>, counts: Record<string, number>, total: number) => {
+      const rows = keysWithOther(Object.keys(labels), [counts])
+        .map((k) => `<tr><td>${labels[k] || 'Other'}</td><td>${n(counts[k] || 0)}</td><td>${this.pct(counts[k] || 0, total)}</td></tr>`)
+        .join('')
+      return `<table style="max-width:420px; margin-bottom:1rem;">
+          <thead><tr><th>${title}</th><th>Count</th><th>%</th></tr></thead><tbody>${rows}</tbody>
+        </table>`
+    }
+    const restore = this.dim(data, 'paywall_restore', 'result', days)
+    const outcome = this.dim(data, 'paywall_dismissed', 'outcome', days)
+
+    return `
+      ${heading}
+      <div style="max-width:680px; margin-bottom:1rem;">${bars}</div>
+      ${funnelStats}
+
+      ${subhead('Plan mix')}
+      ${planTable}
+
+      ${subhead('By trigger')}
+      ${triggerTable}
+      ${featuredTable}
+
+      ${subhead('iOS vs Mac')}
+      ${platformTable}
+
+      ${subhead('Outcomes')}
+      <div style="display:flex; gap:1.5rem; flex-wrap:wrap; margin-bottom:1.5rem;">
+        ${outcomeTable('Restore result', { restored: 'Restored', none: 'Nothing to restore' }, restore, t.paywall_restore)}
+        ${outcomeTable('Dismissed', { purchased: 'After purchase', closed: 'Closed' }, outcome, t.paywall_dismissed)}
+      </div>
+    `
+  }
+
   private renderBreakouts(data: TelemetryResponse, days: string[]): string {
     const table = (title: string, rows: [string, number][]) => {
       if (rows.length === 0) return ''
@@ -377,9 +550,10 @@ export class MonetizationFunnel {
           <thead><tr><th>${title}</th><th>Count</th></tr></thead><tbody>${body}</tbody>
         </table>`
     }
+    const only = (rows: [string, number][], field: string) => rows.filter(([dim]) => dim.startsWith(`${field}=`))
     const html =
-      table('Paywall trigger', this.breakouts(data, 'paywall_shown', days)) +
-      table('Gate hit feature', this.breakouts(data, 'gate_hit', days))
+      table('Paywall trigger', only(this.breakouts(data, 'paywall_shown', days), 'trigger')) +
+      table('Gate hit feature', only(this.breakouts(data, 'gate_hit', days), 'feature'))
     if (!html) return ''
     return `<h3 style="margin:0.5rem 0 0.75rem; font-size:0.95rem;">Breakdowns</h3>${html}`
   }

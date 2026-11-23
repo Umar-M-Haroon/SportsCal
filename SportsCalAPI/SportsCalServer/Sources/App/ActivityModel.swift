@@ -99,6 +99,12 @@ struct ClientTelemetryEvent: Codable, Content {
         "paywall_dismissed",
         "purchase_completed",
         "trial_started",
+        // Paywall funnel (inside the paywall view).
+        "paywall_plan_selected",
+        "paywall_purchase_started",
+        "paywall_purchase_cancelled",
+        "paywall_purchase_failed",
+        "paywall_restore",
         "gate_hit",
         "rating_prompt_shown",
         "ad_upsell_tapped",
@@ -146,15 +152,24 @@ struct ClientTelemetryEvent: Codable, Content {
         "paywall_dismissed",
         "purchase_completed",
         "trial_started",
+        "paywall_purchase_started",
         "activation_first_favorite",
         "activation_notifications_enabled",
     ]).union(activationEvents)
 
     /// Which fields get their own `field=value` counter per event. Values are
     /// allow-listed too (unknown → `other`) so key cardinality stays bounded.
-    /// (trial vs paid needs no breakout — they're separate events.)
+    /// (trial vs paid needs no breakout — they're separate events.) `platform` is
+    /// already normalized to ios/macos/unknown by the route; `unknown` → `other`.
     static let breakoutFields: [String: [String]] = [
-        "paywall_shown": ["trigger"],
+        "paywall_shown": ["trigger", "featured", "platform"],
+        "paywall_dismissed": ["trigger", "outcome"],
+        "purchase_completed": ["plan", "trigger", "platform"],
+        "paywall_plan_selected": ["plan"],
+        "paywall_purchase_started": ["plan", "trigger", "platform"],
+        "paywall_purchase_cancelled": ["plan"],
+        "paywall_purchase_failed": ["plan"],
+        "paywall_restore": ["result"],
         "gate_hit": ["feature"],
         "activation_onboarding_completed": ["sports"],
         "custom_alert_rule_created": ["kind", "sport"],
@@ -163,9 +178,23 @@ struct ClientTelemetryEvent: Codable, Content {
         "share_card_shared": ["sport", "state"],
     ]
 
-    /// Keep in sync with iOS `UpsellTrigger` raw values and `ProFeature` cases.
+    /// Keep in sync with iOS `UpsellTrigger` raw values, `ProFeature` cases and the
+    /// paywall's plan / outcome / restore-result values.
     static let breakoutValues: [String: Set<String>] = [
-        "trigger": ["post_onboarding", "free_reminder_cap", "favorite_live_opened", "nth_session", "theme", "custom_alert_cap"],
+        "trigger": [
+            "post_onboarding", "free_reminder_cap", "favorite_live_opened", "nth_session", "theme", "custom_alert_cap",
+            // Paywall opens that aren't an upsell nudge (sent by the paywall view itself).
+            "settings", "about", "menu_bar", "ad_card", "feature_gate", "direct",
+        ],
+        // The `ProFeature` the paywall led with; `none` = generic paywall.
+        "featured": [
+            "adFree", "proSettings", "goalAlerts", "preGameReminders", "unlimitedReminders",
+            "calendarExport", "customAlerts", "themes", "menuBar", "none",
+        ],
+        "plan": ["monthly", "annual", "lifetime"],
+        "outcome": ["purchased", "closed"],
+        "result": ["restored", "none"],
+        "platform": allowedPlatforms,
         // iOS `AlertRule.Kind` raw values, `SportType` raw values (custom alerts send the
         // team sports; share cards any sport), and notification actions.
         "kind": ["playerPlay", "playerMilestone", "gameSituation"],
