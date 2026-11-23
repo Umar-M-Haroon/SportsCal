@@ -321,6 +321,7 @@ struct ContentView: View {
                 // The launch flow belongs to the first window only; a second
                 // window (Split View, a popped-out game) opens straight to content.
                 LaunchOnce.run("launchFlow") {
+                    Perf.event("mainWindowAppear")
                     WidgetCenter.shared.reloadAllTimelines()
                     // Post-update notes take the launch (no rating prompt on top of
                     // them); fresh installs get onboarding instead. Marked seen on

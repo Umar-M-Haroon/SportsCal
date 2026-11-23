@@ -64,8 +64,9 @@ struct GameBoardLayout<GameContent: View>: View {
     private let liveFirst = false
     @State private var peekedSport: SportType?
     #endif
-    /// The board's horizontal position, for the Mac's edge arrows.
-    @State private var boardScroll = ScrollPosition()
+    /// The column resting at the board's leading edge, kept in sync by SwiftUI's
+    /// view-aligned scrolling, which knows where the visible edge is.
+    @State private var leadingColumn: SportType?
     /// Whether columns are hidden past each edge (drives the arrows).
     @State private var hiddenEdges = HiddenEdges()
     #if os(macOS)
@@ -85,15 +86,17 @@ struct GameBoardLayout<GameContent: View>: View {
     }
 
     final class ScrollMetrics {
-        var offsetX: CGFloat = 0
-        /// On macOS 26 the board scrolls beneath the sidebar and inspector; this is
-        /// how far its visible leading edge sits from the scroll view's.
+        /// On macOS 26 the board scrolls beneath the sidebar; this is how far its
+        /// visible leading edge sits from the scroll view's own.
         var leadingInset: CGFloat = 0
+        var containerWidth: CGFloat = 0
+        /// Columns at least half on screen, as SwiftUI reports them.
+        var visibleIDs: [SportType] = []
     }
 
     struct ScrollSnapshot: Equatable {
-        var offsetX: CGFloat
         var leadingInset: CGFloat
+        var containerWidth: CGFloat
         var edges: HiddenEdges
     }
 
@@ -172,22 +175,25 @@ struct GameBoardLayout<GameContent: View>: View {
                 }
                 // Rest on whole columns, never half of one.
                 .scrollTargetBehavior(.viewAligned)
-                .scrollPosition($boardScroll)
+                .scrollPosition(id: $leadingColumn, anchor: .leading)
                 .onScrollGeometryChange(for: ScrollSnapshot.self) { geometry in
                     let leading = geometry.contentInsets.leading
                     let visibleEnd = geometry.contentOffset.x + geometry.containerSize.width - geometry.contentInsets.trailing
                     return ScrollSnapshot(
-                        offsetX: geometry.contentOffset.x,
                         leadingInset: leading,
+                        containerWidth: geometry.containerSize.width,
                         edges: HiddenEdges(
                             leading: geometry.contentOffset.x + leading > 4,
                             trailing: visibleEnd < geometry.contentSize.width - 4
                         )
                     )
                 } action: { _, snapshot in
-                    scrollMetrics.offsetX = snapshot.offsetX
                     scrollMetrics.leadingInset = snapshot.leadingInset
+                    scrollMetrics.containerWidth = snapshot.containerWidth
                     if snapshot.edges != hiddenEdges { hiddenEdges = snapshot.edges }
+                }
+                .onScrollTargetVisibilityChange(idType: SportType.self, threshold: 0.5) { ids in
+                    scrollMetrics.visibleIDs = ids
                 }
                 #if os(macOS)
                 // No swipe on a mouse and the scroller is hidden: without these a
@@ -195,14 +201,14 @@ struct GameBoardLayout<GameContent: View>: View {
                 .overlay(alignment: .leading) {
                     if hiddenEdges.leading {
                         pageButton(systemImage: "chevron.left", help: "Previous sports") {
-                            page(by: -1, columnWidth: columnWidth, columnCount: fullColumns.count)
+                            page(by: -1, ids: fullColumns.map(\.id) + rails.map(\.id), columnWidth: columnWidth, columnCount: fullColumns.count)
                         }
                     }
                 }
                 .overlay(alignment: .trailing) {
                     if hiddenEdges.trailing {
                         pageButton(systemImage: "chevron.right", help: "More sports") {
-                            page(by: 1, columnWidth: columnWidth, columnCount: fullColumns.count)
+                            page(by: 1, ids: fullColumns.map(\.id) + rails.map(\.id), columnWidth: columnWidth, columnCount: fullColumns.count)
                         }
                     }
                 }
@@ -212,7 +218,14 @@ struct GameBoardLayout<GameContent: View>: View {
                 }
                 // Opening the inspector narrows the columns; settle back onto a whole one.
                 .onChange(of: columnWidth) { _, newWidth in
-                    page(by: 0, columnWidth: newWidth, columnCount: fullColumns.count, animated: false)
+                    // After the scroll view reports its new geometry: snapping against
+                    // the old scroll limit got clamped and left a column half hidden.
+                    let count = fullColumns.count
+                    let ids = fullColumns.map(\.id) + rails.map(\.id)
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(60))
+                        page(by: 0, ids: ids, columnWidth: newWidth, columnCount: count, animated: false)
+                    }
                 }
                 #endif
             }
@@ -250,28 +263,22 @@ struct GameBoardLayout<GameContent: View>: View {
         .transition(.opacity)
     }
 
-    /// Scrolls `delta` whole columns from the one at the visible leading edge. Works
-    /// in offsets rather than `scrollTo(id:anchor:)`, whose leading anchor is the scroll
-    /// view's own edge, under the sidebar, so it parked columns half hidden.
-    private func page(by delta: Int, columnWidth: CGFloat, columnCount: Int, animated: Bool = true) {
-        guard columnCount > 0 else { return }
-        let stride = columnWidth + Self.columnSpacing
-        let fromRest = scrollMetrics.offsetX + scrollMetrics.leadingInset
-        let current = Int((fromRest / stride).rounded())
-        let target = current + delta
-        let move = {
-            if target >= columnCount {
-                // Past the last column: the empty-sport rails.
-                boardScroll.scrollTo(edge: .trailing)
-            } else {
-                // `scrollTo(x:)` measures from the resting position, past the inset.
-                boardScroll.scrollTo(x: CGFloat(max(target, 0)) * stride)
-            }
-        }
+    /// Scrolls `delta` whole columns from the one at the leading edge, through the
+    /// scroll position binding: offset maths against the reported insets parked
+    /// columns half hidden under the sidebar after resizes and inspector changes.
+    private func page(by delta: Int, ids: [SportType], columnWidth: CGFloat, columnCount: Int, animated: Bool = true) {
+        guard !ids.isEmpty else { return }
+        let current = leadingColumn.flatMap { ids.firstIndex(of: $0) }
+            ?? ids.firstIndex(where: scrollMetrics.visibleIDs.contains) ?? 0
+        let target = min(max(current + delta, 0), ids.count - 1)
+        let move = { leadingColumn = ids[target] }
         if animated {
             withAnimation(.easeInOut(duration: 0.25), move)
         } else {
-            move()
+            // Re-snapping in place: clear it, then set it on the next update, so an
+            // unchanged column still re-aligns (one update would net to no change).
+            leadingColumn = nil
+            Task { @MainActor in move() }
         }
     }
     #endif

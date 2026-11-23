@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SportsCalModel
 import os
 import TipKit
 import RevenueCat
@@ -45,6 +46,8 @@ struct SportsCalApp: App {
     @State private var viewModel: GameViewModel
 
     init() {
+        let initToken = Perf.begin("appInit")
+        defer { Perf.end("appInit", initToken) }
         // Touch TeamsManager.shared first so its disk-cached teams are loaded
         // before Favorites' init runs — that lets the legacy-shape migration
         // resolve as many name → ID entries as possible on the spot.
@@ -127,6 +130,7 @@ struct SportsCalApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .measuresCheaplyForWindowSizing()
                 #if os(iOS)
                 .modifier(WindowAdScope())
                 #endif
@@ -523,6 +527,41 @@ private struct WindowAdScope: ViewModifier {
                     adManager.preloadAds(count: AdConfiguration.maxAdsPerScreen + 1)
                 }
             }
+    }
+}
+#endif
+
+
+private extension View {
+    /// On the Mac, a window group's minimum size comes from its content, so before
+    /// the first frame SwiftUI measured the whole board just to learn how small the
+    /// window may get: ~60% of building the main window at launch. The window root
+    /// answers sizing from a fixed minimum instead of measuring its content.
+    @ViewBuilder
+    func measuresCheaplyForWindowSizing() -> some View {
+        #if os(macOS)
+        WindowRootLayout(minimum: CGSize(width: 760, height: 520)) { self }
+        #else
+        self
+        #endif
+    }
+}
+
+#if os(macOS)
+/// Fills whatever it's given and never asks its child for a size: the window's
+/// minimum is `minimum`, not a measurement of the content.
+private struct WindowRootLayout: Layout {
+    let minimum: CGSize
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        CGSize(width: max(proposal.width ?? minimum.width, minimum.width),
+               height: max(proposal.height ?? minimum.height, minimum.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for subview in subviews {
+            subview.place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(bounds.size))
+        }
     }
 }
 #endif
