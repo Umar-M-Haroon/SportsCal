@@ -913,6 +913,9 @@ struct DayPage: View {
             }
             .inspector(isPresented: $boardInspectorVisible) {
                 boardInspector
+                    // Lay the detail out once at a settled width; the sliding column
+                    // reveals it instead of reflowing it on every animation frame.
+                    .modifier(SettledWidthFrame(provisionalWidth: 420))
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     // The glass inspector let the board's logos blur through
                     // behind the detail; give it the app's solid surface.
@@ -1914,3 +1917,49 @@ struct DayPage: View {
         .environment(NativeAdManager())
         #endif
 }
+
+#if os(macOS)
+/// Holds its content at the width it last settled on, while the container's width is
+/// animating (an inspector sliding open or shut). SwiftUI otherwise re-measures the
+/// whole subtree on every frame of the slide, which dropped frames on the Mac.
+/// The content follows the new width once it stops changing; a window being resized
+/// by hand follows at once.
+struct SettledWidthFrame: ViewModifier {
+    /// Used while opening from nothing, until the real width settles.
+    var provisionalWidth: CGFloat
+
+    @State private var settledWidth: CGFloat = 0
+    @State private var settle: Task<Void, Never>?
+
+    func body(content: Content) -> some View {
+        GeometryReader { geometry in
+            content
+                .frame(width: settledWidth > 0 ? settledWidth : max(geometry.size.width, provisionalWidth))
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+                .clipped()
+                .onChange(of: geometry.size.width, initial: true) { _, width in
+                    update(to: width)
+                }
+        }
+    }
+
+    private func update(to width: CGFloat) {
+        settle?.cancel()
+        // Closing: keep the last real width for the next open, don't settle on ~0.
+        guard width >= 50 else { return }
+        if NSApp.windows.contains(where: \.inLiveResize) {
+            settledWidth = width
+            return
+        }
+        if settledWidth == 0, width < provisionalWidth {
+            // Opening: lay out at the provisional width now and settle on the real one.
+            settledWidth = provisionalWidth
+        }
+        settle = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(180))
+            guard !Task.isCancelled else { return }
+            settledWidth = width
+        }
+    }
+}
+#endif

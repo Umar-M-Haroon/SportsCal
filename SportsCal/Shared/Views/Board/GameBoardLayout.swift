@@ -64,14 +64,37 @@ struct GameBoardLayout<GameContent: View>: View {
     private let liveFirst = false
     @State private var peekedSport: SportType?
     #endif
-    /// The board's horizontal position, by column, for the Mac's edge arrows.
-    @State private var boardScroll = ScrollPosition(idType: SportType.self)
+    /// The board's horizontal position, for the Mac's edge arrows.
+    @State private var boardScroll = ScrollPosition()
     /// Whether columns are hidden past each edge (drives the arrows).
     @State private var hiddenEdges = HiddenEdges()
+    #if os(macOS)
+    /// The board width the columns are sized for. It trails the live width while the
+    /// inspector slides in or out, so the columns hold still instead of re-measuring
+    /// every card on every frame (that was ~60 full-board layouts per toggle).
+    @State private var settledWidth: CGFloat = 0
+    @State private var widthSettle: Task<Void, Never>?
+    #endif
+    /// Live scroll metrics, written every scroll frame. A plain box, not observed,
+    /// so scrolling doesn't re-render the board.
+    @State private var scrollMetrics = ScrollMetrics()
 
     struct HiddenEdges: Equatable {
         var leading = false
         var trailing = false
+    }
+
+    final class ScrollMetrics {
+        var offsetX: CGFloat = 0
+        /// On macOS 26 the board scrolls beneath the sidebar and inspector; this is
+        /// how far its visible leading edge sits from the scroll view's.
+        var leadingInset: CGFloat = 0
+    }
+
+    struct ScrollSnapshot: Equatable {
+        var offsetX: CGFloat
+        var leadingInset: CGFloat
+        var edges: HiddenEdges
     }
 
     private static var railWidth: CGFloat { 76 }
@@ -105,11 +128,16 @@ struct GameBoardLayout<GameContent: View>: View {
                 // them when every column fits beside them; otherwise size for whole
                 // columns and let the rails scroll in after the last one.
                 let railsWidth = CGFloat(rails.count) * (Self.railWidth + 12)
-                let columnWidth = allColumnsFit(availableWidth: geometry.size.width - railsWidth,
+                #if os(macOS)
+                let boardWidth = settledWidth > 0 ? settledWidth : geometry.size.width
+                #else
+                let boardWidth = geometry.size.width
+                #endif
+                let columnWidth = allColumnsFit(availableWidth: boardWidth - railsWidth,
                                                 columnCount: fullColumns.count)
-                    ? computeColumnWidth(availableWidth: geometry.size.width - railsWidth,
+                    ? computeColumnWidth(availableWidth: boardWidth - railsWidth,
                                          columnCount: fullColumns.count)
-                    : computeColumnWidth(availableWidth: geometry.size.width,
+                    : computeColumnWidth(availableWidth: boardWidth,
                                          columnCount: fullColumns.count)
 
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -145,13 +173,21 @@ struct GameBoardLayout<GameContent: View>: View {
                 // Rest on whole columns, never half of one.
                 .scrollTargetBehavior(.viewAligned)
                 .scrollPosition($boardScroll)
-                .onScrollGeometryChange(for: HiddenEdges.self) { geometry in
-                    HiddenEdges(
-                        leading: geometry.contentOffset.x > 4,
-                        trailing: geometry.contentOffset.x + geometry.containerSize.width < geometry.contentSize.width - 4
+                .onScrollGeometryChange(for: ScrollSnapshot.self) { geometry in
+                    let leading = geometry.contentInsets.leading
+                    let visibleEnd = geometry.contentOffset.x + geometry.containerSize.width - geometry.contentInsets.trailing
+                    return ScrollSnapshot(
+                        offsetX: geometry.contentOffset.x,
+                        leadingInset: leading,
+                        edges: HiddenEdges(
+                            leading: geometry.contentOffset.x + leading > 4,
+                            trailing: visibleEnd < geometry.contentSize.width - 4
+                        )
                     )
-                } action: { _, edges in
-                    hiddenEdges = edges
+                } action: { _, snapshot in
+                    scrollMetrics.offsetX = snapshot.offsetX
+                    scrollMetrics.leadingInset = snapshot.leadingInset
+                    if snapshot.edges != hiddenEdges { hiddenEdges = snapshot.edges }
                 }
                 #if os(macOS)
                 // No swipe on a mouse and the scroller is hidden: without these a
@@ -159,24 +195,46 @@ struct GameBoardLayout<GameContent: View>: View {
                 .overlay(alignment: .leading) {
                     if hiddenEdges.leading {
                         pageButton(systemImage: "chevron.left", help: "Previous sports") {
-                            page(by: -1, ids: fullColumns.map(\.id) + rails.map(\.id))
+                            page(by: -1, columnWidth: columnWidth, columnCount: fullColumns.count)
                         }
                     }
                 }
                 .overlay(alignment: .trailing) {
                     if hiddenEdges.trailing {
                         pageButton(systemImage: "chevron.right", help: "More sports") {
-                            page(by: 1, ids: fullColumns.map(\.id) + rails.map(\.id))
+                            page(by: 1, columnWidth: columnWidth, columnCount: fullColumns.count)
                         }
                     }
                 }
                 .animation(.easeInOut(duration: 0.15), value: hiddenEdges)
+                .onChange(of: geometry.size.width, initial: true) { _, width in
+                    settleWidth(width)
+                }
+                // Opening the inspector narrows the columns; settle back onto a whole one.
+                .onChange(of: columnWidth) { _, newWidth in
+                    page(by: 0, columnWidth: newWidth, columnCount: fullColumns.count, animated: false)
+                }
                 #endif
             }
         }
     }
 
     #if os(macOS)
+    /// Follows the live board width after it stops changing. A window being resized
+    /// by hand follows at once, so the columns track the drag.
+    private func settleWidth(_ width: CGFloat) {
+        widthSettle?.cancel()
+        if settledWidth == 0 || NSApp.windows.contains(where: \.inLiveResize) {
+            settledWidth = width
+            return
+        }
+        widthSettle = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(180))
+            guard !Task.isCancelled else { return }
+            settledWidth = width
+        }
+    }
+
     private func pageButton(systemImage: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
@@ -192,13 +250,27 @@ struct GameBoardLayout<GameContent: View>: View {
         .transition(.opacity)
     }
 
-    /// Scrolls one column toward `delta`, from the column at the leading edge.
-    private func page(by delta: Int, ids: [SportType]) {
-        guard !ids.isEmpty else { return }
-        let current = boardScroll.viewID(type: SportType.self).flatMap { ids.firstIndex(of: $0) } ?? 0
-        let target = min(max(current + delta, 0), ids.count - 1)
-        withAnimation(.easeInOut(duration: 0.25)) {
-            boardScroll.scrollTo(id: ids[target], anchor: .leading)
+    /// Scrolls `delta` whole columns from the one at the visible leading edge. Works
+    /// in offsets rather than `scrollTo(id:anchor:)`, whose leading anchor is the scroll
+    /// view's own edge, under the sidebar, so it parked columns half hidden.
+    private func page(by delta: Int, columnWidth: CGFloat, columnCount: Int, animated: Bool = true) {
+        guard columnCount > 0 else { return }
+        let stride = columnWidth + Self.columnSpacing
+        let fromRest = scrollMetrics.offsetX + scrollMetrics.leadingInset
+        let current = Int((fromRest / stride).rounded())
+        let target = current + delta
+        let move = {
+            if target >= columnCount {
+                // Past the last column: the empty-sport rails.
+                boardScroll.scrollTo(edge: .trailing)
+            } else {
+                boardScroll.scrollTo(x: CGFloat(max(target, 0)) * stride - scrollMetrics.leadingInset)
+            }
+        }
+        if animated {
+            withAnimation(.easeInOut(duration: 0.25), move)
+        } else {
+            move()
         }
     }
     #endif
