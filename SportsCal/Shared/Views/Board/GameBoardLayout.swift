@@ -264,7 +264,8 @@ struct GameBoardLayout<GameContent: View>: View {
                 // Past the last column: the empty-sport rails.
                 boardScroll.scrollTo(edge: .trailing)
             } else {
-                boardScroll.scrollTo(x: CGFloat(max(target, 0)) * stride - scrollMetrics.leadingInset)
+                // `scrollTo(x:)` measures from the resting position, past the inset.
+                boardScroll.scrollTo(x: CGFloat(max(target, 0)) * stride)
             }
         }
         if animated {
@@ -605,3 +606,4 @@ private struct NextGameDayPeek: View {
         return "\(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())) · \(relative) · \(games)"
     }
 }
+
