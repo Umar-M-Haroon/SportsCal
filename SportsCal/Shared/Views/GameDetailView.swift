@@ -481,7 +481,16 @@ struct GameDetailView: View {
                     .accessibilityLabel("On \(networks.prefix(3).joined(separator: ", "))")
             }
         }
+        #if os(macOS)
+        // In the Mac inspector these lines floated between the score and action
+        // cards; give them the same card so the column reads as one stack.
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.secondaryGroupedBackground)
+        .cornerRadius(12)
+        #else
         .padding(.horizontal, 4)
+        #endif
     }
 
     /// "Week 8", "Game 2 of a doubleheader", "Game 2 of 3 · PHI leads series 1-0".

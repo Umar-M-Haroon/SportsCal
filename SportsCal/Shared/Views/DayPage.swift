@@ -116,9 +116,9 @@ struct DayPage: View {
     /// returns there instead of stranding on the team's game day.
     @State private var dateBeforeTeamScope: Date?
     /// macOS: trailing inspector showing the selected game's rich detail.
-    /// Persisted so its open/closed state survives relaunch. (Inspector *width*
-    /// is restored automatically by the window's state restoration.)
-    @AppStorage("board.inspector.visible") private var boardInspectorVisible: Bool = true
+    /// Starts hidden so the board gets the full window; clicking a game (or the
+    /// toolbar button) opens it. Deliberately not persisted across launches.
+    @State private var boardInspectorVisible: Bool = false
     @Environment(\.openWindow) private var openWindow
     /// Width the page is laid out in. Decides list or board on iOS, where a
     /// regular-width window can still be too narrow for two sport columns.
@@ -624,12 +624,97 @@ struct DayPage: View {
                 .frame(maxWidth: 540)
                 .frame(maxWidth: .infinity, alignment: .top)
         } else {
+            inspectorOverview
+        }
+    }
+
+    /// With nothing selected, the inspector shows what's worth opening (live now,
+    /// then today's next games) rather than a paragraph of instructions.
+    @ViewBuilder
+    private var inspectorOverview: some View {
+        let live = boardColumns.flatMap(\.liveGames)
+        let upcoming = boardColumns.flatMap(\.otherGames)
+            .filter { !$0.game.hasDoneStatus && $0.game.strStatus != "in" }
+            .sorted { ($0.game.standardDate ?? .distantFuture) < ($1.game.standardDate ?? .distantFuture) }
+        if live.isEmpty && upcoming.isEmpty {
             ContentUnavailableView(
                 "No Game Selected",
                 systemImage: "sportscourt",
-                description: Text("Pick a game — or press ⌥↑ / ⌥↓ — to see standings, leaders, and plays. Press Return to open it in its own window.")
+                description: Text("Pick a game to see standings, leaders and plays.")
             )
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    if !live.isEmpty {
+                        inspectorOverviewSection("Live Now", games: Array(live.prefix(6)), isLive: true)
+                    }
+                    if !upcoming.isEmpty {
+                        inspectorOverviewSection(isToday ? "Up Next Today" : "Up Next", games: Array(upcoming.prefix(8)), isLive: false)
+                    }
+                    Text("Select a game for standings, leaders and plays. ⌥↑ / ⌥↓ moves through the board; Return opens a game in its own window.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(20)
+                .frame(maxWidth: 540, alignment: .leading)
+                .frame(maxWidth: .infinity)
+            }
         }
+    }
+
+    private func inspectorOverviewSection(_ title: String, games: [GameWithTeams], isLive: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                if isLive { Circle().fill(Color.appLive).frame(width: 7, height: 7) }
+                Text(title).font(.headline)
+            }
+            VStack(spacing: 0) {
+                ForEach(games) { gwt in
+                    Button { selectBoardGame(gwt) } label: {
+                        inspectorOverviewRow(gwt, isLive: isLive)
+                    }
+                    .buttonStyle(.plain)
+                    if gwt.id != games.last?.id { Divider().padding(.leading, 34) }
+                }
+            }
+            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    private func inspectorOverviewRow(_ gwt: GameWithTeams, isLive: Bool) -> some View {
+        let game = gwt.game
+        let home = Team.shortCode(strTeamShort: gwt.homeTeam?.strTeamShort, name: game.strHomeTeam, idTeam: gwt.homeTeam?.idTeam)
+        let away = Team.shortCode(strTeamShort: gwt.awayTeam?.strTeamShort, name: game.strAwayTeam, idTeam: gwt.awayTeam?.idTeam)
+        let matchup: String = {
+            guard !game.isIndividualSport else { return game.tournamentName ?? game.strHomeTeam }
+            if isLive, let h = game.intHomeScore, let a = game.intAwayScore {
+                return game.displaysHomeFirst ? "\(home) \(h) – \(a) \(away)" : "\(away) \(a) – \(h) \(home)"
+            }
+            return game.matchupTitle(home: home, away: away)
+        }()
+        let status: String = {
+            if isLive { return game.strProgress ?? "Live" }
+            return game.standardDate?.formatted(date: .omitted, time: .shortened) ?? ""
+        }()
+        return HStack(spacing: 10) {
+            Image(systemName: game.sportType?.systemImage ?? "sportscourt")
+                .foregroundStyle(game.sportType.map { Color.app($0) } ?? .secondary)
+                .frame(width: 20)
+            Text(matchup)
+                .font(.callout.weight(.medium))
+                .monospacedDigit()
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            Text(status)
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(isLive ? Color.appLive : .secondary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
     }
     #endif
 
@@ -819,6 +904,12 @@ struct DayPage: View {
             .onKeyPress(.return) {
                 guard let id = boardSelectedGameID else { return .ignored }
                 openWindow(id: "game-detail", value: id); return .handled
+            }
+            // Esc puts the inspector away again (it opens on a click).
+            .onKeyPress(.escape) {
+                guard boardInspectorVisible else { return .ignored }
+                withAnimation(.easeInOut(duration: 0.2)) { boardInspectorVisible = false }
+                return .handled
             }
             .inspector(isPresented: $boardInspectorVisible) {
                 boardInspector

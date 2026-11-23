@@ -92,11 +92,16 @@ struct GameBoardLayout<GameContent: View>: View {
                 case .rail, .tray: filled
                 }
                 let rails = emptyStyle == .rail ? empty : []
-                let columnWidth = computeColumnWidth(
-                    availableWidth: geometry.size.width
-                        - CGFloat(rails.count) * (Self.railWidth + 12),
-                    columnCount: fullColumns.count
-                )
+                // Rails trail the columns in the same scroll, so only make room for
+                // them when every column fits beside them; otherwise size for whole
+                // columns and let the rails scroll in after the last one.
+                let railsWidth = CGFloat(rails.count) * (Self.railWidth + 12)
+                let columnWidth = allColumnsFit(availableWidth: geometry.size.width - railsWidth,
+                                                columnCount: fullColumns.count)
+                    ? computeColumnWidth(availableWidth: geometry.size.width - railsWidth,
+                                         columnCount: fullColumns.count)
+                    : computeColumnWidth(availableWidth: geometry.size.width,
+                                         columnCount: fullColumns.count)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 12) {
@@ -153,12 +158,18 @@ struct GameBoardLayout<GameContent: View>: View {
                         BoardGameCard(gameID: gwt.id, isFavorite: favorites.contains(gwt.game), isLive: true) {
                             gameContent(gwt, true)
                         }
-                        .frame(width: 300)
+                        // Whole cards only: share the strip's width between as
+                        // many ~290pt cards as fit, so none is cut at the edge.
+                        .containerRelativeFrame(.horizontal) { length, _ in
+                            Self.liveCardWidth(stripWidth: length)
+                        }
                     }
                 }
+                .scrollTargetLayout()
                 .padding(.horizontal, 8)
                 .padding(.bottom, 8)
             }
+            .scrollTargetBehavior(.viewAligned)
             // A horizontal ScrollView takes all the height it's offered; hug the cards.
             .fixedSize(horizontal: false, vertical: true)
         }
@@ -287,30 +298,41 @@ struct GameBoardLayout<GameContent: View>: View {
         .padding(.bottom, 10)
     }
 
+    static func liveCardWidth(stripWidth: CGFloat) -> CGFloat {
+        let inset: CGFloat = 16, spacing: CGFloat = 10, minimum: CGFloat = 290
+        let content = stripWidth - inset
+        let fittable = max(1, Int((content + spacing) / (minimum + spacing)))
+        return (content - CGFloat(fittable - 1) * spacing) / CGFloat(fittable)
+    }
+
+    private static var columnPadding: CGFloat { 32 }
+    private static var columnSpacing: CGFloat { 12 }
+    #if os(macOS)
+    private static var minimumColumnWidth: CGFloat { 300 }
+    #else
+    private static var minimumColumnWidth: CGFloat { 280 }
+    #endif
+
+    private func fittableColumns(availableWidth: CGFloat) -> Int {
+        let content = availableWidth - Self.columnPadding
+        return max(1, Int((content + Self.columnSpacing) / (Self.minimumColumnWidth + Self.columnSpacing)))
+    }
+
+    private func allColumnsFit(availableWidth: CGFloat, columnCount: Int) -> Bool {
+        columnCount <= fittableColumns(availableWidth: availableWidth)
+            && availableWidth - Self.columnPadding >= Self.minimumColumnWidth
+    }
+
     private func computeColumnWidth(availableWidth: CGFloat, columnCount: Int) -> CGFloat {
         guard columnCount > 0 else { return 300 }
-        let padding: CGFloat = 32
-        let spacing: CGFloat = 12
-        let usable = availableWidth - padding - CGFloat(columnCount - 1) * spacing
-        #if os(macOS)
-        // Fill the (wide) Mac window: fit as many ~320pt columns as possible,
-        // distributing evenly when they all fit, else fixed-width + scroll.
-        let target: CGFloat = 320
-        let fittable = max(1, Int(usable / target))
-        if columnCount <= fittable {
-            return usable / CGFloat(columnCount)
-        } else {
-            return target
-        }
-        #else
-        // Fit as many whole columns of at least 280pt as the width allows and share
-        // the width between them, so the last visible column is never cut off.
-        let content = availableWidth - padding
-        let minimum: CGFloat = 280
-        let fittable = max(1, Int((content + spacing) / (minimum + spacing)))
+        let spacing = Self.columnSpacing
+        // Fit as many whole columns as the width allows and share the width between
+        // them, so the last visible column is never cut off at the window's (or the
+        // Mac inspector's) edge; the rest scroll in whole columns.
+        let content = availableWidth - Self.columnPadding
+        let fittable = fittableColumns(availableWidth: availableWidth)
         let shown = min(columnCount, fittable)
         return (content - CGFloat(shown - 1) * spacing) / CGFloat(shown)
-        #endif
     }
 }
 

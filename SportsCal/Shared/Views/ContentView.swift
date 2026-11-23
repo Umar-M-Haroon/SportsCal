@@ -728,8 +728,9 @@ struct ContentView: View {
                         .fill(Color.appLive)
                         .frame(width: 5, height: 5)
                     Text("\(count) LIVE")
-                        .font(.appFootnote)
-                        .tracking(1)
+                        // System caption, not the mono design-system footnote.
+                        .font(.caption2.weight(.semibold))
+                        .monospacedDigit()
                 }
                 .foregroundStyle(Color.appLive)
                 .padding(.horizontal, 6)
