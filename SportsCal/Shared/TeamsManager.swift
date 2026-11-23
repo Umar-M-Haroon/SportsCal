@@ -57,18 +57,34 @@ final class TeamsManager {
 
     /// idTeam for a name or alias if known. Used by Favorites for migration.
     func teamID(forName name: String) -> String? {
-        if let id = byExactName[name] { return id }
-        // Misses are mostly tennis players and golfers (not teams), asked for on every
-        // filter pass; the diacritic-folding normalize was the cost. Memoize by raw name.
-        if let memo = missMemo.withLock({ $0[name] }) { return memo.isEmpty ? nil : memo }
-        let id = byNameKey[TeamsManager.normalize(name)]
-        missMemo.withLock { $0[name] = id ?? "" }
-        return id
+        nameLookup.teamID(forName: name)
     }
 
-    /// `teamID(forName:)` results for names not in `byExactName` ("" = no team).
-    /// Cleared whenever the name tables are rebuilt.
-    @ObservationIgnored private let missMemo = OSAllocatedUnfairLock(initialState: [String: String]())
+    /// The name tables as an immutable value, safe to read off the main actor (the
+    /// background filter pass matches favorites with it). Replaced whole whenever the
+    /// tables are rebuilt.
+    struct NameLookup: @unchecked Sendable {
+        fileprivate let byExactName: [String: String]
+        fileprivate let byNameKey: [String: String]
+        /// Misses are mostly tennis players and golfers (not teams), asked for on every
+        /// filter pass; the diacritic-folding normalize was the cost. Memoized by raw
+        /// name ("" = no team), per snapshot so a rebuild can't mix old and new tables.
+        fileprivate let missMemo = OSAllocatedUnfairLock(initialState: [String: String]())
+
+        func teamID(forName name: String) -> String? {
+            if let id = byExactName[name] { return id }
+            if let memo = missMemo.withLock({ $0[name] }) { return memo.isEmpty ? nil : memo }
+            let id = byNameKey[TeamsManager.normalize(name)]
+            missMemo.withLock { $0[name] = id ?? "" }
+            return id
+        }
+    }
+
+    @ObservationIgnored private let nameLookupLock = OSAllocatedUnfairLock(
+        initialState: NameLookup(byExactName: [:], byNameKey: [:]))
+
+    /// The current name tables, for lookups off the main actor.
+    var nameLookup: NameLookup { nameLookupLock.withLock { $0 } }
 
     /// Rebuilds `collegeTeams` from the schedule. FCS opponents are left out: they appear
     /// once or twice a season and would crowd the directory.
@@ -196,10 +212,11 @@ final class TeamsManager {
         }
         self.byNameKey = byNameKey
         self.byExactName = byExactName
-        missMemo.withLock { $0.removeAll() }
+        let lookup = NameLookup(byExactName: byExactName, byNameKey: byNameKey)
+        nameLookupLock.withLock { $0 = lookup }
     }
 
-    private static func normalize(_ s: String) -> String {
+    fileprivate static func normalize(_ s: String) -> String {
         s.lowercased()
             .folding(options: .diacriticInsensitive, locale: nil)
             .trimmingCharacters(in: .whitespacesAndNewlines)

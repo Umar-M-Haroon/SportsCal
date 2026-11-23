@@ -999,6 +999,9 @@ struct DayPage: View {
             }
         }
         storage.bumpPreferenceVersion()
+        // The favorites-only flags feed the preference filter; nothing else re-runs
+        // it, so the menu command used to change nothing on screen.
+        viewModel.filterSports()
     }
     #endif
 

@@ -103,29 +103,19 @@ class Favorites: Equatable {
     }
 
     func contains(_ team: Game) -> Bool {
-        if let homeID = team.idHomeTeam, !homeID.isEmpty, teamIDs.contains(homeID) { return true }
-        if let awayID = team.idAwayTeam, !awayID.isEmpty, teamIDs.contains(awayID) { return true }
-        if !legacyTeamNames.isEmpty {
-            if legacyTeamNames.contains(team.strHomeTeam) { return true }
-            if legacyTeamNames.contains(team.strAwayTeam) { return true }
-        }
-        // College football games always carry their own IDs, and their names resolve to
-        // the school's *basketball* team in the directory.
-        if team.isCollegeFootball { return false }
-        // Resolve game team-name to ID via TeamsManager — handles the case
-        // where the game record's idHomeTeam/idAwayTeam are nil but the name
-        // resolves to a favorited team.
-        if let id = TeamsManager.shared.teamID(forName: team.strHomeTeam), teamIDs.contains(id) { return true }
-        if let id = TeamsManager.shared.teamID(forName: team.strAwayTeam), teamIDs.contains(id) { return true }
-        return false
+        FavoriteMatching.contains(team, teamIDs: teamIDs, legacyTeamNames: legacyTeamNames,
+                                  lookup: TeamsManager.shared.nameLookup)
     }
 
     func matches(_ game: Game) -> Bool {
-        if contains(game) { return true }
-        if game.isIndividualSport {
-            return game.resolvedLeaderboard.contains { containsPlayer($0.name) }
-        }
-        return false
+        FavoriteMatching.matches(game, teamIDs: teamIDs, legacyTeamNames: legacyTeamNames,
+                                 players: players, lookup: TeamsManager.shared.nameLookup)
+    }
+
+    /// The follow state as a value, for matching games off the main actor.
+    var matcher: FavoritesMatcher {
+        FavoritesMatcher(teamIDs: teamIDs, legacyTeamNames: legacyTeamNames, players: players,
+                         lookup: TeamsManager.shared.nameLookup)
     }
 
     func contains(_ name: String) -> Bool {
@@ -463,4 +453,53 @@ struct PlayerRef: Codable, Hashable, Identifiable, Sendable {
 
 extension Notification.Name {
     static let favoritesDidChange = Notification.Name("favoritesDidChange")
+}
+
+
+/// The one definition of "does this game involve something I follow", shared by
+/// `Favorites` (main actor) and `FavoritesMatcher` (a snapshot for background work).
+enum FavoriteMatching {
+    static func contains(_ game: Game, teamIDs: Set<String>, legacyTeamNames: Set<String>,
+                         lookup: TeamsManager.NameLookup) -> Bool {
+        if let homeID = game.idHomeTeam, !homeID.isEmpty, teamIDs.contains(homeID) { return true }
+        if let awayID = game.idAwayTeam, !awayID.isEmpty, teamIDs.contains(awayID) { return true }
+        if !legacyTeamNames.isEmpty {
+            if legacyTeamNames.contains(game.strHomeTeam) { return true }
+            if legacyTeamNames.contains(game.strAwayTeam) { return true }
+        }
+        // College football games always carry their own IDs, and their names resolve to
+        // the school's *basketball* team in the directory.
+        if game.isCollegeFootball { return false }
+        // Resolve the team names to IDs: the game record's idHomeTeam/idAwayTeam can be
+        // nil while the name still resolves to a followed team.
+        if let id = lookup.teamID(forName: game.strHomeTeam), teamIDs.contains(id) { return true }
+        if let id = lookup.teamID(forName: game.strAwayTeam), teamIDs.contains(id) { return true }
+        return false
+    }
+
+    static func matches(_ game: Game, teamIDs: Set<String>, legacyTeamNames: Set<String>,
+                        players: Set<String>, lookup: TeamsManager.NameLookup) -> Bool {
+        if contains(game, teamIDs: teamIDs, legacyTeamNames: legacyTeamNames, lookup: lookup) { return true }
+        if game.isIndividualSport {
+            return game.resolvedLeaderboard.contains { players.contains($0.name) }
+        }
+        return false
+    }
+}
+
+/// A snapshot of what the user follows, safe to use off the main actor.
+struct FavoritesMatcher: @unchecked Sendable {
+    let teamIDs: Set<String>
+    let legacyTeamNames: Set<String>
+    let players: Set<String>
+    let lookup: TeamsManager.NameLookup
+
+    func contains(_ game: Game) -> Bool {
+        FavoriteMatching.contains(game, teamIDs: teamIDs, legacyTeamNames: legacyTeamNames, lookup: lookup)
+    }
+
+    func matches(_ game: Game) -> Bool {
+        FavoriteMatching.matches(game, teamIDs: teamIDs, legacyTeamNames: legacyTeamNames,
+                                 players: players, lookup: lookup)
+    }
 }

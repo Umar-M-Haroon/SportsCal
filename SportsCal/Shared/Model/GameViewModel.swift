@@ -397,10 +397,11 @@ public class GameViewModel: NSObject {
         // Every path that clears this has changed the games; the day dots and the
         // day buckets follow.
         didSet {
+            // The day buckets and dots stay until the next filter pass replaces them:
+            // every path that changes the games runs one, and a pass in flight serves
+            // them (a few ms stale) rather than recomputing on the main thread.
             if gamesWithTeamsDateCache.isEmpty {
-                datesWithGamesCache = nil
                 nextGameBySportCache = [:]
-                userPrefGamesByDay = nil
             }
         }
     }
@@ -2262,6 +2263,9 @@ public class GameViewModel: NSObject {
     ///   at the call site for why that isn't always the same as the new game's `id`.
     func patchDerivedCollections(changedByID: [String: Game]) {
         guard !changedByID.isEmpty else { return }
+        if isFilterPassInFlight {
+            patchesDuringFilterPass.merge(changedByID) { _, new in new }
+        }
 
         func patch(_ list: inout [Game]) {
             for index in list.indices {
@@ -2567,8 +2571,55 @@ public class GameViewModel: NSObject {
         }
     }
 
+    // MARK: - Preference filtering (pure, runs off the main actor)
+
+    /// Everything a filter pass reads, captured as values on the main actor so the
+    /// pass itself can run in the background. `gamesDict` and the sets are
+    /// copy-on-write, so taking the snapshot costs a few retains.
+    struct FilterInputs: @unchecked Sendable {
+        let gamesDict: [SportType: [Game]]
+        let context: GameFilterContext
+        let showMLB, showNBA, showWNBA, showNHL, showGolf, showTennis, showRacing, showCricket: Bool
+        let favoritesOnlySoccer, favoritesOnlyMLB, favoritesOnlyNBA, favoritesOnlyNFL, favoritesOnlyNHL: Bool
+        let favoritesOnlyGolf, favoritesOnlyTennis, favoritesOnlyRacing, favoritesOnlyCricket: Bool
+        let coverageGolf: EventCoverage
+        let coverageTennis: EventCoverage
+        let window: GameDateWindow
+        let favorites: FavoritesMatcher
+    }
+
+    func makeFilterInputs() -> FilterInputs {
+        FilterInputs(
+            gamesDict: gamesDict,
+            context: GameFilterContext(appStorage: appStorage),
+            showMLB: appStorage.shouldShowMLB, showNBA: appStorage.shouldShowNBA,
+            showWNBA: appStorage.shouldShowWNBA, showNHL: appStorage.shouldShowNHL,
+            showGolf: appStorage.shouldShowGolf, showTennis: appStorage.shouldShowTennis,
+            showRacing: appStorage.shouldShowRacing, showCricket: appStorage.shouldShowCricket,
+            favoritesOnlySoccer: appStorage.favoritesOnlySoccer, favoritesOnlyMLB: appStorage.favoritesOnlyMLB,
+            favoritesOnlyNBA: appStorage.favoritesOnlyNBA, favoritesOnlyNFL: appStorage.favoritesOnlyNFL,
+            favoritesOnlyNHL: appStorage.favoritesOnlyNHL, favoritesOnlyGolf: appStorage.favoritesOnlyGolf,
+            favoritesOnlyTennis: appStorage.favoritesOnlyTennis, favoritesOnlyRacing: appStorage.favoritesOnlyRacing,
+            favoritesOnlyCricket: appStorage.favoritesOnlyCricket,
+            coverageGolf: appStorage.coverage(for: .golf),
+            coverageTennis: appStorage.coverage(for: .tennis),
+            window: GameDateWindow(appStorage: appStorage),
+            favorites: favorites.matcher
+        )
+    }
+
     func getGamesFromUserPreferences() -> [Game] {
-        let context = GameFilterContext(appStorage: appStorage)
+        Self.userPrefGames(makeFilterInputs())
+    }
+
+    /// The games the user's sport, league, coverage and favorites settings admit.
+    nonisolated static func userPrefGames(_ inputs: FilterInputs) -> [Game] {
+        let context = inputs.context
+        let favorites = inputs.favorites
+        let gamesDict = inputs.gamesDict
+        func favoritesFiltered(_ games: [Game], _ favoritesOnly: Bool) -> [Game] {
+            applyFavoritesFilter(games, favoritesOnly: favoritesOnly, context: context, favorites: favorites)
+        }
         var allGames: [Game] = []
         if context.showSoccer || context.showWorldCup {
             let soccerGames = (gamesDict[.soccer] ?? []).filter { game in
@@ -2579,49 +2630,47 @@ public class GameViewModel: NSObject {
                     && context.soccerPassesEnableGate(league)
                     && !context.hiddenCompetitions.contains(league.leagueName)
             }
-            allGames.append(contentsOf: applyFavoritesFilter(soccerGames, favoritesOnly: appStorage.favoritesOnlySoccer, context: context))
+            allGames.append(contentsOf: favoritesFiltered(soccerGames, inputs.favoritesOnlySoccer))
         }
-        if appStorage.shouldShowMLB {
-            let games = gamesDict[.mlb] ?? []
-            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyMLB, context: context))
+        if inputs.showMLB {
+            allGames.append(contentsOf: favoritesFiltered(gamesDict[.mlb] ?? [], inputs.favoritesOnlyMLB))
         }
-        let showNBA = appStorage.shouldShowNBA
-        let showWNBA = appStorage.shouldShowWNBA
-        if showNBA || showWNBA {
-            if let basketballGames = gamesDict[.basketball] {
-                let filtered = basketballGames.filter { game in
-                    guard let leagueString = game.idLeague,
-                          let intLeague = Int(leagueString),
-                          let league = Leagues(rawValue: intLeague) else { return false }
-                    if !league.isBasketball || context.hiddenCompetitions.contains(league.leagueName) { return false }
-                    return league == .wnba ? showWNBA : showNBA
-                }
-                allGames.append(contentsOf: applyFavoritesFilter(filtered, favoritesOnly: appStorage.favoritesOnlyNBA, context: context))
+        let showNBA = inputs.showNBA
+        let showWNBA = inputs.showWNBA
+        if showNBA || showWNBA, let basketballGames = gamesDict[.basketball] {
+            let filtered = basketballGames.filter { game in
+                guard let leagueString = game.idLeague,
+                      let intLeague = Int(leagueString),
+                      let league = Leagues(rawValue: intLeague) else { return false }
+                if !league.isBasketball || context.hiddenCompetitions.contains(league.leagueName) { return false }
+                return league == .wnba ? showWNBA : showNBA
             }
+            allGames.append(contentsOf: favoritesFiltered(filtered, inputs.favoritesOnlyNBA))
         }
         if context.football.isOn {
-            let games = footballGames(gamesDict[.nfl] ?? [], context: context)
-            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyNFL, context: context))
+            let games = footballGames(gamesDict[.nfl] ?? [], context: context, favorites: favorites)
+            allGames.append(contentsOf: favoritesFiltered(games, inputs.favoritesOnlyNFL))
         }
-        if appStorage.shouldShowNHL {
-            let games = gamesDict[.hockey] ?? []
-            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyNHL, context: context))
+        if inputs.showNHL {
+            allGames.append(contentsOf: favoritesFiltered(gamesDict[.hockey] ?? [], inputs.favoritesOnlyNHL))
         }
-        if appStorage.shouldShowGolf {
-            let games = applyCoverage(hidingCompetitions(gamesDict[.golf] ?? [], context: context), sport: .golf)
-            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyGolf, context: context))
+        if inputs.showGolf {
+            let games = applyCoverage(hidingCompetitions(gamesDict[.golf] ?? [], context: context),
+                                      coverage: inputs.coverageGolf, favorites: favorites)
+            allGames.append(contentsOf: favoritesFiltered(games, inputs.favoritesOnlyGolf))
         }
-        if appStorage.shouldShowTennis {
-            let games = applyCoverage(hidingCompetitions(gamesDict[.tennis] ?? [], context: context), sport: .tennis)
-            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyTennis, context: context))
+        if inputs.showTennis {
+            let games = applyCoverage(hidingCompetitions(gamesDict[.tennis] ?? [], context: context),
+                                      coverage: inputs.coverageTennis, favorites: favorites)
+            allGames.append(contentsOf: favoritesFiltered(games, inputs.favoritesOnlyTennis))
         }
-        if appStorage.shouldShowRacing {
+        if inputs.showRacing {
             let games = hidingCompetitions(gamesDict[.racing] ?? [], context: context)
-            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyRacing, context: context))
+            allGames.append(contentsOf: favoritesFiltered(games, inputs.favoritesOnlyRacing))
         }
-        if appStorage.shouldShowCricket {
+        if inputs.showCricket {
             let games = hidingCompetitions(gamesDict[.cricket] ?? [], context: context)
-            allGames.append(contentsOf: applyFavoritesFilter(games, favoritesOnly: appStorage.favoritesOnlyCricket, context: context))
+            allGames.append(contentsOf: favoritesFiltered(games, inputs.favoritesOnlyCricket))
         }
         return allGames
     }
@@ -2629,6 +2678,11 @@ public class GameViewModel: NSObject {
     /// Games from the football bucket the user wants: NFL and college are switched on
     /// separately, and college is cut down to its coverage (followed teams always pass).
     func footballGames(_ games: [Game], context: GameFilterContext) -> [Game] {
+        Self.footballGames(games, context: context, favorites: favorites.matcher)
+    }
+
+    nonisolated static func footballGames(_ games: [Game], context: GameFilterContext,
+                                          favorites: FavoritesMatcher) -> [Game] {
         games.filter { game in
             guard let league = game.idLeague.flatMap({ Int($0) }).flatMap(Leagues.init(rawValue:)),
                   league.isFootball,
@@ -2641,6 +2695,10 @@ public class GameViewModel: NSObject {
     /// Soccer and basketball do this inline; the individual sports skipped it entirely,
     /// so their per-tour toggles did nothing.
     private func hidingCompetitions(_ games: [Game], context: GameFilterContext) -> [Game] {
+        Self.hidingCompetitions(games, context: context)
+    }
+
+    nonisolated static func hidingCompetitions(_ games: [Game], context: GameFilterContext) -> [Game] {
         guard !context.hiddenCompetitions.isEmpty else { return games }
         return games.filter { !$0.isInHiddenCompetition(context.hiddenCompetitions) }
     }
@@ -2648,13 +2706,22 @@ public class GameViewModel: NSObject {
     /// Drops tennis/golf events below the user's coverage for `sport` (Grand Slams / big
     /// events / everything). Followed players always pass. No-op for `.everything`.
     func applyCoverage(_ games: [Game], sport: SportType) -> [Game] {
-        let coverage = appStorage.coverage(for: sport)
+        Self.applyCoverage(games, coverage: appStorage.coverage(for: sport), favorites: favorites.matcher)
+    }
+
+    nonisolated static func applyCoverage(_ games: [Game], coverage: EventCoverage,
+                                          favorites: FavoritesMatcher) -> [Game] {
         guard coverage != .everything else { return games }
         // Favorite lookup is the expensive half, so only pay it for games coverage drops.
         return games.filter { $0.passesCoverage(coverage) || favorites.matches($0) }
     }
 
     private func applyFavoritesFilter(_ games: [Game], favoritesOnly: Bool, context: GameFilterContext) -> [Game] {
+        Self.applyFavoritesFilter(games, favoritesOnly: favoritesOnly, context: context, favorites: favorites.matcher)
+    }
+
+    nonisolated static func applyFavoritesFilter(_ games: [Game], favoritesOnly: Bool, context: GameFilterContext,
+                                                 favorites: FavoritesMatcher) -> [Game] {
         if favoritesOnly {
             return games.filter { favorites.matches($0) }
         }
@@ -2668,7 +2735,7 @@ public class GameViewModel: NSObject {
             return favorites.matches(game)
         }
     }
-    
+
     /// The date span the "show games within…" settings admit, as two `Date`s.
     ///
     /// `showGame` decided this per game, and each of its sixteen arms called
@@ -2740,8 +2807,12 @@ public class GameViewModel: NSObject {
     }
 
     func filterAndSortGamesFromUserPreferences(games: [Game]) -> [Game] {
-        let window = GameDateWindow(appStorage: appStorage)
-        return games.filter { game in
+        Self.filterAndSort(games, window: GameDateWindow(appStorage: appStorage))
+    }
+
+    /// The games inside the "show games within…" window, in start order.
+    nonisolated static func filterAndSort(_ games: [Game], window: GameDateWindow) -> [Game] {
+        games.filter { game in
             // `effectiveEndDate` (not `standardDate`) so a multi-session F1 weekend is
             // judged on race day rather than on Friday practice.
             guard let date = game.effectiveEndDate else { return false }
@@ -2793,12 +2864,6 @@ public class GameViewModel: NSObject {
         fetchMissingSlicesIfNeeded()
         // Refresh filter-state hash so subsequent reads/writes use the right scope.
         currentFilterStateHash = computeFilterStateHash()
-        // Only purge the entire date cache when the underlying games actually changed
-        // (force == true). Filter-only changes don't need to wipe — entries built under
-        // the previous filter hash become unreachable but remain valid if the user toggles back.
-        if force {
-            gamesWithTeamsDateCache.removeAll()
-        }
 
         if appStorage.debugMode {
             AppLogger.viewModel.debug("Sports filter changed — NFL:\(self.appStorage.shouldShowNFL) NBA:\(self.appStorage.shouldShowNBA) NHL:\(self.appStorage.shouldShowNHL) Soccer:\(self.appStorage.shouldShowSoccer) MLB:\(self.appStorage.shouldShowMLB) Golf:\(self.appStorage.shouldShowGolf) Tennis:\(self.appStorage.shouldShowTennis) Racing:\(self.appStorage.shouldShowRacing) Cricket:\(self.appStorage.shouldShowCricket)")
@@ -2814,28 +2879,106 @@ public class GameViewModel: NSObject {
                 SportType(league: Leagues.init(rawValue: Int(game.idLeague!)!)!)
             })
         }
-        let userPrefGames = Perf.measure("fs.prefs") { getGamesFromUserPreferences() }
-        filteredGames = Perf.measure("fs.filterSort") { filterAndSortGamesFromUserPreferences(games: userPrefGames) }
+
+        // Requests made while a pass is in flight coalesce into the next one; anything
+        // one of them asked for (a live update, side effects) still happens.
+        pendingFilterOptions.merge(searchString: searchString, skipLiveUpdate: skipLiveUpdate,
+                                   skipSideEffects: skipSideEffects)
+        let inputs = makeFilterInputs()
+        let hash = currentFilterStateHash
+        filterGeneration &+= 1
+        let generation = filterGeneration
+
+        if Self.filtersSynchronously {
+            applyFilterPass(Self.runFilterPass(inputs), filterHash: hash)
+            return
+        }
+        // The pass (preference filter, window, sort, day buckets) used to run here on
+        // the main actor: 60-470ms per data change or settings toggle. It now runs on
+        // a snapshot in the background; only publishing the result touches main.
+        isFilterPassInFlight = true
+        filterPassTask?.cancel()
+        filterPassTask = Task { @MainActor [weak self] in
+            let output = await Task.detached(priority: .userInitiated) {
+                GameViewModel.runFilterPass(inputs)
+            }.value
+            guard let self, !Task.isCancelled, generation == self.filterGeneration else { return }
+            self.applyFilterPass(output, filterHash: hash)
+        }
+    }
+
+    /// Whether filter passes run inline (tests and snapshot fixtures read the results
+    /// right after calling `filterSports`).
+    static var filtersSynchronously: Bool {
+        isSnapshotTesting || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
+    struct FilterPassOptions {
+        var searchString: String?
+        var skipLiveUpdate = true
+        var skipSideEffects = true
+        var isEmpty = true
+
+        mutating func merge(searchString: String?, skipLiveUpdate: Bool, skipSideEffects: Bool) {
+            if searchString != nil || isEmpty { self.searchString = searchString }
+            self.skipLiveUpdate = self.skipLiveUpdate && skipLiveUpdate
+            self.skipSideEffects = self.skipSideEffects && skipSideEffects
+            isEmpty = false
+        }
+    }
+
+    struct FilterPassOutput: @unchecked Sendable {
+        let filtered: [Game]
+        let sort: SortResult
+    }
+
+    @ObservationIgnored private var filterPassTask: Task<Void, Never>?
+    @ObservationIgnored private var filterGeneration = 0
+    @ObservationIgnored private var pendingFilterOptions = FilterPassOptions()
+    /// Live merges that landed while a pass was computing from an older snapshot;
+    /// re-applied to its result so scores never step backwards.
+    @ObservationIgnored private var patchesDuringFilterPass: [String: Game] = [:]
+    @ObservationIgnored private(set) var isFilterPassInFlight = false
+
+    nonisolated static func runFilterPass(_ inputs: FilterInputs) -> FilterPassOutput {
+        let userPref = Perf.measure("fs.prefs") { userPrefGames(inputs) }
+        let filtered = Perf.measure("fs.filterSort") { filterAndSort(userPref, window: inputs.window) }
+        let sort = Perf.measure("fs.sortByDate") { computeSort(filtered: filtered, userPref: userPref) }
+        return FilterPassOutput(filtered: filtered, sort: sort)
+    }
+
+    private func applyFilterPass(_ output: FilterPassOutput, filterHash: Int) {
+        let token = Perf.begin("filterApply")
+        defer { Perf.end("filterApply", token) }
+        let options = pendingFilterOptions
+        pendingFilterOptions = FilterPassOptions()
+        isFilterPassInFlight = false
+
+        filteredGames = output.filtered
         // Invalidate the memoized calendar set — it's rebuilt lazily on next access
         // (Calendar/Browse tab), not eagerly here. filterSports is the single
         // chokepoint for every change that affects calendar membership (data
         // fetches and filter/competition toggles), so nil-ing here is sufficient.
         _calendarGamesCache = nil
         _nextGameByTeamID = nil
-
-        Perf.measure("fs.counts") { rebuildSportCountsCache() }
+        rebuildSportCountsCache()
         AppLogger.viewModel.info("Total games: \(self.totalGames?.count ?? 0), filtered: \(self.filteredGames?.count ?? 0)")
-        Perf.measure("fs.search") { handleSearch(searchString: searchString) }
-        Perf.measure("fs.sortByDate") { sortByDate(userPrefGames: userPrefGames) }
-        Perf.measure("fs.favorites") { setFavorites() }
-        if !skipLiveUpdate {
-            Perf.measure("fs.liveData") { updateLiveData() }
+        handleSearch(searchString: options.searchString)
+        applySort(output.sort, filterHash: filterHash)
+        setFavorites()
+        // Scores that changed while the pass computed from an older snapshot.
+        if !patchesDuringFilterPass.isEmpty {
+            let patches = patchesDuringFilterPass
+            patchesDuringFilterPass = [:]
+            patchDerivedCollections(changedByID: patches)
         }
-
+        if !options.skipLiveUpdate {
+            updateLiveData()
+        }
         // The widget snapshot, Spotlight reindex, and intent donation are skipped
         // on the throwaway cached launch pass — getInfo()'s fetch reconcile runs
         // moments later and does them once against fresh data, instead of 2-3×.
-        guard !skipSideEffects else { return }
+        guard !options.skipSideEffects else { return }
         scheduleDerivedSideEffects()
     }
 
@@ -2989,14 +3132,28 @@ public class GameViewModel: NSObject {
 
     /// - Parameter userPrefGames: `getGamesFromUserPreferences()` for the current state,
     ///   when the caller already has it (filterSports does), so the pass isn't repeated.
+    /// What a filter pass derives from the filtered and preference games: the date
+    /// sections and the per-day buckets. Pure, so it runs off the main actor.
+    struct SortResult: @unchecked Sendable {
+        let limitedSorted: [(key: DateComponents, value: [Game])]
+        let gamesByDay: [Date: [Game]]
+        let datesWithGames: Set<DateComponents>
+    }
+
     func sortByDate(userPrefGames knownUserPrefGames: [Game]? = nil) {
+        let result = Self.computeSort(filtered: filteredGames ?? [],
+                                      userPref: knownUserPrefGames ?? getGamesFromUserPreferences())
+        applySort(result, filterHash: currentFilterStateHash)
+    }
+
+    nonisolated static func computeSort(filtered: [Game], userPref: [Game]) -> SortResult {
         // Bucketed on the local-day index rather than a `DateComponents` key: building
         // and hashing a calendar-carrying `DateComponents` per game was main-thread cost
         // on every filter pass (Sentry SPORTS-CAL-98/9C, under setGames → filterSports).
         // Same buckets, same in-day order, and day-index order is date order.
         var days = LocalDayCache()
         var byDay: [Int: [Game]] = [:]
-        for game in filteredGames ?? [] {
+        for game in filtered {
             // For multi-session events (F1), group by the effective end date (Race day).
             // A golf tournament also has an end date now, but it belongs under its first
             // round rather than jumping to Sunday.
@@ -3011,59 +3168,24 @@ public class GameViewModel: NSObject {
         var limitedSorted: Array<(key: DateComponents, value: Array<Game>)> = []
         var totalCount = 0
         for section in sorted {
-            if totalCount >= Self.maxDisplayedGames { break }
-            let remainingSlots = Self.maxDisplayedGames - totalCount
+            if totalCount >= maxDisplayedGames { break }
+            let remainingSlots = maxDisplayedGames - totalCount
             if section.value.count <= remainingSlots {
                 limitedSorted.append(section)
                 totalCount += section.value.count
             } else {
                 // Partial section to reach the limit
-                let limitedGames = Array(section.value.prefix(remainingSlots))
-                limitedSorted.append((key: section.key, value: limitedGames))
-                totalCount += limitedGames.count
+                limitedSorted.append((key: section.key, value: Array(section.value.prefix(remainingSlots))))
                 break
             }
         }
 
-        if totalCount >= Self.maxDisplayedGames {
-            AppLogger.viewModel.notice("Performance: Limited display to \(totalCount) games out of \(self.filteredGames?.count ?? 0) filtered games")
-        }
-
-        // Pre-compute games with team data to avoid expensive lookups during rendering
-        let sortedWithTeams = limitedSorted.compactMap { (key, games) -> GameDateSection? in
-            let gamesWithTeams = games.compactMap { game -> GameWithTeams? in
-                guard let gwt = makeGameWithTeams(game) else {
-                    if appStorage.debugMode {
-                        AppLogger.viewModel.notice("Failed to find teams for game: \(game.strHomeTeam) @ \(game.strAwayTeam), idHome: \(game.idHomeTeam ?? "nil"), idAway: \(game.idAwayTeam ?? "nil")")
-                    }
-                    return nil
-                }
-                return gwt
-            }
-            // Only include sections that have at least one game with team data
-            guard !gamesWithTeams.isEmpty else {
-                if appStorage.debugMode {
-                    AppLogger.viewModel.notice("Section \(key.date?.formatted() ?? "unknown") has no games with team data")
-                }
-                return nil
-            }
-            return GameDateSection(date: key, games: gamesWithTeams)
-        }
-
-        AppLogger.viewModel.info("Display stats: \(sortedWithTeams.count) sections, total games with teams: \(sortedWithTeams.reduce(0) { $0 + $1.games.count })")
-        AppLogger.viewModel.info("Teams loaded: \(self.teams.count), teamsDict entries: \(self.teamsDict.count)")
-
-        // Populate gamesWithTeams date cache as a byproduct of sortByDate
-        // This uses ALL user-pref games (not limited), keyed by (start-of-day, filterHash)
-        // so toggling sport filters doesn't wipe entries built under other filter states.
-        // The day strip's dots (`datesWithGames()`) come from the same games, so they're
-        // collected here too instead of in a second full preference pass that DayPage's
-        // body used to trigger right after this method published its results.
+        // The per-day buckets behind `gamesWithTeams(for:)` and the day strip's dots
+        // (`datesWithGames()`), from ALL preference games (not the limited set).
         // Bucketed by integer day index: hashing a calendar-carrying DateComponents
         // (or a Date) per game was most of this loop over 20k+ games.
         var gamesByDayIndex: [Int: [Game]] = [:]
-        let userPrefGames = knownUserPrefGames ?? getGamesFromUserPreferences()
-        for game in userPrefGames {
+        for game in userPref {
             guard let gameDate = game.standardDate else { continue }
             gamesByDayIndex[days.index(for: gameDate), default: []].append(game)
         }
@@ -3075,28 +3197,32 @@ public class GameViewModel: NSObject {
                 ($0.standardDate ?? .distantPast) < ($1.standardDate ?? .distantPast)
             }
         }
-        // Keep only the current filter generation.
-        //
-        // The previous behaviour retained every hash ever seen, on the theory that
-        // toggling a sport off and back on would then be free. It never was: the only
-        // reader, `gamesWithTeams(for:)`, always looks up `currentFilterStateHash`, and
-        // this method rebuilds every entry for that hash from scratch each time it runs.
-        // So the retained generations could not produce a hit — they just accumulated
-        // a full set of per-day `[GameWithTeams]` arrays per toggle, for the session.
-        let hash = currentFilterStateHash
+        return SortResult(limitedSorted: limitedSorted, gamesByDay: gamesByDay, datesWithGames: datesWithGames)
+    }
+
+    /// Publishes a `SortResult`; resolves teams only for the (at most 500) listed games.
+    private func applySort(_ result: SortResult, filterHash hash: Int) {
+        let sortedWithTeams = result.limitedSorted.compactMap { (key, games) -> GameDateSection? in
+            let gamesWithTeams = games.compactMap { makeGameWithTeams($0) }
+            // Only include sections that have at least one game with team data
+            guard !gamesWithTeams.isEmpty else { return nil }
+            return GameDateSection(date: key, games: gamesWithTeams)
+        }
+        // Keep only the current filter generation: the only reader,
+        // `gamesWithTeams(for:)`, always looks up `currentFilterStateHash`.
         gamesWithTeamsDateCache = [:]
-        userPrefGamesByDay = (hash, gamesByDay)
+        userPrefGamesByDay = (hash, result.gamesByDay)
         // After the cache refill: emptying it above clears this memo (see its didSet).
-        datesWithGamesCache = (hash, datesWithGames)
+        datesWithGamesCache = (hash, result.datesWithGames)
         dayContentRevision &+= 1
 
         // Plain assignment: inside `withAnimation` the observation willSet made SwiftUI
         // flush a transaction and update its graph synchronously, in the middle of this
         // pass (most of sortByDate's main-thread time).
-        sortedGames = limitedSorted
+        sortedGames = result.limitedSorted
         sortedGamesWithTeams = sortedWithTeams
     }
-    
+
     func setFavorites() {
         favoriteGames = filteredGames?.filter({favorites.contains($0)})
         // Pre-compute favorites with team data
@@ -3122,11 +3248,17 @@ public class GameViewModel: NSObject {
             return cached
         }
         // The day's games are already bucketed: resolve just this day's teams.
-        if let buckets = userPrefGamesByDay, buckets.filterHash == key.filterHash,
-           let dayGames = buckets.days[start] {
-            let result = dayGames.compactMap { makeGameWithTeams($0) }
-            gamesWithTeamsDateCache[key] = result
-            return result
+        if let buckets = userPrefGamesByDay {
+            if buckets.filterHash == key.filterHash {
+                let result = (buckets.days[start] ?? []).compactMap { makeGameWithTeams($0) }
+                gamesWithTeamsDateCache[key] = result
+                return result
+            }
+            // A filter pass is on its way with the new state: show the previous one
+            // for those few ms instead of a full preference pass on the main thread.
+            if isFilterPassInFlight {
+                return (buckets.days[start] ?? []).compactMap { makeGameWithTeams($0) }
+            }
         }
 
         // Cache miss — compute and store
@@ -3281,7 +3413,8 @@ public class GameViewModel: NSObject {
     /// hide-past window, which marked today and every past day "no games" in the day strip
     /// (dots and VoiceOver) while the pages themselves still listed their games.
     func datesWithGames() -> Set<DateComponents> {
-        if let cached = datesWithGamesCache, cached.filterHash == currentFilterStateHash {
+        if let cached = datesWithGamesCache,
+           cached.filterHash == currentFilterStateHash || isFilterPassInFlight {
             return cached.dates
         }
         var days = LocalDayCache()

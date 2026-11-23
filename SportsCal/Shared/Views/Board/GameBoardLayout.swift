@@ -64,9 +64,8 @@ struct GameBoardLayout<GameContent: View>: View {
     private let liveFirst = false
     @State private var peekedSport: SportType?
     #endif
-    /// The column resting at the board's leading edge, kept in sync by SwiftUI's
-    /// view-aligned scrolling, which knows where the visible edge is.
-    @State private var leadingColumn: SportType?
+    /// The board's horizontal position, for the Mac's edge arrows.
+    @State private var boardScroll = ScrollPosition(idType: SportType.self)
     /// Whether columns are hidden past each edge (drives the arrows).
     @State private var hiddenEdges = HiddenEdges()
     #if os(macOS)
@@ -92,6 +91,9 @@ struct GameBoardLayout<GameContent: View>: View {
         var containerWidth: CGFloat = 0
         /// Columns at least half on screen, as SwiftUI reports them.
         var visibleIDs: [SportType] = []
+        /// The leading column when the board's width started changing (an inspector
+        /// sliding, a resize), restored once the width settles.
+        var leadingBeforeWidthChange: SportType?
     }
 
     struct ScrollSnapshot: Equatable {
@@ -175,7 +177,11 @@ struct GameBoardLayout<GameContent: View>: View {
                 }
                 // Rest on whole columns, never half of one.
                 .scrollTargetBehavior(.viewAligned)
-                .scrollPosition(id: $leadingColumn, anchor: .leading)
+                .scrollPosition($boardScroll)
+                // A different set of columns (favorites only, a filter, another day)
+                // starts fresh from the first one: carrying the old position over got
+                // re-pinned half under the sidebar.
+                .id(fullColumns.map(\.id) + rails.map(\.id))
                 .onScrollGeometryChange(for: ScrollSnapshot.self) { geometry in
                     let leading = geometry.contentInsets.leading
                     let visibleEnd = geometry.contentOffset.x + geometry.containerSize.width - geometry.contentInsets.trailing
@@ -220,11 +226,16 @@ struct GameBoardLayout<GameContent: View>: View {
                 .onChange(of: columnWidth) { _, newWidth in
                     // After the scroll view reports its new geometry: snapping against
                     // the old scroll limit got clamped and left a column half hidden.
-                    let count = fullColumns.count
                     let ids = fullColumns.map(\.id) + rails.map(\.id)
+                    let anchor = scrollMetrics.leadingBeforeWidthChange
+                    scrollMetrics.leadingBeforeWidthChange = nil
                     Task { @MainActor in
                         try? await Task.sleep(for: .milliseconds(60))
-                        page(by: 0, ids: ids, columnWidth: newWidth, columnCount: count, animated: false)
+                        if let anchor, let index = ids.firstIndex(of: anchor), index > 0 {
+                            boardScroll.scrollTo(id: anchor, anchor: .leading)
+                        } else {
+                            boardScroll.scrollTo(edge: .leading)
+                        }
                     }
                 }
                 #endif
@@ -237,6 +248,10 @@ struct GameBoardLayout<GameContent: View>: View {
     /// by hand follows at once, so the columns track the drag.
     private func settleWidth(_ width: CGFloat) {
         widthSettle?.cancel()
+        // Remember what led the board before this change, once per change.
+        if scrollMetrics.leadingBeforeWidthChange == nil {
+            scrollMetrics.leadingBeforeWidthChange = scrollMetrics.visibleIDs.first
+        }
         if settledWidth == 0 || NSApp.windows.contains(where: \.inLiveResize) {
             settledWidth = width
             return
@@ -263,22 +278,26 @@ struct GameBoardLayout<GameContent: View>: View {
         .transition(.opacity)
     }
 
-    /// Scrolls `delta` whole columns from the one at the leading edge, through the
-    /// scroll position binding: offset maths against the reported insets parked
-    /// columns half hidden under the sidebar after resizes and inspector changes.
+    /// Scrolls `delta` whole columns from the first one on screen, by column ID (the
+    /// reported offset and inset don't track where the content sits across resizes
+    /// and inspector changes, so offset maths parked columns half hidden).
     private func page(by delta: Int, ids: [SportType], columnWidth: CGFloat, columnCount: Int, animated: Bool = true) {
         guard !ids.isEmpty else { return }
-        let current = leadingColumn.flatMap { ids.firstIndex(of: $0) }
-            ?? ids.firstIndex(where: scrollMetrics.visibleIDs.contains) ?? 0
+        let current = ids.firstIndex(where: scrollMetrics.visibleIDs.contains) ?? 0
         let target = min(max(current + delta, 0), ids.count - 1)
-        let move = { leadingColumn = ids[target] }
+        let move = {
+            if delta > 0, target >= columnCount {
+                boardScroll.scrollTo(edge: .trailing)
+            } else if target == 0 {
+                boardScroll.scrollTo(edge: .leading)
+            } else {
+                boardScroll.scrollTo(id: ids[target], anchor: .leading)
+            }
+        }
         if animated {
             withAnimation(.easeInOut(duration: 0.25), move)
         } else {
-            // Re-snapping in place: clear it, then set it on the next update, so an
-            // unchanged column still re-aligns (one update would net to no change).
-            leadingColumn = nil
-            Task { @MainActor in move() }
+            move()
         }
     }
     #endif
