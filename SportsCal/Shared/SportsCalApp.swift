@@ -488,6 +488,10 @@ private struct WindowAdScope: ViewModifier {
     @Environment(SubscriptionManager.self) private var subscriptionManager
     @State private var adManager = NativeAdManager()
     @State private var showPaywall = false
+    /// Ads (and the consent form that gates them) wait until onboarding is done:
+    /// nothing renders an ad there, and a consent form over the welcome screen is
+    /// a poor first impression. Observed here so finishing onboarding starts them.
+    @AppStorage("shouldShowOnboarding") private var isOnboarding: Bool = true
 
     func body(content: Content) -> some View {
         content
@@ -499,8 +503,8 @@ private struct WindowAdScope: ViewModifier {
             .sheet(isPresented: $showPaywall) {
                 SubscriptionSheet(subscriptionPresented: $showPaywall)
             }
-            .task {
-                guard !subscriptionManager.isPro, AdConfiguration.isEnabled else { return }
+            .task(id: isOnboarding) {
+                guard !isOnboarding, !subscriptionManager.isPro, AdConfiguration.isEnabled else { return }
                 // Defer ad preloading off the launch-critical window. Each
                 // native ad warms a GoogleMobileAds WKWebView (its own
                 // WebContent/GPU/Networking helper processes); kicking off
