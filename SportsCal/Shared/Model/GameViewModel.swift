@@ -186,8 +186,43 @@ public class GameViewModel: NSObject {
 
     var appStorage: UserDefaultStorage
     var engagementTracker: EngagementTracker?
-    var totalGames: [Game]?
-    var filteredGames: [Game]?
+    // The schedule collections observe by hand. `@Observable` now compares old and
+    // new values before notifying, and for these that is an element-by-element walk
+    // of thousands of games on every live tick (the bulk of the Mac's idle main-thread
+    // time). Any write here is a real change, so notify unconditionally, as the macro
+    // used to.
+    var totalGames: [Game]? {
+        get {
+            access(keyPath: \.totalGames)
+            return _totalGamesStorage
+        }
+        set {
+            withMutation(keyPath: \.totalGames) { _totalGamesStorage = newValue }
+        }
+        _modify {
+            access(keyPath: \.totalGames)
+            _$observationRegistrar.willSet(self, keyPath: \.totalGames)
+            defer { _$observationRegistrar.didSet(self, keyPath: \.totalGames) }
+            yield &_totalGamesStorage
+        }
+    }
+    @ObservationIgnored private var _totalGamesStorage: [Game]? = nil
+    var filteredGames: [Game]? {
+        get {
+            access(keyPath: \.filteredGames)
+            return _filteredGamesStorage
+        }
+        set {
+            withMutation(keyPath: \.filteredGames) { _filteredGamesStorage = newValue }
+        }
+        _modify {
+            access(keyPath: \.filteredGames)
+            _$observationRegistrar.willSet(self, keyPath: \.filteredGames)
+            defer { _$observationRegistrar.didSet(self, keyPath: \.filteredGames) }
+            yield &_filteredGamesStorage
+        }
+    }
+    @ObservationIgnored private var _filteredGamesStorage: [Game]? = nil
     /// Backing cache for `calendarGames`. Invalidated (set nil) at the single
     /// `filterSports` chokepoint whenever the calendar source set can change.
     @ObservationIgnored private var _calendarGamesCache: [Game]?
@@ -288,7 +323,22 @@ public class GameViewModel: NSObject {
     var teamByID: [String: Team] = [:]
     var teamByName: [String: Team] = [:]
     var restartTimer: Timer?
-    var gamesDict: [SportType: [Game]] = [:]
+    var gamesDict: [SportType: [Game]] {
+        get {
+            access(keyPath: \.gamesDict)
+            return _gamesDictStorage
+        }
+        set {
+            withMutation(keyPath: \.gamesDict) { _gamesDictStorage = newValue }
+        }
+        _modify {
+            access(keyPath: \.gamesDict)
+            _$observationRegistrar.willSet(self, keyPath: \.gamesDict)
+            defer { _$observationRegistrar.didSet(self, keyPath: \.gamesDict) }
+            yield &_gamesDictStorage
+        }
+    }
+    @ObservationIgnored private var _gamesDictStorage: [SportType: [Game]] = [:]
     
     var webSocketTask: URLSessionWebSocketTask?
     private var webSocketSession: URLSession?
@@ -792,13 +842,13 @@ public class GameViewModel: NSObject {
     init(appStorage: UserDefaultStorage, favorites: Favorites, totalGames: [Game]? = nil, filteredGames: [Game]? = nil, teamString: String? = "", favoriteGames: [Game]? = nil, sortedGames: Array<(key: DateComponents, value: Array<Game>)> = [], networkState: NetworkState = .loading) {
         self.appStorage = appStorage
         self.favorites = favorites
-        self.totalGames = totalGames
-        self.filteredGames = filteredGames
+        self._totalGamesStorage = totalGames
+        self._filteredGamesStorage = filteredGames
         self.teamString = teamString
         self.favoriteGames = favoriteGames
         self.sortedGames = sortedGames
         self.networkState = networkState
-        self.gamesDict = [:]
+        self._gamesDictStorage = [:]
         
         // In-memory caches start empty; the disk copies are read off-main below. The
         // live cache used to be created only when the disk read *failed*, so on every
@@ -2159,7 +2209,15 @@ public class GameViewModel: NSObject {
         // The calendar's memo is keyed off nothing finer than "the games changed", and
         // rebuilding it is lazy, so dropping it is cheap and keeps it honest.
         _calendarGamesCache = nil
-        _nextGameByTeamID = nil
+        // Live merges keep each game's date and teams, so the next-game ranking holds;
+        // swap in the fresh copies rather than rescanning the schedule on every tick
+        // (the Mac sidebar asks for every followed team on each render).
+        if var nextGames = _nextGameByTeamID {
+            for (teamID, game) in nextGames.games {
+                if let replacement = changedByID[game.id] { nextGames.games[teamID] = replacement }
+            }
+            _nextGameByTeamID = nextGames
+        }
         rebuildSportCountsCache()
         // The old path reached these through `filterSports`. They're coalesced to at
         // most once a minute now, but they still have to be *asked* for, or the widget
@@ -2705,11 +2763,14 @@ public class GameViewModel: NSObject {
         if appStorage.hidePastEvents {
             let now = Date()
             let startOfToday = Calendar.current.startOfDay(for: now)
-            let startedToday = getGamesFromUserPreferences().filter { game in
+            // Today's day cache already holds exactly the preference-filtered games for
+            // today, patched in place by live merges; re-running the full preference
+            // filter here cost ~0.5s of main thread per run on a big schedule.
+            let startedToday = gamesWithTeams(for: now).lazy.map(\.game).filter { game in
                 guard let date = game.standardDate else { return false }
                 return date >= startOfToday && date < now
             }
-            widgetGames = startedToday + widgetGames
+            widgetGames = Array(startedToday) + widgetGames
         }
         let snapshotGames = widgetGames
         let snapshotTeams = teams

@@ -56,23 +56,70 @@ enum MacSidebarItem: Hashable {
 }
 
 /// Small pulsing red dot signalling live activity (respects Reduce Motion).
-struct LivePulseDot: View {
+///
+/// The pulse is a Core Animation layer animation, not a SwiftUI
+/// `repeatForever`: SwiftUI drives those from the main thread every frame,
+/// which re-laid out the whole sidebar List at display rate (~10% CPU idle).
+struct LivePulseDot: NSViewRepresentable {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var animating = false
 
-    var body: some View {
-        Circle()
-            .fill(Color.appLive)
-            .frame(width: 7, height: 7)
-            .scaleEffect(animating ? 1.0 : 0.6)
-            .opacity(animating ? 1.0 : 0.45)
-            .onAppear {
-                guard !reduceMotion else { animating = true; return }
-                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                    animating = true
-                }
+    func makeNSView(context: Context) -> PulseDotView { PulseDotView() }
+
+    func updateNSView(_ view: PulseDotView, context: Context) {
+        view.setPulsing(!reduceMotion)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: PulseDotView, context: Context) -> CGSize? {
+        CGSize(width: 7, height: 7)
+    }
+
+    final class PulseDotView: NSView {
+        private let dot = CALayer()
+        private var isPulsing: Bool?
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            dot.backgroundColor = NSColor(Color.appLive).cgColor
+            layer?.addSublayer(dot)
+            setAccessibilityElement(false)
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+        override func layout() {
+            super.layout()
+            dot.frame = bounds
+            dot.cornerRadius = min(bounds.width, bounds.height) / 2
+        }
+
+        func setPulsing(_ pulsing: Bool) {
+            guard pulsing != isPulsing else { return }
+            isPulsing = pulsing
+            dot.removeAllAnimations()
+            guard pulsing else { return }
+            let scale = CABasicAnimation(keyPath: "transform.scale")
+            scale.fromValue = 0.6
+            scale.toValue = 1.0
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0.45
+            fade.toValue = 1.0
+            let group = CAAnimationGroup()
+            group.animations = [scale, fade]
+            group.duration = 0.8
+            group.autoreverses = true
+            group.repeatCount = .infinity
+            group.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            group.isRemovedOnCompletion = false
+            dot.add(group, forKey: "pulse")
+        }
+
+        override func viewDidChangeEffectiveAppearance() {
+            super.viewDidChangeEffectiveAppearance()
+            effectiveAppearance.performAsCurrentDrawingAppearance {
+                dot.backgroundColor = NSColor(Color.appLive).cgColor
             }
-            .accessibilityHidden(true)
+        }
     }
 }
 #endif
@@ -293,6 +340,13 @@ struct ContentView: View {
                     }
                     // Check if launched via OpenSportIntent
                     checkIntentOpenSport()
+                    #if DEBUG
+                    // `-ForcePaywall YES` opens the paywall at launch, even for Pro
+                    // users, so the sheet can be checked without a gate.
+                    if UserDefaults.standard.bool(forKey: "ForcePaywall") {
+                        sheetType = .paywall
+                    }
+                    #endif
                 }
             }
             // Explicit upgrade taps from deeply nested surfaces (the ad card)
@@ -634,7 +688,9 @@ struct ContentView: View {
                     Text(Calendar.current.isDateInToday(date)
                          ? date.formatted(date: .omitted, time: .shortened)
                          : date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
-                        .font(.appFootnote)
+                        // System caption, not the mono design-system footnote:
+                        // sidebar subtitles read as native macOS text.
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }

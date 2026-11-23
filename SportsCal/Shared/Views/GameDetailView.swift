@@ -549,6 +549,15 @@ struct GameDetailView: View {
             }
             }
         }
+        #if os(macOS)
+        // A Mac `Menu` with a custom label draws as a bordered pull-down with a
+        // chevron and ignores the label's width; show these as plain icon buttons
+        // that share the row like they do on iOS.
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .frame(maxWidth: .infinity)
+        #endif
         .padding()
         .background(Color.secondaryGroupedBackground)
         .cornerRadius(12)

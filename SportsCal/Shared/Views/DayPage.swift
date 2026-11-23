@@ -822,6 +822,10 @@ struct DayPage: View {
             }
             .inspector(isPresented: $boardInspectorVisible) {
                 boardInspector
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    // The glass inspector let the board's logos blur through
+                    // behind the detail; give it the app's solid surface.
+                    .background(Color.appBackground.ignoresSafeArea())
                     .inspectorColumnWidth(min: 340, ideal: 420, max: 600)
             }
             .toolbar {

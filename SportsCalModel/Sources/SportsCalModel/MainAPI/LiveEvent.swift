@@ -887,8 +887,8 @@ public struct Game: Identifiable, Equatable, Hashable {
     public let awayTeamColor: String?
     public let homeRecord: String?
     public let awayRecord: String?
-    public let circuitInfo: F1CircuitInfo?
-    public var golfCourseInfo: GolfCourseInfo?
+    @Indirect public internal(set) var circuitInfo: F1CircuitInfo?
+    @Indirect public var golfCourseInfo: GolfCourseInfo?
     /// Last day of a multi-day event — a golf tournament's Sunday. Nil for single-day games.
     /// `strTimestamp` stays the start, so an event spans `strTimestamp...endDate`.
     public let endDate: String?
@@ -918,7 +918,7 @@ public struct Game: Identifiable, Equatable, Hashable {
     public let homeInjuries: [InjuryReport]?
     public let awayInjuries: [InjuryReport]?
     public let raceTiming: F1RaceTiming?
-    public let playoff: PlayoffContext?
+    @Indirect public internal(set) var playoff: PlayoffContext?
 
     /// Transient scoreboard play ID (`competition.situation.lastPlay.id`) used server-side to
     /// decide when to re-fetch play-by-play from ESPN's summary endpoint. Not persisted to Redis
@@ -941,7 +941,7 @@ public struct Game: Identifiable, Equatable, Hashable {
     /// Live state beyond the score — count and runners, down and distance, win
     /// probability. Only meaningful while `strStatus == "in"`, and only encoded then,
     /// so a final game never carries a stale situation on the wire.
-    public var situation: GameSituation?
+    @Indirect public var situation: GameSituation?
     /// "Worth watching" score, 0...100, for a finished game whose league publishes win
     /// probability. Spoiler-free by design: it says how tense the game was, not who won.
     public var excitement: Int?
@@ -949,7 +949,7 @@ public struct Game: Identifiable, Equatable, Hashable {
     /// cards, TV. Read through the forwarding properties (`homeWinner`, `soccerDetails`,
     /// …). Every `Game(...)` rebuild must carry it, like `season`/`seasonPhase`; a merge
     /// takes a fresh ESPN copy whole. See ``ScoreboardExtras``.
-    public var scoreboardExtras: ScoreboardExtras?
+    @Indirect public var scoreboardExtras: ScoreboardExtras?
     /// The source's own team abbreviation ("BYU", "UCLA", "BC"). Only sent for leagues
     /// whose teams aren't in the `/teams` directory (college football), where the app
     /// would otherwise have to guess a code from the name.
