@@ -1,6 +1,7 @@
 #if canImport(ActivityKit) && os(iOS)
 import XCTest
 import ActivityKit
+import SportsCalModel
 @testable import Scoreline
 
 /// Codability of the client-side ActivityAttributes. If these stop round-tripping
@@ -15,6 +16,19 @@ final class LiveActivityCodableTests: XCTestCase {
         XCTAssertEqual(decoded.homeTeam, attrs.homeTeam)
         XCTAssertEqual(decoded.awayTeam, attrs.awayTeam)
         XCTAssertEqual(decoded.eventID, attrs.eventID)
+    }
+
+    /// `sport` is optional: attributes from an older server (no key) still decode, and
+    /// the widget falls back to inferring the sport.
+    func test_attributes_sport_isOptional() throws {
+        let old = #"{"homeTeam":"VGK","awayTeam":"EDM","eventID":"1"}"#
+        let decodedOld = try JSONDecoder().decode(LiveSportActivityAttributes.self, from: Data(old.utf8))
+        XCTAssertNil(decodedOld.sport)
+        XCTAssertNil(decodedOld.sportType)
+
+        let new = #"{"homeTeam":"VGK","awayTeam":"EDM","eventID":"1","sport":"hockey"}"#
+        let decodedNew = try JSONDecoder().decode(LiveSportActivityAttributes.self, from: Data(new.utf8))
+        XCTAssertEqual(decodedNew.sportType, .hockey)
     }
 
     func test_contentState_roundTrip_withAllFields() throws {

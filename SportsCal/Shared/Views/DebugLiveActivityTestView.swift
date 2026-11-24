@@ -308,6 +308,27 @@ struct LiveActivityPlaygroundView: View {
             }
         }
 
+        var sport: SportType {
+            switch self {
+            case .nba: return .basketball
+            case .nfl: return .nfl
+            case .mlb: return .mlb
+            case .nhl: return .hockey
+            case .soccer: return .soccer
+            }
+        }
+
+        /// Progress that makes the start state a clutch moment; nil where it already is
+        /// one (MLB, NFL) or the sport has none (soccer).
+        var clutchProgress: String? {
+            switch self {
+            case .nba: return "1:48 - 4th"
+            case .nhl: return "1:52 - 3rd"
+            case .nfl: return "1:55 - 4th"
+            case .mlb, .soccer: return nil
+            }
+        }
+
         var startState: LiveSportActivityAttributes.ContentState {
             switch self {
             case .nba:
@@ -373,6 +394,14 @@ struct LiveActivityPlaygroundView: View {
                     Button(scenario == .nhl ? "Intermission" : "Halftime") {
                         setProgress(scenario == .nhl ? "End of 2nd" : (scenario == .soccer ? "HT" : "Halftime"), status: "in")
                     }
+                    // Close and late (amber): the 4th / 3rd under two minutes; MLB and
+                    // NFL start in a clutch spot already (tying run on, red zone).
+                    if let clutch = scenario.clutchProgress {
+                        Button("Clutch") { setProgress(clutch, status: "in") }
+                    }
+                    Button(scenario == .mlb ? "Rain delay" : "End of period") {
+                        setProgress(scenario == .mlb ? "Rain Delay" : (scenario == .nhl ? "0:00 - 2nd" : "End of 3rd"), status: "in")
+                    }
                     Button("Final") { setProgress(scenario == .nba ? "Final/OT" : "Final", status: "post") }
                 }
                 Section {
@@ -395,7 +424,8 @@ struct LiveActivityPlaygroundView: View {
                 homeColorHex: teamColors ? info.homeHex : nil,
                 awayColorHex: teamColors ? info.awayHex : nil,
                 homeBadgeURL: scenario.logos.home,
-                awayBadgeURL: scenario.logos.away
+                awayBadgeURL: scenario.logos.away,
+                sport: scenario.sport.rawValue
             )
             state = scenario.startState
             do {

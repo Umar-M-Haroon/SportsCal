@@ -28,6 +28,13 @@ enum WidgetTokens {
     static let inkFaint = Color(light: 0x1A1612, dark: 0xF4F3EE).opacity(0.36)
     static let live = Color(light: 0xD63B2F, dark: 0xFF5D52)
     static let star = Color(light: 0xA87613, dark: 0xFFD966)
+    /// Close and late (a `ClutchMoment`): the Live Activity's keyline, clock and the
+    /// compact island's leader dot. Amber, warmer than `star`, so it reads as
+    /// "tune in" without shouting over the live red.
+    static let clutch = Color(light: 0xB86A00, dark: 0xFFB340)
+    /// `clutch` fixed to its dark value, for the always-dark Dynamic Island
+    /// (keyline tints aren't resolved against a trait collection).
+    static let clutchOnDark = Color(rgbHex: 0xFFB340)
 
     // MARK: - Themes accent
     /// The user's Themes accent (Pro), published by the app into app-group
