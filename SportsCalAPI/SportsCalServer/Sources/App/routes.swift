@@ -789,6 +789,23 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return HTTPCaching.respond(req, etag: HTTPCaching.etag(version: version, variant: "teams")) { value }
     }
 
+    //MARK: - Team competitions
+    // `idTeam` → the competitions the team plays in (`TeamCompetitionIndex`), for
+    // following a team's leagues and cups in onboarding. Rebuilt when fixtures change
+    // (the calendar version), not on live ticks.
+    routes.get("teams", "competitions") { req async throws -> Response in
+        let schedule = try await currentSchedule(req)
+        let version = schedule.calendar.map(ScheduleCalendarVersion.combined) ?? schedule.version
+        let etag = HTTPCaching.etag(version: version, variant: "teams:competitions")
+        if HTTPCaching.notModified(req, etag: etag) {
+            return HTTPCaching.respond(req, etag: etag) { "" }
+        }
+        let body = await DerivedPayloadCache.shared.value(variant: "teams:competitions", version: version, source: schedule.value) { source in
+            TeamCompetitionBuilder.body(from: source)
+        } ?? TeamCompetitionBuilder.body(from: schedule.value) ?? "{\"teams\":{}}"
+        return HTTPCaching.respond(req, etag: etag) { body }
+    }
+
     //MARK: - Play-by-Play (per-event)
     // Three-tier lookup: (1) Redis hot cache for live/in-progress games, (2) SQLite archive
     // for finalized games, (3) on-demand ESPN fetch using the `ESPN-Event-Map` or query params.
