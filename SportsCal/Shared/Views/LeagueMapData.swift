@@ -435,29 +435,20 @@ enum LeagueMap {
         for game in games {
             guard let league = game.idLeague.flatMap({ Int($0) }).flatMap(Leagues.init(rawValue:)) else { continue }
             for id in [game.idHomeTeam, game.idAwayTeam].compactMap({ $0 }) where !id.isEmpty {
-                if !(result[id]?.contains(league) ?? false) { result[id, default: []].append(league) }
+                // Same cup rule as the server: a league club is in its national cup
+                // before it has played a round of it.
+                for competition in [league] + [league.domesticCup].compactMap({ $0 })
+                where !(result[id]?.contains(competition) ?? false) {
+                    result[id, default: []].append(competition)
+                }
             }
         }
         return result.mapValues { leagues in
             leagues.sorted { l, r in
-                let lc = l.isTeamCompetitionCupForMap, rc = r.isTeamCompetitionCupForMap
+                let lc = l.isTeamCompetitionCup, rc = r.isTeamCompetitionCup
                 if lc != rc { return !lc }
                 return (l.competitionDisplayRank ?? .max) < (r.competitionDisplayRank ?? .max)
             }
-        }
-    }
-}
-
-private extension Leagues {
-    /// `isTeamCompetitionCup` is internal to the model package; same rule here.
-    var isTeamCompetitionCupForMap: Bool {
-        switch self {
-        case .FA_Cup, .Copa_del_Rey, .Coupe_De_France, .DFB_Pokal,
-             .UEFA_Champions_League, .UEFA_Europa_League, .UEFA_Conference_League,
-             .UEFA_Nations_League, .FIFA_World_Cup, .Womens_World_Cup, .Copa_America:
-            return true
-        default:
-            return false
         }
     }
 }
