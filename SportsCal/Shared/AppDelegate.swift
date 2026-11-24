@@ -24,6 +24,15 @@ enum CrashReporting {
             AppLogger.general.error("Sentry DSN missing — crash reporting disabled for this build")
             return
         }
+        #if DEBUG
+        // Xcode runs stay out of Sentry: their unsymbolicated hangs open new issues
+        // that read like customer problems. Launch with `-SentryInDebug YES` to
+        // test reporting (events still land under environment "debug").
+        guard UserDefaults.standard.bool(forKey: "SentryInDebug") else {
+            AppLogger.general.info("Sentry off in Debug; pass -SentryInDebug YES to enable")
+            return
+        }
+        #endif
         DispatchQueue.global(qos: .userInitiated).async {
             Perf.measure("sentryStart") {
                 SentrySDK.start(configureOptions: configure)
