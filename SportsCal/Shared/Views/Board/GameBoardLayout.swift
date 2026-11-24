@@ -16,6 +16,102 @@ struct BoardColumn: Identifiable {
     var upcomingGames: [GameWithTeams] = []
 
     var isEmpty: Bool { liveGames.isEmpty && otherGames.isEmpty }
+
+    /// The column with its live games moved out to the board's live strip.
+    var withoutLiveGames: BoardColumn {
+        BoardColumn(sport: sport, liveGames: [], otherGames: otherGames,
+                    nextGameDate: nextGameDate, upcomingGames: upcomingGames)
+    }
+
+    /// Soccer and cricket split their column by competition, like the day list.
+    var groupsByCompetition: Bool { sport == .soccer || sport == .cricket }
+
+    /// The column's games in display order: one untitled section for most sports,
+    /// one per competition for soccer and cricket. The board draws these and the
+    /// Mac's ⌥↑/⌥↓ selection and print walk them, so all three agree on order.
+    func sections(favorites: Favorites) -> [BoardColumnSection] {
+        guard groupsByCompetition, !isEmpty else {
+            return [BoardColumnSection(league: nil, liveGames: liveGames, otherGames: otherGames)]
+        }
+        let all = liveGames + otherGames
+        let favoriteLeagues = Set(all.filter { favorites.contains($0.game) }.compactMap(\.game.knownLeague))
+        let groups = CompetitionGrouping.group(all, favoriteLeagues: favoriteLeagues)
+        let liveIDs = Set(liveGames.map(\.id))
+        var sections = groups.map { group in
+            BoardColumnSection(
+                league: group.league,
+                liveGames: group.matches.filter { liveIDs.contains($0.id) },
+                otherGames: group.matches.filter { !liveIDs.contains($0.id) }
+            )
+        }
+        // Games without a known league can't be grouped; keep them at the end.
+        let unknown = all.filter { $0.game.knownLeague == nil }
+        if !unknown.isEmpty {
+            sections.append(BoardColumnSection(
+                league: nil,
+                liveGames: unknown.filter { liveIDs.contains($0.id) },
+                otherGames: unknown.filter { !liveIDs.contains($0.id) }
+            ))
+        }
+        return sections
+    }
+}
+
+extension BoardColumn {
+    /// Live-strip order: favorites first.
+    static func liveStripOrder(_ live: [GameWithTeams], favorites: Favorites) -> [GameWithTeams] {
+        live.sorted { favorites.contains($0.game) && !favorites.contains($1.game) }
+    }
+
+    /// Every board card in the order GameBoardLayout draws it: the live strip
+    /// (when live games lead), then each column's sections top to bottom.
+    static func displayOrder(_ columns: [BoardColumn], liveFirst: Bool, favorites: Favorites) -> [GameWithTeams] {
+        let live = liveFirst ? columns.flatMap(\.liveGames) : []
+        let columnGames = columns.flatMap { column in
+            let shown = live.isEmpty ? column : column.withoutLiveGames
+            return shown.sections(favorites: favorites).flatMap { $0.liveGames + $0.otherGames }
+        }
+        return liveStripOrder(live, favorites: favorites) + columnGames
+    }
+}
+
+/// A run of games inside a board column, under an optional competition subheading.
+struct BoardColumnSection: Identifiable {
+    /// Nil for an ungrouped sport (no subheading).
+    let league: Leagues?
+    let liveGames: [GameWithTeams]
+    let otherGames: [GameWithTeams]
+
+    var id: String { league.map { String($0.rawValue) } ?? "ungrouped" }
+    var count: Int { liveGames.count + otherGames.count }
+}
+
+/// Orders a day's soccer or cricket matches into competitions. Shared by the
+/// day list (DayPage) and the board's columns.
+enum CompetitionGrouping {
+    /// Competitions with a favourite team playing first, then the big leagues
+    /// (`Leagues.competitionDisplayRank`), then the order they first kick off.
+    /// Games without a known league are dropped.
+    static func group(_ games: [GameWithTeams], favoriteLeagues: Set<Leagues>) -> [(league: Leagues, matches: [GameWithTeams])] {
+        var result: [(league: Leagues, matches: [GameWithTeams])] = []
+        var seen: [Leagues: Int] = [:]
+        for gwt in games {
+            guard let league = gwt.game.knownLeague else { continue }
+            if let index = seen[league] {
+                result[index].matches.append(gwt)
+            } else {
+                seen[league] = result.count
+                result.append((league: league, matches: [gwt]))
+            }
+        }
+        return result.enumerated().sorted { lhs, rhs in
+            let lFav = favoriteLeagues.contains(lhs.element.league), rFav = favoriteLeagues.contains(rhs.element.league)
+            if lFav != rFav { return lFav }
+            let lRank = lhs.element.league.competitionDisplayRank ?? .max
+            let rRank = rhs.element.league.competitionDisplayRank ?? .max
+            return lRank != rRank ? lRank < rRank : lhs.offset < rhs.offset
+        }.map(\.element)
+    }
 }
 
 /// How the Mac board shows a sport with nothing on the selected day. Sports with
@@ -108,10 +204,7 @@ struct GameBoardLayout<GameContent: View>: View {
         // Live-first: every live game moves to the strip, and the columns keep only
         // upcoming and finished games, so nothing shows twice.
         let liveStrip = liveFirst ? columns.flatMap(\.liveGames) : []
-        let columns = liveStrip.isEmpty ? self.columns : self.columns.map {
-            BoardColumn(sport: $0.sport, liveGames: [], otherGames: $0.otherGames,
-                        nextGameDate: $0.nextGameDate, upcomingGames: $0.upcomingGames)
-        }
+        let columns = liveStrip.isEmpty ? self.columns : self.columns.map(\.withoutLiveGames)
         let filled = columns.filter { !$0.isEmpty }
         // Rails and chips are for "not today": an off-season sport with nothing
         // scheduled stays out of the board and is still a click away in the sidebar.
@@ -150,8 +243,7 @@ struct GameBoardLayout<GameContent: View>: View {
                         ForEach(fullColumns) { column in
                             SportColumnView(
                                 sport: column.sport,
-                                liveGames: column.liveGames,
-                                otherGames: column.otherGames,
+                                sections: column.sections(favorites: favorites),
                                 favorites: favorites,
                                 nextGameDate: column.nextGameDate,
                                 onJumpToDate: onJumpToDate,
@@ -304,7 +396,7 @@ struct GameBoardLayout<GameContent: View>: View {
 
     /// Live games across every sport, favorites first.
     private func liveStripView(_ live: [GameWithTeams]) -> some View {
-        let ordered = live.sorted { favorites.contains($0.game) && !favorites.contains($1.game) }
+        let ordered = BoardColumn.liveStripOrder(live, favorites: favorites)
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Circle().fill(.red).frame(width: 7, height: 7)
