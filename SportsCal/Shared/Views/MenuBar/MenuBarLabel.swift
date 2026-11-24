@@ -124,6 +124,9 @@ struct MenuBarLabel: View {
     let showsClock: Bool
 
     @State private var tick = 0
+    /// Drives the countdown. The label only redraws when its inputs change, so
+    /// without this "in 20m" stays frozen until the next schedule refresh.
+    @State private var now = Date()
 
     var body: some View {
         content
@@ -137,6 +140,19 @@ struct MenuBarLabel: View {
                     tick += 1
                 }
             }
+            // Ticks once a minute, on the minute, only while a countdown is showing.
+            .task(id: showsCountdown) {
+                guard showsCountdown else { return }
+                while !Task.isCancelled {
+                    now = Date()
+                    let intoMinute = now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 60)
+                    try? await Task.sleep(for: .seconds(60 - intoMinute + 0.05))
+                }
+            }
+    }
+
+    private var showsCountdown: Bool {
+        games.isEmpty && idleDisplay == .nextFavorite && upcomingFavorite != nil
     }
 
     private struct RotationKey: Equatable {
@@ -152,7 +168,7 @@ struct MenuBarLabel: View {
             Text(liveText(games[tick % games.count]))
                 .monospacedDigit()
         } else if idleDisplay == .nextFavorite, let upcoming = upcomingFavorite,
-                  let gameDate = upcoming.game.standardDate, gameDate > Date() {
+                  let gameDate = upcoming.game.standardDate, gameDate > now {
             Text(upcomingText(upcoming, gameDate: gameDate))
                 .monospacedDigit()
         } else if idleDisplay != .icon, todayCount > 0 {
@@ -191,7 +207,7 @@ struct MenuBarLabel: View {
     }
 
     private func upcomingText(_ gwt: GameWithTeams, gameDate: Date) -> String {
-        let remaining = gameDate.timeIntervalSince(Date())
+        let remaining = gameDate.timeIntervalSince(now)
         let name = Team.shortCode(strTeamShort: gwt.homeTeam?.strTeamShort, name: gwt.game.strHomeTeam, idTeam: gwt.homeTeam?.idTeam)
         if remaining > 6 * 3600 {
             return "⭑ \(name) \(Self.shortTimeFormatter.string(from: gameDate))"
