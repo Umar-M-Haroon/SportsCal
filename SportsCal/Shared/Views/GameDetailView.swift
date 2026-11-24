@@ -509,6 +509,9 @@ struct GameDetailView: View {
             autoFollowAction
             liveFollowAction
             #endif
+            #if os(macOS)
+            MenuBarFollowButton(game: game)
+            #endif
 
             #if os(iOS)
             Button {

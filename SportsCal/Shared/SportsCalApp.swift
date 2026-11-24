@@ -35,6 +35,12 @@ struct SportsCalApp: App {
     @AppStorage("board.emptyStyle") private var boardEmptyStyle: BoardEmptyStyle = .rail
     @AppStorage("board.liveFirst") private var boardLiveFirst = true
     @AppStorage("menuBar.pinnedGameID") private var menuPinnedGameID = ""
+    // Settings › General › Menu Bar; scene-level so the label re-renders.
+    @AppStorage(MenuBarPrefs.rotationKey) private var menuRotation: MenuBarRotation = .favoritesThenAll
+    @AppStorage(MenuBarPrefs.intervalKey) private var menuInterval: Double = 5
+    @AppStorage(MenuBarPrefs.idleKey) private var menuIdle: MenuBarIdleDisplay = .nextFavorite
+    @AppStorage(MenuBarPrefs.showsClockKey) private var menuShowsClock = true
+    @AppStorage(MenuBarPrefs.followedKey) private var menuFollowedIDs = ""
     #endif
     @State private var versionChecker = APIVersionChecker.shared
 
@@ -347,24 +353,24 @@ struct SportsCalApp: App {
             }
         } label: {
             MenuBarLabel(
-                liveFavorites: subscriptionManager.isPro ? {
-                    // A pinned live game takes the label to itself; otherwise rotate favorites.
-                    if let pinned = viewModel.liveEventsWithTeams.first(where: { $0.game.id == menuPinnedGameID }) {
-                        return [pinned]
-                    }
-                    return viewModel.liveEventsWithTeams.filter { favorites.contains($0.game) }
-                }() : [],
-                liveGames: subscriptionManager.isPro ? viewModel.liveEventsWithTeams : [],
-                upcomingFavorite: subscriptionManager.isPro ? {
+                games: subscriptionManager.isPro ? MenuBarFollows.rotatingGames(
+                    rotation: menuRotation,
+                    live: viewModel.liveEventsWithTeams,
+                    isFavorite: { favorites.contains($0) },
+                    followedRaw: menuFollowedIDs,
+                    pinnedID: menuPinnedGameID
+                ) : [],
+                upcomingFavorite: subscriptionManager.isPro && menuRotation != .iconOnly ? {
                     let liveIDs = Set(viewModel.liveEvents.map(\.id))
                     return viewModel.todayFavoriteGamesWithTeams.first { gwt in
                         guard let d = gwt.game.standardDate else { return false }
                         return d > Date() && !liveIDs.contains(gwt.game.id)
                     }
                 }() : nil,
-                liveCount: subscriptionManager.isPro ? viewModel.liveEvents.count : 0,
-                todayCount: subscriptionManager.isPro ? viewModel.todayGames.count : 0,
-                liveSports: subscriptionManager.isPro ? viewModel.currentlyLiveSports : []
+                todayCount: subscriptionManager.isPro && menuRotation != .iconOnly ? viewModel.todayGames.count : 0,
+                interval: menuInterval,
+                idleDisplay: menuIdle,
+                showsClock: menuShowsClock
             )
         }
         .menuBarExtraStyle(.window)

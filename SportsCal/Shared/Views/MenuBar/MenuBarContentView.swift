@@ -15,6 +15,7 @@ struct MenuBarContentView: View {
     @Environment(\.openWindow) private var openWindow
     /// A live game the user pinned: the menu bar label shows only its score.
     @AppStorage("menuBar.pinnedGameID") private var pinnedGameID = ""
+    @AppStorage(MenuBarPrefs.followedKey) private var followedRaw = ""
 
     @State private var collapsedSports: Set<SportType> = []
     @State private var hoveredGameID: String?
@@ -471,6 +472,11 @@ struct MenuBarContentView: View {
         .help("Open in its own window")
         .contextMenu {
             Button("Open Game") { open(game) }
+            if !isGameCompleted(game) {
+                Button(MenuBarFollows.contains(game.id, in: followedRaw) ? "Unfollow in Menu Bar" : "Follow in Menu Bar") {
+                    followedRaw = MenuBarFollows.toggled(game.id, in: followedRaw)
+                }
+            }
             if isLive {
                 if pinnedGameID == game.id {
                     Button("Unpin from Menu Bar") { pinnedGameID = "" }

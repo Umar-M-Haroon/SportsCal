@@ -37,6 +37,7 @@ private struct GeneralSettingsTab: View {
         NavigationStack {
             Form {
                 ProOptionsSettingsSection()
+                MenuBarSettingsSection()
                 ScoresSettingsSection()
                 DateFormatSettingsSection()
             }
