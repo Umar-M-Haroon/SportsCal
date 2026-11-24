@@ -1211,14 +1211,25 @@ struct LiveSportActivityWidget: Widget {
                     // "KC 20-17" reads as who's winning at a glance.
                     let sides = activitySides(context.attributes, context.state)
                     let lead = leaderFirst(sides)
-                    HStack(spacing: 3) {
-                        // The leader's colour; no dot when level.
-                        if leader(sides) != nil, let color = activityTeamColor(lead.first.colorHex, on: .dark) {
-                            Circle().fill(color).frame(width: 6, height: 6)
+                    // The leader's colour; no dot when level.
+                    let dotColor = leader(sides) != nil ? activityTeamColor(lead.first.colorHex, on: .dark) : nil
+                    let code = Text(lead.first.short)
+                        .font(.system(.caption, design: .rounded).weight(.heavy))
+                        .foregroundColor(WidgetTokens.ink)
+                        .lineLimit(1)
+                    // The iPhone Duo's outer island is a narrow upright pill, where
+                    // dot + code truncated to "●…": stack the dot over the code there,
+                    // and shrink the code before ever truncating it.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 3) {
+                            if let dotColor { Circle().fill(dotColor).frame(width: 6, height: 6) }
+                            code
                         }
-                        Text(lead.first.short)
-                            .font(.system(.caption, design: .rounded).weight(.heavy))
-                            .foregroundColor(WidgetTokens.ink)
+                        VStack(spacing: 2) {
+                            if let dotColor { Circle().fill(dotColor).frame(width: 5, height: 5) }
+                            code
+                        }
+                        code.minimumScaleFactor(0.5)
                     }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(lead.first.name)
@@ -1257,18 +1268,25 @@ struct LiveSportActivityWidget: Widget {
                     TennisCompactScore(state: context.state, tennis: tennis, focus: tennisFocus(context.state, tennis))
                 } else {
                 let sides = leaderFirst(activitySides(context.attributes, context.state))
-                HStack(spacing: 3) {
-                    LeadScoreText(first: sides.first.score, second: sides.second.score, size: 12)
-                        // "2-1" reads as "2 minus 1".
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("\(sides.first.short) \(sides.first.score), \(sides.second.short) \(sides.second.score)")
-                    if let inning = compactInning(context.state.progress) {
-                        Text(inning)
-                            .font(.system(.caption2, design: .rounded).weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundColor(WidgetTokens.inkSoft)
-                            .accessibilityLabel(context.state.progress ?? inning)
+                let score = LeadScoreText(first: sides.first.score, second: sides.second.score, size: 12)
+                    // "2-1" reads as "2 minus 1".
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(sides.first.short) \(sides.first.score), \(sides.second.short) \(sides.second.score)")
+                if let inning = compactInning(context.state.progress) {
+                    let inningText = Text(inning)
+                        .font(.system(.caption2, design: .rounded).weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundColor(WidgetTokens.inkSoft)
+                        .lineLimit(1)
+                        .accessibilityLabel(context.state.progress ?? inning)
+                    // Beside the score, under it in the Duo's narrow pill.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 3) { score; inningText }
+                        VStack(spacing: 1) { score; inningText }
+                        score
                     }
+                } else {
+                    score
                 }
                 }
             } minimal: {
