@@ -8,8 +8,9 @@ import SportsCalModel
 
 struct SportColumnView<GameContent: View>: View {
     let sport: SportType
-    let liveGames: [GameWithTeams]
-    let otherGames: [GameWithTeams]
+    /// The column's games, in display order; titled per competition for soccer
+    /// and cricket (see `BoardColumn.sections`).
+    let sections: [BoardColumnSection]
     let favorites: Favorites
     let nextGameDate: Date?
     let onJumpToDate: (Date) -> Void
@@ -17,7 +18,7 @@ struct SportColumnView<GameContent: View>: View {
 
     @State private var isCollapsed: Bool = false
 
-    private var totalCount: Int { liveGames.count + otherGames.count }
+    private var totalCount: Int { sections.reduce(0) { $0 + $1.count } }
     private var isEmpty: Bool { totalCount == 0 }
 
     /// Per-sport persisted collapse state (survives relaunch).
@@ -44,20 +45,45 @@ struct SportColumnView<GameContent: View>: View {
     private var gamesBody: some View {
         ScrollView(.vertical, showsIndicators: true) {
             LazyVStack(spacing: 8) {
-                ForEach(liveGames) { gwt in
-                    BoardGameCard(gameID: gwt.id, isFavorite: favorites.contains(gwt.game), isLive: true) {
-                        gameContent(gwt, true)
+                ForEach(sections) { section in
+                    if let league = section.league {
+                        sectionHeader(league, count: section.count)
                     }
-                }
-                ForEach(otherGames) { gwt in
-                    BoardGameCard(gameID: gwt.id, isFavorite: favorites.contains(gwt.game), isLive: false) {
-                        gameContent(gwt, false)
+                    ForEach(section.liveGames) { gwt in
+                        BoardGameCard(gameID: gwt.id, isFavorite: favorites.contains(gwt.game), isLive: true) {
+                            gameContent(gwt, true)
+                        }
+                    }
+                    ForEach(section.otherGames) { gwt in
+                        BoardGameCard(gameID: gwt.id, isFavorite: favorites.contains(gwt.game), isLive: false) {
+                            gameContent(gwt, false)
+                        }
                     }
                 }
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 8)
         }
+    }
+
+    /// A competition subheading inside a soccer or cricket column.
+    private func sectionHeader(_ league: Leagues, count: Int) -> some View {
+        HStack(spacing: 5) {
+            Text(league.competitionShortName)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Text("\(count)")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .monospacedDigit()
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 4)
+        // Space the heading off the previous group's last card.
+        .padding(.top, sections.first?.league == league ? 0 : 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 
     private var emptyBody: some View {

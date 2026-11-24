@@ -120,6 +120,10 @@ struct DayPage: View {
     @State private var boardSelectedGameID: String?
     /// macOS board search-field presentation (⌘F / Games → Find Game…).
     @State private var boardSearchPresented: Bool = false
+    #if os(macOS)
+    /// Mirrors GameBoardLayout's setting so selection follows the live strip.
+    @AppStorage("board.liveFirst") private var boardLiveFirst = true
+    #endif
     /// The date we were on before a team's date-jump, so leaving the team scope
     /// returns there instead of stranding on the team's game day.
     @State private var dateBeforeTeamScope: Date?
@@ -320,6 +324,14 @@ struct DayPage: View {
         }
     }
 
+    /// `filteredLiveEvents` including the World Cup hero's matches (board search).
+    private var unclaimedLiveEvents: [GameWithTeams] {
+        guard isToday else { return [] }
+        return viewModel.liveEventsWithTeams.filter {
+            sportFilter.matches($0.game) && passesDayScope($0.game)
+        }
+    }
+
     /// The games shown in the Live section. The sections below skip them so a live game
     /// appears once, and always as the live copy. Matched by fixture, since live games
     /// carry ESPN ids and schedule rows TheSportsDB ones. Applied outside the `dayData`
@@ -405,9 +417,10 @@ struct DayPage: View {
     }
 
     private var boardColumns: [BoardColumn] {
-        let claimedWorldCupIDs = heroClaimedWorldCupIDs
+        // A search hides the World Cup hero, so its matches come back to the columns.
+        let claimedWorldCupIDs = isSearchActive ? [] : heroClaimedWorldCupIDs
         var games = dayGames.filter { !claimedWorldCupIDs.contains($0.id) }
-        var live = filteredLiveEvents
+        var live = isSearchActive ? unclaimedLiveEvents : filteredLiveEvents
         let liveIDs = liveGameIDs
 
         // macOS board search (⌘F): narrow both sections with the same matcher
@@ -736,10 +749,10 @@ struct DayPage: View {
     #endif
 
     #if os(macOS)
-    /// Display order of board cells (column by column, live then upcoming) — the
-    /// traversal order for ⌥↑/⌥↓ keyboard navigation.
+    /// Board cells in the order they're drawn (live strip, then each column's
+    /// competition groups) — the traversal order for ⌥↑/⌥↓ and for printing.
     private var boardSelectionOrder: [GameWithTeams] {
-        boardColumns.flatMap { $0.liveGames + $0.otherGames }
+        BoardColumn.displayOrder(boardColumns, liveFirst: boardLiveFirst, favorites: favorites)
     }
 
     private func boardGameWithTeams(byID id: String) -> GameWithTeams? {
@@ -800,7 +813,8 @@ struct DayPage: View {
 
             // World Cup hero — pinned on matchday above the board. Width-capped
             // so it reads as a card rather than stretching across a wide iPad.
-            if showWorldCupHero {
+            // Hidden while searching: the columns show the matches then.
+            if showWorldCupHero && !isSearchActive {
                 WorldCupHeroCard(
                     onSelectGame: { selectBoardGame($0) },
                     onOpenHub: { worldCupHubPresented = true },
@@ -834,9 +848,12 @@ struct DayPage: View {
                 }
                 .frame(maxWidth: .infinity)
                 Spacer()
-            } else if isSearchActive {
-                // Search answers with a list, the same as the iPhone layout.
-                List { searchResultsContent }
+            } else if isSearchActive && boardColumns.allSatisfy(\.isEmpty) {
+                // Search narrows the columns themselves (see `boardColumns`); this
+                // is only the nothing-matched state.
+                Spacer()
+                ContentUnavailableView.search(text: searchString)
+                Spacer()
             } else if !viewModel.sortedGamesWithTeams.isEmpty || !viewModel.liveEventsWithTeams.isEmpty {
                 #if os(iOS)
                 // The board's one ad: a lead card above the columns, as the list has.
@@ -985,6 +1002,18 @@ struct DayPage: View {
         )
     }
 
+    /// Prints the list layout's day: the search matches while searching, otherwise
+    /// the sections top to bottom (live, favorites, suggested, then each sport).
+    private func printListDay() {
+        let games: [GameWithTeams] = isSearchActive
+            ? searchFilteredGames
+            : filteredLiveEvents + filteredFavorites + filteredSuggested + filteredOtherBySport.flatMap(\.games)
+        runSchedulePrint(
+            title: selectedDate.formatted(date: .complete, time: .omitted),
+            games: games.map(\.game)
+        )
+    }
+
     /// Toggles the favorites-only filter: for the scoped sport when the sidebar
     /// has one selected, otherwise for every ordered sport together (same
     /// semantics as ModernMacWindow's ⇧⌘F).
@@ -1037,7 +1066,27 @@ struct DayPage: View {
             token.label
         }
         #else
-        .searchable(text: $searchString, tokens: $searchTokens, suggestedTokens: .constant(suggestedSearchTokens), prompt: "Search games...") { token in
+        // ⌘F / ⌘P work here too, not just on the board.
+        .modifier(MacCommandRelay(
+            onJumpToToday: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    selectedDate = calendar.startOfDay(for: Date())
+                }
+            },
+            onPreviousDay: { navigateDay(by: -1) },
+            onNextDay: { navigateDay(by: 1) },
+            onToggleInspector: {},   // the list pushes details; no inspector
+            onToggleFavoritesOnly: { toggleFavoritesOnly() },
+            onPrint: { printListDay() },
+            onFocusSearch: { boardSearchPresented = true }
+        ))
+        .searchable(
+            text: $searchString,
+            tokens: $searchTokens,
+            suggestedTokens: .constant(suggestedSearchTokens),
+            isPresented: $boardSearchPresented,
+            prompt: "Search games..."
+        ) { token in
             token.label
         }
         #endif
@@ -1787,25 +1836,7 @@ struct DayPage: View {
     /// Competitions with a favourite team playing today first, then the big leagues
     /// (`Leagues.competitionDisplayRank`), then the order they first kick off.
     private func groupedByCompetition(_ games: [GameWithTeams]) -> [(league: Leagues, matches: [GameWithTeams])] {
-        var result: [(league: Leagues, matches: [GameWithTeams])] = []
-        var seen: [Leagues: Int] = [:]
-        for gwt in games {
-            guard let league = gwt.game.knownLeague else { continue }
-            if let index = seen[league] {
-                result[index].matches.append(gwt)
-            } else {
-                seen[league] = result.count
-                result.append((league: league, matches: [gwt]))
-            }
-        }
-        let favoriteLeagues = Set(filteredFavorites.compactMap(\.game.knownLeague))
-        return result.enumerated().sorted { lhs, rhs in
-            let lFav = favoriteLeagues.contains(lhs.element.league), rFav = favoriteLeagues.contains(rhs.element.league)
-            if lFav != rFav { return lFav }
-            let lRank = lhs.element.league.competitionDisplayRank ?? .max
-            let rRank = rhs.element.league.competitionDisplayRank ?? .max
-            return lRank != rRank ? lRank < rRank : lhs.offset < rhs.offset
-        }.map(\.element)
+        CompetitionGrouping.group(games, favoriteLeagues: Set(filteredFavorites.compactMap(\.game.knownLeague)))
     }
 
     /// A busy matchday opens on the leagues people follow most; a quiet one opens fully.
