@@ -1751,20 +1751,21 @@ struct DayPage: View {
             // Tennis groups games into per-tournament disclosure groups; we
             // don't inline ads inside those nested lists.
             tennisTournamentContent(games: games)
-        } else if games.first?.game.sportType == .soccer {
-            soccerCompetitionContent(games: games, region: region, adPlan: adPlan)
+        } else if let sport = games.first?.game.sportType, sport == .soccer || sport == .cricket {
+            competitionGroupsContent(games: games, region: region, adPlan: adPlan)
         } else {
             flatGameList(games: games, region: region, adPlan: adPlan)
         }
     }
 
-    /// Soccer, one disclosure group per competition, like tennis's tournaments. Ads
-    /// keep their planned slots: each group's rows count on from the group before.
+    /// Soccer and cricket, one disclosure group per competition, like tennis's
+    /// tournaments. Ads keep their planned slots: each group's rows count on from the
+    /// group before.
     @ViewBuilder
-    private func soccerCompetitionContent(games: [GameWithTeams], region: String?, adPlan: FeedAdPlan) -> some View {
+    private func competitionGroupsContent(games: [GameWithTeams], region: String?, adPlan: FeedAdPlan) -> some View {
         let groups = groupedByCompetition(games)
         ForEach(Array(groups.enumerated()), id: \.element.league) { index, group in
-            let startsExpanded = soccerGroupStartsExpanded(group.league, groupCount: groups.count)
+            let startsExpanded = competitionGroupStartsExpanded(group.league, groupCount: groups.count)
             DisclosureGroup(isExpanded: Binding(
                 get: { competitionExpansion[group.league] ?? startsExpanded },
                 set: { competitionExpansion[group.league] = $0 }
@@ -1773,7 +1774,7 @@ struct DayPage: View {
                              rowOffset: groups.prefix(index).reduce(0) { $0 + $1.matches.count })
             } label: {
                 HStack {
-                    Text(group.league.soccerShortName)
+                    Text(group.league.competitionShortName)
                         .font(.subheadline.weight(.medium))
                     Text("(\(group.matches.count))")
                         .font(.caption)
@@ -1784,7 +1785,7 @@ struct DayPage: View {
     }
 
     /// Competitions with a favourite team playing today first, then the big leagues
-    /// (`Leagues.soccerDisplayRank`), then the order they first kick off.
+    /// (`Leagues.competitionDisplayRank`), then the order they first kick off.
     private func groupedByCompetition(_ games: [GameWithTeams]) -> [(league: Leagues, matches: [GameWithTeams])] {
         var result: [(league: Leagues, matches: [GameWithTeams])] = []
         var seen: [Leagues: Int] = [:]
@@ -1801,17 +1802,17 @@ struct DayPage: View {
         return result.enumerated().sorted { lhs, rhs in
             let lFav = favoriteLeagues.contains(lhs.element.league), rFav = favoriteLeagues.contains(rhs.element.league)
             if lFav != rFav { return lFav }
-            let lRank = lhs.element.league.soccerDisplayRank ?? .max
-            let rRank = rhs.element.league.soccerDisplayRank ?? .max
+            let lRank = lhs.element.league.competitionDisplayRank ?? .max
+            let rRank = rhs.element.league.competitionDisplayRank ?? .max
             return lRank != rRank ? lRank < rRank : lhs.offset < rhs.offset
         }.map(\.element)
     }
 
     /// A busy matchday opens on the leagues people follow most; a quiet one opens fully.
-    private func soccerGroupStartsExpanded(_ league: Leagues, groupCount: Int) -> Bool {
+    private func competitionGroupStartsExpanded(_ league: Leagues, groupCount: Int) -> Bool {
         if groupCount <= 3 { return true }
         if filteredFavorites.contains(where: { $0.game.knownLeague == league }) { return true }
-        return (league.soccerDisplayRank ?? .max) < 8
+        return (league.competitionDisplayRank ?? .max) < 8
     }
 
     @ViewBuilder

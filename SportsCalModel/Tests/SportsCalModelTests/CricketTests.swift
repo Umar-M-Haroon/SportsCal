@@ -65,6 +65,17 @@ final class CricketTests: XCTestCase {
         XCTAssertEqual(game.round, "1st T20I")
     }
 
+    func testEveryCricketCompetitionHasADayPageRank() {
+        let cricket = Leagues.allCases.filter(\.isCricket)
+        XCTAssertTrue(cricket.allSatisfy { $0.competitionDisplayRank != nil })
+        XCTAssertEqual(Set(cricket.compactMap(\.cricketDisplayRank)).count, cricket.count)
+        XCTAssertLessThan(Leagues.cricketTests.competitionDisplayRank!, Leagues.ipl.competitionDisplayRank!)
+        XCTAssertEqual(Leagues.ipl.competitionShortName, "IPL")
+        // Soccer keeps its own order and names.
+        XCTAssertEqual(Leagues.English_Premier_League.competitionShortName, "Premier League")
+        XCTAssertEqual(Leagues.English_Premier_League.competitionDisplayRank, 0)
+    }
+
     func testScoreText() {
         XCTAssertEqual(CricketScoreText.target(in: "184 (40.5/50 ov, target 246)"), 246)
         XCTAssertEqual(CricketScoreText.scheduledOvers(in: "184 (40.5/50 ov, target 246)"), 50)

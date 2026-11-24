@@ -132,16 +132,17 @@ class SportBrowseViewModel {
         seasonsCache = [:]
         leagueGamesCache = [:]
         leagues = counts.keys.sorted {
-            let (rankA, rankB) = (Self.soccerChipRank($0) ?? .max, Self.soccerChipRank($1) ?? .max)
+            let (rankA, rankB) = (Self.chipRank($0) ?? .max, Self.chipRank($1) ?? .max)
             if rankA != rankB { return rankA < rankB }
             return counts[$0] != counts[$1] ? counts[$0]! > counts[$1]! : $0.leagueName < $1.leagueName
         }
     }
 
-    /// Soccer chips lead with the top flights and the Champions League; busiest-first alone put
-    /// the Championship and the cups (more fixtures) ahead of the Premier League. Leagues not
-    /// ranked (`Leagues.soccerDisplayRank`), and every other sport, fall back to busiest-first.
-    private static func soccerChipRank(_ league: Leagues) -> Int? { league.soccerDisplayRank }
+    /// Soccer chips lead with the top flights and the Champions League, cricket's with the
+    /// internationals and the IPL; busiest-first alone put the Championship and the cups
+    /// (more fixtures) ahead of the Premier League. Leagues not ranked
+    /// (`Leagues.competitionDisplayRank`), and every other sport, fall back to busiest-first.
+    private static func chipRank(_ league: Leagues) -> Int? { league.competitionDisplayRank }
 
     /// Days with games, optionally for one league — the day strip's dots.
     func datesWithGames(league: Leagues?) -> Set<DateComponents> {

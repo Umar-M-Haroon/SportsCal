@@ -388,3 +388,42 @@ public extension Game {
         return home ? homeScore > awayScore : awayScore > homeScore
     }
 }
+
+// MARK: - Competition order
+
+public extension Leagues {
+    /// Where a cricket competition sorts among others on the same day: men's
+    /// internationals, the big franchise leagues, women's cricket, then first-class.
+    /// Nil for every other sport.
+    var cricketDisplayRank: Int? { Self.cricketOrder[self] }
+
+    /// The name a group heading has room for: "IPL", "Big Bash", "T20Is".
+    var cricketShortName: String {
+        switch self {
+        case .cricketTests: "Tests"
+        case .cricketODIs: "ODIs"
+        case .cricketT20Is: "T20Is"
+        case .womensCricketInternationals: "Women's Internationals"
+        case .ipl: "IPL"
+        case .bigBash: "Big Bash"
+        case .psl: "PSL"
+        case .cpl: "CPL"
+        case .mlc: "MLC"
+        case .wbbl: "WBBL"
+        default: leagueName
+        }
+    }
+
+    /// The day page's competition groups (soccer and cricket) share one rank and name.
+    var competitionDisplayRank: Int? { isCricket ? cricketDisplayRank : soccerDisplayRank }
+    var competitionShortName: String { isCricket ? cricketShortName : soccerShortName }
+
+    private static let cricketOrder: [Leagues: Int] = {
+        let order: [Leagues] = [
+            .cricketTests, .cricketODIs, .cricketT20Is, .ipl, .bigBash, .theHundred, .sa20, .psl,
+            .cpl, .mlc, .ilt20, .womensCricketInternationals, .wbbl, .theHundredWomen,
+            .sheffieldShield, .countyChampionship,
+        ]
+        return Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
+    }()
+}
