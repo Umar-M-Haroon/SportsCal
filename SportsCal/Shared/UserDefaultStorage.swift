@@ -397,6 +397,46 @@ class UserDefaultStorage {
         return changed
     }
 
+    /// Sports whose competitions are switched on one by one, so picking two of them in
+    /// onboarding hides the rest. Golf and tennis tours are hideable too (Settings →
+    /// "Visible golf/tennis competitions", honoured by `hidingCompetitions`).
+    static let perCompetitionSports: [SportType] = [.soccer, .cricket, .racing, .golf, .tennis]
+
+    /// Makes the settings match onboarding's league map, the other way round from
+    /// `followCompetitions(_:)`: a sport is on iff something in it was picked, and within
+    /// soccer, cricket, racing, golf and tennis whatever wasn't picked is hidden so the
+    /// feed starts with exactly the competitions chosen. A sport with nothing picked is
+    /// switched off and its competitions are left as they were. The World Cup alone uses
+    /// its own switch (`shouldShowWorldCup`) and leaves the rest of soccer off.
+    /// The caller re-filters (`filterSports(force:)`).
+    func applyOnboardingSelection(_ picked: Set<Leagues>) {
+        shouldShowNFL = picked.contains(.nfl)
+        shouldShowCFB = picked.contains(.ncaaf)
+        shouldShowNBA = picked.contains(.nba)
+        shouldShowWNBA = picked.contains(.wnba)
+        shouldShowCBB = picked.contains(.ncaaMBBTournament)
+        shouldShowMLB = picked.contains(.mlb)
+        shouldShowNHL = picked.contains(.nhl)
+        shouldShowWorldCup = picked.contains(.FIFA_World_Cup)
+        shouldShowSoccer = picked.contains { $0.isSoccer && $0 != .FIFA_World_Cup }
+        shouldShowCricket = picked.contains(where: \.isCricket)
+        shouldShowRacing = picked.contains(where: \.isRacing)
+        shouldShowGolf = picked.contains(where: \.isGolf)
+        shouldShowTennis = picked.contains(where: \.isTennis)
+
+        let pickedNames = Set(picked.map(\.leagueName))
+        var hidden = hiddenCompetitions.filter { !pickedNames.contains($0) }
+        for sport in Self.perCompetitionSports where userShouldShow(sport) {
+            for league in Leagues.allCases where SportType(league: league) == sport && !picked.contains(league)
+                && !hidden.contains(league.leagueName) {
+                hidden.append(league.leagueName)
+            }
+        }
+        hiddenCompetitions = hidden
+        syncHiddenCompetitions()
+        recomputeEnabledSports()
+    }
+
     func recomputeEnabledSports() {
         enabledSports = orderedSports.filter { effectiveShouldShow($0) }
         syncSportPrefsToAppGroup()

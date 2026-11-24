@@ -15,7 +15,7 @@ final class ScheduleFilterTests: XCTestCase {
     private let sportKeys = [
         "shouldShowNBA", "shouldShowNFL", "shouldShowNHL",
         "shouldShowSoccer", "shouldShowMLB", "shouldShowGolf",
-        "shouldShowTennis", "shouldShowRacing", "shouldShowCricket", "shouldShowCFB", "cfbSelection", "hiddenCompetitions", "seededHiddenCompetitions",
+        "shouldShowTennis", "shouldShowRacing", "shouldShowCricket", "shouldShowCFB", "shouldShowWNBA", "shouldShowCBB", "shouldShowWorldCup", "cfbSelection", "hiddenCompetitions", "seededHiddenCompetitions",
         "favoritesOnlyNBA", "favoritesOnlyNFL", "favoritesOnlyNHL",
         "favoritesOnlySoccer", "favoritesOnlyMLB", "favoritesOnlyGolf",
         "favoritesOnlyTennis", "favoritesOnlyRacing",
@@ -450,5 +450,130 @@ final class ScheduleFilterTests: XCTestCase {
         appStorage.shouldShowNBA = true
         appStorage.hiddenCompetitions = []
         XCTAssertFalse(appStorage.followCompetitions([.nba]))
+    }
+
+    // MARK: - Onboarding league map
+
+    func testOnboardingSelectionTurnsOnPickedSportsAndHidesTheRest() {
+        appStorage.shouldShowNBA = true
+        appStorage.shouldShowCricket = true
+        appStorage.applyOnboardingSelection([.English_Premier_League, .UEFA_Champions_League, .FA_Cup, .nfl])
+
+        XCTAssertTrue(appStorage.shouldShowSoccer)
+        XCTAssertTrue(appStorage.shouldShowNFL)
+        XCTAssertFalse(appStorage.shouldShowNBA, "Nothing in basketball was picked")
+        XCTAssertFalse(appStorage.shouldShowCricket)
+        XCTAssertFalse(appStorage.shouldShowCFB)
+        XCTAssertFalse(appStorage.shouldShowWorldCup)
+        for league in [Leagues.English_Premier_League, .UEFA_Champions_League, .FA_Cup] {
+            XCTAssertFalse(appStorage.hiddenCompetitions.contains(league.leagueName), "\(league) was picked")
+        }
+        for league in [Leagues.La_Liga, .Serie_A, .English_League_Championship, .FIFA_World_Cup] {
+            XCTAssertTrue(appStorage.hiddenCompetitions.contains(league.leagueName), "\(league) wasn't picked")
+        }
+        XCTAssertEqual(Set(appStorage.enabledSports), [.soccer, .nfl])
+
+        viewModel.filterSports(force: true)
+        let leagues = Set(viewModel.getGamesFromUserPreferences().compactMap(\.idLeague))
+        XCTAssertFalse(leagues.contains(String(Leagues.nba.rawValue)))
+        XCTAssertFalse(leagues.contains(String(Leagues.La_Liga.rawValue)))
+    }
+
+    func testOnboardingSelectionLeavesUnpickedSportsCompetitionsAlone() {
+        appStorage.hiddenCompetitions = [Leagues.wbbl.leagueName]
+        appStorage.applyOnboardingSelection([.nba])
+        XCTAssertEqual(appStorage.hiddenCompetitions, [Leagues.wbbl.leagueName],
+                       "Cricket wasn't picked, so its competitions keep their own settings")
+        XCTAssertFalse(appStorage.shouldShowCricket)
+    }
+
+    func testWorldCupOnlyUsesItsOwnSwitch() {
+        appStorage.hiddenCompetitions = [Leagues.FIFA_World_Cup.leagueName]
+        appStorage.applyOnboardingSelection([.FIFA_World_Cup])
+        XCTAssertTrue(appStorage.shouldShowWorldCup)
+        XCTAssertFalse(appStorage.shouldShowSoccer)
+        XCTAssertFalse(appStorage.hiddenCompetitions.contains(Leagues.FIFA_World_Cup.leagueName))
+        XCTAssertFalse(appStorage.hiddenCompetitions.contains(Leagues.La_Liga.leagueName),
+                       "Soccer is off, so nothing else in it needs hiding")
+    }
+
+    func testOnboardingSelectionHidesUnpickedSeriesAndTours() {
+        appStorage.applyOnboardingSelection([.formula1, .atp, .pga, .ipl])
+        XCTAssertTrue(appStorage.shouldShowRacing)
+        XCTAssertTrue(appStorage.shouldShowTennis)
+        XCTAssertTrue(appStorage.shouldShowGolf)
+        XCTAssertTrue(appStorage.shouldShowCricket)
+        let hidden = Set(appStorage.hiddenCompetitions)
+        XCTAssertFalse(hidden.contains(Leagues.formula1.leagueName))
+        XCTAssertTrue(hidden.contains(Leagues.nascarCup.leagueName))
+        XCTAssertTrue(hidden.contains(Leagues.wta.leagueName))
+        XCTAssertTrue(hidden.contains(Leagues.livGolf.leagueName))
+        XCTAssertTrue(hidden.contains(Leagues.cricketTests.leagueName))
+        XCTAssertFalse(hidden.contains(Leagues.ipl.leagueName))
+        XCTAssertEqual(appStorage.visibleMotorsportSeries, [])
+    }
+
+    func testOnboardingSelectionUnhidesPickedDefaultHiddenLeagues() {
+        XCTAssertTrue(appStorage.hiddenCompetitions.contains(Leagues.A_League.leagueName), "Seeded hidden")
+        appStorage.applyOnboardingSelection([.A_League, .nascarCup])
+        XCTAssertFalse(appStorage.hiddenCompetitions.contains(Leagues.A_League.leagueName))
+        XCTAssertEqual(appStorage.visibleMotorsportSeries, [Leagues.nascarCup.leagueName])
+    }
+
+    func testEveryLeagueIsSomewhereOnTheMap() {
+        let mapped = Set(LeagueMap.allHubs.flatMap(\.leagues).map(\.league))
+        XCTAssertEqual(mapped, Set(Leagues.allCases), "Unpicked competitions get hidden, so each must be pickable")
+        for pack in LeagueMap.packs {
+            for item in pack.items {
+                XCTAssertTrue(LeagueMap.hub(id: item.hub)?.leagues.contains { $0.league == item.league } ?? false,
+                              "\(pack.name): \(item.league) isn't in \(item.hub)")
+            }
+        }
+    }
+
+    func testRegionDefaultsAreOnTheMap() {
+        XCTAssertEqual(LeagueMap.regionDefaults(forRegion: "us"), [.nfl, .nba])
+        XCTAssertEqual(LeagueMap.regionDefaults(forRegion: "GB"), [.English_Premier_League])
+        XCTAssertEqual(LeagueMap.regionDefaults(forRegion: nil), [.English_Premier_League, .UEFA_Champions_League])
+        XCTAssertEqual(LeagueMap.regionHubID(forRegion: "NZ"), "AU")
+        XCTAssertNil(LeagueMap.regionHubID(forRegion: "JP"))
+        for region in ["US", "CA", "MX", "GB", "DE", "IN", "PK", "LK", "AU", "NZ", "ZA", "AE", "JM", "BR", "JP"] {
+            let hub = LeagueMap.regionHubID(forRegion: region).flatMap(LeagueMap.hub(id:))
+            XCTAssertFalse(LeagueMap.regionDefaults(forRegion: region).isEmpty)
+            if let hub {
+                XCTAssertTrue(hub.leagues.contains { LeagueMap.regionDefaults(forRegion: region).contains($0.league) }
+                              || region == "BR" || region == "LK",
+                              "\(region)'s spot should light up with its picks")
+            }
+        }
+    }
+
+    func testEuropeClusterNeedsZoomingOnAPhone() {
+        let europe = LeagueMap.clusters.first { $0.id == "europe" }!
+        // An iPhone fits the 360-unit map at ~1.08pt per unit: far too tight for 44pt targets.
+        XCTAssertLessThan(europe.minimumSpacing * 1.08, 44)
+        XCTAssertGreaterThanOrEqual(europe.minimumSpacing * europe.scale(forSpacing: 50), 49.9)
+    }
+
+    func testMapSelectionTray() {
+        var selection = LeagueMapSelection()
+        XCTAssertEqual(selection.continueTitle, "Pick a League to Continue")
+        selection.add(team: Team(idTeam: "133604", strTeam: "Arsenal"),
+                      competitions: [.English_Premier_League, .UEFA_Champions_League, .FA_Cup])
+        selection.add(.English_Premier_League)
+        XCTAssertEqual(selection.continueTitle, "Continue · 1 team, 3 leagues")
+        selection.remove(team: Team(idTeam: "133604", strTeam: "Arsenal"))
+        XCTAssertEqual(selection.continueTitle, "Continue · 3 leagues")
+        XCTAssertEqual(LeagueMap.hubIDs(containing: .MLS), ["US", "CA"])
+        XCTAssertEqual(LeagueMap.hub(id: "GB")?.accessibilityLabel(followed: 2), "England, 6 leagues, 2 followed")
+    }
+
+    func testScheduleTeamLeaguesPutTheLeagueBeforeCups() {
+        let date = ISO8601DateFormatter().string(from: Date())
+        let cup = Game(idEvent: "c", idLeague: "\(Leagues.FA_Cup.rawValue)", idHomeTeam: "1",
+                       strHomeTeam: "Arsenal", strAwayTeam: "Leeds", strTimestamp: date, isoDate: nil)
+        let league = Game(idEvent: "l", idLeague: "\(Leagues.English_Premier_League.rawValue)", idHomeTeam: "1",
+                          strHomeTeam: "Arsenal", strAwayTeam: "Spurs", strTimestamp: date, isoDate: nil)
+        XCTAssertEqual(LeagueMap.teamLeagues(from: [cup, league, league])["1"], [.English_Premier_League, .FA_Cup])
     }
 }

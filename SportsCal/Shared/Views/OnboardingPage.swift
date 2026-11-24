@@ -14,6 +14,8 @@ struct OnboardingPage: View {
     @Binding var sheetType: SheetType?
     @Environment(GameViewModel.self) private var viewModel
     @Environment(Favorites.self) private var favorites
+    /// Debug builds can open straight on the map (`-OnboardingStartAtMap YES`), for screenshots.
+    @State private var sportsPresented = Self.debugFlag("OnboardingStartAtMap")
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -46,8 +48,8 @@ struct OnboardingPage: View {
             }
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 8) {
-                    NavigationLink {
-                        pickSportPage
+                    Button {
+                        sportsPresented = true
                     } label: {
                         Text("Get Started")
                             .font(.headline)
@@ -74,6 +76,7 @@ struct OnboardingPage: View {
             #if os(iOS)
             .toolbar(.hidden, for: .navigationBar)
             #endif
+            .navigationDestination(isPresented: $sportsPresented) { pickSportPage }
         }
         // A fixed window-like size on macOS: min-only frames let the sheet open
         // at the cramped minimum, which reads as a misplaced phone modal. On
@@ -85,11 +88,31 @@ struct OnboardingPage: View {
         .onAppear { MonetizationTelemetry.onboardingStarted() }
     }
 
+    /// The league map (3.5), or the old sport-tile grid with `-OnboardingClassic YES` in
+    /// debug builds. Both lead on to `PickTeamsPage` and `NotificationPrimerPage`.
+    @ViewBuilder
     private var pickSportPage: some View {
-        PickSportPage(sheetType: $sheetType)
-            .environment(appStorage)
-            .environment(viewModel)
-            .environment(favorites)
+        if Self.usesClassicSportPicker {
+            PickSportPage(sheetType: $sheetType)
+                .environment(appStorage)
+                .environment(viewModel)
+                .environment(favorites)
+        } else {
+            LeagueMapPage(sheetType: $sheetType)
+                .environment(appStorage)
+                .environment(viewModel)
+                .environment(favorites)
+        }
+    }
+
+    private static var usesClassicSportPicker: Bool { debugFlag("OnboardingClassic") }
+
+    private static func debugFlag(_ key: String) -> Bool {
+        #if DEBUG
+        UserDefaults.standard.bool(forKey: key)
+        #else
+        false
+        #endif
     }
 
     /// Sport symbols in their colours, fanned around the app's name.
