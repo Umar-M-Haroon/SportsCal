@@ -34,13 +34,6 @@ struct SportsCalApp: App {
     @AppStorage("debugMode") private var menuDebugMode = false
     @AppStorage("board.emptyStyle") private var boardEmptyStyle: BoardEmptyStyle = .rail
     @AppStorage("board.liveFirst") private var boardLiveFirst = true
-    @AppStorage("menuBar.pinnedGameID") private var menuPinnedGameID = ""
-    // Settings › General › Menu Bar; scene-level so the label re-renders.
-    @AppStorage(MenuBarPrefs.rotationKey) private var menuRotation: MenuBarRotation = .favoritesThenAll
-    @AppStorage(MenuBarPrefs.intervalKey) private var menuInterval: Double = 5
-    @AppStorage(MenuBarPrefs.idleKey) private var menuIdle: MenuBarIdleDisplay = .nextFavorite
-    @AppStorage(MenuBarPrefs.showsClockKey) private var menuShowsClock = true
-    @AppStorage(MenuBarPrefs.followedKey) private var menuFollowedIDs = ""
     #endif
     @State private var versionChecker = APIVersionChecker.shared
 
@@ -352,26 +345,7 @@ struct SportsCalApp: App {
                 .frame(width: 240)
             }
         } label: {
-            MenuBarLabel(
-                games: subscriptionManager.isPro ? MenuBarFollows.rotatingGames(
-                    rotation: menuRotation,
-                    live: viewModel.liveEventsWithTeams,
-                    isFavorite: { favorites.contains($0) },
-                    followedRaw: menuFollowedIDs,
-                    pinnedID: menuPinnedGameID
-                ) : [],
-                upcomingFavorite: subscriptionManager.isPro && menuRotation != .iconOnly ? {
-                    let liveIDs = Set(viewModel.liveEvents.map(\.id))
-                    return viewModel.todayFavoriteGamesWithTeams.first { gwt in
-                        guard let d = gwt.game.standardDate else { return false }
-                        return d > Date() && !liveIDs.contains(gwt.game.id)
-                    }
-                }() : nil,
-                todayCount: subscriptionManager.isPro && menuRotation != .iconOnly ? viewModel.todayGames.count : 0,
-                interval: menuInterval,
-                idleDisplay: menuIdle,
-                showsClock: menuShowsClock
-            )
+            MenuBarStatusLabel(viewModel: viewModel, favorites: favorites, subscriptionManager: subscriptionManager)
         }
         .menuBarExtraStyle(.window)
 

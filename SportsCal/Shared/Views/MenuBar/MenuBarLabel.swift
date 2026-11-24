@@ -114,6 +114,49 @@ enum MenuBarFollows {
 
 // MARK: - Label
 
+/// The MenuBarExtra label. Reads the view model itself rather than taking values
+/// computed in the App's scene body: SwiftUI doesn't reliably re-run a scene body
+/// for the menu bar label when observed models change, which froze the label on
+/// whatever the last unrelated update produced (a live game stuck on 1').
+struct MenuBarStatusLabel: View {
+    let viewModel: GameViewModel
+    let favorites: Favorites
+    let subscriptionManager: SubscriptionManager
+
+    @AppStorage(MenuBarPrefs.pinnedKey) private var pinnedID = ""
+    @AppStorage(MenuBarPrefs.rotationKey) private var rotation: MenuBarRotation = .favoritesThenAll
+    @AppStorage(MenuBarPrefs.intervalKey) private var interval: Double = 5
+    @AppStorage(MenuBarPrefs.idleKey) private var idle: MenuBarIdleDisplay = .nextFavorite
+    @AppStorage(MenuBarPrefs.showsClockKey) private var showsClock = true
+    @AppStorage(MenuBarPrefs.followedKey) private var followedRaw = ""
+
+    var body: some View {
+        let isPro = subscriptionManager.isPro
+        let showsGames = isPro && rotation != .iconOnly
+        MenuBarLabel(
+            games: isPro ? MenuBarFollows.rotatingGames(
+                rotation: rotation,
+                live: viewModel.liveEventsWithTeams,
+                isFavorite: { favorites.contains($0) },
+                followedRaw: followedRaw,
+                pinnedID: pinnedID
+            ) : [],
+            upcomingFavorite: showsGames ? {
+                let liveIDs = Set(viewModel.liveEvents.map(\.id))
+                return viewModel.todayFavoriteGamesWithTeams.first { gwt in
+                    guard let d = gwt.game.standardDate else { return false }
+                    return d > Date() && !liveIDs.contains(gwt.game.id)
+                }
+            }() : nil,
+            todayCount: showsGames ? viewModel.todayGames.count : 0,
+            interval: interval,
+            idleDisplay: idle,
+            showsClock: showsClock
+        )
+    }
+}
+
+
 struct MenuBarLabel: View {
     /// Already filtered and ordered by `MenuBarFollows.rotatingGames`.
     let games: [GameWithTeams]
