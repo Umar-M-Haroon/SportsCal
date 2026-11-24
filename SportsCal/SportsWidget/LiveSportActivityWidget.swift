@@ -179,22 +179,22 @@ struct ActivityGameClock: Equatable {
 
 /// The clutch moment in a team-sport activity right now, if any, by the app's own rules
 /// (`ClutchMoment.detect`: crunch time, a one-goal game late, the tying run at the plate,
-/// the red zone in a one-score 4th...). The content state carries no sport or clock
-/// field, so both are read off what it does carry: the progress text gives the period
-/// and clock, the situation says baseball (outs, runners) or football (down, possession,
-/// timeouts), and the score tells hockey (low) from basketball. Nil outside live play.
-func activityClutch(_ state: LiveSportActivityAttributes.ContentState) -> ClutchMoment? {
+/// the red zone in a one-score 4th...). The progress text gives the period and clock.
+/// The sport comes from the attributes (`sport`); activities started before that field
+/// existed, or pushed by an older server, fall back to `inferredClutchSport`. Nil
+/// outside live play and for sports without clutch rules.
+func activityClutch(_ state: LiveSportActivityAttributes.ContentState, sport explicit: SportType?) -> ClutchMoment? {
     guard state.race == nil, state.tennis == nil,
           variantFor(progress: state.progress, status: state.status) == .live else { return nil }
     let parsed = ActivityGameClock(state.progress)
     let live = state.situation
+    guard let sport = explicit ?? inferredClutchSport(state, parsed) else { return nil }
     var situation = GameSituation()
-    let sport: SportType
-    var league: Leagues?
+    let league: Leagues
 
-    if compactInning(state.progress) != nil || live?.outs != nil || live?.bases != nil {
+    switch sport {
+    case .mlb:
         guard let inning = parsed.period, let half = parsed.inningHalf else { return nil }
-        sport = .mlb
         league = .mlb
         situation.period = inning
         situation.inningHalf = half
@@ -202,24 +202,13 @@ func activityClutch(_ state: LiveSportActivityAttributes.ContentState) -> Clutch
         situation.onFirst = live?.onFirst
         situation.onSecond = live?.onSecond
         situation.onThird = live?.onThird
-    } else {
-        // Soccer's clock counts up ("67'") and its halves carry no countdown.
-        if parsed.usesHalves && parsed.clock == nil { return nil }
-        let isFootball = live?.downDistance != nil || live?.possession != nil || live?.redZone == true
-            || live?.homeTimeouts != nil || live?.awayTimeouts != nil
-        let isHockey = !isFootball && (live?.powerPlay != nil || live?.emptyNet != nil || parsed.isShootout
-            || state.homeScore + state.awayScore < 30)
-        if isFootball {
-            sport = .nfl
-            league = .nfl
-        } else if isHockey {
-            sport = .hockey
-            league = .nhl
-        } else {
-            sport = .basketball
-            league = parsed.usesHalves ? .ncaaMBBTournament : .nba
+    case .nfl, .hockey, .basketball:
+        switch sport {
+        case .nfl: league = .nfl
+        case .hockey: league = .nhl
+        default: league = parsed.usesHalves ? .ncaaMBBTournament : .nba
         }
-        let regulation = league?.regulationPeriods ?? 4
+        let regulation = league.regulationPeriods ?? 4
         if parsed.isShootout {
             situation.period = regulation + 2
         } else if parsed.overtime > 0 {
@@ -233,10 +222,30 @@ func activityClutch(_ state: LiveSportActivityAttributes.ContentState) -> Clutch
         situation.isRedZone = live?.redZone
         situation.homeGoaliePulled = live?.emptyNet == .home ? true : nil
         situation.awayGoaliePulled = live?.emptyNet == .away ? true : nil
+    case .soccer, .golf, .tennis, .racing, .cricket:
+        return nil
     }
     return ClutchMoment.detect(sport: sport, league: league, situation: situation, previous: nil,
                                homeScore: state.homeScore, awayScore: state.awayScore,
                                homeName: "", awayName: "")
+}
+
+/// The sport, guessed from the content state, for activities whose attributes predate
+/// `sport`: baseball from an inning-shaped progress or outs/runners, football from
+/// down/possession/timeouts, hockey from a power play, empty net, shootout or a low
+/// combined score, basketball otherwise. Known miss: a tied NFL 4th with no
+/// situation reads as hockey overtime. Nil for soccer-style halves with no countdown.
+private func inferredClutchSport(_ state: LiveSportActivityAttributes.ContentState, _ parsed: ActivityGameClock) -> SportType? {
+    let live = state.situation
+    if compactInning(state.progress) != nil || live?.outs != nil || live?.bases != nil { return .mlb }
+    // Soccer's clock counts up ("67'") and its halves carry no countdown.
+    if parsed.usesHalves && parsed.clock == nil { return nil }
+    let isFootball = live?.downDistance != nil || live?.possession != nil || live?.redZone == true
+        || live?.homeTimeouts != nil || live?.awayTimeouts != nil
+    if isFootball { return .nfl }
+    if live?.powerPlay != nil || live?.emptyNet != nil || parsed.isShootout
+        || state.homeScore + state.awayScore < 30 { return .hockey }
+    return .basketball
 }
 
 /// The text for a break: "End 2nd" for a clock that has run out ("0:00 - 2nd"), the
@@ -254,12 +263,13 @@ private func breakText(_ progress: String) -> String {
 /// `style` scales it: StandBy draws it larger.
 @ViewBuilder
 private func progressLabel(for state: LiveSportActivityAttributes.ContentState,
+                           sport: SportType? = nil,
                            style: Font.TextStyle = .caption) -> some View {
     let variant = variantFor(progress: state.progress, status: state.status)
     switch variant {
     case .live:
         if let formatted = state.progress {
-            let clutch = activityClutch(state) != nil
+            let clutch = activityClutch(state, sport: sport) != nil
             let tint = clutch ? WidgetTokens.clutch : WidgetTokens.live
             HStack(spacing: 4) {
                 Circle().fill(tint).frame(width: 5, height: 5)
@@ -949,7 +959,7 @@ private struct TeamLockScreenView: View {
     private func scoreRow(_ sides: (first: ActivitySide, second: ActivitySide), nameFont: Font?) -> some View {
         EqualColumns {
             team(sides.first, leading: true, nameFont: nameFont)
-            progressLabel(for: state)
+            progressLabel(for: state, sport: attributes.sportType)
                 .frame(maxWidth: .infinity, alignment: .center)
             team(sides.second, leading: false, nameFont: nameFont)
         }
@@ -1098,7 +1108,7 @@ private struct ActivityContentView: View {
                     // Night mode tints the screen red: a colour wash there only muddies it.
                     if !isLuminanceReduced { TeamColorWash(first: sides.first, second: sides.second) }
                 }
-                .overlay(alignment: .top) { if activityClutch(state) != nil { ClutchKeyline() } }
+                .overlay(alignment: .top) { if activityClutch(state, sport: attributes.sportType) != nil { ClutchKeyline() } }
         } else if let race = state.race {
             RaceLockScreenView(raceName: attributes.homeTeam, state: state, race: race)
                 .padding(16)
@@ -1110,7 +1120,7 @@ private struct ActivityContentView: View {
             TeamLockScreenView(attributes: attributes, state: state)
                 .padding(16)
                 .background { TeamColorWash(first: sides.first, second: sides.second) }
-                .overlay(alignment: .top) { if activityClutch(state) != nil { ClutchKeyline() } }
+                .overlay(alignment: .top) { if activityClutch(state, sport: attributes.sportType) != nil { ClutchKeyline() } }
         }
     }
 }
@@ -1144,7 +1154,7 @@ private struct StandByTeamView: View {
         let isFinal = variantFor(progress: state.progress, status: state.status) == .final
         HStack(alignment: .center, spacing: 8) {
             column(sides.first, isFinal: isFinal)
-            progressLabel(for: state, style: .headline)
+            progressLabel(for: state, sport: attributes.sportType, style: .headline)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .frame(maxWidth: 96)
@@ -1230,7 +1240,7 @@ private struct SmallActivityView: View {
                     SmallTeamRow(side: sides.first, isFinal: isFinal)
                     SmallTeamRow(side: sides.second, isFinal: isFinal)
                     HStack(spacing: 6) {
-                        progressLabel(for: state)
+                        progressLabel(for: state, sport: attributes.sportType)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                         Spacer(minLength: 4)
@@ -1361,7 +1371,7 @@ struct LiveSportActivityWidget: Widget {
                             }
                         } else {
                         VStack(spacing: 2) {
-                            progressLabel(for: context.state)
+                            progressLabel(for: context.state, sport: context.attributes.sportType)
                                 .frame(maxWidth: .infinity, alignment: .center)
                             if let situation = context.state.situation {
                                 LiveActivitySituationStrip(
@@ -1454,7 +1464,7 @@ struct LiveSportActivityWidget: Widget {
                     let lead = leaderFirst(sides)
                     // The leader's colour; no dot when level. Amber when the game is
                     // close and late, level or not.
-                    let dotColor = activityClutch(context.state) != nil ? WidgetTokens.clutchOnDark
+                    let dotColor = activityClutch(context.state, sport: context.attributes.sportType) != nil ? WidgetTokens.clutchOnDark
                         : (leader(sides) != nil ? activityTeamColor(lead.first.colorHex, on: .dark) : nil)
                     let code = Text(lead.first.short)
                         .font(.system(.caption, design: .rounded).weight(.heavy))
@@ -1587,7 +1597,7 @@ struct LiveSportActivityWidget: Widget {
     private func keyline(_ context: ActivityViewContext<LiveSportActivityAttributes>) -> Color {
         guard context.state.race == nil, context.state.tennis == nil else { return WidgetTokens.accent }
         // Close and late: amber. A break: grey, so a paused game doesn't glow as live.
-        if activityClutch(context.state) != nil { return WidgetTokens.clutchOnDark }
+        if activityClutch(context.state, sport: context.attributes.sportType) != nil { return WidgetTokens.clutchOnDark }
         if variantFor(progress: context.state.progress, status: context.state.status).isBreak { return Color(white: 0.45) }
         guard let lead = leader(activitySides(context.attributes, context.state)),
               let color = activityTeamColor(lead.colorHex, on: .dark) else { return WidgetTokens.accent }
@@ -1761,23 +1771,23 @@ private let previewTennisState = LiveSportActivityAttributes.ContentState(homeSc
 
 private let galleryNBA = LiveSportActivityAttributes(homeTeam: "Boston Celtics", awayTeam: "Los Angeles Lakers", eventID: "g-nba",
                                                      homeTeamShort: "BOS", awayTeamShort: "LAL",
-                                                     homeColorHex: "007A33", awayColorHex: "552583")
+                                                     homeColorHex: "007A33", awayColorHex: "552583", sport: "basketball")
 private let galleryNBAState = LiveSportActivityAttributes.ContentState(homeScore: 108, awayScore: 112, status: "in", progress: "4th 2:14",
                                                                        lastPlay: "LeBron James makes 26-foot three point jumper")
 private let galleryNHL = LiveSportActivityAttributes(homeTeam: "Vegas Golden Knights", awayTeam: "Edmonton Oilers", eventID: "g-nhl",
                                                      homeTeamShort: "VGK", awayTeamShort: "EDM",
-                                                     homeColorHex: "B4975A", awayColorHex: "041E42")
+                                                     homeColorHex: "B4975A", awayColorHex: "041E42", sport: "hockey")
 private let galleryNHLTied = LiveSportActivityAttributes.ContentState(homeScore: 2, awayScore: 2, status: "in", progress: "5:40 - 3rd",
                                                                       lastPlay: "Goal by Eichel (PP)")
 private let galleryMLB = LiveSportActivityAttributes(homeTeam: "Cleveland Guardians", awayTeam: "Detroit Tigers", eventID: "g-mlb",
                                                      homeTeamShort: "CLE", awayTeamShort: "DET",
-                                                     homeColorHex: "E31937", awayColorHex: "0C2340")
+                                                     homeColorHex: "E31937", awayColorHex: "0C2340", sport: "mlb")
 private let galleryMLBState = LiveSportActivityAttributes.ContentState(homeScore: 3, awayScore: 5, status: "in", progress: "Bot 9th",
                                                                        lastPlay: "Kwan singled to left.",
                                                                        situation: LiveActivitySituation(outs: 1, bases: 3, homeWinPct: 21))
 private let galleryNFL = LiveSportActivityAttributes(homeTeam: "Kansas City Chiefs", awayTeam: "Buffalo Bills", eventID: "g-nfl",
                                                      homeTeamShort: "KC", awayTeamShort: "BUF",
-                                                     homeColorHex: "E31837", awayColorHex: "00338D")
+                                                     homeColorHex: "E31837", awayColorHex: "00338D", sport: "nfl")
 private let galleryNFLState = LiveSportActivityAttributes.ContentState(homeScore: 20, awayScore: 17, status: "in", progress: "4th 2:31", lastPlay: nil,
                                                                        situation: LiveActivitySituation(downDistance: "3rd & 4 at KC 12", possession: .away, redZone: true,
                                                                                                         homeWinPct: 58, homeTimeouts: 2, awayTimeouts: 1))

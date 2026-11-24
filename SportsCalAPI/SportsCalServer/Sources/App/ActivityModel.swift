@@ -59,6 +59,9 @@ public struct LiveSportAttributes: Codable, Sendable {
     /// Logo URLs: the app fetches them when iOS wakes it for a push-started activity.
     var homeBadgeURL: String? = nil
     var awayBadgeURL: String? = nil
+    /// The game's `SportType` raw value, so the widget picks the right clutch rules
+    /// instead of inferring the sport. Older app builds ignore the key.
+    var sport: String? = nil
 }
 
 /// Which APNS gateway a given device token belongs to. Sandbox tokens come

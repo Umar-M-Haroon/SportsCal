@@ -90,6 +90,14 @@ struct LiveSportActivityAttributes: ActivityAttributes {
     /// widget reads. Optional for the same reasons as the colours.
     var homeBadgeURL: String? = nil
     var awayBadgeURL: String? = nil
+    /// The game's `SportType` raw value ("hockey", "nfl"), so the widget applies the
+    /// right sport's clutch rules instead of guessing from the score. Optional:
+    /// activities started before the field existed, and pushes from an older server,
+    /// fall back to the widget's inference.
+    var sport: String? = nil
+
+    /// `sport` as a `SportType`; nil when absent or unknown.
+    var sportType: SportType? { sport.flatMap(SportType.init(rawValue:)) }
 }
 
 /// Pure decision helper for the dedup funnel — given the eventIDs of currently

@@ -308,6 +308,16 @@ struct LiveActivityPlaygroundView: View {
             }
         }
 
+        var sport: SportType {
+            switch self {
+            case .nba: return .basketball
+            case .nfl: return .nfl
+            case .mlb: return .mlb
+            case .nhl: return .hockey
+            case .soccer: return .soccer
+            }
+        }
+
         /// Progress that makes the start state a clutch moment; nil where it already is
         /// one (MLB, NFL) or the sport has none (soccer).
         var clutchProgress: String? {
@@ -414,7 +424,8 @@ struct LiveActivityPlaygroundView: View {
                 homeColorHex: teamColors ? info.homeHex : nil,
                 awayColorHex: teamColors ? info.awayHex : nil,
                 homeBadgeURL: scenario.logos.home,
-                awayBadgeURL: scenario.logos.away
+                awayBadgeURL: scenario.logos.away,
+                sport: scenario.sport.rawValue
             )
             state = scenario.startState
             do {
