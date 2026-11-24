@@ -245,6 +245,10 @@ struct PickTeamsPage: View {
     /// keystroke and star toggle used to re-group the whole schedule.
     @State private var sections: [OnboardingTeamSection] = []
     @State private var primerPresented = false
+    /// Every competition each team plays in, so starring a team follows its leagues and
+    /// cups too. Nil until loaded, or on a server without the route (stars then only
+    /// follow the team, as before).
+    @State private var competitions: TeamCompetitionIndex?
 
     /// What `sections` depends on. Live ticks patch scores in place and leave it alone.
     private struct SectionsKey: Hashable {
@@ -307,6 +311,9 @@ struct PickTeamsPage: View {
         .navigationDestination(isPresented: $primerPresented) {
             NotificationPrimerPage(sheetType: $sheetType)
         }
+        .task {
+            if competitions == nil { competitions = await NetworkHandler.getTeamCompetitions() }
+        }
         .task(id: sectionsKey) {
             sections = OnboardingTeamSection.build(games: viewModel.totalGames ?? [],
                                                    enabled: appStorage.enabledSports,
@@ -355,12 +362,26 @@ struct PickTeamsPage: View {
             } else {
                 favorites.add(team: team)
                 picked.insert(key)
+                // Unstarring leaves the competitions on: other picks may share them.
+                if appStorage.followCompetitions(teamCompetitions(team)) {
+                    viewModel.filterSports(force: true)
+                }
             }
         } label: {
             HStack(spacing: 12) {
                 badge(team, sport: sport)
-                Text(team.strTeam ?? "")
-                    .foregroundStyle(.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(team.strTeam ?? "")
+                        .foregroundStyle(.primary)
+                    // Only worth saying when starring adds more than the team's own league.
+                    let leagues = teamCompetitions(team)
+                    if leagues.count > 1 {
+                        Text(leagues.map(\.competitionShortName).joined(separator: " · "))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
                 Spacer()
                 Image(systemName: isPicked ? "star.fill" : "star")
                     .foregroundStyle(isPicked ? Color.yellow : Color.secondary)
@@ -370,6 +391,11 @@ struct PickTeamsPage: View {
         .accessibilityLabel(team.strTeam ?? "")
         .accessibilityValue(isPicked ? "Following" : "Not following")
         .accessibilityHint(isPicked ? "Unfollow this team" : "Follow this team")
+    }
+
+    private func teamCompetitions(_ team: Team) -> [Leagues] {
+        guard let id = team.idTeam, let competitions else { return [] }
+        return competitions.leagues(forTeam: id)
     }
 
     @ViewBuilder

@@ -991,6 +991,15 @@ struct NetworkHandler {
         return try decoder.decode([Team].self, from: data)
     }
 
+    /// Every competition each team plays in (`GET /teams/competitions`), for following a
+    /// team's leagues and cups along with it. Nil on a server that predates the route.
+    static func getTeamCompetitions() async -> TeamCompetitionIndex? {
+        guard let url = URL(string: "\(baseURL())/teams/competitions"),
+              let (data, response) = try? await performAuthorized(url: url),
+              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return try? Self.sharedDecoder.decode(TeamCompetitionIndex.self, from: data)
+    }
+
     /// Extended profile + roster for a single team (TheSportsDB `idTeam`).
     /// Backed by the server's `GET /team/:id/info` (Redis-cached, 24h).
     static func getTeamDetail(teamID: String) async throws -> TeamDetail {

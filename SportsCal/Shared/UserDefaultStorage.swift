@@ -358,6 +358,45 @@ class UserDefaultStorage {
         seededHiddenCompetitions += unseeded
     }
 
+    /// Shows everything a followed team plays in: switches on each competition's sport
+    /// (or its own toggle, for WNBA and college) and un-hides the competition itself, so
+    /// following Arsenal also brings in the Champions League and the FA Cup even if
+    /// those were hidden. Returns whether anything changed.
+    @discardableResult
+    func followCompetitions(_ leagues: [Leagues]) -> Bool {
+        var changed = false
+        for league in leagues {
+            let toggle: ReferenceWritableKeyPath<UserDefaultStorage, Bool>?
+            if league.isSoccer { toggle = \.shouldShowSoccer }
+            else if league.isCricket { toggle = \.shouldShowCricket }
+            else {
+                switch league {
+                case .nfl: toggle = \.shouldShowNFL
+                case .ncaaf: toggle = \.shouldShowCFB
+                case .nba: toggle = \.shouldShowNBA
+                case .wnba: toggle = \.shouldShowWNBA
+                case .ncaaMBBTournament: toggle = \.shouldShowCBB
+                case .mlb: toggle = \.shouldShowMLB
+                case .nhl: toggle = \.shouldShowNHL
+                default: toggle = nil
+                }
+            }
+            if let toggle, !self[keyPath: toggle] {
+                self[keyPath: toggle] = true
+                changed = true
+            }
+            if let index = hiddenCompetitions.firstIndex(of: league.leagueName) {
+                hiddenCompetitions.remove(at: index)
+                changed = true
+            }
+        }
+        if changed {
+            syncHiddenCompetitions()
+            recomputeEnabledSports()
+        }
+        return changed
+    }
+
     func recomputeEnabledSports() {
         enabledSports = orderedSports.filter { effectiveShouldShow($0) }
         syncSportPrefsToAppGroup()

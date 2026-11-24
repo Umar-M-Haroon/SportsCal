@@ -15,7 +15,7 @@ final class ScheduleFilterTests: XCTestCase {
     private let sportKeys = [
         "shouldShowNBA", "shouldShowNFL", "shouldShowNHL",
         "shouldShowSoccer", "shouldShowMLB", "shouldShowGolf",
-        "shouldShowTennis", "shouldShowRacing", "shouldShowCFB", "cfbSelection", "hiddenCompetitions", "seededHiddenCompetitions",
+        "shouldShowTennis", "shouldShowRacing", "shouldShowCricket", "shouldShowCFB", "cfbSelection", "hiddenCompetitions", "seededHiddenCompetitions",
         "favoritesOnlyNBA", "favoritesOnlyNFL", "favoritesOnlyNHL",
         "favoritesOnlySoccer", "favoritesOnlyMLB", "favoritesOnlyGolf",
         "favoritesOnlyTennis", "favoritesOnlyRacing",
@@ -420,5 +420,35 @@ final class ScheduleFilterTests: XCTestCase {
         XCTAssertTrue(appStorage.userShouldShow(.nfl))
         appStorage.toggleSport(.nfl, enabled: false)
         XCTAssertFalse(appStorage.shouldShowCFB, "Turning football off turns college off too")
+    }
+
+    // MARK: - Following a team's competitions
+
+    func testFollowingCompetitionsTurnsOnTheSportAndUnhidesCups() {
+        appStorage.shouldShowSoccer = false
+        appStorage.hiddenCompetitions = [Leagues.FA_Cup.leagueName, Leagues.La_Liga.leagueName]
+
+        let changed = appStorage.followCompetitions([.English_Premier_League, .UEFA_Champions_League, .FA_Cup])
+
+        XCTAssertTrue(changed)
+        XCTAssertTrue(appStorage.shouldShowSoccer)
+        XCTAssertFalse(appStorage.hiddenCompetitions.contains(Leagues.FA_Cup.leagueName))
+        XCTAssertTrue(appStorage.hiddenCompetitions.contains(Leagues.La_Liga.leagueName),
+                      "Competitions the team doesn't play in stay hidden")
+        XCTAssertTrue(appStorage.enabledSports.contains(.soccer))
+    }
+
+    func testFollowingCompetitionsUsesEachLeaguesOwnToggle() {
+        appStorage.shouldShowCricket = false
+        appStorage.shouldShowCFB = false
+        appStorage.followCompetitions([.ipl, .ncaaf])
+        XCTAssertTrue(appStorage.shouldShowCricket)
+        XCTAssertTrue(appStorage.shouldShowCFB)
+    }
+
+    func testFollowingAlreadyVisibleCompetitionsChangesNothing() {
+        appStorage.shouldShowNBA = true
+        appStorage.hiddenCompetitions = []
+        XCTAssertFalse(appStorage.followCompetitions([.nba]))
     }
 }
