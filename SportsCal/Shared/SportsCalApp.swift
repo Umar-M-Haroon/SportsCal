@@ -296,6 +296,7 @@ struct SportsCalApp: App {
                 // current — this is the one place freshness outranks the budget.
                 viewModel.flushDerivedSideEffects()
                 #if os(iOS)
+                viewModel.suspendWebSocketForBackground()
                 scheduleAppRefresh()
                 #endif
             } else if newPhase == .active {

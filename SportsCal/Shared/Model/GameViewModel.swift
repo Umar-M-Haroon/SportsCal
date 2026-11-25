@@ -133,6 +133,7 @@ public class GameViewModel: NSObject {
                 games.insert(snapshot, for: "games")
                 try games.saveToDisk(with: cacheStem(base: "games"))
                 ScheduleETagStore.store(newETag, for: scheduleURL)
+                await MainActor.run { backgroundSnapshot = snapshot }
             }
 
             let teams = Cache<String, [Team]>()
@@ -164,7 +165,24 @@ public class GameViewModel: NSObject {
         games.insert(outcome.snapshot, for: "games")
         try games.saveToDisk(with: cacheStem(base: "games"))
         SliceETagStore.store(outcome.etags, base: NetworkHandler.baseURL())
+        await MainActor.run { backgroundSnapshot = outcome.snapshot }
         return true
+    }
+
+    /// A schedule the background refresh wrote to disk while the app was suspended.
+    /// The stored ETags now describe it, not the older snapshot still in memory, so
+    /// revalidating would get a 304 and keep the old games on screen until a pull to
+    /// refresh. The next fetch adopts it first (see `adoptBackgroundSnapshot`).
+    static var backgroundSnapshot: LiveScore?
+
+    /// Puts a background-refreshed schedule in memory and on screen, so the validators
+    /// the next fetch sends match what is actually displayed.
+    private func adoptBackgroundSnapshot() async {
+        guard let snapshot = Self.backgroundSnapshot else { return }
+        Self.backgroundSnapshot = nil
+        gameCache?.insert(snapshot, for: "games")
+        await applySnapshotIncrementally(snapshot)
+        isShowingStaleCache = false
     }
 
     nonisolated static func purgeLegacyCacheFiles() {
@@ -1696,6 +1714,7 @@ public class GameViewModel: NSObject {
         AppLogger.networking.info("Requesting full schedule snapshot")
         // The ETag decision depends on what the launch cache produced.
         await launchCacheTask?.value
+        await adoptBackgroundSnapshot()
 
         if try await handleGameSlices() { return }
         // The server predates per-sport slices: the all-sports blob, as before.
@@ -3953,7 +3972,9 @@ public class GameViewModel: NSObject {
     func refreshOnForegroundIfNeeded(now: Date = Date()) -> Bool {
         if let last = lastSuccessfulFetch,
            now.timeIntervalSince(last) < Self.foregroundRefreshInterval,
-           networkState != .failed {
+           networkState != .failed,
+           Self.backgroundSnapshot == nil {
+            refreshLiveScores()
             return false
         }
         let hasData = !(totalGames?.isEmpty ?? true)
@@ -3961,6 +3982,29 @@ public class GameViewModel: NSObject {
         return true
     }
     
+    /// Just the live snapshot (small), for a resume inside the full-refresh throttle:
+    /// scores move in two minutes even when the schedule doesn't.
+    /// Its own task, not `networkFetchTask`: a pull to refresh started meanwhile must
+    /// still run the full fetch rather than join this one.
+    private func refreshLiveScores() {
+        guard networkFetchTask == nil, liveRefreshTask == nil, !Self.isSnapshotTesting else { return }
+        liveRefreshTask = Task {
+            do { try await handleLiveGames() }
+            catch { AppLogger.networking.error("Foreground live refresh failed: \(error.localizedDescription)") }
+            liveRefreshTask = nil
+        }
+    }
+    @ObservationIgnored private var liveRefreshTask: Task<Void, Never>?
+
+    /// iOS suspends a backgrounded app's socket without closing it, so on return it
+    /// looks connected while delivering nothing until its receive timeout (up to 75s),
+    /// and `handleLiveGames` defers to it meanwhile. Closing it on the way out means
+    /// the resume opens a fresh one, whose first frame is a full snapshot.
+    func suspendWebSocketForBackground() {
+        guard !isReplaying else { return }
+        disconnectWebSocket()
+    }
+
     func dumpCaches() throws {
         teamCache?.deleteAll()
         gameCache?.deleteAll()
