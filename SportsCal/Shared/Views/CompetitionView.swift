@@ -39,25 +39,53 @@ enum FavoriteReach {
 
     /// The note under a sport or league set to "only my teams" that none of the user's
     /// teams play in.
-    static func emptyNote(_ name: String) -> String {
-        "None of your teams have \(name) games coming up, so it will stay empty."
+    static func emptyNote(_ name: String, sport: SportType) -> String {
+        hasTeams(sport)
+            ? "None of your teams have \(name) games coming up, so it will stay empty."
+            : "None of the players you follow have \(name) events coming up, so it will stay empty."
+    }
+
+    /// Golf, tennis and racing follow players, not teams: no team picker to offer.
+    static func hasTeams(_ sport: SportType) -> Bool {
+        ![.golf, .tennis, .racing].contains(sport)
     }
 }
 
-/// The warning shown when "only my teams" leaves something empty.
+/// The warning shown when "only my teams" leaves something empty, with the two ways
+/// out: follow some teams there, or go back to every game.
 struct EmptyFavoritesNote: View {
     var text: String
+    var pickTeams: (() -> Void)? = nil
+    var showAllGames: (() -> Void)? = nil
 
     var body: some View {
-        Label {
-            Text(text)
-                .fixedSize(horizontal: false, vertical: true)
-        } icon: {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+        VStack(alignment: .leading, spacing: 6) {
+            Label {
+                Text(text)
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            if pickTeams != nil || showAllGames != nil {
+                HStack(spacing: 8) {
+                    if let pickTeams {
+                        Button("Pick Teams…", action: pickTeams)
+                            .buttonStyle(.borderedProminent)
+                    }
+                    if let showAllGames {
+                        Button("Show All Games", action: showAllGames)
+                            .buttonStyle(.bordered)
+                    }
+                }
+                .controlSize(.small)
+                #if os(iOS)
+                .buttonBorderShape(.capsule)
+                #endif
+            }
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
     }
 }
 
@@ -66,6 +94,7 @@ struct CompetitionView: View {
     var league: Leagues
     @State var isShown: Bool = true
     @State private var mode: ScheduleShowMode = .allGames
+    @State private var pickingTeams = false
     @Environment(UserDefaultStorage.self) private var appStorage
     @Environment(GameViewModel.self) private var viewModel: GameViewModel?
     @Environment(Favorites.self) private var favorites: Favorites?
@@ -89,9 +118,16 @@ struct CompetitionView: View {
                 .fixedSize()
             }
             if showsEmptyNote {
-                EmptyFavoritesNote(text: FavoriteReach.emptyNote(league.leagueName))
-                    .padding(.leading, 34)
+                EmptyFavoritesNote(
+                    text: FavoriteReach.emptyNote(league.leagueName, sport: SportType(league: league)),
+                    pickTeams: FavoriteReach.hasTeams(SportType(league: league)) ? { pickingTeams = true } : nil,
+                    showAllGames: { mode = .allGames }
+                )
+                .padding(.leading, 34)
             }
+        }
+        .sheet(isPresented: $pickingTeams) {
+            FollowTeamsSheet(sport: SportType(league: league), league: league)
         }
         .onChange(of: mode) { _, newValue in apply(newValue) }
         .onAppear {

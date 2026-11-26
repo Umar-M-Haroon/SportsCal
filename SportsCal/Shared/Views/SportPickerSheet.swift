@@ -15,6 +15,7 @@ struct SportPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var sports: [SportType] = []
+    @State private var pickTeamsSport: SportType?
 
     var body: some View {
         NavigationStack {
@@ -43,7 +44,7 @@ struct SportPickerSheet: View {
                             }
                             .padding(.leading, 28)
                             if showsEmptyNote(for: sport) {
-                                EmptyFavoritesNote(text: FavoriteReach.emptyNote(sport.displayName))
+                                emptyNote(for: sport)
                                     .padding(.leading, 28)
                             }
                             if EventCoverage.sports.contains(sport) {
@@ -88,6 +89,9 @@ struct SportPickerSheet: View {
                 }
             }
         }
+        .sheet(item: $pickTeamsSport) { sport in
+            FollowTeamsSheet(sport: sport)
+        }
         .onAppear {
             sports = storage.orderedSports
         }
@@ -100,6 +104,17 @@ struct SportPickerSheet: View {
         #if os(macOS)
         .frame(minWidth: 460, idealWidth: 500, minHeight: 560, idealHeight: 680)
         #endif
+    }
+
+    private func emptyNote(for sport: SportType) -> some View {
+        EmptyFavoritesNote(
+            text: FavoriteReach.emptyNote(sport.displayName, sport: sport),
+            pickTeams: FavoriteReach.hasTeams(sport) ? { pickTeamsSport = sport } : nil,
+            showAllGames: {
+                storage.setFavoritesOnly(sport, value: false)
+                storage.bumpPreferenceVersion()
+            }
+        )
     }
 
     /// True when the sport shows only the user's teams and none of them has a game in it.
@@ -206,7 +221,7 @@ struct SportPickerSheet: View {
         }
         .pickerStyle(.menu)
         if showsEmptyNote(for: sport) {
-            EmptyFavoritesNote(text: FavoriteReach.emptyNote(sport.displayName))
+            emptyNote(for: sport)
         }
     }
 
@@ -485,6 +500,6 @@ struct BasketballLeagueToggles: View {
         .environment(storage)
         .environment(viewModel)
         .environment(favorites)
-        .onAppear { storage.setFavoritesOnly(.soccer, value: true); storage.setFavoritesOnly(.tennis, value: true) }
+        .onAppear { storage.setFavoritesOnly(.soccer, value: true); storage.setFavoritesOnly(.tennis, value: true); storage.setFavoritesOnly(.hockey, value: true); storage.setFavoritesOnly(.basketball, value: true) }
         .frame(height: 2200)
 }

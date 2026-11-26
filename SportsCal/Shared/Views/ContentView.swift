@@ -161,6 +161,9 @@ struct ContentView: View {
     /// Sports set to "only my teams" that none of the user's teams has a game in.
     /// Cached: the sidebar re-renders on every live tick.
     @State private var emptyFavoritesOnlySports: Set<SportType> = []
+    /// The sidebar warning whose fix-it popover is open.
+    @State private var emptyNoteSport: SportType?
+    @State private var pickTeamsSport: SportType?
     #endif
     @Environment(\.openWindow) private var openWindow
     #endif
@@ -637,6 +640,12 @@ struct ContentView: View {
         .listStyle(.sidebar)
         .navigationTitle("Scoreline")
         .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
+        .sheet(item: $pickTeamsSport) { sport in
+            FollowTeamsSheet(sport: sport)
+                .environment(viewModel)
+                .environment(storage)
+                .environment(favorites)
+        }
         .task(id: FavoritesOnlyKey(version: storage.preferenceVersion,
                                    follows: favorites.teamIDs.count + favorites.legacyTeamNames.count,
                                    games: viewModel.totalGames?.count ?? 0)) {
@@ -756,10 +765,33 @@ struct ContentView: View {
             }
             Spacer()
             if emptyFavoritesOnlySports.contains(sport) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                    .imageScale(.small)
-                    .help("Showing only your teams, and none of them has \(sport.displayName) games coming up")
+                Button {
+                    emptyNoteSport = sport
+                } label: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .imageScale(.small)
+                }
+                .buttonStyle(.plain)
+                .help("Showing only your teams, and none of them has \(sport.displayName) games coming up. Click to fix.")
+                .popover(isPresented: Binding(
+                    get: { emptyNoteSport == sport },
+                    set: { if !$0 { emptyNoteSport = nil } }
+                ), arrowEdge: .trailing) {
+                    EmptyFavoritesNote(
+                        text: FavoriteReach.emptyNote(sport.displayName, sport: sport),
+                        pickTeams: FavoriteReach.hasTeams(sport) ? {
+                            emptyNoteSport = nil
+                            pickTeamsSport = sport
+                        } : nil,
+                        showAllGames: {
+                            emptyNoteSport = nil
+                            setFavoritesOnly(sport, false)
+                        }
+                    )
+                    .padding(14)
+                    .frame(width: 280)
+                }
             } else if storage.favoritesOnly(for: sport) {
                 Text("MY TEAMS")
                     .font(.caption2.weight(.semibold))
@@ -785,17 +817,23 @@ struct ContentView: View {
         .contextMenu {
             Picker("Games", selection: Binding(
                 get: { storage.favoritesOnly(for: sport) },
-                set: {
-                    storage.setFavoritesOnly(sport, value: $0)
-                    storage.bumpPreferenceVersion()
-                    viewModel.filterSports()
-                }
+                set: { setFavoritesOnly(sport, $0) }
             )) {
                 Text("All Games").tag(false)
                 Text("Only My Teams").tag(true)
             }
             .pickerStyle(.inline)
+            if FavoriteReach.hasTeams(sport) {
+                Divider()
+                Button("Pick \(sport.displayName) Teams…") { pickTeamsSport = sport }
+            }
         }
+    }
+
+    private func setFavoritesOnly(_ sport: SportType, _ value: Bool) {
+        storage.setFavoritesOnly(sport, value: value)
+        storage.bumpPreferenceVersion()
+        viewModel.filterSports()
     }
 
     @ViewBuilder

@@ -236,6 +236,11 @@ struct OnboardingTeamSection: Identifiable, Equatable {
 /// people, so this comes before the notification ask, which then has a reason.
 struct PickTeamsPage: View {
     @Binding var sheetType: SheetType?
+    /// Outside onboarding: narrow the list to one sport or league, and call this from
+    /// the bottom button instead of moving on to the notification step.
+    var onlySport: SportType? = nil
+    var onlyLeague: Leagues? = nil
+    var onDone: (() -> Void)? = nil
     @Environment(UserDefaultStorage.self) private var appStorage
     @Environment(GameViewModel.self) private var viewModel
     @Environment(Favorites.self) private var favorites
@@ -244,6 +249,7 @@ struct PickTeamsPage: View {
 
     /// Teams starred on the map are favorites already, so they count as a pick too.
     private var finishTitle: String {
+        if onDone != nil { return "Done" }
         if !picked.isEmpty { return "Done · \(picked.count) \(picked.count == 1 ? "Team" : "Teams")" }
         return favorites.teams.isEmpty ? "Skip for Now" : "Continue"
     }
@@ -323,7 +329,7 @@ struct PickTeamsPage: View {
             }
         }
         .searchable(text: $search, prompt: "Search teams")
-        .navigationTitle("Your Teams")
+        .navigationTitle(onlyLeague?.leagueName ?? onlySport.map { "\($0.displayName) Teams" } ?? "Your Teams")
         .navigationDestination(isPresented: $primerPresented) {
             NotificationPrimerPage(sheetType: $sheetType)
         }
@@ -332,9 +338,10 @@ struct PickTeamsPage: View {
         }
         .task(id: sectionsKey) {
             sections = OnboardingTeamSection.build(games: viewModel.totalGames ?? [],
-                                                   enabled: appStorage.enabledSports,
+                                                   enabled: onlySport.map { [$0] } ?? appStorage.enabledSports,
                                                    leagueAllowed: leagueAllowed,
                                                    teams: viewModel.getTeams(for:))
+                .filter { onlyLeague == nil || $0.id == String(onlyLeague!.rawValue) }
             if starredAtStart == nil, !sections.isEmpty {
                 var seen: Set<String> = []
                 starredAtStart = sections.flatMap { section in
@@ -363,6 +370,7 @@ struct PickTeamsPage: View {
     /// hidden competitions, and the sport toggle for everything else.
     private func leagueAllowed(_ leagueID: String) -> Bool {
         guard let league = Int(leagueID).flatMap(Leagues.init(rawValue:)) else { return true }
+        if let onlyLeague { return league == onlyLeague }
         if appStorage.hiddenCompetitions.contains(league.leagueName) { return false }
         if league.isSoccer { return viewModel.soccerGamePassesEnableGate(league) }
         switch league {
@@ -438,7 +446,32 @@ struct PickTeamsPage: View {
     }
 
     private func finish() {
+        if let onDone { return onDone() }
         primerPresented = true
+    }
+}
+
+/// The team picker on its own, for following teams in one sport or league — the fix
+/// when "only my teams" leaves it empty.
+struct FollowTeamsSheet: View {
+    let sport: SportType
+    var league: Leagues? = nil
+    @Environment(GameViewModel.self) private var viewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            PickTeamsPage(sheetType: .constant(nil), onlySport: sport, onlyLeague: league) {
+                viewModel.filterSports(force: true)
+                dismiss()
+            }
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+        }
+        #if os(macOS)
+        .frame(minWidth: 420, idealWidth: 460, minHeight: 520, idealHeight: 620)
+        #endif
     }
 }
 
