@@ -157,6 +157,11 @@ struct ContentView: View {
 
     #if os(macOS)
     @State private var sidebarSelection: MacSidebarItem? = .games
+    #if os(macOS)
+    /// Sports set to "only my teams" that none of the user's teams has a game in.
+    /// Cached: the sidebar re-renders on every live tick.
+    @State private var emptyFavoritesOnlySports: Set<SportType> = []
+    #endif
     @Environment(\.openWindow) private var openWindow
     #endif
 
@@ -632,6 +637,20 @@ struct ContentView: View {
         .listStyle(.sidebar)
         .navigationTitle("Scoreline")
         .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
+        .task(id: FavoritesOnlyKey(version: storage.preferenceVersion,
+                                   follows: favorites.teamIDs.count + favorites.legacyTeamNames.count,
+                                   games: viewModel.totalGames?.count ?? 0)) {
+            emptyFavoritesOnlySports = Set(SportType.allCases.filter { sport in
+                storage.favoritesOnly(for: sport)
+                    && !FavoriteReach.hasGames(in: sport, viewModel: viewModel, favorites: favorites)
+            })
+        }
+    }
+
+    private struct FavoritesOnlyKey: Equatable {
+        var version: Int
+        var follows: Int
+        var games: Int
     }
 
     private var favoritesTodayCount: Int {
@@ -736,6 +755,17 @@ struct ContentView: View {
                     .foregroundStyle(Color.app(sport))
             }
             Spacer()
+            if emptyFavoritesOnlySports.contains(sport) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .imageScale(.small)
+                    .help("Showing only your teams, and none of them has \(sport.displayName) games coming up")
+            } else if storage.favoritesOnly(for: sport) {
+                Text("MY TEAMS")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .help("Showing only your teams' \(sport.displayName) games")
+            }
             if let count = viewModel.liveGameCountsBySport[sport], count > 0 {
                 HStack(spacing: 3) {
                     Circle()
@@ -751,6 +781,20 @@ struct ContentView: View {
                 .padding(.vertical, 2)
                 .background(Color.appLive.opacity(0.12), in: Capsule())
             }
+        }
+        .contextMenu {
+            Picker("Games", selection: Binding(
+                get: { storage.favoritesOnly(for: sport) },
+                set: {
+                    storage.setFavoritesOnly(sport, value: $0)
+                    storage.bumpPreferenceVersion()
+                    viewModel.filterSports()
+                }
+            )) {
+                Text("All Games").tag(false)
+                Text("Only My Teams").tag(true)
+            }
+            .pickerStyle(.inline)
         }
     }
 
