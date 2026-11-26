@@ -9,6 +9,7 @@
 
 import CoreGraphics
 import Foundation
+import SwiftUI
 import SportsCalModel
 
 /// One league in a place's list.
@@ -224,6 +225,18 @@ enum LeagueMap {
             }
         }
         return dots
+    }()
+
+    /// Every land dot as a zero-length segment, in map units. Stroked with round caps
+    /// after the viewport transform, each becomes a dot of the stroke's width, so a zoom
+    /// frame is one transform and one stroke instead of a few thousand ellipses.
+    static let landDotPath: Path = {
+        var path = Path()
+        for dot in landDots {
+            path.move(to: dot)
+            path.addLine(to: dot)
+        }
+        return path
     }()
 
     // MARK: Places

@@ -48,6 +48,10 @@ struct LeagueMapPage: View {
     @State private var teamsPresented = false
     /// Bumped per hub to replay its flash (packs and team picks light their places up).
     @State private var flashes: [String: Int] = [:]
+    /// The places the latest flash lit up, rippled across the dots together.
+    @State private var ripple = LeagueMapRippleState()
+    /// Icons in flight from a place's list to its spot on the map.
+    @State private var flyers: [LeagueMapFlyer] = []
     /// Every competition each team plays in (`/teams/competitions`). Nil until loaded or
     /// on a server without the route; then `scheduleTeamLeagues` stands in.
     @State private var competitions: TeamCompetitionIndex?
@@ -55,7 +59,7 @@ struct LeagueMapPage: View {
     @State private var pageSize: CGSize = .zero
     @State private var mapFrame: CGRect = .zero
 
-    private static let space = "leagueMapPage"
+    fileprivate static let space = "leagueMapPage"
     private var isWide: Bool { pageSize.width >= 600 }
 
     var body: some View {
@@ -73,6 +77,15 @@ struct LeagueMapPage: View {
                     .frame(height: compactPanelHeight)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom))
             }
+        }
+        .overlay {
+            ForEach(flyers) { flyer in
+                LeagueMapFlyerView(flyer: flyer) {
+                    flyers.removeAll { $0.id == flyer.id }
+                    flash([flyer.hubID])
+                }
+            }
+            .allowsHitTesting(false)
         }
         .coordinateSpace(.named(Self.space))
         .onGeometryChange(for: CGSize.self, of: { $0.size }) { pageSize = $0 }
@@ -387,6 +400,7 @@ struct LeagueMapPage: View {
                                regionHubID: regionHubID,
                                selectedHubID: openHubID,
                                flashes: flashes,
+                               ripple: ripple,
                                reduceMotion: reduceMotion) { hub in
                     tap(hub, in: size)
                 }
@@ -547,8 +561,10 @@ struct LeagueMapPage: View {
     // MARK: Panel
 
     private func panel(_ hub: LeagueMapHub) -> some View {
-        LeagueMapPanel(hub: hub, picked: selection.leagues, live: liveLeagues, isWide: isWide) { league in
+        LeagueMapPanel(hub: hub, picked: selection.leagues, live: liveLeagues, isWide: isWide) { league, iconFrame in
+            let following = !selection.contains(league)
             selection.toggle(league)
+            if following, let iconFrame { fly(league, from: iconFrame, to: hub) }
         } toggleAll: {
             let allOn = hub.leagues.allSatisfy { selection.contains($0.league) }
             for entry in hub.leagues {
@@ -691,7 +707,19 @@ struct LeagueMapPage: View {
         if !on { flash(pack.hubIDs) }
     }
 
+    /// Sends the league's icon from its row up to the place on the map, which ripples
+    /// when it lands: following something visibly puts it on the map.
+    private func fly(_ league: Leagues, from iconFrame: CGRect, to hub: LeagueMapHub) {
+        guard !reduceMotion, let point = hub.point, mapFrame.width > 0 else { return }
+        let onMap = viewport(for: focus, in: mapFrame.size).point(point)
+        let target = CGPoint(x: mapFrame.minX + onMap.x, y: mapFrame.minY + onMap.y)
+        flyers.append(LeagueMapFlyer(sport: SportType(league: league),
+                                     from: CGPoint(x: iconFrame.midX, y: iconFrame.midY), to: target,
+                                     hubID: hub.id))
+    }
+
     private func flash(_ hubIDs: [String]) {
+        ripple = LeagueMapRippleState(trigger: ripple.trigger + 1, hubIDs: Array(Set(hubIDs)))
         for id in Set(hubIDs) { flashes[id, default: 0] += 1 }
     }
 
@@ -726,8 +754,17 @@ private struct LeagueMapLayer: View, Animatable {
     let regionHubID: String?
     let selectedHubID: String?
     let flashes: [String: Int]
+    let ripple: LeagueMapRippleState
     let reduceMotion: Bool
     let onTap: (LeagueMapHub) -> Void
+
+    /// Where the rippling places sit right now, as the shader's x,y pairs.
+    private var rippleOrigins: [Float] {
+        ripple.hubIDs.compactMap { LeagueMap.hub(id: $0)?.point }.flatMap { point -> [Float] in
+            let p = viewport.point(point)
+            return [Float(p.x), Float(p.y)]
+        }
+    }
 
     var animatableData: AnimatablePair<CGFloat, AnimatablePair<CGFloat, CGFloat>> {
         get { AnimatablePair(viewport.scale, AnimatablePair(viewport.tx, viewport.ty)) }
@@ -755,17 +792,24 @@ private struct LeagueMapLayer: View, Animatable {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Canvas { context, size in
+            Canvas { context, _ in
                 // Dots grow a little with zoom but stay dots, so the spots stand out.
                 let radius = min(0.95 * viewport.scale, max(0.95 * baseScale, 2.6))
-                let bounds = CGRect(origin: .zero, size: size).insetBy(dx: -radius, dy: -radius)
-                var path = Path()
-                for dot in LeagueMap.landDots {
-                    let p = viewport.point(dot)
-                    guard bounds.contains(p) else { continue }
-                    path.addEllipse(in: CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2))
-                }
-                context.fill(path, with: .color(.primary.opacity(0.17)))
+                let transform = CGAffineTransform(a: viewport.scale, b: 0, c: 0, d: viewport.scale,
+                                                  tx: viewport.tx, ty: viewport.ty)
+                context.stroke(LeagueMap.landDotPath.applying(transform),
+                               with: .color(.primary.opacity(0.17)),
+                               style: StrokeStyle(lineWidth: radius * 2, lineCap: .round))
+            }
+            .keyframeAnimator(initialValue: 0.0, trigger: ripple.trigger) { content, time in
+                content.layerEffect(
+                    ShaderLibrary.leagueMapRipple(.float(time), .floatArray(rippleOrigins),
+                                                  .float(5), .float(240)),
+                    maxSampleOffset: CGSize(width: 10, height: 10),
+                    isEnabled: !reduceMotion && time > 0 && time < LeagueMapRippleState.duration)
+            } keyframes: { _ in
+                LinearKeyframe(0, duration: 0)
+                LinearKeyframe(LeagueMapRippleState.duration, duration: LeagueMapRippleState.duration)
             }
             .accessibilityHidden(true)
             .allowsHitTesting(false)
@@ -874,9 +918,11 @@ private struct LeagueMapPanel: View {
     let picked: [Leagues]
     let live: Set<Leagues>
     let isWide: Bool
-    let toggle: (Leagues) -> Void
+    /// The league, and where its icon sits (page space) so a follow can fly from it.
+    let toggle: (Leagues, CGRect?) -> Void
     let toggleAll: () -> Void
     let done: () -> Void
+    @State private var iconFrames: [Leagues: CGRect] = [:]
 
     var body: some View {
         let followed = hub.followedCount(in: picked)
@@ -934,7 +980,7 @@ private struct LeagueMapPanel: View {
         let on = picked.contains(entry.league)
         let isLive = live.contains(entry.league)
         return Button {
-            toggle(entry.league)
+            toggle(entry.league, iconFrames[entry.league])
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: entry.sport.systemImage)
@@ -942,6 +988,9 @@ private struct LeagueMapPanel: View {
                     .foregroundStyle(Color.app(entry.sport))
                     .frame(width: 34, height: 34)
                     .background(RoundedRectangle(cornerRadius: 9).fill(Color.app(entry.sport).opacity(0.16)))
+                    .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .named(LeagueMapPage.space)) }) {
+                        iconFrames[entry.league] = $0
+                    }
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 6) {
                         Text(entry.name).font(.body.weight(.semibold)).foregroundStyle(.primary)
@@ -987,5 +1036,68 @@ private struct WholeMapLabelStyle: LabelStyle {
         } else {
             configuration.icon
         }
+    }
+}
+
+/// One ripple: bumping `trigger` replays it from the given places.
+struct LeagueMapRippleState: Equatable {
+    static let duration: Double = 1.6
+    var trigger = 0
+    var hubIDs: [String] = []
+}
+
+struct LeagueMapFlyer: Identifiable {
+    let id = UUID()
+    let sport: SportType
+    let from: CGPoint
+    let to: CGPoint
+    let hubID: String
+}
+
+/// A league icon arcing from its row to its place on the map, shrinking as it goes.
+private struct LeagueMapFlyerView: View {
+    let flyer: LeagueMapFlyer
+    let landed: () -> Void
+    @State private var progress: CGFloat = 0
+
+    var body: some View {
+        Image(systemName: flyer.sport.systemImage)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 34, height: 34)
+            .background(Circle().fill(Color.app(flyer.sport)))
+            .shadow(color: Color.app(flyer.sport).opacity(0.5), radius: 8)
+            .modifier(ArcFlight(from: flyer.from, to: flyer.to, progress: progress))
+            .onAppear {
+                withAnimation(.easeIn(duration: 0.5)) {
+                    progress = 1
+                } completion: {
+                    landed()
+                }
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+/// Positions along a quadratic arc that bows upward, scaling down toward the landing.
+private struct ArcFlight: ViewModifier, Animatable {
+    let from: CGPoint
+    let to: CGPoint
+    var progress: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        let control = CGPoint(x: (from.x + to.x) / 2, y: min(from.y, to.y) - 80)
+        let t = progress, u = 1 - progress
+        let point = CGPoint(x: u * u * from.x + 2 * u * t * control.x + t * t * to.x,
+                            y: u * u * from.y + 2 * u * t * control.y + t * t * to.y)
+        content
+            .scaleEffect(1 - 0.55 * progress)
+            .opacity(progress > 0.92 ? Double((1 - progress) / 0.08) : 1)
+            .position(point)
     }
 }
