@@ -29,6 +29,7 @@ final class ThemeStore {
         static let teamID = "theme.teamID"
         static let teamName = "theme.teamName"
         static let teamHex = "theme.teamAccentHex"
+        static let liveActivityStyle = "theme.liveActivityStyle"
     }
 
     @ObservationIgnored private let defaults: UserDefaults?
@@ -43,6 +44,11 @@ final class ThemeStore {
         didSet { defaults?.set(customHex, forKey: Keys.customHex) }
     }
 
+    /// The chosen Live Activity style, kept through a lapse like the accent.
+    var liveActivityStyle: LiveActivityStyle {
+        didSet { defaults?.set(liveActivityStyle.rawValue, forKey: Keys.liveActivityStyle) }
+    }
+
     /// The favorite team whose color `accent == .team` uses, with the color captured
     /// when it was picked (teams carry no color of their own; it comes from games).
     private(set) var teamID: String?
@@ -53,6 +59,7 @@ final class ThemeStore {
         self.defaults = defaults
         accent = defaults?.string(forKey: Keys.accent).flatMap(AppAccent.init(rawValue:)) ?? .systemBlue
         customHex = (defaults?.object(forKey: Keys.customHex) as? Int) ?? 0x8A4FD8
+        liveActivityStyle = defaults?.string(forKey: Keys.liveActivityStyle).flatMap(LiveActivityStyle.init(rawValue:)) ?? .standard
         teamID = defaults?.string(forKey: Keys.teamID)
         teamName = defaults?.string(forKey: Keys.teamName)
         teamHex = defaults?.object(forKey: Keys.teamHex) as? Int
@@ -82,9 +89,22 @@ final class ThemeStore {
         isPro ? hex(for: accent) : nil
     }
 
-    /// Writes the effective accent for widgets / Live Activities / Watch. No-op
-    /// when unchanged, so every window can call it freely.
+    /// The Live Activity style to draw: the selection for Pro users, else standard.
+    func effectiveLiveActivityStyle(isPro: Bool) -> LiveActivityStyle {
+        isPro ? liveActivityStyle : .standard
+    }
+
+    /// Writes the effective accent and Live Activity style for widgets / Live
+    /// Activities / Watch. No-op when unchanged, so every window can call it freely.
     func publish(isPro: Bool) {
+        let style = effectiveLiveActivityStyle(isPro: isPro)
+        if style != AppAccentReader.liveActivityStyle(in: defaults) {
+            if style == .standard {
+                defaults?.removeObject(forKey: AppAccentReader.effectiveLiveActivityStyleKey)
+            } else {
+                defaults?.set(style.rawValue, forKey: AppAccentReader.effectiveLiveActivityStyleKey)
+            }
+        }
         let newValue = effectiveHex(isPro: isPro)
         guard newValue != AppAccentReader.effectiveHex(in: defaults) else { return }
         if let newValue {
@@ -163,12 +183,18 @@ struct AppAccentScope: ViewModifier {
 
     func body(content: Content) -> some View {
         let hex = store.effectiveHex(isPro: subscriptions.canUse(.themes))
+        let style = store.effectiveLiveActivityStyle(isPro: subscriptions.canUse(.themes))
         content
             .tint(hex.map(Color.legibleAccent))
-            .onChange(of: hex, initial: true) { _, _ in
+            .onChange(of: PublishedTheme(hex: hex, style: style), initial: true) { _, _ in
                 store.publish(isPro: subscriptions.canUse(.themes))
             }
     }
+}
+
+private struct PublishedTheme: Equatable {
+    let hex: Int?
+    let style: LiveActivityStyle
 }
 
 extension View {

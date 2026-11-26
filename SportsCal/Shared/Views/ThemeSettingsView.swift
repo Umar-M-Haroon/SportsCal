@@ -25,6 +25,8 @@ struct ThemeSettingsView: View {
     @State private var customColor: Color = Color(accentHex: ThemeStore.shared.customHex)
     @State private var teamCandidates: [TeamAccentCandidate] = []
     @State private var showPaywall = false
+    /// A Pro Live Activity style tapped before buying, applied if they do.
+    @State private var previewLiveActivityStyle: LiveActivityStyle?
     #if os(iOS)
     @State private var currentIcon: AppIconChoice = .standard
     @State private var previewIcon: AppIconChoice?
@@ -39,6 +41,7 @@ struct ThemeSettingsView: View {
             if AppIconChoice.supported {
                 iconSection
             }
+            liveActivitySection
             #endif
             if !isEntitled {
                 unlockSection
@@ -67,6 +70,7 @@ struct ThemeSettingsView: View {
             commitIfEntitled(previewAccent, customHex: customColor.accentHexValue)
             #if os(iOS)
             if let previewIcon { applyIcon(previewIcon) }
+            if let style = previewLiveActivityStyle { tapLiveActivityStyle(style) }
             #endif
         }
         .sheet(isPresented: $showPaywall) {
@@ -244,6 +248,51 @@ struct ThemeSettingsView: View {
     }
 
     private var highlightedIcon: AppIconChoice { previewIcon ?? currentIcon }
+
+    // MARK: - Live Activity style (iOS)
+
+    private var liveActivitySection: some View {
+        Section {
+            ForEach(LiveActivityStyle.allCases) { style in
+                Button {
+                    tapLiveActivityStyle(style)
+                } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(style.displayName).foregroundStyle(.primary)
+                            Text(style.blurb).font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if highlightedLiveActivityStyle == style {
+                            Image(systemName: "checkmark").fontWeight(.semibold).foregroundStyle(previewColor)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(highlightedLiveActivityStyle == style ? .isSelected : [])
+            }
+        } header: {
+            Text("Live Activity")
+        } footer: {
+            Text("How games look on your Lock Screen. Games already running switch at their next update.")
+        }
+    }
+
+    private var highlightedLiveActivityStyle: LiveActivityStyle {
+        previewLiveActivityStyle ?? (isEntitled ? store.liveActivityStyle : .standard)
+    }
+
+    private func tapLiveActivityStyle(_ style: LiveActivityStyle) {
+        guard isEntitled || style == .standard else {
+            previewLiveActivityStyle = style
+            requestPro()
+            return
+        }
+        previewLiveActivityStyle = nil
+        store.liveActivityStyle = style
+        store.publish(isPro: isEntitled)
+    }
 
     private func tapIcon(_ icon: AppIconChoice) {
         guard isEntitled || icon == .standard else {

@@ -1095,6 +1095,16 @@ private struct ActivityContentView: View {
     /// StandBy (the phone on its side, charging) shows the activity full screen.
     @Environment(\.isActivityFullscreen) private var isFullscreen
     @Environment(\.isLuminanceReduced) private var isLuminanceReduced
+    /// The Pro Lock Screen style, published by the app; standard for everyone else.
+    var style: LiveActivityStyle = {
+        #if DEBUG
+        // Screenshot hook: `debug.liveActivityStyleOverride` in the app group shows a
+        // style without a Pro entitlement (Xcode can't preview this extension).
+        if let raw = AppAccentReader.sharedDefaults?.string(forKey: "debug.liveActivityStyleOverride"),
+           let style = LiveActivityStyle(rawValue: raw) { return style }
+        #endif
+        return AppAccentReader.liveActivityStyle()
+    }()
 
     var body: some View {
         if family == .small {
@@ -1117,11 +1127,189 @@ private struct ActivityContentView: View {
                 .padding(16)
         } else {
             let sides = activitySides(attributes, state)
-            TeamLockScreenView(attributes: attributes, state: state)
-                .padding(16)
-                .background { TeamColorWash(first: sides.first, second: sides.second) }
-                .overlay(alignment: .top) { if activityClutch(state, sport: attributes.sportType) != nil { ClutchKeyline() } }
+            Group {
+                switch style {
+                case .scorebug:
+                    ScorebugLockScreenView(attributes: attributes, state: state)
+                        .padding(14)
+                case .minimal:
+                    MinimalLockScreenView(attributes: attributes, state: state)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 14)
+                case .standard:
+                    TeamLockScreenView(attributes: attributes, state: state)
+                        .padding(16)
+                        .background { TeamColorWash(first: sides.first, second: sides.second) }
+                }
+            }
+            .overlay(alignment: .top) { if activityClutch(state, sport: attributes.sportType) != nil { ClutchKeyline() } }
         }
+    }
+}
+
+// MARK: - Pro Lock Screen styles
+
+/// A team's colour as it is, for a solid fill, and the ink that reads on it. Grey
+/// with white ink when the colour is unknown.
+private func slabColors(_ hex: String?) -> (fill: Color, ink: Color) {
+    guard var hex = hex?.trimmingCharacters(in: .whitespaces) else { return (Color(white: 0.24), .white) }
+    if hex.hasPrefix("#") { hex.removeFirst() }
+    guard hex.count == 6, let value = UInt64(hex, radix: 16) else { return (Color(white: 0.24), .white) }
+    func linear(_ c: Double) -> Double { c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+    let red = Double((value >> 16) & 0xFF) / 255
+    let green = Double((value >> 8) & 0xFF) / 255
+    let blue = Double(value & 0xFF) / 255
+    let luminance = 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+    // Black on light slabs (VGK gold, Lakers yellow), white on the rest.
+    return (Color(red: red, green: green, blue: blue), luminance > 0.36 ? .black : .white)
+}
+
+/// Pro "Scorebug": the broadcast score strip. Each side a solid slab in its team
+/// colour with code and score, the clock in a dark chip between them, and one ticker
+/// line underneath (the situation, else the last goal or play).
+private struct ScorebugLockScreenView: View {
+    let attributes: LiveSportActivityAttributes
+    let state: LiveSportActivityAttributes.ContentState
+
+    private var isFinal: Bool { variantFor(progress: state.progress, status: state.status) == .final }
+
+    var body: some View {
+        let sides = activitySides(attributes, state)
+        VStack(spacing: 8) {
+            HStack(spacing: 0) {
+                slab(sides.first, leading: true)
+                clockChip
+                slab(sides.second, leading: false)
+            }
+            .frame(height: 58)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            ticker(sides)
+        }
+        .contentTransition(.numericText())
+        .animation(.spring(duration: 0.4), value: state.homeScore)
+        .animation(.spring(duration: 0.4), value: state.awayScore)
+    }
+
+    private func slab(_ side: ActivitySide, leading: Bool) -> some View {
+        let colors = slabColors(side.colorHex)
+        let faded = isFinal && side.score < side.opponentScore
+        // Three-digit scores (basketball) shrink so the codes keep their letters.
+        let wide = max(side.score, side.opponentScore) >= 100
+        let code = HStack(spacing: 4) {
+            Text(side.short)
+                .font(.system(size: wide ? 17 : 20, weight: .heavy, design: .rounded))
+                .lineLimit(1)
+                .fixedSize()
+            if side.redCards > 0 { SoccerRedCardMark(count: side.redCards) }
+        }
+        // Scores never truncate; the code gives way first.
+        let score = Text("\(side.score)")
+            .font(.system(size: wide ? 28 : 34, weight: .black, design: .rounded))
+            .monospacedDigit()
+            .lineLimit(1)
+            .fixedSize()
+            .layoutPriority(1)
+            .contentTransition(.numericText(value: Double(side.score)))
+        return HStack(spacing: 8) {
+            if leading { code; Spacer(minLength: 4); score } else { score; Spacer(minLength: 4); code }
+        }
+        .foregroundStyle(colors.ink)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(colors.fill)
+        .opacity(faded ? 0.55 : 1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(side.spoken)
+    }
+
+    private var clockChip: some View {
+        progressLabel(for: state, sport: attributes.sportType, style: .footnote)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .padding(.horizontal, 6)
+            .frame(width: 80)
+            .frame(maxHeight: .infinity)
+            .background(Color(white: 0.08))
+            .environment(\.colorScheme, .dark)
+    }
+
+    @ViewBuilder
+    private func ticker(_ sides: (first: ActivitySide, second: ActivitySide)) -> some View {
+        if let situation = state.situation {
+            LiveActivitySituationStrip(
+                situation: situation,
+                homeName: shortAbbreviation(short: attributes.homeTeamShort, full: attributes.homeTeam),
+                awayName: shortAbbreviation(short: attributes.awayTeamShort, full: attributes.awayTeam),
+                tint: WidgetTokens.inkSoft,
+                showsWinProbability: false
+            )
+            .frame(maxWidth: .infinity, alignment: .center)
+        } else if let soccer = state.soccer, let lastGoal = soccer.lastGoal {
+            LastGoalLine(goal: lastGoal, alignment: alignment(for: soccer.lastGoalSide, first: sides.first.side),
+                         tint: WidgetTokens.inkSoft)
+        } else if let lastPlay = state.lastPlay, !lastPlay.isEmpty {
+            Text(lastPlay)
+                .font(.system(.caption2, design: .rounded).weight(.medium))
+                .foregroundStyle(WidgetTokens.inkSoft)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+}
+
+/// Pro "Minimal": two codes and scores in the app's ink, the clock between them in
+/// small caps, and a hairline under the leader in its team colour. No logos, wash or
+/// play text, so several running at once stay calm.
+private struct MinimalLockScreenView: View {
+    let attributes: LiveSportActivityAttributes
+    let state: LiveSportActivityAttributes.ContentState
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let sides = activitySides(attributes, state)
+        let isFinal = variantFor(progress: state.progress, status: state.status) == .final
+        HStack(alignment: .center, spacing: 10) {
+            column(sides.first, isFinal: isFinal)
+            progressLabel(for: state, sport: attributes.sportType, style: .caption)
+                .textCase(.uppercase)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(maxWidth: 92)
+            column(sides.second, isFinal: isFinal)
+        }
+        .contentTransition(.numericText())
+        .animation(.spring(duration: 0.4), value: state.homeScore)
+        .animation(.spring(duration: 0.4), value: state.awayScore)
+    }
+
+    private func column(_ side: ActivitySide, isFinal: Bool) -> some View {
+        let trails = side.score < side.opponentScore
+        let wide = max(side.score, side.opponentScore) >= 100
+        return VStack(spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: wide ? 6 : 10) {
+                Text(side.short)
+                    .font(.system(size: wide ? 15 : 17, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(WidgetTokens.inkSoft)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text("\(side.score)")
+                    .font(.system(size: wide ? 32 : 40, weight: .bold, design: .monospaced))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
+                    .foregroundStyle(WidgetTokens.ink)
+                    .contentTransition(.numericText(value: Double(side.score)))
+                if side.redCards > 0 { SoccerRedCardMark(count: side.redCards) }
+            }
+            Capsule()
+                .fill(side.isWinning ? (activityTeamColor(side.colorHex, on: scheme) ?? WidgetTokens.ink) : .clear)
+                .frame(height: 2)
+                .padding(.horizontal, 6)
+        }
+        .opacity(trails ? (isFinal ? 0.45 : 0.6) : 1)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(side.spoken)
     }
 }
 
@@ -1859,4 +2047,32 @@ private func standByPreview(_ attributes: LiveSportActivityAttributes, _ state: 
         .colorMultiply(.red)
 }
 #endif
+
+// Pro Lock Screen styles. The real widget reads the published style from app-group
+// defaults, which a preview can't set, so each style gets a preview-only widget.
+private protocol StylePreviewWidget: Widget {
+    static var style: LiveActivityStyle { get }
+}
+private struct ScorebugPreviewWidget: StylePreviewWidget { static let style = LiveActivityStyle.scorebug }
+private struct MinimalPreviewWidget: StylePreviewWidget { static let style = LiveActivityStyle.minimal }
+
+extension StylePreviewWidget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: LiveSportActivityAttributes.self) { context in
+            ActivityContentView(attributes: context.attributes, state: context.state, style: Self.style)
+        } dynamicIsland: { _ in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.center) { EmptyView() }
+            } compactLeading: { EmptyView() } compactTrailing: { EmptyView() } minimal: { EmptyView() }
+        }
+    }
+}
+
+#Preview("Style · Scorebug · NFL", as: .content, using: galleryNFL) { ScorebugPreviewWidget() } contentStates: { galleryNFLState }
+#Preview("Style · Scorebug · NBA clutch", as: .content, using: galleryNBA) { ScorebugPreviewWidget() } contentStates: { galleryNBAClutch }
+#Preview("Style · Scorebug · NHL break", as: .content, using: galleryNHL) { ScorebugPreviewWidget() } contentStates: { galleryNHLEndOfPeriod }
+#Preview("Style · Minimal · NFL", as: .content, using: galleryNFL) { MinimalPreviewWidget() } contentStates: { galleryNFLState }
+#Preview("Style · Minimal · NBA clutch", as: .content, using: galleryNBA) { MinimalPreviewWidget() } contentStates: { galleryNBAClutch }
+#Preview("Style · Minimal · NBA final", as: .content, using: galleryNBA) { MinimalPreviewWidget() } contentStates: { galleryNBAFinal }
+
 #endif

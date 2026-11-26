@@ -108,6 +108,15 @@ enum AppAccentReader {
         return value >= 0 ? value : nil
     }
 
+    /// The effective Live Activity style (`LiveActivityStyle.rawValue`), absent for the
+    /// standard card. Written only by the app (`ThemeStore`), after the Pro gate.
+    static let effectiveLiveActivityStyleKey = "theme.effectiveLiveActivityStyle"
+
+    /// The published Live Activity style; `.standard` when none is (free, or unset).
+    static func liveActivityStyle(in defaults: UserDefaults? = sharedDefaults) -> LiveActivityStyle {
+        defaults?.string(forKey: effectiveLiveActivityStyleKey).flatMap(LiveActivityStyle.init(rawValue:)) ?? .standard
+    }
+
     /// The published accent, or nil for the default (callers fall back to
     /// `Color.accentColor`, which keeps the untouched default look).
     static func effectiveColor(in defaults: UserDefaults? = sharedDefaults) -> Color? {
@@ -125,5 +134,36 @@ extension Color {
             blue: Double(hex & 0xFF) / 255,
             opacity: 1
         )
+    }
+}
+
+/// How the Lock Screen Live Activity card is drawn (Pro, alongside Themes). A per-device
+/// preference the widget reads from app-group defaults, never part of the activity's
+/// state, so server pushes and running activities don't change. The island, StandBy
+/// and the Watch/CarPlay card keep their own layouts in every style.
+enum LiveActivityStyle: String, CaseIterable, Identifiable, Sendable {
+    /// The free card: logos, names, team-colour wash.
+    case standard
+    /// Broadcast score strip: team-colour slabs, clock chip, ticker line.
+    case scorebug
+    /// Codes and scores only, a hairline in the leader's colour.
+    case minimal
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .standard: return "Standard"
+        case .scorebug: return "Scorebug"
+        case .minimal: return "Minimal"
+        }
+    }
+
+    var blurb: String {
+        switch self {
+        case .standard: return "Logos, names and a team-colour wash."
+        case .scorebug: return "A TV-style score strip in team colours."
+        case .minimal: return "Just codes and scores, calm next to notifications."
+        }
     }
 }
