@@ -289,6 +289,7 @@
 		5B76D2653DF4947711B6A7A3 /* LeagueHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E514235289FB20CABC7710D8 /* LeagueHubView.swift */; };
 		5BAFAD69FC818E5BEA430859 /* GameInsightsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 646E3595BC2675FEC473BF53 /* GameInsightsViews.swift */; };
 		5C4A11D0E2B3F40000AA0002 /* ShareCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C4A11D0E2B3F40000AA0001 /* ShareCard.swift */; };
+		6A39425CA0C073ECBF1A129C /* Tentpole.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E58DABD291026977F5B29A /* Tentpole.swift */; };
 		6B16CB05B6F93A37985197D3 /* ThemeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D66250FFA27F63F5970FB087 /* ThemeStore.swift */; };
 		6C3F0C5940E7E177FFF0D700 /* CustomAlertSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B006BF09F42708A8AA7018 /* CustomAlertSettingsView.swift */; };
 		6FDB7DDE77ED71A2C3F6977F /* ScheduleSliceSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D29DF4B5ABF1373A3CCD29A4 /* ScheduleSliceSyncTests.swift */; };
@@ -700,6 +701,7 @@
 		72F931361D04AC3510D8EA5A /* SoccerCompetitionHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoccerCompetitionHubView.swift; sourceTree = "<group>"; };
 		76D5045DF8D41342C8DE40A3 /* WhatsNewSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WhatsNewSheet.swift; sourceTree = "<group>"; };
 		8117358F40EFCF2734873C1B /* CustomAlertRules.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomAlertRules.swift; sourceTree = "<group>"; };
+		90E58DABD291026977F5B29A /* Tentpole.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Tentpole.swift; sourceTree = "<group>"; };
 		910F6BAE0743C46286477AC4 /* CustomAlertRulesTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomAlertRulesTests.swift; sourceTree = "<group>"; };
 		93130D6E0C23030B30755D75 /* AdConsent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AdConsent.swift; sourceTree = "<group>"; };
 		9509175976A84F228EF1A955 /* MacCommandRelay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacCommandRelay.swift; sourceTree = "<group>"; };
@@ -1219,6 +1221,7 @@
 				BB00070100000001 /* StandingsViewModel.swift */,
 				CC00020100000001 /* TeamStatsViewModel.swift */,
 				1DAA10102FA1457C00853609 /* LiveActivityMatcher.swift */,
+				90E58DABD291026977F5B29A /* Tentpole.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -2189,6 +2192,7 @@
 				F77E939CA45F5D151EB5B5D9 /* LeagueMapPage.swift in Sources */,
 				460F4460C70FC6931315004D /* LeagueMapData.swift in Sources */,
 				DCEC6FDC74ABB0906C13DFF5 /* LeagueMapRipple.metal in Sources */,
+				6A39425CA0C073ECBF1A129C /* Tentpole.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

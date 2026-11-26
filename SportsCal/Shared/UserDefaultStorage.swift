@@ -366,21 +366,7 @@ class UserDefaultStorage {
     func followCompetitions(_ leagues: [Leagues]) -> Bool {
         var changed = false
         for league in leagues {
-            let toggle: ReferenceWritableKeyPath<UserDefaultStorage, Bool>?
-            if league.isSoccer { toggle = \.shouldShowSoccer }
-            else if league.isCricket { toggle = \.shouldShowCricket }
-            else {
-                switch league {
-                case .nfl: toggle = \.shouldShowNFL
-                case .ncaaf: toggle = \.shouldShowCFB
-                case .nba: toggle = \.shouldShowNBA
-                case .wnba: toggle = \.shouldShowWNBA
-                case .ncaaMBBTournament: toggle = \.shouldShowCBB
-                case .mlb: toggle = \.shouldShowMLB
-                case .nhl: toggle = \.shouldShowNHL
-                default: toggle = nil
-                }
-            }
+            let toggle = Self.showToggle(for: league)
             if let toggle, !self[keyPath: toggle] {
                 self[keyPath: toggle] = true
                 changed = true
@@ -395,6 +381,31 @@ class UserDefaultStorage {
             recomputeEnabledSports()
         }
         return changed
+    }
+
+    /// The switch that shows a competition's games: its sport's, or its own for WNBA and
+    /// college. Nil for competitions only their sport's enable gate covers.
+    static func showToggle(for league: Leagues) -> ReferenceWritableKeyPath<UserDefaultStorage, Bool>? {
+        if league.isSoccer { return \.shouldShowSoccer }
+        if league.isCricket { return \.shouldShowCricket }
+        switch league {
+        case .nfl: return \.shouldShowNFL
+        case .ncaaf: return \.shouldShowCFB
+        case .nba: return \.shouldShowNBA
+        case .wnba: return \.shouldShowWNBA
+        case .ncaaMBBTournament: return \.shouldShowCBB
+        case .mlb: return \.shouldShowMLB
+        case .nhl: return \.shouldShowNHL
+        default: return nil
+        }
+    }
+
+    /// Whether a competition's games show: its switch is on and it isn't hidden.
+    /// The inverse of what `followCompetitions` changes.
+    func showsCompetition(_ league: Leagues) -> Bool {
+        if hiddenCompetitions.contains(league.leagueName) { return false }
+        guard let toggle = Self.showToggle(for: league) else { return true }
+        return self[keyPath: toggle]
     }
 
     /// Sports whose competitions are switched on one by one, so picking two of them in

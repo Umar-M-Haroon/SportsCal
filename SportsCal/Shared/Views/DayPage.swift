@@ -99,6 +99,10 @@ struct DayPage: View {
     /// Sidebar-driven scope (macOS). `.all` = the full multi-sport board.
     var dayScope: DayScope = .all
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    /// The holiday slate for the selected day (Christmas basketball…), when there is one.
+    @State private var tentpoleSlate: TentpoleSlate?
+    /// Tentpoles hidden with the banner's ×, per year ("christmas-2026").
+    @AppStorage("tentpole.dismissed") private var dismissedTentpoles = ""
     @State private var sheetType: SheetType?
     @State private var collapsedSportSections: Set<SportType> = []
     /// Tennis tournament groups the user expanded or collapsed by hand, keyed by name.
@@ -1094,6 +1098,24 @@ struct DayPage: View {
         .gesture(daySwipeGesture)
         #endif
         .onAppear { listPushedGame = nil }
+        .task(id: TentpoleKey(day: selectedDate, games: viewModel.totalGames?.count ?? 0,
+                              sports: storage.enabledSports, hidden: storage.hiddenCompetitions.count)) {
+            refreshTentpole()
+        }
+    }
+
+    private struct TentpoleKey: Hashable {
+        let day: Date
+        let games: Int
+        let sports: [SportType]
+        let hidden: Int
+    }
+
+    /// Cheap on ordinary days: `build` returns before touching the schedule unless the
+    /// date is a tentpole.
+    private func refreshTentpole() {
+        tentpoleSlate = TentpoleSlate.build(for: selectedDate, games: viewModel.totalGames ?? [],
+                                            shows: storage.showsCompetition)
     }
 
     // MARK: - Day Content
@@ -1115,6 +1137,21 @@ struct DayPage: View {
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
+        }
+
+        if let slate = tentpoleSlate,
+           !dismissedTentpoles.split(separator: ",").contains(Substring(slate.tentpole.dismissalKey(for: selectedDate))) {
+            Section {
+                TentpoleBanner(slate: slate) {
+                    if storage.followCompetitions(slate.hiddenLeagues) {
+                        viewModel.filterSports(force: true)
+                    }
+                    refreshTentpole()
+                } dismiss: {
+                    let key = slate.tentpole.dismissalKey(for: selectedDate)
+                    withAnimation { dismissedTentpoles = (dismissedTentpoles.isEmpty ? "" : dismissedTentpoles + ",") + key }
+                }
+            }
         }
 
         // Live games (only on today)

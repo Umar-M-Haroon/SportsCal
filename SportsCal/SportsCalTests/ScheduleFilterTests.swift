@@ -594,4 +594,45 @@ final class ScheduleFilterTests: XCTestCase {
                           strHomeTeam: "Arsenal", strAwayTeam: "Spurs", strTimestamp: date, isoDate: nil)
         XCTAssertEqual(LeagueMap.teamLeagues(from: [cup, league, league])["1"], [.English_Premier_League, .FA_Cup])
     }
+
+    // MARK: Tentpoles
+
+    private func localDay(_ y: Int, _ m: Int, _ d: Int, hour: Int = 12) -> Date {
+        Calendar.current.date(from: DateComponents(year: y, month: m, day: d, hour: hour))!
+    }
+
+    func testTentpoleDatesFollowTheirRules() {
+        XCTAssertEqual(Tentpole.on(localDay(2026, 11, 26))?.id, "thanksgiving")   // 4th Thursday
+        XCTAssertNil(Tentpole.on(localDay(2026, 11, 19)))                          // 3rd Thursday
+        XCTAssertEqual(Tentpole.on(localDay(2027, 11, 25))?.id, "thanksgiving")
+        XCTAssertEqual(Tentpole.on(localDay(2026, 12, 25))?.id, "christmas")
+        XCTAssertEqual(Tentpole.on(localDay(2027, 1, 1))?.id, "new-years-day")
+        XCTAssertEqual(Tentpole.on(localDay(2027, 1, 18))?.id, "mlk-day")         // 3rd Monday
+        XCTAssertNil(Tentpole.on(localDay(2027, 1, 11)))
+        XCTAssertEqual(Tentpole.on(localDay(2026, 12, 25))?.dismissalKey(for: localDay(2026, 12, 25)), "christmas-2026")
+    }
+
+    func testTentpoleSlateCountsTheDaysGamesAndWhatsSwitchedOff() throws {
+        let iso = ISO8601DateFormatter()
+        func game(_ id: String, _ league: Leagues, _ date: Date) -> Game {
+            Game(idEvent: id, idLeague: "\(league.rawValue)", strHomeTeam: "A", strAwayTeam: "B",
+                 strTimestamp: iso.string(from: date), isoDate: nil)
+        }
+        let christmas = localDay(2026, 12, 25)
+        let games = [
+            game("1", .nba, localDay(2026, 12, 25, hour: 12)),
+            game("2", .nba, localDay(2026, 12, 25, hour: 15)),
+            game("3", .nfl, localDay(2026, 12, 25, hour: 16)),
+            game("4", .nba, localDay(2026, 12, 26, hour: 19)),   // the next day
+            game("5", .nhl, localDay(2026, 12, 25, hour: 18)),   // not a Christmas league
+        ]
+        let slate = try XCTUnwrap(TentpoleSlate.build(for: christmas, games: games, shows: { $0 == .nfl }))
+        XCTAssertEqual(slate.counts.map(\.league), [.nba, .nfl])
+        XCTAssertEqual(slate.counts.map(\.games), [2, 1])
+        XCTAssertEqual(slate.hiddenLeagues, [.nba])
+        XCTAssertEqual(slate.summary, "2 NBA · 1 NFL games")
+        XCTAssertNil(TentpoleSlate.build(for: localDay(2026, 12, 24), games: games, shows: { _ in true }))
+        XCTAssertNil(TentpoleSlate.build(for: localDay(2027, 1, 1), games: games, shows: { _ in true }),
+                     "no bowl games scheduled, no banner")
+    }
 }
