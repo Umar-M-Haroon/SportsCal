@@ -241,6 +241,12 @@ struct PickTeamsPage: View {
     @Environment(Favorites.self) private var favorites
     @State private var search = ""
     @State private var picked: Set<String> = []
+
+    /// Teams starred on the map are favorites already, so they count as a pick too.
+    private var finishTitle: String {
+        if !picked.isEmpty { return "Done · \(picked.count) \(picked.count == 1 ? "Team" : "Teams")" }
+        return favorites.teams.isEmpty ? "Skip for Now" : "Continue"
+    }
     /// Built once per schedule/teams/sports change, not on every body pass: each
     /// keystroke and star toggle used to re-group the whole schedule.
     @State private var sections: [OnboardingTeamSection] = []
@@ -324,7 +330,7 @@ struct PickTeamsPage: View {
             Button {
                 finish()
             } label: {
-                Text(picked.isEmpty ? "Skip for Now" : "Done · \(picked.count) \(picked.count == 1 ? "Team" : "Teams")")
+                Text(finishTitle)
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(6)

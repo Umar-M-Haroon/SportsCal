@@ -568,6 +568,24 @@ final class ScheduleFilterTests: XCTestCase {
         XCTAssertEqual(LeagueMap.hub(id: "GB")?.accessibilityLabel(followed: 2), "England, 6 leagues, 2 followed")
     }
 
+    func testTurningAPackOffKeepsLeaguesFollowedOtherWays() throws {
+        let pack = try XCTUnwrap(LeagueMap.packs.first { $0.leagues.contains(.English_Premier_League) })
+        var selection = LeagueMapSelection()
+        selection.add(team: Team(idTeam: "133604", strTeam: "Arsenal"),
+                      competitions: [.English_Premier_League, .UEFA_Champions_League, .FA_Cup])
+        let before = selection.leagues
+        selection.addPack(pack)
+        XCTAssertTrue(pack.isOn(in: selection.leagues))
+        selection.removePack(pack)
+        XCTAssertEqual(selection.leagues, before, "the pack takes back only what it added")
+
+        // Picked league by league, the pack has no record: turning it off clears it.
+        var manual = LeagueMapSelection()
+        pack.leagues.forEach { manual.add($0) }
+        manual.removePack(pack)
+        XCTAssertTrue(manual.leagues.isEmpty)
+    }
+
     func testScheduleTeamLeaguesPutTheLeagueBeforeCups() {
         let date = ISO8601DateFormatter().string(from: Date())
         let cup = Game(idEvent: "c", idLeague: "\(Leagues.FA_Cup.rawValue)", idHomeTeam: "1",

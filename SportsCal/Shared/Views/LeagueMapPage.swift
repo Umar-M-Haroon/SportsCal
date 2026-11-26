@@ -392,13 +392,16 @@ struct LeagueMapPage: View {
                         closePanel()
                         animate { focus = .world }
                     } label: {
+                        // Icon only on a phone: the label ran into the Worldwide pill.
                         Label("Whole map", systemImage: "arrow.down.right.and.arrow.up.left")
+                            .labelStyle(WholeMapLabelStyle(showsTitle: isWide))
                             .font(.subheadline.weight(.medium))
-                            .padding(.horizontal, 12)
+                            .padding(.horizontal, isWide ? 12 : 9)
                             .padding(.vertical, 7)
                             .background(Capsule().fill(.regularMaterial))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Show whole map")
                     .padding(12)
                     .transition(.opacity)
                 }
@@ -668,9 +671,7 @@ struct LeagueMapPage: View {
         searchFocused = false
         closePanel()
         animate { focus = .world }
-        for league in pack.leagues {
-            if on { selection.remove(league) } else { selection.add(league) }
-        }
+        if on { selection.removePack(pack) } else { selection.addPack(pack) }
         if !on { flash(pack.hubIDs) }
     }
 
@@ -940,4 +941,15 @@ private struct LeagueMapPanel: View {
     .environment(storage)
     .environment(viewModel)
     .environment(Favorites())
+}
+
+private struct WholeMapLabelStyle: LabelStyle {
+    let showsTitle: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        if showsTitle {
+            Label(configuration)
+        } else {
+            configuration.icon
+        }
+    }
 }

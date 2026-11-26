@@ -107,6 +107,22 @@ struct LeagueMapPack: Hashable, Identifiable {
 struct LeagueMapSelection: Equatable {
     var leagues: [Leagues] = []
     var teams: [Team] = []
+    /// What each pack added that wasn't already picked, so turning the pack off takes
+    /// back only those and leaves leagues followed through a team, a hub or by hand.
+    var packAdditions: [String: [Leagues]] = [:]
+
+    mutating func addPack(_ pack: LeagueMapPack) {
+        let new = pack.leagues.filter { !contains($0) }
+        new.forEach { add($0) }
+        packAdditions[pack.id] = new
+    }
+
+    /// A pack switched on some other way (each league picked by hand) has no record,
+    /// so all of its leagues go.
+    mutating func removePack(_ pack: LeagueMapPack) {
+        let added = packAdditions.removeValue(forKey: pack.id) ?? pack.leagues
+        added.forEach { remove($0) }
+    }
 
     var isEmpty: Bool { leagues.isEmpty && teams.isEmpty }
 
