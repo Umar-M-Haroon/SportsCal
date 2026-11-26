@@ -17,6 +17,8 @@ private enum MapFocus: Equatable {
     case world
     case cluster(String)
     case hub(String)
+    /// Wherever the map was when the list closed: closing shouldn't move it.
+    case pinned(MapViewport)
 }
 
 /// Map units → points: `screen = mapPoint * scale + (tx, ty)`. Kept affine so the dots
@@ -35,7 +37,6 @@ struct LeagueMapPage: View {
     @Environment(GameViewModel.self) private var viewModel
     @Environment(Favorites.self) private var favorites
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
 
     @State private var selection = LeagueMapSelection()
     @State private var focus: MapFocus = .world
@@ -70,7 +71,7 @@ struct LeagueMapPage: View {
             if !isWide, let hub = openHub {
                 panel(hub)
                     .frame(height: compactPanelHeight)
-                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom))
             }
         }
         .coordinateSpace(.named(Self.space))
@@ -368,10 +369,17 @@ struct LeagueMapPage: View {
             let size = proxy.size
             let viewport = viewport(for: focus, in: size)
             ZStack {
-                // Tapping open sea closes the list.
+                // Taps the spots are too close to take themselves (Europe at world zoom)
+                // land here and go to the nearest spot; open sea closes the list.
                 Color.clear
                     .contentShape(Rectangle())
-                    .onTapGesture { if openHubID != nil { closePanel() } }
+                    .gesture(SpatialTapGesture().onEnded { value in
+                        if let hub = nearestHub(to: value.location, in: size) {
+                            tap(hub, in: size)
+                        } else if openHubID != nil {
+                            closePanel()
+                        }
+                    })
                 LeagueMapLayer(viewport: viewport,
                                baseScale: baseViewport(in: size).scale,
                                hubs: LeagueMap.hubs,
@@ -462,6 +470,8 @@ struct LeagueMapPage: View {
         switch focus {
         case .world:
             return base
+        case .pinned(let viewport):
+            return viewport
         case .cluster(let id):
             guard let cluster = LeagueMap.clusters.first(where: { $0.id == id }) else { return base }
             point = cluster.centre
@@ -496,16 +506,19 @@ struct LeagueMapPage: View {
     private func widePanelWidth(_ size: CGSize) -> CGFloat { min(320, size.width * 0.5) }
     private var compactPanelHeight: CGFloat { min(pageSize.height * 0.58, 560) }
 
+    /// Opens the place straight away. Its zoom spreads a tight cluster (Europe) out, so
+    /// a neighbour is one tap away if the wrong one was hit; the hit areas themselves
+    /// don't overlap (see `LeagueMapLayer.hitDiameter`), so the nearest spot wins.
+    /// The spot closest to a tap, within a finger's reach.
+    private func nearestHub(to location: CGPoint, in size: CGSize) -> LeagueMapHub? {
+        let vp = viewport(for: focus, in: size)
+        return LeagueMap.hubs
+            .compactMap { hub in hub.point.map { (hub, hypot(vp.point($0).x - location.x, vp.point($0).y - location.y)) } }
+            .filter { $0.1 <= 30 }
+            .min { $0.1 < $1.1 }?.0
+    }
+
     private func tap(_ hub: LeagueMapHub, in size: CGSize) {
-        searchFocused = false
-        let current = viewport(for: focus, in: size).scale
-        if let cluster = LeagueMap.cluster(containing: hub.id), !voiceOver,
-           current * cluster.minimumSpacing < 44, focus != .cluster(cluster.id) {
-            // Too tight to tell the spots apart: zoom in first, open on the next tap.
-            closePanel()
-            animate { focus = .cluster(cluster.id) }
-            return
-        }
         open(hub)
     }
 
@@ -519,9 +532,11 @@ struct LeagueMapPage: View {
 
     private func closePanel() {
         guard openHubID != nil else { return }
+        // Freeze the map where it is: re-centring once the list is gone read as a jump.
+        let current = viewport(for: focus, in: mapFrame.size)
         animate {
             openHubID = nil
-            // Keep the zoom, but re-centre now the list is gone.
+            if focus != .world { focus = .pinned(current) }
         }
     }
 
@@ -581,6 +596,7 @@ struct LeagueMapPage: View {
                         favorites.remove(team: team)
                     }
                     .accessibilityLabel("\(team.strTeam ?? ""), team")
+                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
                 }
                 ForEach(selection.leagues, id: \.self) { league in
                     let sport = SportType(league: league)
@@ -588,11 +604,12 @@ struct LeagueMapPage: View {
                         selection.remove(league)
                     }
                     .accessibilityLabel(LeagueMap.name(league))
+                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
                 }
             }
         }
         .frame(minHeight: 30)
-        .animation(reduceMotion ? nil : .default, value: selection)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: selection)
     }
 
     private func pill(_ title: Text, icon: Image, tint: Color, remove: @escaping () -> Void) -> some View {
@@ -670,7 +687,6 @@ struct LeagueMapPage: View {
         let on = pack.isOn(in: selection.leagues)
         searchFocused = false
         closePanel()
-        animate { focus = .world }
         if on { selection.removePack(pack) } else { selection.addPack(pack) }
         if !on { flash(pack.hubIDs) }
     }
@@ -724,6 +740,19 @@ private struct LeagueMapLayer: View, Animatable {
 
     private var zoom: CGFloat { max(viewport.scale / max(baseScale, 0.01), 1) }
 
+    /// 44pt where there's room, but never past halfway to the nearest other spot, so
+    /// overlapping targets can't send a tap on England to the Netherlands. Never smaller
+    /// than the drawn spot.
+    private func hitDiameter(_ hub: LeagueMapHub, at point: CGPoint) -> CGFloat {
+        let nearest = hubs.lazy
+            .filter { $0.id != hub.id }
+            .compactMap(\.point)
+            .map { hypot($0.x - point.x, $0.y - point.y) * viewport.scale }
+            .min() ?? .infinity
+        let core = hub.radius * baseScale * pow(zoom, 0.55) * 2
+        return max(core, min(max(44, core * 1.7), nearest))
+    }
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             Canvas { context, size in
@@ -751,6 +780,7 @@ private struct LeagueMapLayer: View, Animatable {
                                     isSelected: hub.id == selectedHubID,
                                     showsFlag: zoom >= 2,
                                     flash: flashes[hub.id] ?? 0,
+                                    hitDiameter: hitDiameter(hub, at: point),
                                     reduceMotion: reduceMotion) {
                         onTap(hub)
                     }
@@ -769,6 +799,7 @@ private struct LeagueMapHubDot: View {
     let isSelected: Bool
     let showsFlag: Bool
     let flash: Int
+    let hitDiameter: CGFloat
     let reduceMotion: Bool
     let action: () -> Void
 
@@ -819,9 +850,12 @@ private struct LeagueMapHubDot: View {
                 }
             }
             .frame(width: target, height: target)
-            .contentShape(Circle())
+            .contentShape(Circle().inset(by: max(0, (target - hitDiameter) / 2)))
         }
         .buttonStyle(.plain)
+        // Too close to a neighbour for its own target: the map's nearest-spot tap takes
+        // it (VoiceOver still activates the button).
+        .allowsHitTesting(hitDiameter >= 30)
         .accessibilityLabel(hub.accessibilityLabel(followed: followed))
         .accessibilityHint("Shows its leagues")
     }
@@ -859,6 +893,8 @@ private struct LeagueMapPanel: View {
                 }
                 Spacer()
                 Button(allOn ? "Clear" : "Follow all", action: toggleAll)
+                    // Swap the word, don't cross-fade two on top of each other.
+                    .contentTransition(.identity)
                     .font(.subheadline.weight(.semibold))
                     .buttonStyle(.borderless)
             }
