@@ -40,7 +40,7 @@ public extension Leagues {
 
     /// Cups and continental or international tournaments, as opposed to a team's
     /// own league, for ordering a team's competitions.
-    internal var isTeamCompetitionCup: Bool {
+    var isTeamCompetitionCup: Bool {
         switch self {
         case .FA_Cup, .Copa_del_Rey, .Coupe_De_France, .DFB_Pokal,
              .UEFA_Champions_League, .UEFA_Europa_League, .UEFA_Conference_League,

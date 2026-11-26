@@ -241,9 +241,18 @@ struct PickTeamsPage: View {
     @Environment(Favorites.self) private var favorites
     @State private var search = ""
     @State private var picked: Set<String> = []
+
+    /// Teams starred on the map are favorites already, so they count as a pick too.
+    private var finishTitle: String {
+        if !picked.isEmpty { return "Done · \(picked.count) \(picked.count == 1 ? "Team" : "Teams")" }
+        return favorites.teams.isEmpty ? "Skip for Now" : "Continue"
+    }
     /// Built once per schedule/teams/sports change, not on every body pass: each
     /// keystroke and star toggle used to re-group the whole schedule.
     @State private var sections: [OnboardingTeamSection] = []
+    /// Teams already starred when the list first filled (on the map, or earlier), pinned
+    /// on top so they're easy to check. Captured once: starring here doesn't move rows.
+    @State private var starredAtStart: [(team: Team, sport: SportType)]?
     @State private var primerPresented = false
     /// Every competition each team plays in, so starring a team follows its leagues and
     /// cups too. Nil until loaded, or on a server without the route (stars then only
@@ -295,6 +304,13 @@ struct PickTeamsPage: View {
                     Text("Golf, tennis and racing don't have teams. You can follow players and drivers from any event.")
                 }
             }
+            if let starred = starredAtStart, !starred.isEmpty, search.trimmingCharacters(in: .whitespaces).isEmpty {
+                Section("Starred") {
+                    ForEach(starred, id: \.team) { entry in
+                        row(entry.team, sport: entry.sport)
+                    }
+                }
+            }
             ForEach(sections) { section in
                 let teams = filtered(section)
                 if !teams.isEmpty {
@@ -319,12 +335,19 @@ struct PickTeamsPage: View {
                                                    enabled: appStorage.enabledSports,
                                                    leagueAllowed: leagueAllowed,
                                                    teams: viewModel.getTeams(for:))
+            if starredAtStart == nil, !sections.isEmpty {
+                var seen: Set<String> = []
+                starredAtStart = sections.flatMap { section in
+                    section.teams.filter { favorites.contains(team: $0) }.map { (team: $0, sport: section.sport) }
+                }
+                .filter { seen.insert($0.team.idTeam ?? $0.team.strTeam ?? "").inserted }
+            }
         }
         .safeAreaInset(edge: .bottom) {
             Button {
                 finish()
             } label: {
-                Text(picked.isEmpty ? "Skip for Now" : "Done · \(picked.count) \(picked.count == 1 ? "Team" : "Teams")")
+                Text(finishTitle)
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(6)

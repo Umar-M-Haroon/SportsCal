@@ -264,6 +264,9 @@ struct ContentView: View {
                         .environment(storage)
                         .environment(viewModel)
                         .environment(favorites)
+                        // A downward scroll on the teams page used to throw the whole
+                        // flow away mid-way; Skip is the way out.
+                        .interactiveDismissDisabled()
                 case .calendar(let eventGame):
                     #if os(iOS)
                     if let game = eventGame {
