@@ -38,7 +38,7 @@ struct SportPickerSheet: View {
                                 get: { storage.favoritesOnly(for: sport) },
                                 set: { storage.setFavoritesOnly(sport, value: $0) }
                             )) {
-                                Label("Only my teams", systemImage: "star.fill")
+                                Label(FavoriteReach.hasTeams(sport) ? "Only my teams" : "Only who I follow", systemImage: "star.fill")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
@@ -109,11 +109,12 @@ struct SportPickerSheet: View {
     private func emptyNote(for sport: SportType) -> some View {
         EmptyFavoritesNote(
             text: FavoriteReach.emptyNote(sport.displayName, sport: sport),
-            pickTeams: FavoriteReach.hasTeams(sport) ? { pickTeamsSport = sport } : nil,
+            pickTeams: { pickTeamsSport = sport },
             showAllGames: {
                 storage.setFavoritesOnly(sport, value: false)
                 storage.bumpPreferenceVersion()
-            }
+            },
+            pickTitle: FavoriteReach.pickTitle(sport)
         )
     }
 
@@ -217,7 +218,7 @@ struct SportPickerSheet: View {
             set: { storage.setFavoritesOnly(sport, value: $0); storage.bumpPreferenceVersion() }
         )) {
             Text("All games").tag(false)
-            Text("Only my teams").tag(true)
+            Text(FavoriteReach.hasTeams(sport) ? "Only my teams" : "Only who I follow").tag(true)
         }
         .pickerStyle(.menu)
         if showsEmptyNote(for: sport) {

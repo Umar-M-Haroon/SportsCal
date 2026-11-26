@@ -461,9 +461,18 @@ struct FollowTeamsSheet: View {
 
     var body: some View {
         NavigationStack {
-            PickTeamsPage(sheetType: .constant(nil), onlySport: sport, onlyLeague: league) {
-                viewModel.filterSports(force: true)
-                dismiss()
+            Group {
+                if FavoriteReach.hasTeams(sport) {
+                    PickTeamsPage(sheetType: .constant(nil), onlySport: sport, onlyLeague: league) {
+                        viewModel.filterSports(force: true)
+                        dismiss()
+                    }
+                } else {
+                    PickPlayersPage(sport: sport, league: league) {
+                        viewModel.filterSports(force: true)
+                        dismiss()
+                    }
+                }
             }
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -584,4 +593,92 @@ struct OnboardingFeatureRow: View {
         .environment(storage)
         .environment(viewModel)
         .environment(Favorites())
+}
+
+
+/// Golfers, tennis players and drivers to follow. They're followed by the name event
+/// leaderboards show, so the list is every name on the loaded events' leaderboards,
+/// most frequent first, with anyone already followed on top.
+struct PickPlayersPage: View {
+    let sport: SportType
+    var league: Leagues? = nil
+    var onDone: () -> Void
+    @Environment(GameViewModel.self) private var viewModel
+    @Environment(Favorites.self) private var favorites
+    @State private var search = ""
+    @State private var names: [String] = []
+    /// Followed when the list first filled: pinned on top, and not moved by starring.
+    @State private var followedAtStart: [String] = []
+
+    private var noun: String { sport == .racing ? "drivers" : "players" }
+
+    var body: some View {
+        List {
+            let query = search.trimmingCharacters(in: .whitespaces)
+            let matching = query.isEmpty ? names : names.filter { $0.localizedCaseInsensitiveContains(query) }
+            if names.isEmpty {
+                Section {
+                    Text("No \(noun) to pick yet. Names come from event leaderboards, so check back once an event is under way.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if query.isEmpty, !followedAtStart.isEmpty {
+                Section("Following") {
+                    ForEach(followedAtStart, id: \.self, content: row)
+                }
+            }
+            let rest = matching.filter { query.isEmpty ? !followedAtStart.contains($0) : true }
+            if !rest.isEmpty {
+                Section(query.isEmpty ? "From recent events" : "Results") {
+                    ForEach(rest, id: \.self, content: row)
+                }
+            }
+        }
+        .searchable(text: $search, prompt: "Search \(noun)")
+        .navigationTitle(league?.leagueName ?? "\(sport.displayName) \(noun.capitalized)")
+        .task {
+            names = Self.leaderboardNames(viewModel.gamesDict[sport] ?? [], league: league)
+            let followed = names.filter { favorites.containsPlayer($0) }
+            let extra = favorites.players.filter { !names.contains($0) }.sorted()
+            followedAtStart = followed + extra
+        }
+        .safeAreaInset(edge: .bottom) {
+            Button(action: onDone) {
+                Text("Done").font(.headline).frame(maxWidth: .infinity).padding(6)
+            }
+            .buttonStyle(.borderedProminent)
+            .padding()
+            .background(.bar)
+        }
+    }
+
+    private func row(_ name: String) -> some View {
+        let isFollowed = favorites.containsPlayer(name)
+        return Button {
+            if isFollowed { favorites.removePlayer(name) } else { favorites.addPlayer(name) }
+        } label: {
+            HStack {
+                Text(name).foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: isFollowed ? "star.fill" : "star")
+                    .foregroundStyle(isFollowed ? Color.yellow : Color.secondary)
+                    .imageScale(.large)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(isFollowed ? "Following" : "Not following")
+    }
+
+    /// Every leaderboard name in these events, most appearances first. Pure for tests.
+    static func leaderboardNames(_ games: [Game], league: Leagues? = nil) -> [String] {
+        let leagueID = league.map { String($0.rawValue) }
+        var counts: [String: Int] = [:]
+        for game in games where leagueID == nil || game.idLeague == leagueID {
+            for entry in game.resolvedLeaderboard where !entry.name.isEmpty {
+                counts[entry.name, default: 0] += 1
+            }
+        }
+        return counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.map(\.key)
+    }
 }

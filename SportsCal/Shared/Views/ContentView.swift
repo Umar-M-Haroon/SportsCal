@@ -780,14 +780,15 @@ struct ContentView: View {
                 ), arrowEdge: .trailing) {
                     EmptyFavoritesNote(
                         text: FavoriteReach.emptyNote(sport.displayName, sport: sport),
-                        pickTeams: FavoriteReach.hasTeams(sport) ? {
+                        pickTeams: {
                             emptyNoteSport = nil
                             pickTeamsSport = sport
-                        } : nil,
+                        },
                         showAllGames: {
                             emptyNoteSport = nil
                             setFavoritesOnly(sport, false)
-                        }
+                        },
+                        pickTitle: FavoriteReach.pickTitle(sport)
                     )
                     .padding(14)
                     .frame(width: 280)
@@ -820,13 +821,11 @@ struct ContentView: View {
                 set: { setFavoritesOnly(sport, $0) }
             )) {
                 Text("All Games").tag(false)
-                Text("Only My Teams").tag(true)
+                Text(FavoriteReach.hasTeams(sport) ? "Only My Teams" : "Only Who I Follow").tag(true)
             }
             .pickerStyle(.inline)
-            if FavoriteReach.hasTeams(sport) {
-                Divider()
-                Button("Pick \(sport.displayName) Teams…") { pickTeamsSport = sport }
-            }
+            Divider()
+            Button(FavoriteReach.pickTitle(sport)) { pickTeamsSport = sport }
         }
     }
 

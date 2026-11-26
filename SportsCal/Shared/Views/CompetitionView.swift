@@ -42,12 +42,16 @@ enum FavoriteReach {
     static func emptyNote(_ name: String, sport: SportType) -> String {
         hasTeams(sport)
             ? "None of your teams have \(name) games coming up, so it will stay empty."
-            : "None of the players you follow have \(name) events coming up, so it will stay empty."
+            : "None of the \(sport == .racing ? "drivers" : "players") you follow are in \(name) events right now, so it will stay empty."
     }
 
     /// Golf, tennis and racing follow players, not teams: no team picker to offer.
     static func hasTeams(_ sport: SportType) -> Bool {
         ![.golf, .tennis, .racing].contains(sport)
+    }
+
+    static func pickTitle(_ sport: SportType) -> String {
+        hasTeams(sport) ? "Pick Teams…" : (sport == .racing ? "Pick Drivers…" : "Pick Players…")
     }
 }
 
@@ -57,6 +61,8 @@ struct EmptyFavoritesNote: View {
     var text: String
     var pickTeams: (() -> Void)? = nil
     var showAllGames: (() -> Void)? = nil
+    /// "Pick Teams…", or "Pick Players…" / "Pick Drivers…" for golf, tennis and racing.
+    var pickTitle = "Pick Teams…"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -72,7 +78,7 @@ struct EmptyFavoritesNote: View {
             if pickTeams != nil || showAllGames != nil {
                 HStack(spacing: 8) {
                     if let pickTeams {
-                        Button("Pick Teams…", action: pickTeams)
+                        Button(pickTitle, action: pickTeams)
                             .buttonStyle(.borderedProminent)
                     }
                     if let showAllGames {
@@ -120,8 +126,9 @@ struct CompetitionView: View {
             if showsEmptyNote {
                 EmptyFavoritesNote(
                     text: FavoriteReach.emptyNote(league.leagueName, sport: SportType(league: league)),
-                    pickTeams: FavoriteReach.hasTeams(SportType(league: league)) ? { pickingTeams = true } : nil,
-                    showAllGames: { mode = .allGames }
+                    pickTeams: { pickingTeams = true },
+                    showAllGames: { mode = .allGames },
+                    pickTitle: FavoriteReach.pickTitle(SportType(league: league))
                 )
                 .padding(.leading, 34)
             }
