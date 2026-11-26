@@ -16,8 +16,12 @@ struct DeveloperSettingsSection: View {
     @Environment(UserDefaultStorage.self) private var appStorage
     @Environment(GameViewModel.self) private var viewModel
     @Environment(SubscriptionManager.self) private var subscriptionManager
+    @Environment(Favorites.self) private var favorites
 
     @State private var whatsNewPreview: WhatsNewRelease?
+    /// The onboarding flow run again from Settings. It starts from what's already
+    /// switched on, and Continue applies the picks for real (Skip leaves them alone).
+    @State private var onboardingSheet: SheetType?
 
     var isTestFlight: Bool {
         guard let path = Bundle.main.appStoreReceiptURL?.path else { return false }
@@ -95,6 +99,16 @@ struct DeveloperSettingsSection: View {
                 }
                 Button("Reset What's New (next launch)") {
                     WhatsNewStore.clearSeen()
+                }
+                Button("Run Onboarding Again") {
+                    onboardingSheet = .onboarding
+                }
+                .sheet(item: $onboardingSheet) { _ in
+                    OnboardingPage(sheetType: $onboardingSheet)
+                        .environment(appStorage)
+                        .environment(viewModel)
+                        .environment(favorites)
+                        .interactiveDismissDisabled()
                 }
                 NavigationLink("Edge case gallery") {
                     EdgeCaseGalleryView()
