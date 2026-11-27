@@ -38,6 +38,9 @@ public enum ProFeature: String, CaseIterable, Sendable {
     case customAlerts
     /// Accent color themes and alternate app icons. Not wired yet.
     case themes
+    /// Fantasy: a custom scoring editor and Sleeper / ESPN league import (my team,
+    /// league scoring). Studs & Stinkers, the presets and game-detail fantasy stay free.
+    case fantasyLeagues
 
     /// Human-facing feature name for paywall copy.
     public var displayName: String {
@@ -50,6 +53,7 @@ public enum ProFeature: String, CaseIterable, Sendable {
         case .calendarExport:     return "Calendar Export"
         case .customAlerts:       return "Player & Game Alerts"
         case .themes:             return "Themes"
+        case .fantasyLeagues:     return "Fantasy Leagues & Custom Scoring"
         }
     }
 
@@ -72,6 +76,8 @@ public enum ProFeature: String, CaseIterable, Sendable {
             return "Know the moment your player scores, or reaches a milestone."
         case .themes:
             return "Make Scoreline yours with accent colors and app icons."
+        case .fantasyLeagues:
+            return "Import your Sleeper or ESPN league and score every player your league's way."
         }
     }
 }

@@ -39,6 +39,8 @@ enum UpsellTrigger: String {
     /// User went past the free custom alert allowance (1 player with 1 rule) or
     /// tapped a locked Game Alerts situation.
     case customAlertCap = "custom_alert_cap"
+    /// Tapped custom fantasy scoring or league import in the Fantasy hub.
+    case fantasy = "fantasy"
 
     // Direct opens: the user went looking for Pro. No throttling applies.
     /// Settings → Scoreline Pro.
@@ -57,6 +59,7 @@ enum UpsellTrigger: String {
         switch self {
         case .theme: return .themes
         case .customAlertCap: return .customAlerts
+        case .fantasy: return .fantasy
         case .freeReminderCapHit: return .reminders
         case .adCard: return .adFree
         case .menuBar: return .menuBar

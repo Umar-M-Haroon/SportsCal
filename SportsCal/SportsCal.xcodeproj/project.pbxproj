@@ -685,7 +685,7 @@
 		1DFBEE6F2AEB456100753DE1 /* SubscriptionRequiredView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRequiredView.swift; sourceTree = "<group>"; };
 		1F42FF48D17EC968747E1967 /* LiveSituationViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveSituationViews.swift; sourceTree = "<group>"; };
 		2133DAB661A2FC18CE262500 /* LeagueMapPage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LeagueMapPage.swift; sourceTree = "<group>"; };
-		2360FEF54B8EE94F782C4DA8 /* LeagueMapRipple.metal */ = {isa = PBXFileReference; includeInIndex = 1; path = LeagueMapRipple.metal; sourceTree = "<group>"; };
+		2360FEF54B8EE94F782C4DA8 /* LeagueMapRipple.metal */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.metal; path = LeagueMapRipple.metal; sourceTree = "<group>"; };
 		23B483E66DEA94B1A11BC72B /* InjuriesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InjuriesView.swift; sourceTree = "<group>"; };
 		240CD03D0AB2EEBF5CB9430D /* MacPrinting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacPrinting.swift; sourceTree = "<group>"; };
 		24D17FEC7646B44F15E5C29E /* PlayerAlertSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerAlertSheet.swift; sourceTree = "<group>"; };
@@ -781,7 +781,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		1D7F46592F45004E00F44569 /* Exceptions for "SportsCalWatchWidgets" folder in "SportsCalWatchWidgetsExtension" target */ = {
+		1D7F46592F45004E00F44569 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -791,51 +791,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		1D7F45F42F44FFE600F44569 /* SportsCalWatch Watch App */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = "SportsCalWatch Watch App";
-			sourceTree = "<group>";
-		};
-		1D7F46022F44FFE800F44569 /* SportsCalWatch Watch AppTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = "SportsCalWatch Watch AppTests";
-			sourceTree = "<group>";
-		};
-		1D7F460C2F44FFE800F44569 /* SportsCalWatch Watch AppUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = "SportsCalWatch Watch AppUITests";
-			sourceTree = "<group>";
-		};
-		1D7F464A2F45004C00F44569 /* SportsCalWatchWidgets */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				1D7F46592F45004E00F44569 /* Exceptions for "SportsCalWatchWidgets" folder in "SportsCalWatchWidgetsExtension" target */,
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = SportsCalWatchWidgets;
-			sourceTree = "<group>";
-		};
+		1D7F45F42F44FFE600F44569 /* SportsCalWatch Watch App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "SportsCalWatch Watch App"; sourceTree = "<group>"; };
+		1D7F46022F44FFE800F44569 /* SportsCalWatch Watch AppTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "SportsCalWatch Watch AppTests"; sourceTree = "<group>"; };
+		1D7F460C2F44FFE800F44569 /* SportsCalWatch Watch AppUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "SportsCalWatch Watch AppUITests"; sourceTree = "<group>"; };
+		1D7F464A2F45004C00F44569 /* SportsCalWatchWidgets */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (1D7F46592F45004E00F44569 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = SportsCalWatchWidgets; sourceTree = "<group>"; };
+		1DEE4AC730B9417700E4274F /* Fantasy */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Fantasy; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1155,6 +1115,7 @@
 				A2CE2283ABB54AC151D9414E /* LeagueMapData.swift */,
 				2360FEF54B8EE94F782C4DA8 /* LeagueMapRipple.metal */,
 				23B483E66DEA94B1A11BC72B /* InjuriesView.swift */,
+				1DEE4AC730B9417700E4274F /* Fantasy */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1635,6 +1596,9 @@
 			dependencies = (
 				1DF5C55A2713F48500842FDA /* PBXTargetDependency */,
 				1D7F46122F44FFE800F44569 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				1DEE4AC730B9417700E4274F /* Fantasy */,
 			);
 			name = "SportsCal (iOS)";
 			packageProductDependencies = (

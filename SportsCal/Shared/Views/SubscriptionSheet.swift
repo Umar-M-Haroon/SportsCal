@@ -588,15 +588,16 @@ enum PaywallFeature: String, CaseIterable {
     case customAlerts
     case reminders = "preGameReminders"
     case themes
+    case fantasy = "fantasyLeagues"
     case proSettings
 
     /// What this platform's paywall lists, in order. The Mac has no ads and no
     /// score alerts (no Live Activities), but has the menu bar.
     static var forPlatform: [PaywallFeature] {
         #if os(macOS)
-        return [.menuBar, .customAlerts, .reminders, .themes, .proSettings]
+        return [.menuBar, .customAlerts, .fantasy, .reminders, .themes, .proSettings]
         #else
-        return [.scoreAlerts, .adFree, .customAlerts, .reminders, .themes, .proSettings]
+        return [.scoreAlerts, .adFree, .customAlerts, .fantasy, .reminders, .themes, .proSettings]
         #endif
     }
 
@@ -608,6 +609,7 @@ enum PaywallFeature: String, CaseIterable {
         case .customAlerts: return "bell.badge.waveform"
         case .reminders: return "alarm"
         case .themes: return "paintpalette"
+        case .fantasy: return "football"
         case .proSettings: return "slider.horizontal.3"
         }
     }
@@ -620,6 +622,7 @@ enum PaywallFeature: String, CaseIterable {
         case .customAlerts: return ProFeature.customAlerts.displayName
         case .reminders: return ProFeature.preGameReminders.displayName
         case .themes: return ProFeature.themes.displayName
+        case .fantasy: return "Fantasy Leagues"
         case .proSettings: return ProFeature.proSettings.displayName
         }
     }
@@ -632,6 +635,7 @@ enum PaywallFeature: String, CaseIterable {
         case .customAlerts: return ProFeature.customAlerts.blurb
         case .reminders: return "Reminders before kickoff, for every team you follow."
         case .themes: return "Accent colors, team colors and app icons."
+        case .fantasy: return "Your Sleeper or ESPN league's scoring and roster, live."
         case .proSettings: return ProFeature.proSettings.blurb
         }
     }
@@ -645,6 +649,7 @@ enum PaywallFeature: String, CaseIterable {
         case .customAlerts: return "Alerts for every player and moment you care about."
         case .reminders: return "Never miss kickoff for any team you follow."
         case .themes: return "Make Scoreline yours."
+        case .fantasy: return "Your fantasy league, scored live."
         case .proSettings: return "Shape the schedule the way you like it."
         }
     }

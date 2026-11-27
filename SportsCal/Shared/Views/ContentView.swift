@@ -54,6 +54,7 @@ enum MacSidebarItem: Hashable {
     case sport(SportType)
     case team(String)   // favorite team id
     case injuries       // the injury report, in place of the board
+    case fantasy        // the Fantasy hub, in place of the board
 }
 
 /// Small pulsing red dot signalling live activity (respects Reduce Motion).
@@ -585,6 +586,9 @@ struct ContentView: View {
                     case .injuries:
                         InjuriesView()
                             .environment(favorites)
+                    case .fantasy:
+                        FantasyHubView()
+                            .environment(favorites)
                     case .sport(let sport):
                         BrowseSportView(sport: sport)
                             .environment(viewModel)
@@ -621,6 +625,8 @@ struct ContentView: View {
                     .tag(MacSidebarItem.favorites)
                 sidebarScopeRow("Injuries", systemImage: "cross.case.fill", count: 0, tint: .red)
                     .tag(MacSidebarItem.injuries)
+                sidebarScopeRow("Fantasy", systemImage: "football.fill", count: 0, tint: Color.app(.nfl))
+                    .tag(MacSidebarItem.fantasy)
             }
 
             Section("Sports") {
@@ -850,6 +856,8 @@ struct ContentView: View {
             Group {
                 if sidebarSelection == .injuries {
                     InjuriesView()
+                } else if sidebarSelection == .fantasy {
+                    FantasyHubView()
                 } else {
                     DayPage(
                         shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
@@ -907,6 +915,9 @@ struct ContentView: View {
                 case .injuries:
                     InjuriesView()
                         .environment(favorites)
+                case .fantasy:
+                    FantasyHubView()
+                        .environment(favorites)
                 case .sport(let sport):
                     BrowseSportView(sport: sport)
                         .environment(viewModel)
@@ -927,6 +938,7 @@ struct ContentView: View {
         case .sport(let s): return .sport(s)
         case .team(let id): return .team(id)
         case .injuries:     return .all
+        case .fantasy:      return .all
         }
     }
 
@@ -938,6 +950,7 @@ struct ContentView: View {
         case .sport(let s): return s.displayName
         case .team(let id): return TeamsManager.shared.team(byID: id)?.strTeam ?? "Team"
         case .injuries:     return "Injuries"
+        case .fantasy:      return "Fantasy"
         }
     }
     #endif

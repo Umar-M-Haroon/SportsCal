@@ -71,15 +71,18 @@ struct FantasyHubView: View {
 
     @Environment(Favorites.self) private var favorites
     @Environment(FantasySettings.self) private var settings
+    /// Optional so previews needn't build one; used to find a player's team for alerts.
+    @Environment(GameViewModel.self) private var viewModel: GameViewModel?
     @State private var model: FantasyHubModel
     @State private var segment: Segment = .studs
     @State private var position: PositionFilter = .all
     @State private var showScoringPicker = false
     @State private var detail: FantasyEvaluation?
 
-    init(sport: SportType = .nfl, model: FantasyHubModel = FantasyHubModel()) {
+    @MainActor
+    init(sport: SportType = .nfl, model: FantasyHubModel? = nil) {
         self.sport = sport
-        _model = State(initialValue: model)
+        _model = State(initialValue: model ?? FantasyHubModel())
     }
 
     enum Segment: String, CaseIterable, Identifiable {
@@ -157,8 +160,29 @@ struct FantasyHubView: View {
                 .environment(settings)
         }
         .sheet(item: $detail) { evaluation in
-            FantasyBreakdownSheet(evaluation: evaluation, scoring: scoring)
+            FantasyBreakdownSheet(evaluation: evaluation, scoring: scoring,
+                                  alertPlayer: alertPlayer(for: evaluation.line))
+                .environment(favorites)
         }
+    }
+
+    /// The player as custom alerts know them, for "Alert me at N points": a followed
+    /// player as followed, else matched to this week's NFL schedule by team
+    /// abbreviation (alerts find the live game by the schedule's team ID).
+    private func alertPlayer(for line: FantasyPlayerLine) -> PlayerRef? {
+        guard CustomAlertSupport.isAvailable, !line.isDST, sport == .nfl else { return nil }
+        if let followed = favorites.followedPlayer(athleteID: line.athleteID) { return followed }
+        guard let abbreviation = line.teamAbbreviation?.uppercased(),
+              let games = viewModel?.totalGames else { return nil }
+        let league = String(Leagues.nfl.rawValue)
+        for game in games where game.idLeague == league {
+            for id in [game.idHomeTeam, game.idAwayTeam].compactMap({ $0 }) where !id.isEmpty && id.count <= 32 {
+                if TeamsManager.shared.team(byID: id)?.strTeamShort?.uppercased() == abbreviation {
+                    return PlayerRef(athleteID: line.athleteID, name: line.name, sport: .nfl, teamID: id)
+                }
+            }
+        }
+        return nil
     }
 
     // MARK: Controls
@@ -215,6 +239,8 @@ struct FantasyHubView: View {
                 }
             }
         }
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
         .disabled(weeks.count < 2)
         .accessibilityLabel("Week")
     }
@@ -391,7 +417,7 @@ struct FantasyPlayerRow: View {
                     .monospacedDigit()
                     .frame(minWidth: 18)
             }
-            FantasyHeadshot(url: line.headshot, isDST: line.isDST, size: 40)
+            FantasyHeadshot(line: line, size: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text(line.name)
                     .font(.body.weight(.semibold))
@@ -476,7 +502,8 @@ struct FantasyDeltaPill: View {
     let delta: Double
 
     var body: some View {
-        let rounded = FantasyScoring.rounded(delta)
+        // Tenths: a pace estimate doesn't deserve two decimals.
+        let rounded = (delta * 10).rounded() / 10
         let color: Color = rounded > 0 ? .appPositive : rounded < 0 ? .appNegative : .secondary
         Text((rounded > 0 ? "+" : rounded < 0 ? "−" : "±") + FantasyScoring.format(abs(rounded)))
             .font(.caption2.weight(.bold))
@@ -490,13 +517,19 @@ struct FantasyDeltaPill: View {
 }
 
 struct FantasyHeadshot: View {
-    let url: String?
+    let url: URL?
     var isDST = false
     var size: CGFloat
 
+    init(line: FantasyPlayerLine, sport: SportType = .nfl, size: CGFloat) {
+        url = line.headshotURL(sport: sport)
+        isDST = line.isDST
+        self.size = size
+    }
+
     var body: some View {
         Group {
-            if let url, let imageURL = URL(string: url) {
+            if let imageURL = url {
                 LazyImage(url: imageURL) { state in
                     if let image = state.image {
                         image.resizable().aspectRatio(contentMode: isDST ? .fit : .fill)
@@ -573,8 +606,11 @@ struct FantasyFilterChip: View {
 struct FantasyBreakdownSheet: View {
     let evaluation: FantasyEvaluation
     let scoring: FantasyScoring
+    /// Offers "Alert me at N fantasy points" when set (iOS, a resolvable team).
+    var alertPlayer: PlayerRef? = nil
 
     @Environment(\.dismiss) private var dismiss
+    @State private var showAlerts = false
 
     private var line: FantasyPlayerLine { evaluation.line }
 
@@ -583,7 +619,7 @@ struct FantasyBreakdownSheet: View {
             List {
                 Section {
                     HStack(spacing: 14) {
-                        FantasyHeadshot(url: line.headshot, isDST: line.isDST, size: 56)
+                        FantasyHeadshot(line: line, size: 56)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(line.name).font(.title3.weight(.semibold))
                             Text(FantasyPlayerRow.matchup(line)).font(.subheadline).foregroundStyle(.secondary)
@@ -652,6 +688,23 @@ struct FantasyBreakdownSheet: View {
                         Text(summary).monospacedDigit()
                     }
                 }
+
+                if alertPlayer != nil {
+                    Section {
+                        Button {
+                            showAlerts = true
+                        } label: {
+                            Label("Alert Me at \(FantasyScoring.format(suggestedThreshold)) Fantasy Points", systemImage: "bell.badge")
+                        }
+                    } footer: {
+                        Text("A notification the moment they get there, counted with \(scoring.name).")
+                    }
+                }
+            }
+            .sheet(isPresented: $showAlerts) {
+                if let alertPlayer {
+                    PlayerAlertSheet(player: alertPlayer, threshold: suggestedThreshold)
+                }
             }
             .navigationTitle("Fantasy points")
             #if os(iOS)
@@ -664,6 +717,14 @@ struct FantasyBreakdownSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    /// The next round number above where they are: 15, 20, 25, 30, then every 5.
+    private var suggestedThreshold: Double {
+        let points = evaluation.points
+        let suggested = AlertMilestone.presets(for: .nfl).first { $0.stat == AlertMilestone.fantasyPoints }?.suggested ?? []
+        if let next = suggested.first(where: { $0 > points }) { return next }
+        return (floor(points / 5) + 1) * 5
     }
 
     /// "Rec yards", "Pass yards 300+ bonus", "Points allowed 7–13".

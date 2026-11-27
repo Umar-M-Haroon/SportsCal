@@ -22,10 +22,15 @@ import SportsCalModel
 
 enum CustomAlertCatalog {
     /// Whether a player on a `league` game can get player alerts (NBA, MLB, NHL and
-    /// soccer in v1; no NFL, WNBA or college).
+    /// soccer; NFL for fantasy-points milestones only; no WNBA or college).
     static func supportsPlayerAlerts(sport: SportType?, league: Leagues?) -> Bool {
-        guard let sport, AlertRule.playerPlaySports.contains(sport) else { return false }
+        guard let sport, AlertRule.playerPlaySports.contains(sport) || offersFantasyMilestones(sport) else { return false }
         return AlertRule.isPlayerAlertLeague(league, sport: sport)
+    }
+
+    /// Sports whose only player alert is a fantasy-points milestone (NFL).
+    static func offersFantasyMilestones(_ sport: SportType) -> Bool {
+        FantasyScoring.supports(sport) && AlertMilestone.presets(for: sport).contains { $0.stat == AlertMilestone.fantasyPoints }
     }
 
     /// Sports offered in Game Alerts, in display order.
@@ -129,6 +134,9 @@ struct PlayerAlertDraft: Equatable {
     var milestones: [AlertMilestone]
     var finalPeriodOnly: Bool
     var closeGameOnly: Bool
+    /// The scoring `fantasyPoints` milestones count with. Starts as the one the saved
+    /// rules carry; the sheet sets the user's current scoring.
+    var fantasyScoring: FantasyScoring?
 
     /// The draft for `player` as `rules` (the install's player rules) have it.
     init(player: PlayerRef, rules: [AlertRule]) {
@@ -141,12 +149,15 @@ struct PlayerAlertDraft: Equatable {
             if let milestone = rule.milestone, !milestones.contains(milestone) { milestones.append(milestone) }
         }
         self.milestones = milestones
+        fantasyScoring = mine.lazy.compactMap(\.resolvedFantasyScoring).first
         finalPeriodOnly = mine.first?.finalPeriodOnly ?? false
         closeGameOnly = mine.first?.closeGameOnly ?? false
     }
 
     var offersPlays: Bool { AlertRule.playerPlaySports.contains(player.sport) }
-    var offersMilestones: Bool { AlertRule.milestoneSports.contains(player.sport) }
+    var offersMilestones: Bool {
+        AlertRule.milestoneSports.contains(player.sport) || CustomAlertCatalog.offersFantasyMilestones(player.sport)
+    }
 
     /// Adds a milestone unless the same one is already there.
     mutating func addMilestone(_ milestone: AlertMilestone) {
@@ -161,10 +172,15 @@ struct PlayerAlertDraft: Equatable {
         let mine = existing.filter { $0.athleteID == player.athleteID }
         var out: [AlertRule] = []
         func rule(id: String, kind: AlertRule.Kind, playTypes: [AlertPlayType]? = nil, milestone: AlertMilestone? = nil) -> AlertRule {
-            AlertRule(
+            // A fantasy milestone names a preset by ID, or carries a custom / league scoring whole.
+            let isFantasy = milestone?.stat == AlertMilestone.fantasyPoints
+            let presetID = isFantasy ? fantasyScoring.flatMap { FantasyScoring.preset(id: $0.id)?.id } : nil
+            return AlertRule(
                 id: id, kind: kind, sport: player.sport,
                 athleteID: player.athleteID, athleteName: player.name, teamID: player.teamID,
                 playTypes: playTypes, milestone: milestone,
+                fantasyScoringID: presetID,
+                fantasyScoring: isFantasy && presetID == nil ? fantasyScoring : nil,
                 finalPeriodOnly: finalPeriodOnly, closeGameOnly: closeGameOnly
             )
         }
@@ -178,6 +194,9 @@ struct PlayerAlertDraft: Equatable {
         if offersMilestones {
             var used = Set<String>()
             for milestone in milestones where milestone.threshold > 0 {
+                let isFantasy = milestone.stat == AlertMilestone.fantasyPoints
+                // NFL has only fantasy milestones; a fantasy one needs a scoring.
+                if isFantasy ? fantasyScoring == nil : !AlertRule.milestoneSports.contains(player.sport) { continue }
                 let reused = mine.first {
                     $0.kind == .playerMilestone && $0.milestone == milestone && !used.contains($0.id)
                 }?.id

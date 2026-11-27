@@ -42,6 +42,7 @@ struct SportsCalApp: App {
     @State private var engagementTracker = EngagementTracker()
     @State private var serverDiscovery = LocalServerDiscovery()
     @State private var subscriptionManager = SubscriptionManager.shared
+    @State private var fantasySettings = FantasySettings.shared
     @State private var viewModel: GameViewModel
 
     init() {
@@ -145,6 +146,7 @@ struct SportsCalApp: App {
                 .environment(favorites)
                 .environment(viewModel)
                 .environment(engagementTracker)
+                .environment(fantasySettings)
                 .onAppear {
                     // Every window runs onAppear; launch bookkeeping runs once.
                     LaunchOnce.run("appLaunch") { onLaunch() }
@@ -384,6 +386,7 @@ struct SportsCalApp: App {
                 // classic GameDetailView under the Classic theme and needs this.
                 .environment(engagementTracker)
                 .environment(subscriptionManager)
+                .environment(fantasySettings)
         }
         #if os(macOS)
         .defaultSize(width: 460, height: 660)

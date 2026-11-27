@@ -26,13 +26,19 @@ struct PlayerAlertSheet: View {
     private var store: CustomAlertStore { .shared }
     private var isPro: Bool { SubscriptionManager.shared.isPro }
 
-    init(player: PlayerRef) {
+    /// - Parameter threshold: A starting number for the milestone stepper (the Fantasy
+    ///   hub's "alert me at 20 points").
+    init(player: PlayerRef, threshold: Double? = nil) {
         self.player = player
-        let draft = PlayerAlertDraft(player: player, rules: CustomAlertStore.shared.playerRules)
+        var draft = PlayerAlertDraft(player: player, rules: CustomAlertStore.shared.playerRules)
+        // Fantasy milestones count with the scoring the user has chosen now.
+        if CustomAlertCatalog.offersFantasyMilestones(player.sport) {
+            draft.fantasyScoring = FantasySettings.shared.scoring(for: player.sport)
+        }
         _draft = State(initialValue: draft)
         let preset = AlertMilestone.presets(for: player.sport).first
         _milestoneStat = State(initialValue: preset?.stat ?? "")
-        _milestoneThreshold = State(initialValue: preset?.suggested.first ?? 1)
+        _milestoneThreshold = State(initialValue: threshold ?? preset?.suggested.first ?? 1)
     }
 
     private var presets: [AlertMilestone.Preset] { AlertMilestone.presets(for: player.sport) }
@@ -200,7 +206,11 @@ struct PlayerAlertSheet: View {
         } header: {
             Text("When they reach…")
         } footer: {
-            Text("Once per game, the moment they get there.")
+            if milestoneStat == AlertMilestone.fantasyPoints, let scoring = draft.fantasyScoring {
+                Text("Once per game, the moment they get there. Counted with \(scoring.name) scoring.")
+            } else {
+                Text("Once per game, the moment they get there.")
+            }
         }
     }
 

@@ -31,6 +31,8 @@ struct PlayerBoxScoreSection: View {
     let homeColor: Color
     let awayColor: Color
     var alerts: PlayerBoxScoreAlerts? = nil
+    /// ESPN athlete ID → fantasy points, for an FPTS column (NFL).
+    var fantasyPoints: [String: Double]? = nil
 
     var body: some View {
         if let box, box.away != nil || box.home != nil {
@@ -48,7 +50,7 @@ struct PlayerBoxScoreSection: View {
                     box: box, sport: sport,
                     homeName: homeName, awayName: awayName,
                     homeColor: homeColor, awayColor: awayColor,
-                    alerts: alerts
+                    alerts: alerts, fantasyPoints: fantasyPoints
                 )
             }
             .padding()
@@ -68,13 +70,15 @@ struct PlayerBoxScoreView: View {
     private let rawHomeColor: Color
     private let rawAwayColor: Color
     private let alerts: PlayerBoxScoreAlerts?
+    private let fantasyPoints: [String: Double]?
 
     @Environment(\.self) private var environment
     @State private var side: String = "away"
 
     init(box: PlayerBoxScore, sport: SportType?, homeName: String, awayName: String, homeColor: Color, awayColor: Color,
-         alerts: PlayerBoxScoreAlerts? = nil) {
+         alerts: PlayerBoxScoreAlerts? = nil, fantasyPoints: [String: Double]? = nil) {
         self.alerts = alerts
+        self.fantasyPoints = fantasyPoints
         self.box = box
         self.sport = sport
         self.homeName = homeName
@@ -108,14 +112,34 @@ struct PlayerBoxScoreView: View {
             }
 
             if let team = selectedTeam {
-                ForEach(team.groups.filter { !(showsGoalieStrip && $0.id == "goalies") }) { group in
+                let groups = team.groups.filter { !(showsGoalieStrip && $0.id == "goalies") }
+                let fantasy = fantasyPointsByGroup(groups)
+                ForEach(groups) { group in
                     PlayerStatTable(group: group, sport: sport, tint: tint(for: team), alerts: alerts.map { alerts in
                         let isHome = team.homeAway == "home"
                         return PlayerBoxScoreAlerts(followedIDs: alerts.followedIDs) { row, _ in alerts.select(row, isHome) }
-                    })
+                    }, fantasyPoints: fantasy[group.id])
                 }
             }
         }
+    }
+
+    /// Each player's fantasy points in the first table they appear in (a QB's passing
+    /// line, not again under rushing), so the column reads as one total per player.
+    private func fantasyPointsByGroup(_ groups: [PlayerBoxScore.Group]) -> [String: [String: Double]] {
+        guard let fantasyPoints, !fantasyPoints.isEmpty else { return [:] }
+        var seen = Set<String>()
+        var out: [String: [String: Double]] = [:]
+        for group in groups {
+            var points: [String: Double] = [:]
+            for row in group.rows where !row.isDNP && !seen.contains(row.id) {
+                guard let value = fantasyPoints[row.id] else { continue }
+                points[row.id] = value
+                seen.insert(row.id)
+            }
+            if !points.isEmpty { out[group.id] = points }
+        }
+        return out
     }
 
     private func tint(for team: PlayerBoxScore.Team) -> Color {
@@ -132,8 +156,11 @@ struct PlayerStatTable: View {
     let sport: SportType?
     let tint: Color
     var alerts: PlayerBoxScoreAlerts? = nil
+    /// Row ID → fantasy points, shown as a pinned FPTS column; nil hides it.
+    var fantasyPoints: [String: Double]? = nil
 
     @ScaledMetric(relativeTo: .caption) private var rowHeight: CGFloat = 26
+    @ScaledMetric(relativeTo: .caption) private var fantasyWidth: CGFloat = 44
     @ScaledMetric(relativeTo: .caption) private var nameWidth: CGFloat = 118
     @ScaledMetric(relativeTo: .caption) private var characterWidth: CGFloat = 7.5
 
@@ -191,9 +218,37 @@ struct PlayerStatTable: View {
                     }
                 }
             }
+
+            if let fantasyPoints {
+                fantasyColumn(fantasyPoints)
+            }
         }
         .font(.caption)
         .lineLimit(1)
+    }
+
+    /// FPTS pinned at the trailing edge, outside the sideways scroll.
+    private func fantasyColumn(_ points: [String: Double]) -> some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            Text("FPTS")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: fantasyWidth, height: rowHeight, alignment: .trailing)
+            ForEach(Array(played.enumerated()), id: \.element.id) { index, row in
+                Text(points[row.id].map(FantasyScoring.format) ?? "")
+                    .fontWeight(.semibold)
+                    .monospacedDigit()
+                    .frame(width: fantasyWidth, height: rowHeight, alignment: .trailing)
+                    .background(stripe(index))
+            }
+            if group.totals != nil {
+                Color.clear.frame(width: fantasyWidth, height: rowHeight)
+            }
+        }
+        .padding(.leading, 4)
+        .background(alignment: .leading) {
+            Rectangle().fill(Color.primary.opacity(0.08)).frame(width: 1)
+        }
     }
 
     private func cell<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
@@ -291,7 +346,11 @@ struct PlayerStatTable: View {
     private func accessibilityLabel(for row: PlayerBoxScore.Row) -> String {
         var name = row.fullName ?? row.name
         if let note = row.note { name += ", \(note)" }
-        return accessibilityLine(name: name, values: row.stats)
+        var line = accessibilityLine(name: name, values: row.stats)
+        if let points = fantasyPoints?[row.id] {
+            line += ", \(FantasyScoring.format(points)) fantasy points"
+        }
+        return line
     }
 
     private func accessibilityLine(name: String, values: [String]) -> String {

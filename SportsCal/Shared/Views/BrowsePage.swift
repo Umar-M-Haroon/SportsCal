@@ -11,6 +11,8 @@ import SportsCalModel
 enum BrowseRoute: Hashable {
     case teams
     case injuries
+    /// The Fantasy hub (NFL studs, stinkers, my team).
+    case fantasy
     /// One sport's browse page — pushed from the Mac's sport sidebar, which shows Home's
     /// board rather than the Browse grid.
     case sport(SportType)
@@ -80,6 +82,17 @@ struct BrowsePage: View {
             .buttonStyle(.plain)
             .padding(.horizontal)
             .padding(.top, 8)
+
+            if storage.enabledSports.contains(.nfl) {
+                NavigationLink(value: BrowseRoute.fantasy) {
+                    BrowseBanner(systemImage: "football.fill", title: "Fantasy",
+                                 subtitle: "Studs, stinkers and your team, live", tint: Color.app(.nfl),
+                                 background: Color.secondaryGroupedBackground)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal)
+                .padding(.top, 8)
+            }
 
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(storage.orderedSports, id: \.self) { sport in

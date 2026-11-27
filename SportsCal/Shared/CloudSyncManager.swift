@@ -27,6 +27,8 @@ final class CloudSyncManager {
         "hidePastGamesDuration", "showStartTime", "hiddenCompetitions",
         "useRelativeValue", "autoFollowFavorites", "showSuggestedForYou",
         "appTheme", "sportOrder",
+        // FantasySettings (JSON Data). ESPN fantasy cookies stay in the Keychain, unsynced.
+        "fantasy.selections", "fantasy.customScoring", "fantasy.leagues",
         "Favorites", "FavoritePlayers"
     ]
 

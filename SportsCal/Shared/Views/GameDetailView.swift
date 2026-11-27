@@ -44,6 +44,8 @@ final class GameDetailSectionsModel {
 
     var soccerMatch: SoccerMatchDetail?
     var soccerMatchLoading = false
+    /// NFL games' fantasy lines (`/fantasy/event/:id`), refreshed with the box score.
+    var fantasyLines: [FantasyPlayerLine]?
 
     func loadStandings(leagueID: String?, isIndividualSport: Bool) async {
         guard !isIndividualSport else {
@@ -82,6 +84,10 @@ final class GameDetailSectionsModel {
             playsLoading = false
             Perf.event("detailPlaysLoaded")
         }
+        // Fantasy lines ride alongside the box score for the sports fantasy scores.
+        let scoresFantasy = sport == "football" && league == "nfl"
+        async let fantasy: [FantasyPlayerLine]? = scoresFantasy
+            ? (try? await NetworkHandler.fetchFantasyEvent(eventID: eventID)) : nil
         do {
             let cached = try await NetworkHandler.fetchPlayByPlay(
                 eventID: eventID, sport: sport, league: league, includePlayers: true
@@ -103,6 +109,8 @@ final class GameDetailSectionsModel {
             // Silent failure — keep any plays we already have.
             playsAvailable = plays.isEmpty == false
         }
+        // Keep the last lines when a refresh fails.
+        if let lines = await fantasy { fantasyLines = lines }
     }
 
     func loadSoccerMatch(game: Game, leagueSlug: String?) async {
@@ -686,13 +694,23 @@ struct GameDetailSections: View {
         return min(max(boxPeriodWidth, spare / CGFloat(periods)), boxPeriodWidth * 1.75)
     }
 
+    /// The user's NFL fantasy scoring, for NFL games only.
+    private var fantasyScoring: FantasyScoring? {
+        guard sportType == .nfl, league == .nfl, model.fantasyLines != nil else { return nil }
+        return FantasySettings.shared.scoring(for: .nfl)
+    }
+
     var body: some View {
         VStack(spacing: 24) {
             liveSituationSection
             playoffSeriesSection
             boxScoreSection
             PlayerBoxScoreSection(box: model.players, sport: sportType, homeName: homeShortName, awayName: awayShortName, homeColor: homeColor, awayColor: awayColor,
-                                  alerts: playerAlertHandler)
+                                  alerts: playerAlertHandler,
+                                  fantasyPoints: fantasyScoring.flatMap { FantasyGameSection.pointsByAthlete(model.fantasyLines, scoring: $0) })
+            if let fantasyScoring {
+                FantasyGameSection(lines: model.fantasyLines, scoring: fantasyScoring)
+            }
             pitchersSection
             soccerMatchSection
             winProbabilitySection

@@ -1009,6 +1009,103 @@ struct NetworkHandler {
         return try? Self.sharedDecoder.decode(InjuryFeed.self, from: data)
     }
 
+    // MARK: - Fantasy
+
+    /// Why a fantasy request failed, worded for the screen that shows it.
+    enum FantasyError: LocalizedError, Equatable {
+        /// 404: no such user / league / event, or nothing scored yet.
+        case notFound
+        /// ESPN said the league is private (401/403) and the cookies were missing or stale.
+        case privateLeague
+        case invalidLeagueID
+        case server(Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .notFound: return "Nothing found."
+            case .privateLeague: return "This ESPN league is private. Add your espn_s2 and SWID cookies, or check that they're current."
+            case .invalidLeagueID: return "League IDs are numbers only."
+            case .server(let code): return "The server returned an error (\(code))."
+            }
+        }
+    }
+
+    /// Decodes a `/fantasy` response, mapping 404 and other failures to `FantasyError`.
+    private static func fantasyGET<T: Decodable>(_ type: T.Type, url: URL) async throws -> T {
+        let (data, response) = try await performAuthorized(url: url)
+        if let http = response as? HTTPURLResponse {
+            APIVersionChecker.shared.checkVersion(from: http)
+            if http.statusCode == 404 { throw FantasyError.notFound }
+            guard (200..<300).contains(http.statusCode) else { throw FantasyError.server(http.statusCode) }
+        }
+        return try Self.sharedDecoder.decode(T.self, from: data)
+    }
+
+    private static func fantasyPathComponent(_ value: String) -> String {
+        value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? value
+    }
+
+    /// `GET /fantasy/nfl/slate[?week=N]`: every started game's player lines for a week
+    /// (the current one when `week` is nil), with season averages.
+    static func fetchFantasySlate(week: Int? = nil) async throws -> FantasySlate {
+        var components = URLComponents(string: "\(baseURL())/fantasy/nfl/slate")!
+        if let week { components.queryItems = [URLQueryItem(name: "week", value: String(week))] }
+        return try await fantasyGET(FantasySlate.self, url: components.url!)
+    }
+
+    /// `GET /fantasy/event/:eventID` (TheSportsDB or ESPN ID): one game's player lines.
+    /// Memoized briefly so game detail's refresh and a hover prefetch share a request.
+    static func fetchFantasyEvent(eventID: String) async throws -> [FantasyPlayerLine] {
+        let url = URL(string: "\(baseURL())/fantasy/event/\(fantasyPathComponent(eventID))")!
+        return try await ResponseMemo.shared.value("fantasy|\(url.absoluteString)", ttl: 4) {
+            try await fantasyGET([FantasyPlayerLine].self, url: url)
+        }
+    }
+
+    /// `GET /fantasy/import/sleeper/:username`: the user and their leagues this season.
+    static func fetchSleeperUser(username: String) async throws -> FantasySleeperUser {
+        let name = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = URL(string: "\(baseURL())/fantasy/import/sleeper/\(fantasyPathComponent(name))")!
+        return try await fantasyGET(FantasySleeperUser.self, url: url)
+    }
+
+    /// `GET /fantasy/import/sleeper/league/:leagueID[?userID=]`: scoring and rosters in
+    /// ESPN athlete IDs; `myTeamID` is set when `userID` owns a team.
+    static func fetchSleeperLeague(leagueID: String, userID: String?) async throws -> FantasyLeague {
+        var components = URLComponents(string: "\(baseURL())/fantasy/import/sleeper/league/\(fantasyPathComponent(leagueID))")!
+        if let userID, !userID.isEmpty { components.queryItems = [URLQueryItem(name: "userID", value: userID)] }
+        return try await fantasyGET(FantasyLeague.self, url: components.url!)
+    }
+
+    /// An ESPN fantasy league, fetched on device straight from ESPN so a private league's
+    /// cookies never reach our server. The cookies only go out when both are given.
+    static func fetchESPNFantasyLeague(
+        leagueID: String, season: Int, espnS2: String?, swid: String?
+    ) async throws -> FantasyLeague {
+        let id = leagueID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = ESPNFantasy.leagueURL(leagueID: id, season: season) else { throw FantasyError.invalidLeagueID }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpShouldHandleCookies = false
+        let s2 = espnS2?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let swidValue = swid?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !s2.isEmpty, !swidValue.isEmpty {
+            request.setValue("espn_s2=\(s2); SWID=\(swidValue)", forHTTPHeaderField: "Cookie")
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse {
+            switch http.statusCode {
+            case 200..<300: break
+            case 401, 403: throw FantasyError.privateLeague
+            case 404: throw FantasyError.notFound
+            default: throw FantasyError.server(http.statusCode)
+            }
+        }
+        let decoded = try JSONDecoder().decode(ESPNFantasy.LeagueResponse.self, from: data)
+        return ESPNFantasy.league(from: decoded, leagueID: id, season: season, swid: swidValue.isEmpty ? nil : swidValue)
+    }
+
     /// Extended profile + roster for a single team (TheSportsDB `idTeam`).
     /// Backed by the server's `GET /team/:id/info` (Redis-cached, 24h).
     static func getTeamDetail(teamID: String) async throws -> TeamDetail {
