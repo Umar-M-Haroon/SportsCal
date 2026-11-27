@@ -12,7 +12,7 @@ import SportsCalModel
 import Logging
 
 /// Fetches injury reports from ESPN for NBA/NFL/NHL/MLB.
-/// Runs hourly with a 4-hour staleness check. Team IDs are translated to
+/// Runs hourly with a 2-hour staleness check. Team IDs are translated to
 /// TheSportsDB IDs (matching the schedule) before being written.
 struct InjuriesEnrichmentJob: AsyncScheduledJob {
     private static let logger = Logger(label: "com.sportscal.injuries-enrichment")
@@ -32,7 +32,7 @@ struct InjuriesEnrichmentJob: AsyncScheduledJob {
         let lastUpdateKey = RedisEndpoint.ESPN.injuriesLastUpdate.getValue(isDebug: isDebug)
         if let lastUpdate = try? await redis.get(lastUpdateKey, asJSON: Date.self) {
             let hoursSince = Date().timeIntervalSince(lastUpdate) / 3600
-            if hoursSince < 4 {
+            if hoursSince < 2 {
                 Self.logger.info("Injuries still fresh, skipping", metadata: [
                     "hoursSinceUpdate": "\(String(format: "%.1f", hoursSince))"
                 ])
@@ -43,21 +43,20 @@ struct InjuriesEnrichmentJob: AsyncScheduledJob {
 
         Self.logger.info("Fetching ESPN injuries")
 
-        // Keyed by normalized team name — ESPN team IDs collide across sports in
-        // the flat ESPN-ID-Map so name matching is more reliable.
-        let injuriesByTeamName = await withTaskGroup(
-            of: [String: [InjuryReport]].self,
-            returning: [String: [InjuryReport]].self
-        ) { group in
+        let feed = await withTaskGroup(of: [PlayerInjury].self, returning: [PlayerInjury].self) { group in
             for (sport, league) in Self.leagues {
                 group.addTask {
-                    await InjuriesNetworking.getInjuries(client: client, sport: sport, league: league)
+                    await InjuriesNetworking.getPlayerInjuries(client: client, sport: sport, league: league)
                 }
             }
-            return await group.reduce(into: [String: [InjuryReport]]()) { acc, partial in
-                acc.merge(partial, uniquingKeysWith: { a, _ in a })
-            }
+            return await group.reduce(into: [PlayerInjury]()) { $0 += $1 }
         }
+        // A failed fetch returns nothing; keep the last good feed rather than blank it.
+        if !feed.isEmpty {
+            let feedKey = RedisEndpoint.ESPN.injuryFeed.getValue(isDebug: isDebug)
+            try await redis.set(feedKey, toJSON: InjuryFeed(updated: Date(), injuries: feed))
+        }
+        let injuriesByTeamName = InjuriesNetworking.reportsByTeam(feed)
 
         let injuriesKey = RedisEndpoint.ESPN.injuries.getValue(isDebug: isDebug)
         try await redis.set(injuriesKey, toJSON: injuriesByTeamName)

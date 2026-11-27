@@ -806,6 +806,17 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         return HTTPCaching.respond(req, etag: etag) { body }
     }
 
+    //MARK: - Injuries
+    // Every open injury in the NBA, NFL, NHL and MLB (`InjuryFeed`), refreshed by
+    // InjuriesEnrichmentJob. Lets the app answer "what is X out with, and for how long"
+    // for any player, not just the ones on a game page.
+    routes.get("injuries") { req async throws -> Response in
+        let key = RedisEndpoint.ESPN.injuryFeed.getValue(isDebug: req.application.environment == .development).rawValue
+        let value = (try await req.kv.getString(key)) ?? "{\"injuries\":[]}"
+        let version = SourceVersionMemo.shared.version(slot: "injuries", source: value)
+        return HTTPCaching.respond(req, etag: HTTPCaching.etag(version: version, variant: "injuries")) { value }
+    }
+
     //MARK: - Play-by-Play (per-event)
     // Three-tier lookup: (1) Redis hot cache for live/in-progress games, (2) SQLite archive
     // for finalized games, (3) on-demand ESPN fetch using the `ESPN-Event-Map` or query params.

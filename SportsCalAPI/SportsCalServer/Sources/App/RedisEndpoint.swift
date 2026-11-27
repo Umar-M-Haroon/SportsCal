@@ -88,6 +88,7 @@ enum RedisEndpoint {
         case worldCupEnrichmentLastUpdate
         case injuries
         case injuriesLastUpdate
+        case injuryFeed
         case postseasonWindow
         case postseasonWindowLastUpdate
         case espnScheduleWindow           // "ESPN Schedule Window" — [Leagues: Scoreboard] for today + tomorrow
@@ -156,6 +157,8 @@ enum RedisEndpoint {
                 return "Injuries"
             case .injuriesLastUpdate:
                 return "Injuries Last Update"
+            case .injuryFeed:
+                return "Injury Feed"
             case .postseasonWindow:
                 return "Postseason Window"
             case .postseasonWindowLastUpdate:
@@ -242,6 +245,8 @@ enum RedisEndpoint {
                 return "debug-Injuries"
             case .injuriesLastUpdate:
                 return "debug-Injuries Last Update"
+            case .injuryFeed:
+                return "debug-Injury Feed"
             case .postseasonWindow:
                 return "debug-Postseason Window"
             case .postseasonWindowLastUpdate:
