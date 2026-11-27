@@ -165,12 +165,13 @@ final class FantasyTests: XCTestCase {
 
     func testSleeperScoringMapsWeightsTiersAndBonuses() {
         let settings: [String: Double] = [
-            "pass_yd": 0.04, "pass_td": 4, "pass_int": -1, "rec": 0.5, "rec_yd": 0.1, "rush_yd": 0.1,
+            "pass_yd": 0.03999999910593033, "pass_td": 4, "pass_int": -1, "rec": 0.5, "rec_yd": 0.1, "rush_yd": 0.1,
             "fgm_0_19": 3, "fgm_30_39": 3, "fgm_40_49": 4, "fgm_50p": 5, "xpm": 1,
             "pts_allow_0": 10, "pts_allow_35p": -4, "bonus_rec_yd_100": 2, "bonus_rec_te": 0.5,
         ]
         let (scoring, unsupported) = SleeperScoring.scoring(settings: settings, id: "sleeper.1", name: "L")
         XCTAssertEqual(scoring.weights[K.interceptionsThrown], -1)
+        XCTAssertEqual(scoring.weights[K.passingYards], 0.04)
         XCTAssertEqual(scoring.weights[K.receptions], 0.5)
         XCTAssertEqual(unsupported, ["bonus_rec_te 0.5"])
         XCTAssertEqual(scoring.points([K.receivingYards: 104, K.receptions: 6]), 10.4 + 3 + 2)

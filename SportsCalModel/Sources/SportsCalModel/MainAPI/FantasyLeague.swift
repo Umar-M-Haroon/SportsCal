@@ -147,6 +147,8 @@ public enum SleeperScoring {
         var unsupported: [String] = []
         let tierKeys = Set(pointsAllowed.map(\.key))
         let bonusKeys = Set(bonuses.map(\.key))
+        // Sleeper stores settings as 32-bit floats: 0.04 arrives as 0.03999999910593033.
+        let settings = settings.mapValues { ($0 * 10_000).rounded() / 10_000 }
         for (key, points) in settings where points != 0 {
             if let stat = Self.weights[key] {
                 // Three 2-pt keys share our one stat; Sleeper sets them alike.
