@@ -195,6 +195,20 @@ final class PublicHomeTests: XCTestCase {
         XCTAssertFalse(html.lowercased().contains("odds:"), "no betting content")
     }
 
+    func testHomeListsFeaturedLeaguesFirst() {
+        var games: [Game] = []
+        for i in 0..<5 {
+            games.append(Game(idEvent: "c\(i)", idLeague: "5490", idHomeTeam: "20", idAwayTeam: "21",
+                              strHomeTeam: "Gulf Giants", strAwayTeam: "Desert Vipers",
+                              strTimestamp: "2030-01-0\(i + 1)T15:00:00", isoDate: nil))
+        }
+        games.append(Game(idEvent: "1", idLeague: "4328", idHomeTeam: "10", idAwayTeam: "11",
+                          strHomeTeam: "Arsenal", strAwayTeam: "Chelsea",
+                          strTimestamp: "2030-01-01T15:00:00", isoDate: nil))
+        let schedule = PublicScheduleIndex.index(games, generation: 1)
+        XCTAssertEqual(PublicHome.homeLeagues(schedule).map(\.id), ["4328", "5490"])
+    }
+
     func testHomeRendersWithoutASchedule() {
         let html = PublicHome.homePage(schedule: .empty, site: site)
         XCTAssertTrue(html.contains("Download on the App Store"))
