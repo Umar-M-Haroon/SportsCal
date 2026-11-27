@@ -366,9 +366,14 @@ struct CustomAlertJob: AsyncScheduledJob {
                         ))
                     }
                 case .playerMilestone:
-                    guard let athleteID = rule.athleteID, let milestone = rule.milestone,
-                          let line = lines[athleteID], let current = milestone.value(in: line.stats) else { continue }
-                    let statKey = "\(athleteID)|\(milestone.stat)"
+                    guard let athleteID = rule.athleteID, let milestone = rule.milestone, let line = lines[athleteID] else { continue }
+                    let isFantasy = milestone.stat == AlertMilestone.fantasyPoints
+                    let stats = isFantasy ? (feed?.fantasyStats?[athleteID] ?? line.stats) : line.stats
+                    guard let current = rule.milestoneValue(in: stats) else { continue }
+                    // Fantasy rules key on their scoring too: two scorings cross 20 at different times.
+                    let statKey = isFantasy
+                        ? "\(athleteID)|\(milestone.stat)|\(rule.resolvedFantasyScoring?.id ?? "")"
+                        : "\(athleteID)|\(milestone.stat)"
                     let before = state.stats[statKey]
                     nextStats[statKey] = max(current, nextStats[statKey] ?? current)
                     guard !firstLook, milestone.isCrossed(from: before, to: current),

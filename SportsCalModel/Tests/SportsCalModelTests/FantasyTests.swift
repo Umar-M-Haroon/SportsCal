@@ -74,13 +74,41 @@ final class FantasyTests: XCTestCase {
         XCTAssertEqual(FantasyScoring.nflHalfPPR.points(chi.stats), 1 + 2 - 3 + 2 * (chi.stats[K.dstFumblesRecovered] ?? 0) + 6 * (chi.stats[K.dstTouchdowns] ?? 0))
     }
 
+    func testLinesAreTrimmedToFantasyStats() throws {
+        let all = try lines()
+        XCTAssertFalse(all.contains { $0.stats.keys.contains("rushing.longRushing") })
+        XCTAssertFalse(all.contains { $0.stats.keys.contains("passing.adjQBR") })
+        // Defenders with only tackles don't make the list; both D/STs do.
+        XCTAssertFalse(all.contains { $0.stats.keys.contains { $0.hasPrefix("defensive.") } })
+        XCTAssertEqual(all.filter(\.isDST).count, 2)
+        XCTAssertLessThan(all.count, 50)
+    }
+
     func testLinesCarryTeamContext() throws {
         let gibbs = try line("Jahmyr Gibbs", in: try lines())
         XCTAssertEqual(gibbs.teamAbbreviation, "DET")
         XCTAssertEqual(gibbs.opponentAbbreviation, "CHI")
         XCTAssertEqual(gibbs.isHome, true)
-        XCTAssertNotNil(gibbs.headshot)
+        XCTAssertNil(gibbs.headshot, "the standard URL is left off the wire")
+        XCTAssertEqual(gibbs.headshotURL(sport: .nfl)?.absoluteString, "https://a.espncdn.com/i/headshots/nfl/players/full/\(gibbs.athleteID).png")
         XCTAssertEqual(gibbs.statSummary, "21 CAR, 205 YD, 3 TD · 5/5 REC, 47 YD")
+    }
+
+    func testGameContextFromHeader() throws {
+        let summary = try XCTUnwrap(JSONLoader.load(file: "NFLFantasySummary", type: ESPNSummaryResponse.self) as? ESPNSummaryResponse)
+        let context = FantasyStatLines.context(header: summary.header, sport: .nfl)
+        XCTAssertEqual(context.state, "post")
+        XCTAssertEqual(context.progress, 1)
+        XCTAssertEqual(context.week, 12)
+        XCTAssertEqual(context.season, 2026)
+        XCTAssertNotNil(context.date)
+    }
+
+    func testFootballProgress() {
+        XCTAssertEqual(FantasyStatLines.regulationProgress(sport: .nfl, period: 1, clock: 900), 0)
+        XCTAssertEqual(FantasyStatLines.regulationProgress(sport: .nfl, period: 2, clock: 0), 0.5)
+        XCTAssertEqual(FantasyStatLines.regulationProgress(sport: .nfl, period: 3, clock: 450), 0.625)
+        XCTAssertEqual(FantasyStatLines.regulationProgress(sport: .nfl, period: 5, clock: 300), 1)
     }
 
     // MARK: Text parsing
@@ -174,5 +202,30 @@ final class FantasyTests: XCTestCase {
         XCTAssertEqual(FantasyScoring.format(18.4), "18.4")
         XCTAssertEqual(FantasyScoring.format(15.82), "15.82")
         XCTAssertEqual(FantasyScoring.format(-1), "-1")
+    }
+
+    // MARK: Alerts
+
+    func testFantasyMilestoneRules() throws {
+        let milestone = AlertMilestone(stat: AlertMilestone.fantasyPoints, threshold: 20)
+        var rule = AlertRule(id: "r1", kind: .playerMilestone, sport: .nfl, athleteID: "4429795", athleteName: "Jahmyr Gibbs",
+                             teamID: "134920", milestone: milestone, fantasyScoringID: FantasyScoring.nflPPR.id)
+        XCTAssertTrue(rule.isValid)
+        XCTAssertEqual(rule.milestoneValue(in: [K.receptions: 5, K.receivingYards: 50]), 10)
+        XCTAssertEqual(milestone.description(sport: .nfl), "20 fantasy points")
+
+        // Round-trips with a custom scoring and no preset.
+        rule.fantasyScoringID = nil
+        rule.fantasyScoring = FantasyScoring(id: "custom.nfl", name: "Mine", sport: .nfl, weights: [K.receptions: 2])
+        let decoded = try JSONDecoder().decode(AlertRule.self, from: JSONEncoder().encode(rule))
+        XCTAssertEqual(decoded, rule)
+        XCTAssertEqual(decoded.milestoneValue(in: [K.receptions: 5]), 10)
+
+        // Without a scoring it isn't valid; NFL stat milestones still aren't offered.
+        rule.fantasyScoring = nil
+        XCTAssertFalse(rule.isValid)
+        let yards = AlertRule(id: "r2", kind: .playerMilestone, sport: .nfl, athleteID: "1", teamID: "2",
+                              milestone: AlertMilestone(stat: K.rushingYards, threshold: 100))
+        XCTAssertFalse(yards.isValid)
     }
 }

@@ -47,6 +47,19 @@ public struct FantasyPlayerLine: Codable, Equatable, Hashable, Sendable, Identif
     public var seasonGames: Int?
 
     public var id: String { athleteID + "|" + eventID }
+
+    /// ESPN's headshot for an athlete (the box score's own URL, which the wire leaves out).
+    public static func standardHeadshot(athleteID: String, sport: SportType) -> String? {
+        switch sport {
+        case .nfl: return "https://a.espncdn.com/i/headshots/nfl/players/full/\(athleteID).png"
+        default: return nil
+        }
+    }
+
+    /// The headshot to show: the line's own (D/ST team logos), else ESPN's standard one.
+    public func headshotURL(sport: SportType) -> URL? {
+        (headshot ?? (isDST ? nil : Self.standardHeadshot(athleteID: athleteID, sport: sport))).flatMap(URL.init(string:))
+    }
     public var isDST: Bool { athleteID.hasPrefix(FantasyStatLines.dstPrefix) }
     public var isFinal: Bool { gameState == "post" }
     public var isLive: Bool { gameState == "in" }
@@ -131,10 +144,40 @@ public enum FantasyStatLines {
         if sport == .nfl {
             let plays = summary.scoringPlays ?? []
             applyScoringPlays(plays, to: &lines)
-            lines += dstLines(from: lines, plays: plays, teamIDs: teamIDs, sides: sides,
-                              abbreviations: abbreviations, eventID: eventID)
+            // The D/ST lines read defensive columns the trim below drops.
+            let defenses = dstLines(from: lines, plays: plays, teamIDs: teamIDs, sides: sides,
+                                    abbreviations: abbreviations, eventID: eventID)
+            lines = trimmed(lines, sport: sport) + defenses
         }
         return lines
+    }
+
+    /// The stats fantasy reads (scoring and the stat summary). Everything else — QBR,
+    /// long gains, per-attempt averages, tacklers — is dropped, and so are players left
+    /// with nothing: a week of lines goes from ~700KB to a fraction of it.
+    public static func fantasyKeys(for sport: SportType) -> Set<String> {
+        typealias K = FantasyStatKey.NFL
+        switch sport {
+        case .nfl:
+            return Set(FantasyStatKey.editable(for: .nfl)).union([
+                K.fieldGoalsMade, K.fieldGoalAttempts, K.extraPointAttempts, K.fumbles,
+            ])
+        default:
+            return []
+        }
+    }
+
+    static func trimmed(_ lines: [FantasyPlayerLine], sport: SportType) -> [FantasyPlayerLine] {
+        let keys = fantasyKeys(for: sport)
+        return lines.compactMap { line in
+            var line = line
+            line.stats = line.stats.filter { keys.contains($0.key) && $0.value != 0 }
+            // A box-score headshot is ESPN's standard URL; the app rebuilds it from the ID.
+            if line.headshot == FantasyPlayerLine.standardHeadshot(athleteID: line.athleteID, sport: sport) {
+                line.headshot = nil
+            }
+            return line.stats.isEmpty ? nil : line
+        }
     }
 
     // MARK: Athlete details
@@ -280,6 +323,72 @@ public enum FantasyStatLines {
                 eventID: eventID,
                 stats: stats
             )
+        }
+    }
+}
+
+// MARK: - Game context
+
+public extension FantasyStatLines {
+    struct GameContext: Equatable, Sendable {
+        public var state: String?
+        public var status: String?
+        public var progress: Double?
+        public var date: Date?
+        public var season: Int?
+        public var seasonType: Int?
+        public var week: Int?
+    }
+
+    /// The game's state and how far along it is, from the summary header.
+    static func context(header: ESPNSummaryHeader?, sport: SportType) -> GameContext {
+        let competition = header?.competition
+        let state = competition?.status?.type?.state
+        let progress: Double?
+        switch state {
+        case "post": progress = 1
+        case "pre": progress = 0
+        case "in":
+            progress = competition?.status.flatMap { status in
+                status.period.map { regulationProgress(sport: sport, period: $0, clock: status.clock ?? 0) }
+            }
+        default: progress = nil
+        }
+        return GameContext(
+            state: state,
+            status: competition?.status?.type?.shortDetail,
+            progress: progress,
+            date: competition?.date.flatMap(DateParsers.parse),
+            season: header?.season?.year,
+            seasonType: header?.season?.type,
+            week: header?.week
+        )
+    }
+
+    /// 0…1 through regulation. Football: four 15-minute quarters; overtime counts as done.
+    static func regulationProgress(sport: SportType, period: Int, clock: Double) -> Double {
+        switch sport {
+        case .nfl:
+            guard period >= 1 else { return 0 }
+            guard period <= 4 else { return 1 }
+            let quarter = 15.0 * 60
+            let elapsed = Double(period - 1) * quarter + (quarter - min(max(clock, 0), quarter))
+            return min(max(elapsed / (4 * quarter), 0), 1)
+        default:
+            return 0
+        }
+    }
+
+    /// `lines` with the game context filled in.
+    static func applying(_ context: GameContext, tsdbEventID: String?, to lines: [FantasyPlayerLine]) -> [FantasyPlayerLine] {
+        lines.map { line in
+            var line = line
+            line.gameState = context.state
+            line.gameStatus = context.status
+            line.gameProgress = context.progress
+            line.gameDate = context.date
+            line.tsdbEventID = tsdbEventID ?? line.tsdbEventID
+            return line
         }
     }
 }

@@ -819,6 +819,12 @@ struct ESPNFetchJob: AsyncScheduledJob {
         isDebug: Bool
     ) async {
         guard candidate.sport != "soccer" else { return }
+        if let sport = league.map(SportType.init(league:)), candidate.league == FantasyService.espnPath(for: sport)?.league {
+            await FantasyService.ingest(
+                summary: summary, sport: sport, espnEventID: espnEventID, tsdbEventID: candidate.tsdbEventID,
+                app: context.application, isDebug: isDebug
+            )
+        }
         guard let feed = LivePlayerFeed(
             summary: summary,
             sportType: league.map(SportType.init(league:)),

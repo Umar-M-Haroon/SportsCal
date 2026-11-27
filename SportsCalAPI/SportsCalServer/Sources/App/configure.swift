@@ -162,6 +162,17 @@ public func configure(_ app: Application) async throws {
         app.logger.error("⚠️ PBP archive failed to open — historical plays won't persist: \(error)")
     }
 
+    // Fantasy game log: one row per player per game, for slates and season averages.
+    do {
+        let defaultPath = app.directory.workingDirectory + "fantasy.sqlite"
+        let path = Environment.get("FANTASY_ARCHIVE_PATH") ?? defaultPath
+        app.fantasyArchive = try await FantasyArchive.bootstrap(path: path)
+        app.lifecycle.use(FantasyArchiveLifecycle())
+        app.logger.info("🏈 Fantasy archive opened at \(path)")
+    } catch {
+        app.logger.error("⚠️ Fantasy archive failed to open — /fantasy will 404: \(error)")
+    }
+
     // Skip scheduled jobs during testing to avoid external API calls
     if app.environment != .testing {
         // Refreshes ESPN today+tomorrow scoreboards for every league. Registered minutely
@@ -228,6 +239,10 @@ public func configure(_ app: Application) async throws {
         app.queues.schedule(TennisResultsArchiveJob())
             .hourly()
             .at(20)
+        // Fantasy: rosters daily + backfill of logged-out finals, a slice every 15 minutes.
+        for minute in [5, 20, 35, 50] {
+            app.queues.schedule(FantasyJob()).hourly().at(.init(integerLiteral: minute))
+        }
         let injuriesEnrichmentJob = InjuriesEnrichmentJob()
         app.queues.schedule(injuriesEnrichmentJob)
             .hourly()

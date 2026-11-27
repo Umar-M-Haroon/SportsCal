@@ -341,6 +341,44 @@ final class CustomAlertJobTests: XCTestCase {
         XCTAssertTrue(apns.recorded.isEmpty, "Once per rule per game")
     }
 
+    // MARK: - Fantasy points
+
+    /// An NFL summary with one running back at `yards` rushing yards and `touchdowns` TDs.
+    private func nflFeed(yards: Int, touchdowns: Int) throws -> LivePlayerFeed {
+        let json = """
+        {"boxscore": {"players": [{"team": {"id": "8", "abbreviation": "DET"}, "statistics": [{
+           "name": "rushing", "keys": ["rushingAttempts", "rushingYards", "rushingTouchdowns"],
+           "athletes": [{"athlete": {"id": "4429795", "displayName": "Jahmyr Gibbs"}, "stats": ["12", "\(yards)", "\(touchdowns)"]}]
+         }]}]}}
+        """
+        let summary = try JSONDecoder().decode(ESPNSummaryResponse.self, from: Data(json.utf8))
+        return try XCTUnwrap(LivePlayerFeed(summary: summary, sportType: .nfl, espnEventID: eventID, tsdbEventID: nil,
+                                            sport: "football", league: "nfl", isFinal: false, fetchedAt: Date()))
+    }
+
+    func testFantasyPointsMilestoneForAnNFLPlayer() async throws {
+        let rule = AlertRule(id: "gibbs-20", kind: .playerMilestone, sport: .nfl, athleteID: "4429795",
+                             athleteName: "Jahmyr Gibbs", teamID: lakers,
+                             milestone: AlertMilestone(stat: AlertMilestone.fantasyPoints, threshold: 20),
+                             fantasyScoringID: FantasyScoring.nflHalfPPR.id)
+        let response = try await register("pro", token: "tokP", rules: [rule], appUser: "p", pro: ["p"])
+        XCTAssertEqual(response.rules.map(\.id), ["gibbs-20"])
+
+        let nfl = game(league: .nfl)
+        func runNFL() async throws {
+            let live = TestGameFactory.liveScore(nfl: [nfl])
+            try await kv.setJSON(RedisEndpoint.ESPN.latestLiveInfo.getValue(isDebug: false).rawValue, value: live, ttl: nil)
+            try await CustomAlertJob.runOnce(kv: kv, apns: apns, entitlements: StubEntitlements(), now: Date(), isDebug: false,
+                                             logger: logger) { _ in nil }
+        }
+        let key = RedisEndpoint.ESPN.livePlayers(eventID).getValue(isDebug: false).rawValue
+        try await kv.setJSON(key, value: try nflFeed(yards: 60, touchdowns: 1), ttl: nil)   // 12 pts
+        try await runNFL()
+        try await kv.setJSON(key, value: try nflFeed(yards: 85, touchdowns: 2), ttl: nil)   // 20.5 pts
+        try await runNFL()
+        XCTAssertEqual(apns.recorded.map(\.alertTitle), ["Jahmyr Gibbs reaches 20 fantasy points"])
+    }
+
     func testMilestoneAlreadyPassedAtFirstLookStaysQuiet() async throws {
         try await register("pro", token: "tokP", rules: [pointsRule()], appUser: "p", pro: ["p"])
         try await writeFeed(plays: 2, points: 34)

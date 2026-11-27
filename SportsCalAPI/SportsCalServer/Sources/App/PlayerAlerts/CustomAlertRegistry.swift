@@ -165,6 +165,19 @@ enum CustomAlertRegistry {
     private static func trimmed(_ rule: AlertRule) -> AlertRule {
         var rule = rule
         rule.athleteName = rule.athleteName.map { String($0.prefix(80)) }
+        rule.fantasyScoringID = rule.fantasyScoringID.map { String($0.prefix(64)) }
+        if var scoring = rule.fantasyScoring {
+            // A preset ID makes the copy redundant; otherwise bound what's stored.
+            if rule.fantasyScoringID.flatMap(FantasyScoring.preset(id:)) != nil {
+                rule.fantasyScoring = nil
+            } else {
+                scoring.id = String(scoring.id.prefix(64))
+                scoring.name = String(scoring.name.prefix(80))
+                scoring.weights = scoring.weights.filter { $0.key.count <= 64 && $0.value.isFinite }
+                scoring.rules = scoring.rules.filter { $0.stat.count <= 64 && $0.points.isFinite && $0.min.isFinite }
+                rule.fantasyScoring = scoring
+            }
+        }
         if let types = rule.playTypes {
             var seen = Set<AlertPlayType>()
             rule.playTypes = types.filter { seen.insert($0).inserted }

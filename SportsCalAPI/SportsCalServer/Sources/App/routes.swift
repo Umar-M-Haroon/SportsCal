@@ -522,6 +522,9 @@ private func registerAPIRoutes(on routes: RoutesBuilder, app: Application) {
         writeRoutes = writeRoutes.grouped(writeAuth)
     }
 
+    // MARK: - Fantasy (see Fantasy/FantasyRoutes.swift)
+    registerFantasyRoutes(on: routes, app: app)
+
 
     // MARK: - Client Telemetry
     // Lightweight ingestion for client-side funnel events (paywall_shown,

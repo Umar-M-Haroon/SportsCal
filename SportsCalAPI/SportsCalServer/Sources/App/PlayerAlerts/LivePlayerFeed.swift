@@ -35,6 +35,10 @@ struct LivePlayerFeed: Codable, Equatable {
     var isFinal: Bool
     var plays: [PlayAthletes]
     var statLines: [PlayerLiveStatLine]
+    /// Athlete ID → the line fantasy scoring reads: the box score plus field goals by
+    /// distance and two-point conversions (`FantasyStatLines`). Sports fantasy scores
+    /// only; nil in feeds written before fantasy alerts.
+    var fantasyStats: [String: [String: Double]]? = nil
 
     /// Long enough to outlast a quiet stretch with no new plays (a rain delay: the
     /// job only re-fetches when the last play changes), short enough that finals
@@ -70,5 +74,11 @@ struct LivePlayerFeed: Codable, Equatable {
         self.isFinal = isFinal
         self.plays = plays
         self.statLines = lines
+        if let sportType, FantasyScoring.supports(sportType) {
+            let fantasy = FantasyStatLines.lines(summary: summary, sport: sportType, eventID: espnEventID)
+            var byAthlete: [String: [String: Double]] = [:]
+            for line in fantasy where !line.isDST { byAthlete[line.athleteID] = line.stats }
+            fantasyStats = byAthlete.isEmpty ? nil : byAthlete
+        }
     }
 }

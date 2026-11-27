@@ -231,6 +231,8 @@ public struct AlertMilestone: Codable, Equatable, Hashable, Sendable {
 
     public static let doubleDouble = "doubleDouble"
     public static let tripleDouble = "tripleDouble"
+    /// Fantasy points under the rule's scoring (`AlertRule.resolvedFantasyScoring`).
+    public static let fantasyPoints = "fantasyPoints"
 
     /// The player's current value for `stat`, nil if the line doesn't have it.
     public static func value(of stat: String, in stats: [String: Double]) -> Double? {
@@ -290,7 +292,9 @@ public struct AlertMilestone: Codable, Equatable, Hashable, Sendable {
                 Preset(stat: "points", label: "points", suggested: [3, 4]),
                 Preset(stat: "saves", label: "saves", suggested: [30, 40]),
             ]
-        case .soccer, .nfl, .golf, .tennis, .racing, .cricket:
+        case .nfl:
+            return [Preset(stat: fantasyPoints, label: "fantasy points", suggested: [15, 20, 25, 30])]
+        case .soccer, .golf, .tennis, .racing, .cricket:
             return []
         }
     }
@@ -352,6 +356,10 @@ public struct AlertRule: Codable, Equatable, Hashable, Sendable, Identifiable {
     public var milestone: AlertMilestone?
     /// `gameSituation`: one `ClutchMoment` kind, or nil for any of them.
     public var situation: ClutchMoment.Kind?
+    /// A `fantasyPoints` milestone's scoring: a preset's ID ("nfl.halfPPR")…
+    public var fantasyScoringID: String?
+    /// …or, for a custom or imported league scoring, the whole thing.
+    public var fantasyScoring: FantasyScoring?
     /// Only in the final period (4th quarter, 3rd period, 9th inning, second half) or later.
     public var finalPeriodOnly: Bool
     /// Only when the game is close (see `AlertRule.isClose`).
@@ -367,6 +375,8 @@ public struct AlertRule: Codable, Equatable, Hashable, Sendable, Identifiable {
         playTypes: [AlertPlayType]? = nil,
         milestone: AlertMilestone? = nil,
         situation: ClutchMoment.Kind? = nil,
+        fantasyScoringID: String? = nil,
+        fantasyScoring: FantasyScoring? = nil,
         finalPeriodOnly: Bool = false,
         closeGameOnly: Bool = false
     ) {
@@ -379,12 +389,15 @@ public struct AlertRule: Codable, Equatable, Hashable, Sendable, Identifiable {
         self.playTypes = playTypes
         self.milestone = milestone
         self.situation = situation
+        self.fantasyScoringID = fantasyScoringID
+        self.fantasyScoring = fantasyScoring
         self.finalPeriodOnly = finalPeriodOnly
         self.closeGameOnly = closeGameOnly
     }
 
     enum CodingKeys: String, CodingKey {
         case id, kind, sport, athleteID, athleteName, teamID, playTypes, milestone, situation, finalPeriodOnly, closeGameOnly
+        case fantasyScoringID, fantasyScoring
     }
 
     /// Strict on what the rule can't work without (id, kind, sport); lenient on the rest.
@@ -404,6 +417,8 @@ public struct AlertRule: Codable, Equatable, Hashable, Sendable, Identifiable {
         playTypes = rawTypes.map { $0.compactMap(AlertPlayType.init(rawValue:)) }
         milestone = (try? c.decodeIfPresent(AlertMilestone.self, forKey: .milestone)) ?? nil
         situation = (try? c.decodeIfPresent(String.self, forKey: .situation))?.flatMap(ClutchMoment.Kind.init(rawValue:))
+        fantasyScoringID = (try? c.decodeIfPresent(String.self, forKey: .fantasyScoringID)) ?? nil
+        fantasyScoring = (try? c.decodeIfPresent(FantasyScoring.self, forKey: .fantasyScoring)) ?? nil
         finalPeriodOnly = (try? c.decodeIfPresent(Bool.self, forKey: .finalPeriodOnly)) ?? false
         closeGameOnly = (try? c.decodeIfPresent(Bool.self, forKey: .closeGameOnly)) ?? false
     }
@@ -419,6 +434,8 @@ public struct AlertRule: Codable, Equatable, Hashable, Sendable, Identifiable {
         try c.encodeIfPresent(playTypes, forKey: .playTypes)
         try c.encodeIfPresent(milestone, forKey: .milestone)
         try c.encodeIfPresent(situation, forKey: .situation)
+        try c.encodeIfPresent(fantasyScoringID, forKey: .fantasyScoringID)
+        try c.encodeIfPresent(fantasyScoring, forKey: .fantasyScoring)
         try c.encode(finalPeriodOnly, forKey: .finalPeriodOnly)
         try c.encode(closeGameOnly, forKey: .closeGameOnly)
     }
@@ -441,8 +458,25 @@ public struct AlertRule: Codable, Equatable, Hashable, Sendable, Identifiable {
         case .mlb: return league == .mlb
         case .hockey: return league == .nhl
         case .soccer: return league.isSoccer
-        case .nfl, .golf, .tennis, .racing, .cricket: return false
+        // Fantasy-points milestones only (`isValid` turns away the rest).
+        case .nfl: return league == .nfl
+        case .golf, .tennis, .racing, .cricket: return false
         }
+    }
+
+    /// The scoring a `fantasyPoints` milestone counts with: the preset it names, else the
+    /// scoring it carries.
+    public var resolvedFantasyScoring: FantasyScoring? {
+        fantasyScoringID.flatMap(FantasyScoring.preset(id:)) ?? fantasyScoring
+    }
+
+    /// The milestone's current value: fantasy points under the rule's scoring, or the stat.
+    public func milestoneValue(in stats: [String: Double]) -> Double? {
+        guard let milestone else { return nil }
+        if milestone.stat == AlertMilestone.fantasyPoints {
+            return resolvedFantasyScoring.map { $0.points(stats) }
+        }
+        return milestone.value(in: stats)
     }
 
     public static func mainLeague(for sport: SportType) -> Leagues? {
@@ -466,6 +500,13 @@ public struct AlertRule: Codable, Equatable, Hashable, Sendable, Identifiable {
                   types.allSatisfy({ $0.sports.contains(sport) }) else { return false }
             return true
         case .playerMilestone:
+            if milestone?.stat == AlertMilestone.fantasyPoints {
+                guard FantasyScoring.supports(sport), hasAthleteAndTeam, let milestone,
+                      milestone.threshold > 0, milestone.threshold.isFinite,
+                      let scoring = resolvedFantasyScoring, scoring.sport == sport,
+                      scoring.weights.count <= 80, scoring.rules.count <= 40 else { return false }
+                return true
+            }
             guard Self.milestoneSports.contains(sport), hasAthleteAndTeam, let milestone,
                   !milestone.stat.isEmpty, milestone.stat.count <= 64,
                   milestone.threshold > 0, milestone.threshold.isFinite else { return false }

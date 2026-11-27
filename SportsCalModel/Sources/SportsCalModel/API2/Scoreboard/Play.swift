@@ -402,12 +402,64 @@ public struct ESPNSeasonSeries: Codable {
 /// The summary's `header`, for its event ID.
 public struct ESPNSummaryHeader: Codable {
     public var id: String?
+    /// Football's week number (`header.week`).
+    public var week: Int?
+    public var season: Season?
+    /// `header.competitions[0]`: date, status and the two teams' scores.
+    public var competition: Competition?
 
-    public init(id: String? = nil) { self.id = id }
+    public struct Season: Codable {
+        public var year: Int?
+        /// 1 pre, 2 regular, 3 post.
+        public var type: Int?
+    }
+
+    public struct Competition: Codable {
+        public var date: String?
+        public var status: Status?
+        public var competitors: [Competitor]?
+
+        public struct Status: Codable {
+            /// Seconds left in the period.
+            public var clock: Double?
+            public var period: Int?
+            public var type: StatusType?
+        }
+        public struct StatusType: Codable {
+            public var state: String?
+            public var completed: Bool?
+            public var shortDetail: String?
+        }
+        public struct Competitor: Codable {
+            public var id: String?
+            public var homeAway: String?
+            public var score: String?
+        }
+    }
+
+    public init(id: String? = nil, week: Int? = nil, season: Season? = nil, competition: Competition? = nil) {
+        self.id = id
+        self.week = week
+        self.season = season
+        self.competition = competition
+    }
+
+    enum CodingKeys: String, CodingKey { case id, week, season, competitions }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil
+        week = (try? c.decodeIfPresent(Int.self, forKey: .week)) ?? nil
+        season = (try? c.decodeIfPresent(Season.self, forKey: .season)) ?? nil
+        competition = ((try? c.decodeIfPresent([Competition].self, forKey: .competitions)) ?? nil)?.first
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(id, forKey: .id)
+        try c.encodeIfPresent(week, forKey: .week)
+        try c.encodeIfPresent(season, forKey: .season)
+        try c.encodeIfPresent(competition.map { [$0] }, forKey: .competitions)
     }
 }
 
