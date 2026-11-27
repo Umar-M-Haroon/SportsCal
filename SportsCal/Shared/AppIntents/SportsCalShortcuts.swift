@@ -43,6 +43,20 @@ struct SportsCalShortcuts: AppShortcutsProvider {
         )
 
         AppShortcut(
+            intent: CheckInjuryIntent(),
+            phrases: [
+                "What's \(\.$player)'s injury in \(.applicationName)",
+                "When is \(\.$player) back in \(.applicationName)",
+                "How long is \(\.$player) out in \(.applicationName)",
+                "Is \(\.$player) injured in \(.applicationName)",
+                "Check an injury in \(.applicationName)",
+                "Who's injured in \(.applicationName)"
+            ],
+            shortTitle: "Check Injury",
+            systemImageName: "cross.case"
+        )
+
+        AppShortcut(
             intent: OpenSportIntent(),
             phrases: [
                 "Open \(\.$sport) games in \(.applicationName)",

@@ -92,6 +92,8 @@ struct TeamDetailView: View {
                     }
                 }
 
+                TeamInjuriesSection(teamName: team.strTeam)
+
                 ForEach(seasons.seasons) { season in
                     ForEach(season.phases) { group in
                         Section {
@@ -130,6 +132,7 @@ struct TeamDetailView: View {
             .listStyle(.insetGrouped)
             #endif
             .readableScrollWidth()
+            .task { await InjuryStore.shared.refreshIfStale() }
             .task(id: seasons.anchorGameID) {
                 guard !didScrollToAnchor, let anchor = seasons.anchorGameID else { return }
                 // Let the List lay out its rows before asking it to scroll. A single

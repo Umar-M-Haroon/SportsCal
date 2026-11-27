@@ -593,6 +593,9 @@ struct DayPage: View {
                 sportFilter = .all
             }
         }
+        .onChange(of: isSearchActive) { _, active in
+            if active { Task { await InjuryStore.shared.refreshIfStale() } }
+        }
         .onChange(of: favorites.teams) { _, _ in
             withAnimation {
                 viewModel.filterSports()
@@ -1341,7 +1344,22 @@ struct DayPage: View {
 
     @ViewBuilder
     private var searchResultsContent: some View {
-        if searchFilteredGames.isEmpty {
+        // A player's name finds their injury too ("when is X back?").
+        let injuries = searchTokens.isEmpty ? Array(InjuryStore.shared.search(searchString).prefix(3)) : []
+        if !injuries.isEmpty {
+            Section("Injuries") {
+                ForEach(injuries) { injury in
+                    NavigationLink {
+                        InjuryDetailView(injury: injury)
+                    } label: {
+                        InjuryRow(injury: injury, showsTeam: true)
+                    }
+                }
+            }
+        }
+        if searchFilteredGames.isEmpty, !injuries.isEmpty {
+            EmptyView()
+        } else if searchFilteredGames.isEmpty {
             Section {
                 VStack(spacing: 12) {
                     Image(systemName: "magnifyingglass")

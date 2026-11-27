@@ -53,6 +53,7 @@ enum MacSidebarItem: Hashable {
     case favorites
     case sport(SportType)
     case team(String)   // favorite team id
+    case injuries       // the injury report, in place of the board
 }
 
 /// Small pulsing red dot signalling live activity (respects Reduce Motion).
@@ -581,6 +582,9 @@ struct ContentView: View {
                         TeamsListView()
                             .environment(viewModel)
                             .environment(favorites)
+                    case .injuries:
+                        InjuriesView()
+                            .environment(favorites)
                     case .sport(let sport):
                         BrowseSportView(sport: sport)
                             .environment(viewModel)
@@ -615,6 +619,8 @@ struct ContentView: View {
                 sidebarScopeRow("Favorites", systemImage: "star.fill",
                                 count: favoritesTodayCount, tint: .yellow)
                     .tag(MacSidebarItem.favorites)
+                sidebarScopeRow("Injuries", systemImage: "cross.case.fill", count: 0, tint: .red)
+                    .tag(MacSidebarItem.injuries)
             }
 
             Section("Sports") {
@@ -841,11 +847,17 @@ struct ContentView: View {
         // filter (all / live / favorites / sport / team). The board itself is
         // the same DayPage; only its `macScope` changes.
         NavigationStack(path: $browseTeamPath) {
-            DayPage(
-                shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
-                spotlightGameID: $spotlightGameID,
-                dayScope: dayScope(for: sidebarSelection ?? .games)
-            )
+            Group {
+                if sidebarSelection == .injuries {
+                    InjuriesView()
+                } else {
+                    DayPage(
+                        shouldShowSportsCalProAlert: $shouldShowSportsCalProAlert,
+                        spotlightGameID: $spotlightGameID,
+                        dayScope: dayScope(for: sidebarSelection ?? .games)
+                    )
+                }
+            }
             .environment(viewModel)
             .environment(storage)
             .environment(favorites)
@@ -892,6 +904,9 @@ struct ContentView: View {
                     TeamsListView()
                         .environment(viewModel)
                         .environment(favorites)
+                case .injuries:
+                    InjuriesView()
+                        .environment(favorites)
                 case .sport(let sport):
                     BrowseSportView(sport: sport)
                         .environment(viewModel)
@@ -911,6 +926,7 @@ struct ContentView: View {
         case .favorites:    return .favorites
         case .sport(let s): return .sport(s)
         case .team(let id): return .team(id)
+        case .injuries:     return .all
         }
     }
 
@@ -921,6 +937,7 @@ struct ContentView: View {
         case .favorites:    return "Favorites"
         case .sport(let s): return s.displayName
         case .team(let id): return TeamsManager.shared.team(byID: id)?.strTeam ?? "Team"
+        case .injuries:     return "Injuries"
         }
     }
     #endif

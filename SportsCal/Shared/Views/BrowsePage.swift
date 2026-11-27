@@ -10,6 +10,7 @@ import SportsCalModel
 /// lead to a `Team` push must be value-based too, or the team gets pushed twice.
 enum BrowseRoute: Hashable {
     case teams
+    case injuries
     /// One sport's browse page — pushed from the Mac's sport sidebar, which shows Home's
     /// board rather than the Browse grid.
     case sport(SportType)
@@ -65,6 +66,15 @@ struct BrowsePage: View {
             NavigationLink(value: BrowseRoute.teams) {
                 BrowseBanner(systemImage: "person.3.fill", title: "Teams",
                              subtitle: "Browse & follow any team", tint: .secondary,
+                             background: Color.secondaryGroupedBackground)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal)
+            .padding(.top, 8)
+
+            NavigationLink(value: BrowseRoute.injuries) {
+                BrowseBanner(systemImage: "cross.case.fill", title: "Injuries",
+                             subtitle: "Who's out and when they're back", tint: .red,
                              background: Color.secondaryGroupedBackground)
             }
             .buttonStyle(.plain)

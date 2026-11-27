@@ -1000,6 +1000,15 @@ struct NetworkHandler {
         return try? Self.sharedDecoder.decode(TeamCompetitionIndex.self, from: data)
     }
 
+    /// Every open NBA/NFL/NHL/MLB injury (`GET /injuries`). Nil on failure or on a
+    /// server that predates the route.
+    static func getInjuries() async -> InjuryFeed? {
+        guard let url = URL(string: "\(baseURL())/injuries"),
+              let (data, response) = try? await performAuthorized(url: url),
+              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return try? Self.sharedDecoder.decode(InjuryFeed.self, from: data)
+    }
+
     /// Extended profile + roster for a single team (TheSportsDB `idTeam`).
     /// Backed by the server's `GET /team/:id/info` (Redis-cached, 24h).
     static func getTeamDetail(teamID: String) async throws -> TeamDetail {
