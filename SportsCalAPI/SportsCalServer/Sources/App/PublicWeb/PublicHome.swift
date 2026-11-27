@@ -184,7 +184,7 @@ enum PublicHome {
 
         b.add("<section><h2>Fact sheet</h2><table><tbody>")
         b.add(factRow("Name", "Scoreline: Live Sports Scores"))
-        b.add(factRow("Developer", "Komodo LLC (independent)"))
+        b.add(factRow("Developer", "Mighty Panda LLC (independent)"))
         b.add(factRow("Platforms", "iPhone, iPad, Apple Watch, Mac"))
         b.add(factRow("Price", "Free, with optional Scoreline Pro (monthly, yearly or Lifetime)"))
         b.add(factRow("Sports", sportsLine))
@@ -235,7 +235,7 @@ enum PublicHome {
         b.add("</head><body><header><a class=\"brand\" href=\"/\">" + PublicSite.brand + "</a>")
         b.add("<nav><a href=\"/press\">Press</a></nav></header><main>")
         b.add(body)
-        b.add("</main><footer><p class=\"muted small\">© Komodo LLC · ")
+        b.add("</main><footer><p class=\"muted small\">© Mighty Panda LLC · ")
         b.add("<a href=\"/press\">Press</a> · ")
         b.add("<a href=\"" + privacyURL + "\">Privacy</a> · ")
         b.add("<a href=\"mailto:" + supportEmail + "\">Contact</a></p></footer>")
