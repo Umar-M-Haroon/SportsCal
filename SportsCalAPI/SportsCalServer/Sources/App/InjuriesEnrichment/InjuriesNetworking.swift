@@ -95,7 +95,7 @@ class InjuriesNetworking {
     private static func parse(_ teams: [TeamInjuries], league: String) -> [PlayerInjury] {
         teams.flatMap { team -> [PlayerInjury] in
             guard let teamName = team.displayName else { return [] }
-            return (team.injuries ?? []).compactMap { injury in
+            return (team.injuries ?? []).compactMap { injury -> PlayerInjury? in
                 guard let player = injury.athlete?.displayName ?? injury.athlete?.fullName,
                       let status = injury.status, status != "Active" else { return nil }
                 let athleteID = injury.athlete?.links?.lazy.compactMap { athleteID(fromLink: $0.href) }.first
