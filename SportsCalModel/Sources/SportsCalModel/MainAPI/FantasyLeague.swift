@@ -362,3 +362,18 @@ extension FantasyLeague {
         try c.encode(importedAt, forKey: .importedAt)
     }
 }
+
+/// `/fantasy/import/sleeper/:username`: who that is, and their leagues this season.
+public struct FantasySleeperUser: Codable, Equatable, Hashable, Sendable {
+    public var userID: String
+    public var displayName: String
+    public var avatar: String?
+    public var leagues: [FantasyLeagueSummary]
+
+    public init(userID: String, displayName: String, avatar: String? = nil, leagues: [FantasyLeagueSummary]) {
+        self.userID = userID
+        self.displayName = displayName
+        self.avatar = avatar
+        self.leagues = leagues
+    }
+}
