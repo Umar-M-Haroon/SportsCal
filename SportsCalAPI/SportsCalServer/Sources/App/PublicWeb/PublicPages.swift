@@ -214,6 +214,8 @@ enum PublicPages {
         var lines: [String] = []
         lines.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
         lines.append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">")
+        lines.append("<url><loc>" + WebEscape.html(site.absolute("/")) + "</loc><changefreq>weekly</changefreq></url>")
+        lines.append("<url><loc>" + WebEscape.html(site.absolute("/press")) + "</loc><changefreq>monthly</changefreq></url>")
         for league in schedule.leagues.values.sorted(by: { $0.id < $1.id }) {
             lines.append("<url><loc>" + WebEscape.html(site.absolute(site.leaguePath(league))) + "</loc><changefreq>daily</changefreq></url>")
         }
@@ -583,7 +585,7 @@ enum PublicPages {
         if !jsonLD.isEmpty {
             b.add("<script type=\"application/ld+json\">" + jsonLD + "</script>")
         }
-        b.add("</head><body><header><a class=\"brand\" href=\"" + PublicSite.appStoreURL + "\">" + PublicSite.brand + "</a></header><main>")
+        b.add("</head><body><header><a class=\"brand\" href=\"/\">" + PublicSite.brand + "</a></header><main>")
         b.add(body)
         b.add("</main><footer><p class=\"muted small\">Times shown in your local time zone where supported, otherwise UTC. Schedules change; check the app for the latest.</p></footer>")
         b.add("<script>" + localTimeScript + "</script>")

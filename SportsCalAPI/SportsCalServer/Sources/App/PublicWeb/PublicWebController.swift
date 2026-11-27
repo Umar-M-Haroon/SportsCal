@@ -1,7 +1,7 @@
 //
 //  PublicWebController.swift
 //
-//  Public, unauthenticated web surface: SEO schedule pages, the `/g/:id` game page,
+//  Public, unauthenticated web surface: the homepage and press kit, SEO schedule pages, the `/g/:id` game page,
 //  subscribable ICS feeds, `/sitemap.xml` and `/robots.txt`.
 //
 //  - No API key: these are meant for browsers, crawlers and calendar apps. They sit
@@ -53,6 +53,8 @@ struct PublicWebController: RouteCollection {
         // Browsers send no X-Install-ID, so the IP ceiling is the real limit; without it
         // a made-up install ID per request walked straight past the per-identity bucket.
         let pages = routes.grouped(RateLimitMiddleware(limit: 120, windowSeconds: 60, keyPrefix: "rl:web", ipCeiling: 120))
+        pages.get(use: home)
+        pages.get("press", use: press)
         pages.get("team", ":teamID", use: team)
         pages.get("team", ":teamID", ":slug", use: team)
         pages.get("league", ":leagueID", use: league)
@@ -69,6 +71,21 @@ struct PublicWebController: RouteCollection {
     }
 
     // MARK: - Handlers
+
+    func home(_ req: Request) async throws -> Response {
+        // The homepage must render even if the schedule can't be read: it then just
+        // leaves out the league links.
+        let schedule = (try? await currentPublicSchedule(req)) ?? .empty
+        return await cached(req, key: "home", schedule: schedule, contentType: Self.htmlType, maxAge: 600) {
+            PublicHome.homePage(schedule: schedule, site: site)
+        }
+    }
+
+    func press(_ req: Request) async throws -> Response {
+        await cached(req, key: "press", schedule: .empty, contentType: Self.htmlType, maxAge: 3600) {
+            PublicHome.pressPage(site: site)
+        }
+    }
 
     func team(_ req: Request) async throws -> Response {
         guard let id = req.parameters.get("teamID"), WebEscape.isSafeID(id) else { throw Abort(.notFound) }

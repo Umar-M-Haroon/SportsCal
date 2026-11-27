@@ -93,13 +93,18 @@ class InjuriesNetworking {
     }
 
     private static func parse(_ teams: [TeamInjuries], league: String) -> [PlayerInjury] {
-        teams.flatMap { team -> [PlayerInjury] in
-            guard let teamName = team.displayName else { return [] }
-            return (team.injuries ?? []).compactMap { injury -> PlayerInjury? in
+        var result: [PlayerInjury] = []
+        for team in teams {
+            guard let teamName = team.displayName else { continue }
+            let entries: [ESPNInjury] = team.injuries ?? []
+            for injury in entries {
                 guard let player = injury.athlete?.displayName ?? injury.athlete?.fullName,
-                      let status = injury.status, status != "Active" else { return nil }
-                let athleteID = injury.athlete?.links?.lazy.compactMap { athleteID(fromLink: $0.href) }.first
-                return PlayerInjury(
+                      let status = injury.status, status != "Active" else { continue }
+                var athleteID: String? = nil
+                for link in injury.athlete?.links ?? [] {
+                    if let id = Self.athleteID(fromLink: link.href) { athleteID = id; break }
+                }
+                result.append(PlayerInjury(
                     id: injury.id ?? "\(league):\(teamName):\(player)",
                     athleteID: athleteID,
                     playerName: player,
@@ -116,9 +121,10 @@ class InjuriesNetworking {
                     summary: injury.shortComment.flatMap(meaningfulComment),
                     details: injury.longComment.flatMap(meaningfulComment),
                     updated: injury.date
-                )
+                ))
             }
         }
+        return result
     }
 
     /// ESPN fills unknown fields with "Not Specified".

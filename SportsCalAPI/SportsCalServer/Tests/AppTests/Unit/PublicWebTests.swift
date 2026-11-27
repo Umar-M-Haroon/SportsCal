@@ -175,3 +175,55 @@ final class WebEscapeTests: XCTestCase {
         XCTAssertEqual(PublicGame.seasonLabel("2026"), "2026")
     }
 }
+
+final class PublicHomeTests: XCTestCase {
+    private let site = PublicSite(baseURL: "https://sportscal.app")
+
+    func testHomeLinksToStoreAndEscapesLeagueNames() {
+        let game = Game(idEvent: "1", idLeague: "4328", idHomeTeam: "10", idAwayTeam: "11",
+                        strHomeTeam: "Arsenal", strAwayTeam: "Chelsea",
+                        strTimestamp: "2030-01-01T15:00:00", isoDate: nil)
+        let schedule = PublicScheduleIndex.index([game], generation: 1)
+        let html = PublicHome.homePage(schedule: schedule, site: site)
+        XCTAssertTrue(html.hasPrefix("<!doctype html>"))
+        XCTAssertTrue(html.contains("href=\"https://apps.apple.com/app/id1580232928\""))
+        XCTAssertTrue(html.contains("app-id=1580232928"))
+        XCTAssertTrue(html.contains("<link rel=\"canonical\" href=\"https://sportscal.app/\">"))
+        XCTAssertTrue(html.contains("og:image\" content=\"https://sportscal.app/site/og.jpg\""))
+        XCTAssertTrue(html.contains("href=\"/league/4328/english-premier-league\""))
+        XCTAssertTrue(html.contains("\"@type\":\"MobileApplication\""))
+        XCTAssertFalse(html.lowercased().contains("odds:"), "no betting content")
+    }
+
+    func testHomeRendersWithoutASchedule() {
+        let html = PublicHome.homePage(schedule: .empty, site: site)
+        XCTAssertTrue(html.contains("Download on the App Store"))
+        XCTAssertFalse(html.contains("Schedules you can add"))
+    }
+
+    func testPressPageHasKitAndContact() {
+        let html = PublicHome.pressPage(site: site)
+        XCTAssertTrue(html.contains("/site/icon-1024.png"))
+        XCTAssertTrue(html.contains("mailto:support@komodollc.com"))
+        XCTAssertTrue(html.contains("<link rel=\"canonical\" href=\"https://sportscal.app/press\">"))
+    }
+
+    func testImagesReferencedByTheHomepageExist() throws {
+        let publicDir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Public/site")
+        var files = PublicHome.shots.map(\.file)
+        files += ["icon-256.png", "icon-1024.png", "apple-touch-icon.png", "og.jpg"]
+        for file in files {
+            let path = publicDir.appendingPathComponent(file).path
+            XCTAssertTrue(FileManager.default.fileExists(atPath: path), "missing " + file)
+        }
+    }
+
+    func testSitemapListsHomeAndPress() {
+        let sitemap = PublicPages.sitemap(.empty, site: site)
+        XCTAssertTrue(sitemap.contains("<loc>https://sportscal.app/</loc>"))
+        XCTAssertTrue(sitemap.contains("<loc>https://sportscal.app/press</loc>"))
+    }
+}
