@@ -185,7 +185,7 @@ enum SleeperImport {
                 request.headers.replaceOrAdd(name: .userAgent, value: "SportsCalServer/1.0")
             }
             guard response.status == .ok, let body = response.body else { throw Abort(.badGateway, reason: "Sleeper players unavailable") }
-            let raw = try JSONDecoder().decode([String: RawPlayer].self, from: Data(buffer: body))
+            let raw = try JSONDecoder().decode([String: RawPlayer].self, from: Data(body.readableBytesView))
             let fantasyPositions: Set<String> = ["QB", "RB", "WR", "TE", "K", "DEF"]
             var slim: [String: Player] = [:]
             for (id, player) in raw {
