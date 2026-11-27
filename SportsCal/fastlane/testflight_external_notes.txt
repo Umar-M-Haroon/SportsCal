@@ -1,10 +1,10 @@
-New in 3.4 — please try:
+New in 3.5 — please try:
 
-• Player & Game Alerts: follow a player or set an alert for a game situation (Settings › Player & Game Alerts). One alert is free; more need Pro. Tell us if an alert arrives late, twice, or not at all.
-• Cricket: Tests, ODIs, T20Is and the big franchise leagues, with live scores and full scorecards. Turn it on in your sport settings.
-• Themes: new app accent colours and alternate app icons (Settings › Themes).
-• Share cards: the share button on any game, race or match page makes an image card with a link.
-• Live Activities: team colours and logos, a win-probability bar, better layouts for golf, F1 and tennis, plus CarPlay and Apple Watch Smart Stack.
-• New onboarding: if you can, delete and reinstall to try the new first-run setup.
+• Fantasy (NFL): Browse › Fantasy shows this week's studs and stinkers, scored Half-PPR, PPR or Standard. Each player is measured against their own season average. NFL box scores now have a fantasy points column. Pro: build your own scoring, or import your Sleeper or ESPN league to follow your team. Tell us if a player's points don't match your league app.
+• Injury report: Browse › Injuries, plus injuries on team pages and in search.
+• New onboarding: pick leagues on a world map, add starter packs, or search for your teams. Delete and reinstall to try it.
+• Holiday slates: a banner on big days like Thanksgiving and Christmas.
+• Live Activities: new Pro styles (Scorebug, Minimal), a crunch-time highlight, and a StandBy layout.
+• Mac: redesigned Sports settings, the board search filters in place, and a fixed menu-bar countdown.
 
 Tell us about anything that looks wrong, is slow, or crashes (shake or screenshot to send feedback).
