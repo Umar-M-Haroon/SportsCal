@@ -264,7 +264,7 @@ struct InjuryDetailView: View {
             Section("Injury") {
                 LabeledContent("What", value: InjuryText.headline(injury))
                 LabeledContent("Status", value: InjuryText.status(injury))
-                LabeledContent("Back", value: InjuryText.returnLine(injury))
+                LabeledContent("Expected", value: InjuryText.returnLine(injury))
             }
 
             if injury.summary != nil || injury.details != nil {
